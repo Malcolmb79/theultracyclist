@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import CyclistIcon from "./CyclistIcon";
+import CyclistImage from "./CyclistImage";
 import styles from "./CyclistLayer.module.css";
 
 interface Rider {
@@ -53,7 +53,7 @@ export default function CyclistLayer() {
           style={{ top: rider.top, animationDuration: `${rider.duration}s` }}
           aria-hidden="true"
         >
-          <CyclistIcon />
+          <CyclistImage />
         </div>
       ))}
     </>

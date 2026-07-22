@@ -1,10 +1,9 @@
 .rider {
   position: fixed;
-  left: -140px;
-  width: 70px;
+  left: -180px;
+  width: 150px;
   height: auto;
-  color: var(--color-accent);
-  opacity: 0.55;
+  opacity: 0.85;
   pointer-events: none;
   z-index: -1;
   animation-name: ride;
@@ -12,27 +11,18 @@
   animation-fill-mode: forwards;
 }
 
+.rider img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
 @keyframes ride {
   from {
     transform: translateX(0);
   }
   to {
-    transform: translateX(calc(100vw + 220px));
-  }
-}
-
-.wheel {
-  animation: spin 0.5s linear infinite;
-  transform-box: fill-box;
-  transform-origin: center;
-}
-
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
+    transform: translateX(calc(100vw + 260px));
   }
 }
 

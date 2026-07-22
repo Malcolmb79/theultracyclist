@@ -1,0 +1,13 @@
+.wrap {
+  margin-bottom: var(--space-4);
+}
+
+.title {
+  font-size: clamp(2rem, 4vw, 3rem);
+}
+
+.subtitle {
+  color: var(--color-text-muted);
+  max-width: 60ch;
+  margin-top: var(--space-2);
+}

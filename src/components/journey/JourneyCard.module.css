@@ -1,0 +1,42 @@
+.card {
+  display: block;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  text-decoration: none;
+  color: var(--color-text);
+  transition: border-color 0.15s ease;
+}
+
+.card:hover {
+  border-color: var(--color-accent);
+}
+
+.cover {
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  background: var(--color-bg-elevated-2);
+}
+
+.body {
+  padding: var(--space-4);
+}
+
+.date {
+  font-size: 0.75rem;
+  color: var(--color-accent-2);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.title {
+  margin-top: var(--space-2);
+  font-size: 1.4rem;
+}
+
+.excerpt {
+  margin-top: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+}

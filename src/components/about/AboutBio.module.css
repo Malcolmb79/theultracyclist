@@ -1,0 +1,27 @@
+.wrap {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.portrait {
+  border-radius: var(--radius);
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  background: var(--color-bg-elevated);
+}
+
+.body p {
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 720px) {
+  .wrap {
+    grid-template-columns: 1fr;
+  }
+
+  .portrait {
+    max-width: 220px;
+  }
+}

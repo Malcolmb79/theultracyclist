@@ -1,0 +1,6 @@
+.wrap {
+  min-height: 340px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--color-bg-elevated);
+}

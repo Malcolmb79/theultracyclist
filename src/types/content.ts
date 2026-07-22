@@ -21,6 +21,14 @@ export interface RecordFacts {
   rulesUrl: string;
 }
 
+export interface Donation {
+  donorName: string;
+  amount: number;
+  currency: "ZAR" | "USD" | "EUR";
+  date: string; // ISO
+  message?: string;
+}
+
 export interface FundraiserInfo {
   campaignName: string;
   goalZAR: number;

@@ -1,9 +1,11 @@
 import { fundraiser } from "../../data/fundraiser";
+import { donations } from "../../data/donations";
 import { formatEUR } from "../../utils/formatCurrency";
 import { formatDate } from "../../utils/formatDate";
-import { useZarToEurRate } from "../../hooks/useZarToEurRate";
+import { useEurRates, convertToEur } from "../../hooks/useEurRates";
 import Button from "../shared/Button";
 import StatTile from "../shared/StatTile";
+import RecentDonations from "./RecentDonations";
 import styles from "./FundraiserProgress.module.css";
 
 interface FundraiserProgressProps {
@@ -12,10 +14,12 @@ interface FundraiserProgressProps {
 
 export default function FundraiserProgress({ compact = false }: FundraiserProgressProps) {
   const percent = Math.min(100, Math.round((fundraiser.raisedZAR / fundraiser.goalZAR) * 100));
-  const { rate } = useZarToEurRate();
+  const { rates } = useEurRates();
 
-  const raisedDisplay = rate ? formatEUR(fundraiser.raisedZAR * rate) : "…";
-  const goalDisplay = rate ? formatEUR(fundraiser.goalZAR * rate) : "…";
+  const raisedEur = convertToEur(fundraiser.raisedZAR, "ZAR", rates);
+  const goalEur = convertToEur(fundraiser.goalZAR, "ZAR", rates);
+  const raisedDisplay = raisedEur !== null ? formatEUR(raisedEur) : "…";
+  const goalDisplay = goalEur !== null ? formatEUR(goalEur) : "…";
 
   return (
     <div className={styles.wrap}>
@@ -36,6 +40,8 @@ export default function FundraiserProgress({ compact = false }: FundraiserProgre
           <StatTile value={`${percent}%`} label="Funded" />
         </div>
       )}
+
+      {!compact && <RecentDonations donations={donations} />}
 
       <Button href={fundraiser.campaignUrl} target="_blank" rel="noopener noreferrer">
         Donate on BackaBuddy

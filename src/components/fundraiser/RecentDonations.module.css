@@ -1,0 +1,68 @@
+.wrap {
+  margin: var(--space-4) 0;
+}
+
+.heading {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-2);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-elevated-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.amount {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  color: var(--color-accent-2);
+  min-width: 4.5em;
+}
+
+.donor {
+  font-weight: 600;
+}
+
+.date {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  margin-left: auto;
+}
+
+.message {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-style: italic;
+  font-size: 0.85rem;
+}
+
+.toggle {
+  margin-top: var(--space-3);
+  background: none;
+  border: none;
+  color: var(--color-accent);
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0;
+}
+
+.toggle:hover {
+  text-decoration: underline;
+}

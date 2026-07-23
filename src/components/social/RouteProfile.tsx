@@ -7,9 +7,10 @@ type ElevationPoint = { distanceKm: number; altitudeM: number };
 
 interface RouteProfileProps {
   points: ElevationPoint[];
+  distanceKm: number;
 }
 
-export default function RouteProfile({ points }: RouteProfileProps) {
+export default function RouteProfile({ points, distanceKm }: RouteProfileProps) {
   if (points.length < 2) {
     return null;
   }
@@ -51,7 +52,9 @@ export default function RouteProfile({ points }: RouteProfileProps) {
         <path d={areaPath} className={styles.area} />
         <path d={linePath} className={styles.line} />
       </svg>
-      <span className={styles.gain}>+{elevationGain} m</span>
+      <span className={styles.gain}>
+        {distanceKm} km · +{elevationGain} m
+      </span>
     </div>
   );
 }

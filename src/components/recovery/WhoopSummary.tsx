@@ -37,6 +37,15 @@ function Trend({ current, previous }: { current: number; previous?: number | nul
   return <span className={styles.trend}>{current > previous ? "▲" : "▼"}</span>;
 }
 
+// Whoop doesn't expose the personalized strain target via its API — this is
+// a rough estimate from their publicly stated recovery-band guidance, not an
+// official Whoop number.
+function estimatedStrainTarget(recoveryScore: number): { min: number; max: number; label: string } {
+  if (recoveryScore >= 67) return { min: 14, max: 21, label: "push" };
+  if (recoveryScore >= 34) return { min: 10, max: 14, label: "maintain" };
+  return { min: 0, max: 10, label: "rest" };
+}
+
 export default function WhoopSummary() {
   const [state, setState] = useState<LoadState>({ status: "loading" });
 
@@ -83,9 +92,12 @@ export default function WhoopSummary() {
 
   const { recovery, strain, sleep, week } = state;
   const previous = week[1];
+  const today = week[0];
+  const strainTarget = recovery ? estimatedStrainTarget(recovery.score) : null;
 
   return (
     <>
+      {today && <p className={styles.today}>{formatDate(today.date)}</p>}
       <div className={styles.grid}>
         {recovery && (
           <StatTile
@@ -125,6 +137,13 @@ export default function WhoopSummary() {
               <>
                 {strain.score.toFixed(1)} <Trend current={strain.score} previous={previous?.strain?.score} />
               </>
+            }
+            subValue={
+              strainTarget && (
+                <>
+                  Est. target {strainTarget.min}–{strainTarget.max} ({strainTarget.label})
+                </>
+              )
             }
             label="Strain"
           />

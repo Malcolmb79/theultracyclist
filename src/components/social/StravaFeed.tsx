@@ -128,7 +128,7 @@ export default function StravaFeed() {
                 {performanceStats(ride).length > 0 && (
                   <span className={styles.stats}>{performanceStats(ride).join(" · ")}</span>
                 )}
-                <RouteProfile points={ride.elevationProfile} />
+                <RouteProfile points={ride.elevationProfile} distanceKm={ride.distanceKm} />
               </div>
             </ExternalLink>
           </li>

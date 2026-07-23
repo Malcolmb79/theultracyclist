@@ -4,6 +4,5 @@
 // Strava's public no-auth widget.
 export const strava = {
   profileUrl: "https://www.strava.com/athletes/256427",
-  // TODO: replace with the real embed src once generated from Strava settings.
-  widgetSrc: "",
+  widgetSrc: "https://www.strava.com/athletes/256427/latest-rides/460f9ddbc9c14c3a914bb17b311f751f6f7063b6",
 };

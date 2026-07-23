@@ -20,6 +20,12 @@ type Ride = {
   relativeEffort: number | null;
 };
 
+type Athlete = {
+  name: string;
+  avatarUrl: string | null;
+  profileUrl: string;
+};
+
 function performanceStats(ride: Ride): string[] {
   const stats: string[] = [];
   if (ride.avgWatts) stats.push(`${ride.avgWatts} W avg`);
@@ -33,7 +39,7 @@ function performanceStats(ride: Ride): string[] {
 type LoadState =
   | { status: "loading" }
   | { status: "error" }
-  | { status: "ready"; rides: Ride[] };
+  | { status: "ready"; athlete: Athlete | null; rides: Ride[] };
 
 export default function StravaFeed() {
   const [state, setState] = useState<LoadState>({ status: "loading" });
@@ -44,10 +50,10 @@ export default function StravaFeed() {
     fetch("/api/strava-activities")
       .then((res) => {
         if (!res.ok) throw new Error(`Request failed: ${res.status}`);
-        return res.json() as Promise<{ rides: Ride[] }>;
+        return res.json() as Promise<{ athlete: Athlete | null; rides: Ride[] }>;
       })
       .then((data) => {
-        if (!cancelled) setState({ status: "ready", rides: data.rides });
+        if (!cancelled) setState({ status: "ready", athlete: data.athlete, rides: data.rides });
       })
       .catch(() => {
         if (!cancelled) setState({ status: "error" });
@@ -72,25 +78,35 @@ export default function StravaFeed() {
   }
 
   return (
-    <ul className={styles.list}>
-      {state.rides.map((ride) => (
-        <li key={ride.id} className={styles.item}>
-          <ExternalLink href={ride.url} className={styles.link}>
-            <div className={styles.thumb}>
-              <RideMap polyline={ride.polyline} />
-            </div>
-            <div className={styles.details}>
-              <span className={styles.name}>{ride.name}</span>
-              <span className={styles.meta}>
-                {formatDate(ride.startDate)} · {ride.distanceKm} km · {ride.movingTimeMinutes} min
-              </span>
-              {performanceStats(ride).length > 0 && (
-                <span className={styles.stats}>{performanceStats(ride).join(" · ")}</span>
-              )}
-            </div>
-          </ExternalLink>
-        </li>
-      ))}
-    </ul>
+    <>
+      {state.athlete && (
+        <ExternalLink href={state.athlete.profileUrl} className={styles.athlete}>
+          {state.athlete.avatarUrl && (
+            <img src={state.athlete.avatarUrl} alt="" className={styles.avatar} />
+          )}
+          <span>{state.athlete.name} on Strava</span>
+        </ExternalLink>
+      )}
+      <ul className={styles.list}>
+        {state.rides.map((ride) => (
+          <li key={ride.id} className={styles.item}>
+            <ExternalLink href={ride.url} className={styles.link}>
+              <div className={styles.thumb}>
+                <RideMap polyline={ride.polyline} />
+              </div>
+              <div className={styles.details}>
+                <span className={styles.name}>{ride.name}</span>
+                <span className={styles.meta}>
+                  {formatDate(ride.startDate)} · {ride.distanceKm} km · {ride.movingTimeMinutes} min
+                </span>
+                {performanceStats(ride).length > 0 && (
+                  <span className={styles.stats}>{performanceStats(ride).join(" · ")}</span>
+                )}
+              </div>
+            </ExternalLink>
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }

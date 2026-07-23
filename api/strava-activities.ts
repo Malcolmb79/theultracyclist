@@ -2,12 +2,26 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 const TOKEN_URL = "https://www.strava.com/oauth/token";
 const ACTIVITIES_URL = "https://www.strava.com/api/v3/athlete/activities";
+const ATHLETE_URL = "https://www.strava.com/api/v3/athlete";
 const RIDE_TYPES = new Set(["Ride", "GravelRide", "MountainBikeRide", "VirtualRide", "EBikeRide"]);
 const RIDE_COUNT = 6;
 
 type StravaTokenResponse = {
   access_token: string;
   expires_at: number;
+};
+
+type StravaAthlete = {
+  id: number;
+  firstname: string;
+  lastname: string;
+  profile_medium?: string;
+};
+
+export type Athlete = {
+  name: string;
+  avatarUrl: string | null;
+  profileUrl: string;
 };
 
 type StravaActivity = {
@@ -81,16 +95,28 @@ async function getAccessToken(): Promise<string> {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const accessToken = await getAccessToken();
+    const authHeader = { Authorization: `Bearer ${accessToken}` };
 
-    const activitiesRes = await fetch(`${ACTIVITIES_URL}?per_page=15`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    const [activitiesRes, athleteRes] = await Promise.all([
+      fetch(`${ACTIVITIES_URL}?per_page=15`, { headers: authHeader }),
+      fetch(ATHLETE_URL, { headers: authHeader }),
+    ]);
 
     if (!activitiesRes.ok) {
       throw new Error(`Strava activities fetch failed: ${activitiesRes.status}`);
     }
+    if (!athleteRes.ok) {
+      throw new Error(`Strava athlete fetch failed: ${athleteRes.status}`);
+    }
 
     const activities = (await activitiesRes.json()) as StravaActivity[];
+    const athleteData = (await athleteRes.json()) as StravaAthlete;
+
+    const athlete: Athlete = {
+      name: `${athleteData.firstname} ${athleteData.lastname}`.trim(),
+      avatarUrl: athleteData.profile_medium ?? null,
+      profileUrl: `https://www.strava.com/athletes/${athleteData.id}`,
+    };
 
     const rides: Ride[] = activities
       .filter((activity) => RIDE_TYPES.has(activity.sport_type || activity.type))
@@ -117,7 +143,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }));
 
     res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=600");
-    res.status(200).json({ rides });
+    res.status(200).json({ athlete, rides });
   } catch (error) {
     console.error(error);
     res.status(502).json({ error: "Unable to load Strava activities" });

@@ -2,11 +2,49 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 const TOKEN_URL = "https://api.prod.whoop.com/oauth/oauth2/token";
 const API_BASE = "https://api.prod.whoop.com/developer/v2";
+const VERCEL_API_BASE = "https://api.vercel.com";
 
 type WhoopTokenResponse = {
   access_token: string;
+  refresh_token: string;
   expires_in: number;
 };
+
+async function persistRotatedRefreshToken(newRefreshToken: string): Promise<void> {
+  const apiToken = process.env.VERCEL_API_TOKEN;
+  const projectId = process.env.VERCEL_PROJECT_ID;
+  const teamId = process.env.VERCEL_TEAM_ID;
+  if (!apiToken || !projectId) return;
+
+  try {
+    const teamQuery = teamId ? `?teamId=${teamId}` : "";
+    const listRes = await fetch(`${VERCEL_API_BASE}/v10/projects/${projectId}/env${teamQuery}`, {
+      headers: { Authorization: `Bearer ${apiToken}` },
+    });
+    if (!listRes.ok) {
+      console.error(`Failed to list Vercel env vars: ${listRes.status}`);
+      return;
+    }
+
+    const data = (await listRes.json()) as { envs: { id: string; key: string }[] };
+    const envVar = data.envs.find((e) => e.key === "WHOOP_REFRESH_TOKEN");
+    if (!envVar) {
+      console.error("WHOOP_REFRESH_TOKEN env var not found in Vercel project");
+      return;
+    }
+
+    const patchRes = await fetch(`${VERCEL_API_BASE}/v9/projects/${projectId}/env/${envVar.id}${teamQuery}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${apiToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ value: newRefreshToken }),
+    });
+    if (!patchRes.ok) {
+      console.error(`Failed to update WHOOP_REFRESH_TOKEN: ${patchRes.status}`);
+    }
+  } catch (error) {
+    console.error("Failed to persist rotated Whoop refresh token", error);
+  }
+}
 
 type WhoopRecoveryRecord = {
   score_state: string;
@@ -45,6 +83,7 @@ export type Strain = { score: number; avgHeartRate: number; maxHeartRate: number
 export type Sleep = { performancePercent: number; totalSleepHours: number; lightHours: number; deepHours: number; remHours: number };
 
 let cachedToken: { accessToken: string; expiresAt: number } | null = null;
+let currentRefreshToken: string | null = null;
 
 async function getAccessToken(): Promise<string> {
   if (cachedToken && cachedToken.expiresAt - 60 > Date.now() / 1000) {
@@ -53,22 +92,24 @@ async function getAccessToken(): Promise<string> {
 
   const clientId = process.env.WHOOP_CLIENT_ID;
   const clientSecret = process.env.WHOOP_CLIENT_SECRET;
-  const refreshToken = process.env.WHOOP_REFRESH_TOKEN;
+  const refreshToken = currentRefreshToken ?? process.env.WHOOP_REFRESH_TOKEN;
 
   if (!clientId || !clientSecret || !refreshToken) {
     throw new Error("Whoop API credentials are not configured");
   }
 
+  const body = new URLSearchParams({
+    grant_type: "refresh_token",
+    refresh_token: refreshToken,
+    client_id: clientId,
+    client_secret: clientSecret,
+    scope: "offline",
+  });
+
   const response = await fetch(TOKEN_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      grant_type: "refresh_token",
-      refresh_token: refreshToken,
-      client_id: clientId,
-      client_secret: clientSecret,
-      scope: "offline",
-    }),
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
   });
 
   if (!response.ok) {
@@ -77,6 +118,12 @@ async function getAccessToken(): Promise<string> {
 
   const data = (await response.json()) as WhoopTokenResponse;
   cachedToken = { accessToken: data.access_token, expiresAt: Date.now() / 1000 + data.expires_in };
+  currentRefreshToken = data.refresh_token;
+
+  if (data.refresh_token !== refreshToken) {
+    await persistRotatedRefreshToken(data.refresh_token);
+  }
+
   return cachedToken.accessToken;
 }
 

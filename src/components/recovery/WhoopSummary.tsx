@@ -60,6 +60,15 @@ function trendPoints(history: DaySummary[], pick: (day: DaySummary) => number | 
     .filter((p): p is { date: string; value: number } => p.value != null);
 }
 
+function trendStats(points: { value: number }[], format: (n: number) => string) {
+  const values = points.map((p) => p.value);
+  return {
+    low: format(Math.min(...values)),
+    high: format(Math.max(...values)),
+    now: format(values[values.length - 1]),
+  };
+}
+
 export default function WhoopSummary() {
   const [state, setState] = useState<LoadState>({ status: "loading" });
 
@@ -221,18 +230,42 @@ export default function WhoopSummary() {
               <div className={styles.trendCard}>
                 <span className={styles.trendCardLabel}>Recovery</span>
                 <TrendChart points={recoveryTrend} />
+                {(() => {
+                  const s = trendStats(recoveryTrend, (n) => `${Math.round(n)}%`);
+                  return (
+                    <span className={styles.trendCardStats}>
+                      Low {s.low} · High {s.high} · Now {s.now}
+                    </span>
+                  );
+                })()}
               </div>
             )}
             {strainTrend.length > 1 && (
               <div className={styles.trendCard}>
                 <span className={styles.trendCardLabel}>Strain</span>
                 <TrendChart points={strainTrend} />
+                {(() => {
+                  const s = trendStats(strainTrend, (n) => n.toFixed(1));
+                  return (
+                    <span className={styles.trendCardStats}>
+                      Low {s.low} · High {s.high} · Now {s.now}
+                    </span>
+                  );
+                })()}
               </div>
             )}
             {sleepTrend.length > 1 && (
               <div className={styles.trendCard}>
                 <span className={styles.trendCardLabel}>Sleep performance</span>
                 <TrendChart points={sleepTrend} />
+                {(() => {
+                  const s = trendStats(sleepTrend, (n) => `${Math.round(n)}%`);
+                  return (
+                    <span className={styles.trendCardStats}>
+                      Low {s.low} · High {s.high} · Now {s.now}
+                    </span>
+                  );
+                })()}
               </div>
             )}
           </div>

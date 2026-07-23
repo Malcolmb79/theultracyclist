@@ -4,7 +4,7 @@ export const site = {
   tagline: "Chasing the Ireland North–South record — for the kids of the Maboneng Foundation.",
   charityName: "The Maboneng Foundation",
   instagramUrl: "https://www.instagram.com/the_ultra_cyclist/",
-  stravaUrl: "https://www.strava.com/athletes/YOUR_ATHLETE_ID",
+  stravaUrl: "https://www.strava.com/athletes/256427",
   nav: [
     { label: "Home", to: "/" },
     { label: "The Record", to: "/the-record" },

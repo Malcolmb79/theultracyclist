@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import Hero from "../components/hero/Hero";
 import FundraiserProgress from "../components/fundraiser/FundraiserProgress";
 import JourneyList from "../components/journey/JourneyList";
+import StravaEmbed from "../components/social/StravaEmbed";
 import SectionHeading from "../components/shared/SectionHeading";
 import { journeyEntries } from "../data/journey";
 
@@ -27,6 +28,16 @@ export default function HomePage() {
           <JourneyList entries={journeyEntries} limit={3} />
           <p style={{ marginTop: "1.5rem" }}>
             <Link to="/journey">See all updates &rarr;</Link>
+          </p>
+        </div>
+      </section>
+
+      <section className="section">
+        <div className="container">
+          <SectionHeading eyebrow="On the bike" title="From Strava" />
+          <StravaEmbed />
+          <p style={{ marginTop: "1.5rem" }}>
+            <Link to="/follow">More ways to follow &rarr;</Link>
           </p>
         </div>
       </section>

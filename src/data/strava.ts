@@ -3,7 +3,7 @@
 // and paste the resulting iframe src below. No OAuth/API token needed — this is
 // Strava's public no-auth widget.
 export const strava = {
-  profileUrl: "https://www.strava.com/athletes/YOUR_ATHLETE_ID",
+  profileUrl: "https://www.strava.com/athletes/256427",
   // TODO: replace with the real embed src once generated from Strava settings.
   widgetSrc: "",
 };

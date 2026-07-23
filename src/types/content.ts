@@ -15,7 +15,7 @@ export interface InstagramPost {
 export interface RecordFacts {
   discipline: string;
   route: string;
-  distanceMiles: number;
+  distanceKm: number;
   currentRecordHolder: string;
   currentRecordTime: string;
   rulesUrl: string;

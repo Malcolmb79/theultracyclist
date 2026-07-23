@@ -7,7 +7,7 @@ export default function RecordFacts() {
   return (
     <div>
       <div className={styles.grid}>
-        <StatTile value={record.distanceMiles} label="Miles" />
+        <StatTile value={`${record.distanceKm} km`} label="Distance" />
         <StatTile value={record.currentRecordTime} label="Record to beat" />
         <StatTile value={record.currentRecordHolder} label="Current holder" />
       </div>

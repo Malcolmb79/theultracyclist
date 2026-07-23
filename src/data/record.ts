@@ -7,7 +7,7 @@ import type { RecordFacts } from "../types/content";
 export const record: RecordFacts = {
   discipline: "Solo, unsupported/self-supported — Ireland North to South",
   route: "Malin Head to Mizen Head (traditional Irish end-to-end route)",
-  distanceMiles: 354,
+  distanceKm: 570,
   currentRecordHolder: "TBD — no confirmed solo record on file",
   currentRecordTime: "TBD",
   rulesUrl: "https://ultracycling.com/cross-country-records/",

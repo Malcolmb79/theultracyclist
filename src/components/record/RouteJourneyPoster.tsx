@@ -17,8 +17,6 @@ function quadraticPoint(t: number) {
   };
 }
 
-const distanceKm = Math.round(record.distanceMiles * 1.60934);
-
 // Waypoints are illustrative (a plausible north-south corridor), not a
 // certified GPS route -- distances are proportional estimates along our
 // simplified curve, not measured road distance.
@@ -109,9 +107,7 @@ export default function RouteJourneyPoster() {
         <div className={styles.statsGrid}>
           <div>
             <div className={styles.statLabel}>Target distance</div>
-            <div className={styles.statValue}>
-              {distanceKm} km ({record.distanceMiles} mi)
-            </div>
+            <div className={styles.statValue}>{record.distanceKm} km</div>
           </div>
           <div>
             <div className={styles.statLabel}>Rider</div>

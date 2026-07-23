@@ -1,3 +1,7 @@
+.wrap {
+  padding: 0 clamp(var(--space-4), 4vw, var(--space-6));
+}
+
 .athlete {
   display: flex;
   align-items: center;

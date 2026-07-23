@@ -23,6 +23,8 @@ export default function FollowPage() {
       <section className="section">
         <div className="container">
           <SectionHeading title="From Strava" />
+        </div>
+        <div className="full-bleed">
           <StravaFeed />
         </div>
       </section>

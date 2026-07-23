@@ -35,7 +35,11 @@ export default function HomePage() {
       <section className="section">
         <div className="container">
           <SectionHeading eyebrow="On the bike" title="From Strava" />
+        </div>
+        <div className="full-bleed">
           <StravaFeed />
+        </div>
+        <div className="container">
           <p style={{ marginTop: "1.5rem" }}>
             <Link to="/follow">More ways to follow &rarr;</Link>
           </p>

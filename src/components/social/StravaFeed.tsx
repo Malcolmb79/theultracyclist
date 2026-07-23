@@ -69,20 +69,26 @@ export default function StravaFeed() {
   }, []);
 
   if (state.status === "loading") {
-    return <p className={styles.placeholder}>Loading recent rides…</p>;
+    return (
+      <div className={styles.wrap}>
+        <p className={styles.placeholder}>Loading recent rides…</p>
+      </div>
+    );
   }
 
   if (state.status === "error" || state.rides.length === 0) {
     return (
-      <p className={styles.placeholder}>
-        Recent rides aren't available right now —{" "}
-        <ExternalLink href={strava.profileUrl}>view the profile on Strava</ExternalLink> instead.
-      </p>
+      <div className={styles.wrap}>
+        <p className={styles.placeholder}>
+          Recent rides aren't available right now —{" "}
+          <ExternalLink href={strava.profileUrl}>view the profile on Strava</ExternalLink> instead.
+        </p>
+      </div>
     );
   }
 
   return (
-    <>
+    <div className={styles.wrap}>
       {state.athlete && (
         <ExternalLink href={state.athlete.profileUrl} className={styles.athlete}>
           {state.athlete.avatarUrl && (
@@ -112,6 +118,6 @@ export default function StravaFeed() {
           </li>
         ))}
       </ul>
-    </>
+    </div>
   );
 }

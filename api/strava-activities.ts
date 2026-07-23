@@ -6,6 +6,35 @@ const ATHLETE_URL = "https://www.strava.com/api/v3/athlete";
 const RIDE_TYPES = new Set(["Ride", "GravelRide", "MountainBikeRide", "VirtualRide", "EBikeRide"]);
 const RIDE_COUNT = 6;
 
+type ElevationPoint = { distanceKm: number; altitudeM: number };
+
+type StravaStreamSet = {
+  distance?: { data: number[] };
+  altitude?: { data: number[] };
+};
+
+async function fetchElevationProfile(activityId: number, authHeader: HeadersInit): Promise<ElevationPoint[]> {
+  try {
+    const url = `https://www.strava.com/api/v3/activities/${activityId}/streams?keys=distance,altitude&key_by_type=true&resolution=low`;
+    const res = await fetch(url, { headers: authHeader });
+    if (!res.ok) return [];
+
+    const streams = (await res.json()) as StravaStreamSet;
+    const distances = streams.distance?.data;
+    const altitudes = streams.altitude?.data;
+    if (!distances || !altitudes || distances.length < 2 || distances.length !== altitudes.length) {
+      return [];
+    }
+
+    return distances.map((d, i) => ({
+      distanceKm: Math.round((d / 1000) * 100) / 100,
+      altitudeM: Math.round(altitudes[i]),
+    }));
+  } catch {
+    return [];
+  }
+}
+
 type StravaTokenResponse = {
   access_token: string;
   expires_at: number;
@@ -55,6 +84,7 @@ export type Ride = {
   avgHeartrate: number | null;
   maxHeartrate: number | null;
   relativeEffort: number | null;
+  elevationProfile: ElevationPoint[];
 };
 
 let cachedToken: { accessToken: string; expiresAt: number } | null = null;
@@ -118,10 +148,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       profileUrl: `https://www.strava.com/athletes/${athleteData.id}`,
     };
 
-    const rides: Ride[] = activities
+    const rideActivities = activities
       .filter((activity) => RIDE_TYPES.has(activity.sport_type || activity.type))
-      .slice(0, RIDE_COUNT)
-      .map((activity) => ({
+      .slice(0, RIDE_COUNT);
+
+    const rides: Ride[] = await Promise.all(
+      rideActivities.map(async (activity) => ({
         id: activity.id,
         name: activity.name,
         distanceKm: Math.round((activity.distance / 1000) * 10) / 10,
@@ -140,7 +172,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           ? Math.round(activity.max_heartrate)
           : null,
         relativeEffort: activity.suffer_score != null ? Math.round(activity.suffer_score) : null,
-      }));
+        elevationProfile: await fetchElevationProfile(activity.id, authHeader),
+      })),
+    );
 
     res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=600");
     res.status(200).json({ athlete, rides });

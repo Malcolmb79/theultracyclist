@@ -3,7 +3,10 @@ import { strava } from "../../data/strava";
 import { formatDate } from "../../utils/formatDate";
 import ExternalLink from "../shared/ExternalLink";
 import RideMap from "./RideMap";
+import RouteProfile from "./RouteProfile";
 import styles from "./StravaFeed.module.css";
+
+type ElevationPoint = { distanceKm: number; altitudeM: number };
 
 type Ride = {
   id: number;
@@ -18,6 +21,7 @@ type Ride = {
   avgHeartrate: number | null;
   maxHeartrate: number | null;
   relativeEffort: number | null;
+  elevationProfile: ElevationPoint[];
 };
 
 type Athlete = {
@@ -102,6 +106,7 @@ export default function StravaFeed() {
                 {performanceStats(ride).length > 0 && (
                   <span className={styles.stats}>{performanceStats(ride).join(" · ")}</span>
                 )}
+                <RouteProfile points={ride.elevationProfile} />
               </div>
             </ExternalLink>
           </li>

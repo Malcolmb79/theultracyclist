@@ -211,7 +211,7 @@ export default function WhoopSummary() {
       {daysTracked > 0 && (
         <div className={styles.month}>
           <p className={styles.monthLabel}>
-            Last 30 days · {daysTracked} {daysTracked === 1 ? "day" : "days"} tracked
+            Last 25 days · {daysTracked} {daysTracked === 1 ? "day" : "days"} tracked
             {avgRecovery != null && ` · ${avgRecovery}% avg recovery`}
             {avgStrain != null && ` · ${avgStrain} avg strain`}
             {avgSleep != null && ` · ${avgSleep}% avg sleep`}

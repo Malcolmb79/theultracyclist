@@ -101,7 +101,7 @@ export type DaySummary = {
   sleep: Sleep | null;
 };
 
-const DAYS = 30;
+const DAYS = 25; // Whoop's collection endpoints cap `limit` at 25.
 
 function buildRecovery(record: WhoopRecoveryRecord | undefined): Recovery | null {
   return record?.score_state === "SCORED" && record.score

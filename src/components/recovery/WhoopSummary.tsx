@@ -23,6 +23,20 @@ function dayStats(day: DaySummary): string[] {
   return stats;
 }
 
+// Whoop's own recovery banding: green 67-100, yellow 34-66, red 0-33.
+function recoveryColor(score: number): string {
+  if (score >= 67) return "var(--color-accent-2)";
+  if (score >= 34) return "var(--color-amber)";
+  return "var(--color-accent)";
+}
+
+function Trend({ current, previous }: { current: number; previous?: number | null }) {
+  if (previous == null || current === previous) {
+    return <span className={styles.trendFlat}>–</span>;
+  }
+  return <span className={styles.trend}>{current > previous ? "▲" : "▼"}</span>;
+}
+
 export default function WhoopSummary() {
   const [state, setState] = useState<LoadState>({ status: "loading" });
 
@@ -68,18 +82,72 @@ export default function WhoopSummary() {
   }
 
   const { recovery, strain, sleep, week } = state;
+  const previous = week[1];
 
   return (
     <>
       <div className={styles.grid}>
-        {recovery && <StatTile value={`${recovery.score}%`} label="Recovery" />}
-        {recovery && <StatTile value={`${recovery.hrvMs} ms`} label="HRV" />}
-        {recovery && <StatTile value={`${recovery.restingHeartRate} bpm`} label="Resting heart rate" />}
-        {strain && <StatTile value={strain.score.toFixed(1)} label="Strain" />}
-        {strain && <StatTile value={`${strain.avgHeartRate} bpm`} label="Avg heart rate" />}
+        {recovery && (
+          <StatTile
+            value={
+              <>
+                <span style={{ color: recoveryColor(recovery.score) }}>{recovery.score}%</span>{" "}
+                <Trend current={recovery.score} previous={previous?.recovery?.score} />
+              </>
+            }
+            label="Recovery"
+          />
+        )}
+        {recovery && (
+          <StatTile
+            value={
+              <>
+                {recovery.hrvMs} ms <Trend current={recovery.hrvMs} previous={previous?.recovery?.hrvMs} />
+              </>
+            }
+            label="HRV"
+          />
+        )}
+        {recovery && (
+          <StatTile
+            value={
+              <>
+                {recovery.restingHeartRate} bpm{" "}
+                <Trend current={recovery.restingHeartRate} previous={previous?.recovery?.restingHeartRate} />
+              </>
+            }
+            label="Resting heart rate"
+          />
+        )}
+        {strain && (
+          <StatTile
+            value={
+              <>
+                {strain.score.toFixed(1)} <Trend current={strain.score} previous={previous?.strain?.score} />
+              </>
+            }
+            label="Strain"
+          />
+        )}
+        {strain && (
+          <StatTile
+            value={
+              <>
+                {strain.avgHeartRate} bpm{" "}
+                <Trend current={strain.avgHeartRate} previous={previous?.strain?.avgHeartRate} />
+              </>
+            }
+            label="Avg heart rate"
+          />
+        )}
         {sleep && (
           <StatTile
-            value={`${sleep.performancePercent}%`}
+            value={
+              <>
+                {sleep.performancePercent}%{" "}
+                <Trend current={sleep.performancePercent} previous={previous?.sleep?.performancePercent} />
+              </>
+            }
             subValue={`${sleep.totalSleepHours}h total`}
             label="Sleep performance"
           />

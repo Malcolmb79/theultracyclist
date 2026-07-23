@@ -48,6 +48,11 @@
   font-size: 0.85rem;
 }
 
+.stats {
+  color: var(--color-accent-2);
+  font-size: 0.8rem;
+}
+
 .placeholder {
   padding: var(--space-4);
   border-radius: var(--radius);

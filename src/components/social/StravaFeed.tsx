@@ -13,7 +13,22 @@ type Ride = {
   startDate: string;
   url: string;
   polyline: string;
+  avgWatts: number | null;
+  weightedAvgWatts: number | null;
+  avgHeartrate: number | null;
+  maxHeartrate: number | null;
+  relativeEffort: number | null;
 };
+
+function performanceStats(ride: Ride): string[] {
+  const stats: string[] = [];
+  if (ride.avgWatts) stats.push(`${ride.avgWatts} W avg`);
+  if (ride.weightedAvgWatts) stats.push(`${ride.weightedAvgWatts} W norm`);
+  if (ride.avgHeartrate) stats.push(`${ride.avgHeartrate} bpm avg`);
+  if (ride.maxHeartrate) stats.push(`${ride.maxHeartrate} bpm max`);
+  if (ride.relativeEffort) stats.push(`${ride.relativeEffort} effort`);
+  return stats;
+}
 
 type LoadState =
   | { status: "loading" }
@@ -69,6 +84,9 @@ export default function StravaFeed() {
               <span className={styles.meta}>
                 {formatDate(ride.startDate)} · {ride.distanceKm} km · {ride.movingTimeMinutes} min
               </span>
+              {performanceStats(ride).length > 0 && (
+                <span className={styles.stats}>{performanceStats(ride).join(" · ")}</span>
+              )}
             </div>
           </ExternalLink>
         </li>

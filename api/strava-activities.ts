@@ -19,6 +19,13 @@ type StravaActivity = {
   sport_type: string;
   start_date: string;
   map?: { summary_polyline?: string };
+  average_watts?: number;
+  weighted_average_watts?: number;
+  device_watts?: boolean;
+  has_heartrate?: boolean;
+  average_heartrate?: number;
+  max_heartrate?: number;
+  suffer_score?: number;
 };
 
 export type Ride = {
@@ -29,6 +36,11 @@ export type Ride = {
   startDate: string;
   url: string;
   polyline: string;
+  avgWatts: number | null;
+  weightedAvgWatts: number | null;
+  avgHeartrate: number | null;
+  maxHeartrate: number | null;
+  relativeEffort: number | null;
 };
 
 let cachedToken: { accessToken: string; expiresAt: number } | null = null;
@@ -91,6 +103,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         startDate: activity.start_date,
         url: `https://www.strava.com/activities/${activity.id}`,
         polyline: activity.map?.summary_polyline ?? "",
+        avgWatts: activity.device_watts ? Math.round(activity.average_watts ?? 0) : null,
+        weightedAvgWatts: activity.device_watts && activity.weighted_average_watts != null
+          ? Math.round(activity.weighted_average_watts)
+          : null,
+        avgHeartrate: activity.has_heartrate && activity.average_heartrate != null
+          ? Math.round(activity.average_heartrate)
+          : null,
+        maxHeartrate: activity.has_heartrate && activity.max_heartrate != null
+          ? Math.round(activity.max_heartrate)
+          : null,
+        relativeEffort: activity.suffer_score != null ? Math.round(activity.suffer_score) : null,
       }));
 
     res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=600");

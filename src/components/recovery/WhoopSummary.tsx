@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { formatDate } from "../../utils/formatDate";
 import StatTile from "../shared/StatTile";
+import TrendChart from "./TrendChart";
 import styles from "./WhoopSummary.module.css";
 
 type Recovery = { score: number; hrvMs: number; restingHeartRate: number };
@@ -11,7 +12,7 @@ type DaySummary = { date: string; recovery: Recovery | null; strain: Strain | nu
 type LoadState =
   | { status: "loading" }
   | { status: "error" }
-  | { status: "ready"; recovery: Recovery | null; strain: Strain | null; sleep: Sleep | null; week: DaySummary[] };
+  | { status: "ready"; recovery: Recovery | null; strain: Strain | null; sleep: Sleep | null; history: DaySummary[] };
 
 function dayStats(day: DaySummary): string[] {
   const stats: string[] = [];
@@ -46,6 +47,19 @@ function estimatedStrainTarget(recoveryScore: number): { min: number; max: numbe
   return { min: 0, max: 10, label: "rest" };
 }
 
+function average(values: number[]): number | null {
+  if (values.length === 0) return null;
+  return Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 10) / 10;
+}
+
+function trendPoints(history: DaySummary[], pick: (day: DaySummary) => number | null | undefined) {
+  return history
+    .slice()
+    .reverse()
+    .map((day) => ({ date: day.date, value: pick(day) }))
+    .filter((p): p is { date: string; value: number } => p.value != null);
+}
+
 export default function WhoopSummary() {
   const [state, setState] = useState<LoadState>({ status: "loading" });
 
@@ -59,7 +73,7 @@ export default function WhoopSummary() {
           recovery: Recovery | null;
           strain: Strain | null;
           sleep: Sleep | null;
-          week: DaySummary[];
+          history: DaySummary[];
         }>;
       })
       .then((data) => {
@@ -69,7 +83,7 @@ export default function WhoopSummary() {
             recovery: data.recovery,
             strain: data.strain,
             sleep: data.sleep,
-            week: data.week ?? [],
+            history: data.history ?? [],
           });
         }
       })
@@ -90,10 +104,20 @@ export default function WhoopSummary() {
     return <p className={styles.placeholder}>Recovery data isn't available right now.</p>;
   }
 
-  const { recovery, strain, sleep, week } = state;
+  const { recovery, strain, sleep, history } = state;
+  const week = history.slice(0, 7);
   const previous = week[1];
   const today = week[0];
   const strainTarget = recovery ? estimatedStrainTarget(recovery.score) : null;
+
+  const avgRecovery = average(history.map((d) => d.recovery?.score).filter((v): v is number => v != null));
+  const avgStrain = average(history.map((d) => d.strain?.score).filter((v): v is number => v != null));
+  const avgSleep = average(history.map((d) => d.sleep?.performancePercent).filter((v): v is number => v != null));
+  const daysTracked = history.filter((d) => d.recovery || d.strain || d.sleep).length;
+
+  const recoveryTrend = trendPoints(history, (d) => d.recovery?.score);
+  const strainTrend = trendPoints(history, (d) => d.strain?.score);
+  const sleepTrend = trendPoints(history, (d) => d.sleep?.performancePercent);
 
   return (
     <>
@@ -182,6 +206,37 @@ export default function WhoopSummary() {
             </li>
           ))}
         </ul>
+      )}
+
+      {daysTracked > 0 && (
+        <div className={styles.month}>
+          <p className={styles.monthLabel}>
+            Last 30 days · {daysTracked} {daysTracked === 1 ? "day" : "days"} tracked
+            {avgRecovery != null && ` · ${avgRecovery}% avg recovery`}
+            {avgStrain != null && ` · ${avgStrain} avg strain`}
+            {avgSleep != null && ` · ${avgSleep}% avg sleep`}
+          </p>
+          <div className={styles.trendGrid}>
+            {recoveryTrend.length > 1 && (
+              <div className={styles.trendCard}>
+                <span className={styles.trendCardLabel}>Recovery</span>
+                <TrendChart points={recoveryTrend} />
+              </div>
+            )}
+            {strainTrend.length > 1 && (
+              <div className={styles.trendCard}>
+                <span className={styles.trendCardLabel}>Strain</span>
+                <TrendChart points={strainTrend} />
+              </div>
+            )}
+            {sleepTrend.length > 1 && (
+              <div className={styles.trendCard}>
+                <span className={styles.trendCardLabel}>Sleep performance</span>
+                <TrendChart points={sleepTrend} />
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </>
   );

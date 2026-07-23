@@ -101,7 +101,7 @@ export type DaySummary = {
   sleep: Sleep | null;
 };
 
-const DAYS = 7;
+const DAYS = 30;
 
 function buildRecovery(record: WhoopRecoveryRecord | undefined): Recovery | null {
   return record?.score_state === "SCORED" && record.score
@@ -208,7 +208,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const cyclesById = new Map(cycleData.records.map((c) => [c.id, c]));
     const sleepsById = new Map(sleepData.records.map((s) => [s.id, s]));
 
-    const week: DaySummary[] = recoveryData.records.map((recoveryRecord) => {
+    const history: DaySummary[] = recoveryData.records.map((recoveryRecord) => {
       const cycleRecord = cyclesById.get(recoveryRecord.cycle_id);
       const sleepRecord = sleepsById.get(recoveryRecord.sleep_id);
       return {
@@ -219,10 +219,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       };
     });
 
-    const latest = week[0] ?? { recovery: null, strain: null, sleep: null };
+    const latest = history[0] ?? { recovery: null, strain: null, sleep: null };
 
     res.setHeader("Cache-Control", "public, s-maxage=1800, stale-while-revalidate=3600");
-    res.status(200).json({ recovery: latest.recovery, strain: latest.strain, sleep: latest.sleep, week });
+    res.status(200).json({ recovery: latest.recovery, strain: latest.strain, sleep: latest.sleep, history });
   } catch (error) {
     console.error(error);
     res.status(502).json({ error: "Unable to load Whoop data" });

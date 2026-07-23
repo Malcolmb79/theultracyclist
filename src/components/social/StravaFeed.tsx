@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { strava } from "../../data/strava";
 import { formatDate } from "../../utils/formatDate";
 import ExternalLink from "../shared/ExternalLink";
+import RideMap from "./RideMap";
 import styles from "./StravaFeed.module.css";
 
 type Ride = {
@@ -11,6 +12,7 @@ type Ride = {
   movingTimeMinutes: number;
   startDate: string;
   url: string;
+  polyline: string;
 };
 
 type LoadState =
@@ -59,10 +61,15 @@ export default function StravaFeed() {
       {state.rides.map((ride) => (
         <li key={ride.id} className={styles.item}>
           <ExternalLink href={ride.url} className={styles.link}>
-            <span className={styles.name}>{ride.name}</span>
-            <span className={styles.meta}>
-              {formatDate(ride.startDate)} · {ride.distanceKm} km · {ride.movingTimeMinutes} min
-            </span>
+            <div className={styles.thumb}>
+              <RideMap polyline={ride.polyline} />
+            </div>
+            <div className={styles.details}>
+              <span className={styles.name}>{ride.name}</span>
+              <span className={styles.meta}>
+                {formatDate(ride.startDate)} · {ride.distanceKm} km · {ride.movingTimeMinutes} min
+              </span>
+            </div>
           </ExternalLink>
         </li>
       ))}

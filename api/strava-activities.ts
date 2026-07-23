@@ -18,6 +18,7 @@ type StravaActivity = {
   type: string;
   sport_type: string;
   start_date: string;
+  map?: { summary_polyline?: string };
 };
 
 export type Ride = {
@@ -27,6 +28,7 @@ export type Ride = {
   movingTimeMinutes: number;
   startDate: string;
   url: string;
+  polyline: string;
 };
 
 let cachedToken: { accessToken: string; expiresAt: number } | null = null;
@@ -88,6 +90,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         movingTimeMinutes: Math.round(activity.moving_time / 60),
         startDate: activity.start_date,
         url: `https://www.strava.com/activities/${activity.id}`,
+        polyline: activity.map?.summary_polyline ?? "",
       }));
 
     res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=600");

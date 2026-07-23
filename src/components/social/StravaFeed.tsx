@@ -4,9 +4,20 @@ import { formatDate } from "../../utils/formatDate";
 import ExternalLink from "../shared/ExternalLink";
 import RideMap from "./RideMap";
 import RouteProfile from "./RouteProfile";
+import StravaSummary from "./StravaSummary";
 import styles from "./StravaFeed.module.css";
 
 type ElevationPoint = { distanceKm: number; altitudeM: number };
+
+type PeriodSummary = {
+  rideCount: number;
+  distanceKm: number;
+  movingTimeMinutes: number;
+  elevationGainM: number;
+  avgWatts: number | null;
+  avgHeartrate: number | null;
+  totalRelativeEffort: number | null;
+};
 
 type Ride = {
   id: number;
@@ -40,10 +51,12 @@ function performanceStats(ride: Ride): string[] {
   return stats;
 }
 
+type Summary = { weekly: PeriodSummary; monthly: PeriodSummary };
+
 type LoadState =
   | { status: "loading" }
   | { status: "error" }
-  | { status: "ready"; athlete: Athlete | null; rides: Ride[] };
+  | { status: "ready"; athlete: Athlete | null; rides: Ride[]; summary: Summary | null };
 
 export default function StravaFeed() {
   const [state, setState] = useState<LoadState>({ status: "loading" });
@@ -54,10 +67,12 @@ export default function StravaFeed() {
     fetch("/api/strava-activities")
       .then((res) => {
         if (!res.ok) throw new Error(`Request failed: ${res.status}`);
-        return res.json() as Promise<{ athlete: Athlete | null; rides: Ride[] }>;
+        return res.json() as Promise<{ athlete: Athlete | null; rides: Ride[]; summary: Summary | null }>;
       })
       .then((data) => {
-        if (!cancelled) setState({ status: "ready", athlete: data.athlete, rides: data.rides });
+        if (!cancelled) {
+          setState({ status: "ready", athlete: data.athlete, rides: data.rides, summary: data.summary });
+        }
       })
       .catch(() => {
         if (!cancelled) setState({ status: "error" });
@@ -97,6 +112,7 @@ export default function StravaFeed() {
           <span>{state.athlete.name} on Strava</span>
         </ExternalLink>
       )}
+      {state.summary && <StravaSummary weekly={state.summary.weekly} monthly={state.summary.monthly} />}
       <ul className={styles.list}>
         {state.rides.map((ride) => (
           <li key={ride.id} className={styles.item}>

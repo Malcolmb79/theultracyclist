@@ -61,6 +61,7 @@ type StravaActivity = {
   type: string;
   sport_type: string;
   start_date: string;
+  total_elevation_gain?: number;
   map?: { summary_polyline?: string };
   average_watts?: number;
   weighted_average_watts?: number;
@@ -70,6 +71,47 @@ type StravaActivity = {
   max_heartrate?: number;
   suffer_score?: number;
 };
+
+export type PeriodSummary = {
+  rideCount: number;
+  distanceKm: number;
+  movingTimeMinutes: number;
+  elevationGainM: number;
+  avgWatts: number | null;
+  avgHeartrate: number | null;
+  totalRelativeEffort: number | null;
+};
+
+function summarizePeriod(rides: StravaActivity[]): PeriodSummary {
+  const totalMovingTime = rides.reduce((sum, r) => sum + r.moving_time, 0);
+
+  const powerRides = rides.filter((r) => r.device_watts && r.average_watts != null);
+  const powerTime = powerRides.reduce((sum, r) => sum + r.moving_time, 0);
+  const avgWatts = powerTime > 0
+    ? Math.round(powerRides.reduce((sum, r) => sum + (r.average_watts ?? 0) * r.moving_time, 0) / powerTime)
+    : null;
+
+  const hrRides = rides.filter((r) => r.has_heartrate && r.average_heartrate != null);
+  const hrTime = hrRides.reduce((sum, r) => sum + r.moving_time, 0);
+  const avgHeartrate = hrTime > 0
+    ? Math.round(hrRides.reduce((sum, r) => sum + (r.average_heartrate ?? 0) * r.moving_time, 0) / hrTime)
+    : null;
+
+  const effortRides = rides.filter((r) => r.suffer_score != null);
+  const totalRelativeEffort = effortRides.length > 0
+    ? Math.round(effortRides.reduce((sum, r) => sum + (r.suffer_score ?? 0), 0))
+    : null;
+
+  return {
+    rideCount: rides.length,
+    distanceKm: Math.round(rides.reduce((sum, r) => sum + r.distance, 0) / 100) / 10,
+    movingTimeMinutes: Math.round(totalMovingTime / 60),
+    elevationGainM: Math.round(rides.reduce((sum, r) => sum + (r.total_elevation_gain ?? 0), 0)),
+    avgWatts,
+    avgHeartrate,
+    totalRelativeEffort,
+  };
+}
 
 export type Ride = {
   id: number;
@@ -127,20 +169,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const accessToken = await getAccessToken();
     const authHeader = { Authorization: `Bearer ${accessToken}` };
 
-    const [activitiesRes, athleteRes] = await Promise.all([
+    const nowMs = Date.now();
+    const weekAgoMs = nowMs - 7 * 24 * 60 * 60 * 1000;
+    const monthAgoMs = nowMs - 30 * 24 * 60 * 60 * 1000;
+    const monthAgoEpoch = Math.floor(monthAgoMs / 1000);
+
+    const [activitiesRes, monthActivitiesRes, athleteRes] = await Promise.all([
       fetch(`${ACTIVITIES_URL}?per_page=15`, { headers: authHeader }),
+      fetch(`${ACTIVITIES_URL}?after=${monthAgoEpoch}&per_page=100`, { headers: authHeader }),
       fetch(ATHLETE_URL, { headers: authHeader }),
     ]);
 
     if (!activitiesRes.ok) {
       throw new Error(`Strava activities fetch failed: ${activitiesRes.status}`);
     }
+    if (!monthActivitiesRes.ok) {
+      throw new Error(`Strava month activities fetch failed: ${monthActivitiesRes.status}`);
+    }
     if (!athleteRes.ok) {
       throw new Error(`Strava athlete fetch failed: ${athleteRes.status}`);
     }
 
     const activities = (await activitiesRes.json()) as StravaActivity[];
+    const monthActivities = (await monthActivitiesRes.json()) as StravaActivity[];
     const athleteData = (await athleteRes.json()) as StravaAthlete;
+
+    const monthRides = monthActivities.filter((a) => RIDE_TYPES.has(a.sport_type || a.type));
+    const weekRides = monthRides.filter((a) => new Date(a.start_date).getTime() >= weekAgoMs);
+
+    const summary = {
+      weekly: summarizePeriod(weekRides),
+      monthly: summarizePeriod(monthRides),
+    };
 
     const athlete: Athlete = {
       name: `${athleteData.firstname} ${athleteData.lastname}`.trim(),
@@ -177,7 +237,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
 
     res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=600");
-    res.status(200).json({ athlete, rides });
+    res.status(200).json({ athlete, rides, summary });
   } catch (error) {
     console.error(error);
     res.status(502).json({ error: "Unable to load Strava activities" });

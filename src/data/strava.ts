@@ -4,5 +4,11 @@
 // Strava's public no-auth widget.
 export const strava = {
   profileUrl: "https://www.strava.com/athletes/256427",
-  widgetSrc: "https://www.strava.com/athletes/256427/latest-rides/460f9ddbc9c14c3a914bb17b311f751f6f7063b6",
+  // TODO: this widget URL was confirmed (3x) to redirect to a Strava login
+  // wall even when directly visited outside the site, despite Activity
+  // Privacy being set to Everyone -- either a stale/invalid hash or this
+  // embed type has been restricted. Cleared back to empty so the site shows
+  // the working link-only fallback instead of a broken iframe. Replace with
+  // a fresh widget URL if a working one is generated later.
+  widgetSrc: "",
 };

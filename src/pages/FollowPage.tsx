@@ -1,5 +1,5 @@
 import InstagramFeed from "../components/social/InstagramFeed";
-import StravaEmbed from "../components/social/StravaEmbed";
+import StravaFeed from "../components/social/StravaFeed";
 import FollowLinks from "../components/social/FollowLinks";
 import SectionHeading from "../components/shared/SectionHeading";
 
@@ -23,7 +23,7 @@ export default function FollowPage() {
       <section className="section">
         <div className="container">
           <SectionHeading title="From Strava" />
-          <StravaEmbed />
+          <StravaFeed />
         </div>
       </section>
     </>

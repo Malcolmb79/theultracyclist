@@ -10,6 +10,11 @@ type WhoopTokenResponse = {
   expires_in: number;
 };
 
+// Whoop rotates the refresh token on every use. We can't read Vercel env var
+// values back (the API's decrypt=true doesn't actually decrypt for personal
+// access tokens), so process.env stays the read source for this deployment's
+// lifetime, and each rotation is best-effort persisted back to Vercel via
+// PATCH so the *next* deployment's cold start picks up the latest one.
 async function persistRotatedRefreshToken(newRefreshToken: string): Promise<void> {
   const apiToken = process.env.VERCEL_API_TOKEN;
   const projectId = process.env.VERCEL_PROJECT_ID;
@@ -26,10 +31,12 @@ async function persistRotatedRefreshToken(newRefreshToken: string): Promise<void
       return;
     }
 
-    const data = (await listRes.json()) as { envs: { id: string; key: string }[] };
-    const envVar = data.envs.find((e) => e.key === "WHOOP_REFRESH_TOKEN");
+    const data = (await listRes.json()) as { envs: { id: string; key: string; target: string[] | string }[] };
+    const envVar = data.envs.find(
+      (e) => e.key === "WHOOP_REFRESH_TOKEN" && (Array.isArray(e.target) ? e.target.includes("production") : e.target === "production"),
+    );
     if (!envVar) {
-      console.error("WHOOP_REFRESH_TOKEN env var not found in Vercel project");
+      console.error("WHOOP_REFRESH_TOKEN (production) env var not found in Vercel project");
       return;
     }
 

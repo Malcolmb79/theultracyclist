@@ -63,6 +63,24 @@ async function persistHistory(history: HealthDay[]): Promise<void> {
   }
 }
 
+// Env var changes only apply on the *next* deployment's cold start, so a
+// pushed value wouldn't show up on the live site until an unrelated code
+// change deploys. Triggering the project's deploy hook after a successful
+// write makes each push visible within roughly a deploy cycle instead.
+async function triggerRedeploy(): Promise<void> {
+  const hookUrl = process.env.HEALTH_DATA_DEPLOY_HOOK_URL;
+  if (!hookUrl) return;
+
+  try {
+    const res = await fetch(hookUrl, { method: "POST" });
+    if (!res.ok) {
+      console.error(`Deploy hook trigger failed: ${res.status}`);
+    }
+  } catch (error) {
+    console.error("Failed to trigger deploy hook", error);
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === "POST") {
     const secret = process.env.APPLE_HEALTH_WEBHOOK_SECRET;
@@ -93,6 +111,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const trimmed = history.slice(0, MAX_DAYS);
 
     await persistHistory(trimmed);
+    await triggerRedeploy();
 
     res.status(200).json({ ok: true, entry });
     return;

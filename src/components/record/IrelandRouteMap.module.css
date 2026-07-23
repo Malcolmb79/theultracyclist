@@ -1,0 +1,41 @@
+.wrap {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-4) 0;
+}
+
+.svg {
+  width: 100%;
+  max-width: 280px;
+  height: auto;
+}
+
+.island {
+  fill: var(--color-bg-elevated-2);
+  stroke: var(--color-border);
+  stroke-width: 1.5;
+}
+
+.route {
+  fill: none;
+  stroke: url(#routeGradient);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 7 6;
+}
+
+.label {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.labelStart {
+  fill: var(--color-accent);
+}
+
+.labelEnd {
+  fill: var(--color-accent-2);
+}

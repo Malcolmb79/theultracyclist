@@ -1,0 +1,55 @@
+.poster {
+  width: 100%;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  margin-bottom: var(--space-5);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.crew {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  list-style: none;
+  padding: 0;
+  margin: var(--space-2) 0 var(--space-5);
+}
+
+.crew li {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 0.35rem 0.9rem;
+  font-size: 0.85rem;
+}
+
+.splitsTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.splitsTable th {
+  text-align: left;
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: var(--space-2) var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.splitsTable td {
+  padding: var(--space-2) var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.splitsWrap {
+  overflow-x: auto;
+}

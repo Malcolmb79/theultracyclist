@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { about } from "../../data/about";
 import styles from "./AboutBio.module.css";
 
@@ -11,6 +12,9 @@ export default function AboutBio() {
         {about.bioParagraphs.map((paragraph, i) => (
           <p key={i}>{paragraph}</p>
         ))}
+        <p>
+          <Link to="/previous-record">Read about the 2022 East-to-West record &rarr;</Link>
+        </p>
       </div>
     </div>
   );

@@ -95,6 +95,7 @@ export default function DashboardPage() {
 function DashboardEditor({ password }: { password: string }) {
   const data = useDashboardData();
   const [widgets, setWidgets] = useState<Widget[] | null>(null);
+  const [catalogOpen, setCatalogOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -146,6 +147,7 @@ function DashboardEditor({ password }: { password: string }) {
       height: DEFAULT_WIDGET_HEIGHT,
     };
     saveWidgets([...widgets, widget]);
+    setCatalogOpen(false);
   };
 
   const handleRemove = (id: string) => saveWidgets(widgets.filter((w) => w.id !== id));
@@ -185,6 +187,7 @@ function DashboardEditor({ password }: { password: string }) {
         ? [...widgets.slice(0, overIndex), newWidget, ...widgets.slice(overIndex)]
         : [...widgets, newWidget];
       saveWidgets(next);
+      setCatalogOpen(false);
       return;
     }
 
@@ -200,32 +203,45 @@ function DashboardEditor({ password }: { password: string }) {
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className={styles.page}>
-        <div className={styles.layout}>
-          <aside className={styles.sidebar}>
-            <DataCatalog metrics={data.metrics} addedIds={addedIds} onAdd={handleAdd} />
-          </aside>
-          <Canvas>
-            {widgets.length === 0 ? (
-              <p className={styles.emptyCanvas}>Add data from the panel to build your dashboard.</p>
-            ) : (
-              <SortableContext items={widgets.map((w) => w.id)} strategy={rectSortingStrategy}>
-                <div className={styles.widgetGrid}>
-                  {widgets.map((widget) => (
-                    <DashboardWidget
-                      key={widget.id}
-                      widget={widget}
-                      metricById={metricById}
-                      onViewTypeChange={(viewType) => handleViewTypeChange(widget.id, viewType)}
-                      onColorChange={(color) => handleColorChange(widget.id, color)}
-                      onResize={(width, height) => handleResize(widget.id, width, height)}
-                      onRemove={() => handleRemove(widget.id)}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            )}
-          </Canvas>
-        </div>
+        <button
+          type="button"
+          className={styles.catalogToggle}
+          onClick={() => setCatalogOpen((open) => !open)}
+          aria-label={catalogOpen ? "Close data menu" : "Open data menu"}
+          aria-expanded={catalogOpen}
+        >
+          {catalogOpen ? "×" : "☰"}
+        </button>
+
+        {catalogOpen && (
+          <div className={styles.catalogBackdrop} onClick={() => setCatalogOpen(false)} />
+        )}
+
+        <aside className={`${styles.catalogDrawer} ${catalogOpen ? styles.catalogDrawerOpen : ""}`}>
+          <DataCatalog metrics={data.metrics} addedIds={addedIds} onAdd={handleAdd} />
+        </aside>
+
+        <Canvas>
+          {widgets.length === 0 ? (
+            <p className={styles.emptyCanvas}>Open the menu to add data and build your dashboard.</p>
+          ) : (
+            <SortableContext items={widgets.map((w) => w.id)} strategy={rectSortingStrategy}>
+              <div className={styles.widgetGrid}>
+                {widgets.map((widget) => (
+                  <DashboardWidget
+                    key={widget.id}
+                    widget={widget}
+                    metricById={metricById}
+                    onViewTypeChange={(viewType) => handleViewTypeChange(widget.id, viewType)}
+                    onColorChange={(color) => handleColorChange(widget.id, color)}
+                    onResize={(width, height) => handleResize(widget.id, width, height)}
+                    onRemove={() => handleRemove(widget.id)}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          )}
+        </Canvas>
       </div>
     </DndContext>
   );

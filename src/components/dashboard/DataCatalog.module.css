@@ -1,8 +1,5 @@
 .catalog {
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius);
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border);
+  padding: 0 var(--space-2);
 }
 
 .title {

@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { persistEnvVar } from "./_lib/vercelEnvStore.js";
+import { persistEnvVar, triggerDeployHook } from "./_lib/vercelEnvStore.js";
 
 export type Widget = {
   id: string;
@@ -35,6 +35,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const widgets = (req.body as { widgets?: Widget[] }).widgets ?? [];
     await persistEnvVar("DASHBOARD_LAYOUT", JSON.stringify(widgets));
+    await triggerDeployHook();
     res.status(200).json({ ok: true });
     return;
   }

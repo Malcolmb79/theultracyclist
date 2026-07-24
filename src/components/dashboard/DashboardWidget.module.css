@@ -83,9 +83,10 @@
   line-height: 1;
   touch-action: none;
   cursor: grab;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.15s ease;
+  /* display:none (not opacity) so the hidden handle/controls don't reserve
+     header width at rest - otherwise the label has to fight them for space
+     on every render, not just while actively hovered/selected. */
+  display: none;
 }
 
 .dragHandle:active {
@@ -93,21 +94,20 @@
 }
 
 .controls {
-  display: flex;
+  display: none;
   align-items: center;
   gap: var(--space-1);
   flex: none;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.15s ease;
 }
 
 .widget:hover .dragHandle,
+.widget[data-selected] .dragHandle {
+  display: block;
+}
+
 .widget:hover .controls,
-.widget[data-selected] .dragHandle,
 .widget[data-selected] .controls {
-  opacity: 1;
-  pointer-events: auto;
+  display: flex;
 }
 
 .select {

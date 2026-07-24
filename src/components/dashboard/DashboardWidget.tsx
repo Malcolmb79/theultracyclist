@@ -1,3 +1,5 @@
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { formatDate } from "../../utils/formatDate";
 import StatTile from "../shared/StatTile";
 import TrendChart from "../recovery/TrendChart";
@@ -9,11 +11,7 @@ interface DashboardWidgetProps {
   widget: Widget;
   metric: MetricDef | undefined;
   onViewTypeChange: (viewType: Widget["viewType"]) => void;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
   onRemove: () => void;
-  isFirst: boolean;
-  isLast: boolean;
 }
 
 function formatValue(value: number, unit: string): string {
@@ -21,19 +19,21 @@ function formatValue(value: number, unit: string): string {
   return unit ? `${rounded.toLocaleString()} ${unit}` : rounded.toLocaleString();
 }
 
-export default function DashboardWidget({
-  widget,
-  metric,
-  onViewTypeChange,
-  onMoveUp,
-  onMoveDown,
-  onRemove,
-  isFirst,
-  isLast,
-}: DashboardWidgetProps) {
+export default function DashboardWidget({ widget, metric, onViewTypeChange, onRemove }: DashboardWidgetProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: widget.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
+
   return (
-    <div className={styles.widget}>
+    <div ref={setNodeRef} style={style} className={styles.widget}>
       <div className={styles.header}>
+        <button type="button" className={styles.dragHandle} {...attributes} {...listeners} aria-label="Drag to reorder">
+          ⠿
+        </button>
         <span className={styles.label}>{widget.label}</span>
         <div className={styles.controls}>
           <select
@@ -45,12 +45,6 @@ export default function DashboardWidget({
             <option value="chart">Chart</option>
             <option value="timeline">Timeline</option>
           </select>
-          <button type="button" className={styles.iconButton} onClick={onMoveUp} disabled={isFirst} aria-label="Move up">
-            ↑
-          </button>
-          <button type="button" className={styles.iconButton} onClick={onMoveDown} disabled={isLast} aria-label="Move down">
-            ↓
-          </button>
           <button type="button" className={styles.iconButton} onClick={onRemove} aria-label="Remove widget">
             ×
           </button>

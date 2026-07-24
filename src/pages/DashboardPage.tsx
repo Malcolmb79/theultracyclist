@@ -1,8 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  useDroppable,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { SortableContext, arrayMove, rectSortingStrategy } from "@dnd-kit/sortable";
 import DataCatalog from "../components/dashboard/DataCatalog";
 import DashboardWidget from "../components/dashboard/DashboardWidget";
 import { useDashboardData } from "../components/dashboard/useDashboardData";
-import type { Widget } from "../components/dashboard/types";
+import { CATALOG_DRAG_PREFIX, type Widget } from "../components/dashboard/types";
 import type { MetricDef } from "../components/dashboard/useDashboardData";
 import styles from "./DashboardPage.module.css";
 
@@ -102,6 +111,8 @@ function DashboardEditor({ password }: { password: string }) {
     });
   };
 
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+
   if (data.status === "loading" || widgets === null) {
     return (
       <div className={styles.page}>
@@ -129,42 +140,79 @@ function DashboardEditor({ password }: { password: string }) {
   const handleViewTypeChange = (id: string, viewType: Widget["viewType"]) =>
     saveWidgets(widgets.map((w) => (w.id === id ? { ...w, viewType } : w)));
 
-  const handleMove = (index: number, direction: -1 | 1) => {
-    const next = widgets.slice();
-    const target = index + direction;
-    if (target < 0 || target >= next.length) return;
-    [next[index], next[target]] = [next[target], next[index]];
-    saveWidgets(next);
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+
+    const activeId = String(active.id);
+
+    if (activeId.startsWith(CATALOG_DRAG_PREFIX)) {
+      const metricId = activeId.slice(CATALOG_DRAG_PREFIX.length);
+      const metric = metricById.get(metricId);
+      if (!metric || addedIds.has(metric.id)) return;
+
+      const newWidget: Widget = {
+        id: nextId(),
+        source: metric.source,
+        metric: metric.id,
+        label: metric.label,
+        viewType: metric.statOnly ? "stat" : "chart",
+      };
+
+      const overIndex = widgets.findIndex((w) => w.id === over.id);
+      const next = overIndex >= 0
+        ? [...widgets.slice(0, overIndex), newWidget, ...widgets.slice(overIndex)]
+        : [...widgets, newWidget];
+      saveWidgets(next);
+      return;
+    }
+
+    if (active.id !== over.id) {
+      const oldIndex = widgets.findIndex((w) => w.id === active.id);
+      const newIndex = widgets.findIndex((w) => w.id === over.id);
+      if (oldIndex >= 0 && newIndex >= 0) {
+        saveWidgets(arrayMove(widgets, oldIndex, newIndex));
+      }
+    }
   };
 
   return (
-    <div className={styles.page}>
-      <div className={styles.layout}>
-        <aside className={styles.sidebar}>
-          <DataCatalog metrics={data.metrics} addedIds={addedIds} onAdd={handleAdd} />
-        </aside>
-        <main className={styles.canvas}>
-          {widgets.length === 0 ? (
-            <p className={styles.emptyCanvas}>Add data from the panel to build your dashboard.</p>
-          ) : (
-            <div className={styles.widgetGrid}>
-              {widgets.map((widget, index) => (
-                <DashboardWidget
-                  key={widget.id}
-                  widget={widget}
-                  metric={metricById.get(widget.metric)}
-                  onViewTypeChange={(viewType) => handleViewTypeChange(widget.id, viewType)}
-                  onMoveUp={() => handleMove(index, -1)}
-                  onMoveDown={() => handleMove(index, 1)}
-                  onRemove={() => handleRemove(widget.id)}
-                  isFirst={index === 0}
-                  isLast={index === widgets.length - 1}
-                />
-              ))}
-            </div>
-          )}
-        </main>
+    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+      <div className={styles.page}>
+        <div className={styles.layout}>
+          <aside className={styles.sidebar}>
+            <DataCatalog metrics={data.metrics} addedIds={addedIds} onAdd={handleAdd} />
+          </aside>
+          <Canvas>
+            {widgets.length === 0 ? (
+              <p className={styles.emptyCanvas}>Add data from the panel to build your dashboard.</p>
+            ) : (
+              <SortableContext items={widgets.map((w) => w.id)} strategy={rectSortingStrategy}>
+                <div className={styles.widgetGrid}>
+                  {widgets.map((widget) => (
+                    <DashboardWidget
+                      key={widget.id}
+                      widget={widget}
+                      metric={metricById.get(widget.metric)}
+                      onViewTypeChange={(viewType) => handleViewTypeChange(widget.id, viewType)}
+                      onRemove={() => handleRemove(widget.id)}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            )}
+          </Canvas>
+        </div>
       </div>
-    </div>
+    </DndContext>
+  );
+}
+
+function Canvas({ children }: { children: ReactNode }) {
+  const { setNodeRef } = useDroppable({ id: "canvas" });
+  return (
+    <main ref={setNodeRef} className={styles.canvas}>
+      {children}
+    </main>
   );
 }

@@ -5,3 +5,5 @@ export type Widget = {
   label: string;
   viewType: "stat" | "chart" | "timeline";
 };
+
+export const CATALOG_DRAG_PREFIX = "catalog:";

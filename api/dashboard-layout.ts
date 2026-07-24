@@ -6,7 +6,7 @@ export type Widget = {
   source: "strava" | "whoop" | "health";
   metric: string;
   label: string;
-  viewType: "stat" | "chart" | "timeline";
+  viewType: "stat" | "chart" | "timeline" | "ring" | "combo";
 };
 
 function readLayout(): Widget[] {

@@ -2,14 +2,16 @@ import styles from "./TrendChart.module.css";
 
 const VIEW_WIDTH = 300;
 const VIEW_HEIGHT = 40;
+const DOT_RADIUS = 3;
 
 type TrendPoint = { date: string; value: number };
 
 interface TrendChartProps {
   points: TrendPoint[];
+  pointColor?: (point: TrendPoint) => string;
 }
 
-export default function TrendChart({ points }: TrendChartProps) {
+export default function TrendChart({ points, pointColor }: TrendChartProps) {
   if (points.length < 2) {
     return null;
   }
@@ -39,8 +41,20 @@ export default function TrendChart({ points }: TrendChartProps) {
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
     >
-      <path d={areaPath} className={styles.area} />
-      <path d={linePath} className={styles.line} />
+      <path d={areaPath} className={pointColor ? styles.areaNeutral : styles.area} />
+      <path d={linePath} className={pointColor ? styles.lineNeutral : styles.line} />
+      {pointColor &&
+        points.map((p, i) => (
+          <circle
+            key={p.date}
+            cx={toX(i)}
+            cy={toY(p.value)}
+            r={DOT_RADIUS}
+            fill={pointColor(p)}
+            stroke="var(--color-bg-elevated)"
+            strokeWidth={1}
+          />
+        ))}
     </svg>
   );
 }

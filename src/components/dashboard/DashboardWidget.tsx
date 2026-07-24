@@ -1,15 +1,17 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { formatDate } from "../../utils/formatDate";
+import { recoveryColor } from "../../utils/recoveryColor";
 import StatTile from "../shared/StatTile";
 import TrendChart from "../recovery/TrendChart";
+import RingGauge from "./RingGauge";
 import type { MetricDef } from "./useDashboardData";
-import type { Widget } from "./types";
+import { WHOOP_STRAIN_RECOVERY_COMBO_ID, type Widget } from "./types";
 import styles from "./DashboardWidget.module.css";
 
 interface DashboardWidgetProps {
   widget: Widget;
-  metric: MetricDef | undefined;
+  metricById: Map<string, MetricDef>;
   onViewTypeChange: (viewType: Widget["viewType"]) => void;
   onRemove: () => void;
 }
@@ -19,8 +21,23 @@ function formatValue(value: number, unit: string): string {
   return unit ? `${rounded.toLocaleString()} ${unit}` : rounded.toLocaleString();
 }
 
-export default function DashboardWidget({ widget, metric, onViewTypeChange, onRemove }: DashboardWidgetProps) {
+function ringColor(metric: MetricDef, value: number): string {
+  if (metric.id === "whoop.recovery") return recoveryColor(value);
+  if (metric.id === "whoop.sleepPerformance") return "#8FA9C5";
+  if (metric.id === "whoop.strain") return "#4B87F5";
+  return "var(--color-accent-2)";
+}
+
+function ringPercent(metric: MetricDef, value: number): number {
+  if (metric.unit === "%") return value;
+  if (metric.id === "whoop.strain") return (value / 21) * 100;
+  return Math.min(100, value);
+}
+
+export default function DashboardWidget({ widget, metricById, onViewTypeChange, onRemove }: DashboardWidgetProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: widget.id });
+  const isCombo = widget.metric === WHOOP_STRAIN_RECOVERY_COMBO_ID;
+  const metric = isCombo ? undefined : metricById.get(widget.metric);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -43,26 +60,38 @@ export default function DashboardWidget({ widget, metric, onViewTypeChange, onRe
         </div>
         <span className={styles.label}>{widget.label}</span>
         <div className={styles.controls}>
-          <select
-            className={styles.select}
-            value={widget.viewType}
-            onChange={(e) => onViewTypeChange(e.target.value as Widget["viewType"])}
-          >
-            <option value="stat">Stat</option>
-            <option value="chart">Chart</option>
-            <option value="timeline">Timeline</option>
-          </select>
+          {!isCombo && (
+            <select
+              className={styles.select}
+              value={widget.viewType}
+              onChange={(e) => onViewTypeChange(e.target.value as Widget["viewType"])}
+            >
+              <option value="stat">Stat</option>
+              <option value="chart">Chart</option>
+              <option value="ring">Ring</option>
+              <option value="timeline">Timeline</option>
+            </select>
+          )}
           <button type="button" className={styles.iconButton} onClick={onRemove} aria-label="Remove widget">
             ×
           </button>
         </div>
       </div>
 
-      {!metric || metric.series.length === 0 ? (
+      {isCombo ? (
+        <ComboStrainRecovery strain={metricById.get("whoop.strain")} recovery={metricById.get("whoop.recovery")} />
+      ) : !metric || metric.series.length === 0 ? (
         <p className={styles.empty}>No data yet for this metric.</p>
       ) : widget.viewType === "stat" ? (
         <StatTile
           value={formatValue(metric.series[metric.series.length - 1].value, metric.unit)}
+          label={formatDate(metric.series[metric.series.length - 1].date)}
+        />
+      ) : widget.viewType === "ring" ? (
+        <RingGauge
+          percent={ringPercent(metric, metric.series[metric.series.length - 1].value)}
+          color={ringColor(metric, metric.series[metric.series.length - 1].value)}
+          centerValue={formatValue(metric.series[metric.series.length - 1].value, metric.unit)}
           label={formatDate(metric.series[metric.series.length - 1].date)}
         />
       ) : widget.viewType === "chart" ? (
@@ -85,6 +114,33 @@ export default function DashboardWidget({ widget, metric, onViewTypeChange, onRe
             ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+function ComboStrainRecovery({ strain, recovery }: { strain: MetricDef | undefined; recovery: MetricDef | undefined }) {
+  if (!strain?.series.length || !recovery?.series.length) {
+    return <p className={styles.empty}>No data yet for this metric.</p>;
+  }
+
+  return (
+    <div className={styles.combo}>
+      <div>
+        <span className={styles.comboLabel}>Strain</span>
+        {strain.series.length > 1 ? (
+          <TrendChart points={strain.series} />
+        ) : (
+          <p className={styles.empty}>Not enough data yet.</p>
+        )}
+      </div>
+      <div>
+        <span className={styles.comboLabel}>Recovery</span>
+        {recovery.series.length > 1 ? (
+          <TrendChart points={recovery.series} pointColor={(p) => recoveryColor(p.value)} />
+        ) : (
+          <p className={styles.empty}>Not enough data yet.</p>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { formatDate } from "../../utils/formatDate";
+import { recoveryColor } from "../../utils/recoveryColor";
 import StatTile from "../shared/StatTile";
 import TrendChart from "./TrendChart";
 import styles from "./WhoopSummary.module.css";
@@ -22,13 +23,6 @@ function dayStats(day: DaySummary): string[] {
   if (day.strain) stats.push(`${day.strain.score.toFixed(1)} strain`);
   if (day.sleep) stats.push(`${day.sleep.performancePercent}% sleep`);
   return stats;
-}
-
-// Whoop's own recovery banding: green 67-100, yellow 34-66, red 0-33.
-function recoveryColor(score: number): string {
-  if (score >= 67) return "var(--color-accent-2)";
-  if (score >= 34) return "var(--color-amber)";
-  return "var(--color-accent)";
 }
 
 function Trend({ current, previous }: { current: number; previous?: number | null }) {

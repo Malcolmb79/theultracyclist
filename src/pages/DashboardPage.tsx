@@ -11,7 +11,7 @@ import { SortableContext, arrayMove, rectSortingStrategy } from "@dnd-kit/sortab
 import DataCatalog from "../components/dashboard/DataCatalog";
 import DashboardWidget from "../components/dashboard/DashboardWidget";
 import { useDashboardData } from "../components/dashboard/useDashboardData";
-import { CATALOG_DRAG_PREFIX, type Widget } from "../components/dashboard/types";
+import { CATALOG_DRAG_PREFIX, WHOOP_STRAIN_RECOVERY_COMBO_ID, type Widget } from "../components/dashboard/types";
 import type { MetricDef } from "../components/dashboard/useDashboardData";
 import styles from "./DashboardPage.module.css";
 
@@ -50,6 +50,11 @@ function useUnlock() {
 
 function nextId(): string {
   return `w_${Date.now()}_${Math.round(Math.random() * 1e6)}`;
+}
+
+function defaultViewType(metric: MetricDef): Widget["viewType"] {
+  if (metric.id === WHOOP_STRAIN_RECOVERY_COMBO_ID) return "combo";
+  return metric.statOnly ? "stat" : "chart";
 }
 
 export default function DashboardPage() {
@@ -130,7 +135,7 @@ function DashboardEditor({ password }: { password: string }) {
       source: metric.source,
       metric: metric.id,
       label: metric.label,
-      viewType: metric.statOnly ? "stat" : "chart",
+      viewType: defaultViewType(metric),
     };
     saveWidgets([...widgets, widget]);
   };
@@ -156,7 +161,7 @@ function DashboardEditor({ password }: { password: string }) {
         source: metric.source,
         metric: metric.id,
         label: metric.label,
-        viewType: metric.statOnly ? "stat" : "chart",
+        viewType: defaultViewType(metric),
       };
 
       const overIndex = widgets.findIndex((w) => w.id === over.id);
@@ -193,7 +198,7 @@ function DashboardEditor({ password }: { password: string }) {
                     <DashboardWidget
                       key={widget.id}
                       widget={widget}
-                      metric={metricById.get(widget.metric)}
+                      metricById={metricById}
                       onViewTypeChange={(viewType) => handleViewTypeChange(widget.id, viewType)}
                       onRemove={() => handleRemove(widget.id)}
                     />

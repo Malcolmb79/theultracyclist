@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { WHOOP_STRAIN_RECOVERY_COMBO_ID } from "./types";
 
 export type SeriesPoint = { date: string; value: number };
 
@@ -83,6 +84,7 @@ export function useDashboardData(): DashboardDataState {
           { id: "whoop.strainAvgHr", source: "whoop", label: "Strain avg heart rate", unit: "bpm", series: series((d) => d.strain?.avgHeartRate) },
           { id: "whoop.sleepPerformance", source: "whoop", label: "Sleep performance", unit: "%", series: series((d) => d.sleep?.performancePercent) },
           { id: "whoop.sleepHours", source: "whoop", label: "Sleep duration", unit: "h", series: series((d) => d.sleep?.totalSleepHours) },
+          { id: WHOOP_STRAIN_RECOVERY_COMBO_ID, source: "whoop", label: "Strain & Recovery", unit: "", series: [], statOnly: true },
         );
       }
 
@@ -140,6 +142,8 @@ export function useDashboardData(): DashboardDataState {
       }
 
       setState({ status: "ready", metrics });
+    }).catch(() => {
+      if (!cancelled) setState({ status: "ready", metrics: [] });
     });
 
     return () => {

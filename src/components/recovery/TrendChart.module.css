@@ -17,3 +17,15 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+
+.areaNeutral {
+  fill: none;
+}
+
+.lineNeutral {
+  fill: none;
+  stroke: var(--color-border);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}

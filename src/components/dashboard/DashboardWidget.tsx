@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { formatDate } from "../../utils/formatDate";
@@ -51,6 +51,15 @@ function ringPercent(metric: MetricDef, value: number): number {
   return Math.min(100, value);
 }
 
+function combineRefs<T>(...refs: (((node: T) => void) | { current: T | null } | null | undefined)[]) {
+  return (node: T) => {
+    for (const ref of refs) {
+      if (typeof ref === "function") ref(node);
+      else if (ref) (ref as { current: T | null }).current = node;
+    }
+  };
+}
+
 export default function DashboardWidget({ widget, metricById, onViewTypeChange, onResize, onRemove }: DashboardWidgetProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: widget.id });
   const isCombo = widget.metric === WHOOP_STRAIN_RECOVERY_COMBO_ID;
@@ -64,6 +73,23 @@ export default function DashboardWidget({ widget, metricById, onViewTypeChange, 
   });
   const resizeStart = useRef<{ pointerX: number; pointerY: number; width: number; height: number } | null>(null);
   const liveSize = useRef(size);
+
+  // Drag handle and controls stay hidden until the widget is hovered
+  // (desktop) or tapped (touch, where hover doesn't apply) — tapping
+  // outside deselects again.
+  const [selected, setSelected] = useState(false);
+  const widgetRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!selected) return;
+    const handleOutside = (e: PointerEvent) => {
+      if (widgetRef.current && !widgetRef.current.contains(e.target as Node)) {
+        setSelected(false);
+      }
+    };
+    document.addEventListener("pointerdown", handleOutside);
+    return () => document.removeEventListener("pointerdown", handleOutside);
+  }, [selected]);
 
   const handleResizePointerDown = (e: React.PointerEvent) => {
     e.stopPropagation();
@@ -102,7 +128,13 @@ export default function DashboardWidget({ widget, metricById, onViewTypeChange, 
   const ringSize = Math.max(60, Math.min(size.width, contentHeight) - 20);
 
   return (
-    <div ref={setNodeRef} style={dragStyle} className={styles.widget}>
+    <div
+      ref={combineRefs(setNodeRef, widgetRef)}
+      style={dragStyle}
+      className={styles.widget}
+      data-selected={selected || undefined}
+      onPointerDownCapture={() => setSelected(true)}
+    >
       <div className={styles.header}>
         <div
           className={styles.dragHandle}

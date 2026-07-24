@@ -58,12 +58,15 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  flex-wrap: wrap;
 }
 
 .label {
   font-weight: 600;
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dragHandle {
@@ -78,6 +81,9 @@
   line-height: 1;
   touch-action: none;
   cursor: grab;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
 }
 
 .dragHandle:active {
@@ -88,6 +94,18 @@
   display: flex;
   align-items: center;
   gap: var(--space-1);
+  flex: none;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.widget:hover .dragHandle,
+.widget:hover .controls,
+.widget[data-selected] .dragHandle,
+.widget[data-selected] .controls {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .select {

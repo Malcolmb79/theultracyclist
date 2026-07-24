@@ -104,7 +104,7 @@ export default function DashboardWidget({ widget, metricById, onViewTypeChange, 
     e.preventDefault();
 
     resizeStart.current = { pointerX: e.clientX, pointerY: e.clientY, width: size.width, height: size.height };
-    console.log("[resize] down", widget.id, resizeStart.current);
+    console.log(`[resize] down id=${widget.id} start=${resizeStart.current.pointerX},${resizeStart.current.pointerY} size=${size.width}x${size.height}`);
 
     const previousBodyOverflow = document.body.style.overflow;
     const previousBodyTouchAction = document.body.style.touchAction;
@@ -112,8 +112,10 @@ export default function DashboardWidget({ widget, metricById, onViewTypeChange, 
     document.body.style.touchAction = "none";
 
     const handleMove = (moveEvent: PointerEvent) => {
-      console.log("[resize] move", widget.id, moveEvent.clientX, moveEvent.clientY, "resizeStart:", resizeStart.current);
-      if (!resizeStart.current) return;
+      if (!resizeStart.current) {
+        console.log(`[resize] move id=${widget.id} EARLY-RETURN no resizeStart`);
+        return;
+      }
       moveEvent.preventDefault();
       const dx = moveEvent.clientX - resizeStart.current.pointerX;
       const dy = moveEvent.clientY - resizeStart.current.pointerY;
@@ -121,13 +123,13 @@ export default function DashboardWidget({ widget, metricById, onViewTypeChange, 
         width: Math.max(MIN_WIDGET_WIDTH, resizeStart.current.width + dx),
         height: Math.max(minHeight, resizeStart.current.height + dy),
       };
-      console.log("[resize] next", widget.id, next);
+      console.log(`[resize] move id=${widget.id} client=${moveEvent.clientX},${moveEvent.clientY} dx=${dx} dy=${dy} next=${next.width}x${next.height}`);
       liveSize.current = next;
       setSize(next);
     };
 
     const finish = (finishEvent: PointerEvent) => {
-      console.log("[resize] finish", widget.id, finishEvent.type, liveSize.current);
+      console.log(`[resize] finish id=${widget.id} type=${finishEvent.type} liveSize=${liveSize.current.width}x${liveSize.current.height}`);
       resizeStart.current = null;
       document.body.style.overflow = previousBodyOverflow;
       document.body.style.touchAction = previousBodyTouchAction;
@@ -141,6 +143,10 @@ export default function DashboardWidget({ widget, metricById, onViewTypeChange, 
     window.addEventListener("pointerup", finish);
     window.addEventListener("pointercancel", finish);
   };
+
+  if (widget.metric === WHOOP_STRAIN_RECOVERY_COMBO_ID) {
+    console.log(`[resize] render id=${widget.id} size=${size.width}x${size.height}`);
+  }
 
   const dragStyle = {
     transform: CSS.Transform.toString(transform),

@@ -118,25 +118,35 @@ export default function DashboardWidget({ widget, metricById, onViewTypeChange, 
   );
 }
 
+const COMBO_DAYS = 7;
+
 function ComboStrainRecovery({ strain, recovery }: { strain: MetricDef | undefined; recovery: MetricDef | undefined }) {
   if (!strain?.series.length || !recovery?.series.length) {
     return <p className={styles.empty}>No data yet for this metric.</p>;
   }
 
+  const strainWeek = strain.series.slice(-COMBO_DAYS);
+  const recoveryWeek = recovery.series.slice(-COMBO_DAYS);
+
   return (
     <div className={styles.combo}>
       <div>
         <span className={styles.comboLabel}>Strain</span>
-        {strain.series.length > 1 ? (
-          <TrendChart points={strain.series} />
+        {strainWeek.length > 1 ? (
+          <TrendChart points={strainWeek} pointLabel={(p) => p.value.toFixed(1)} showDates />
         ) : (
           <p className={styles.empty}>Not enough data yet.</p>
         )}
       </div>
       <div>
         <span className={styles.comboLabel}>Recovery</span>
-        {recovery.series.length > 1 ? (
-          <TrendChart points={recovery.series} pointColor={(p) => recoveryColor(p.value)} />
+        {recoveryWeek.length > 1 ? (
+          <TrendChart
+            points={recoveryWeek}
+            pointColor={(p) => recoveryColor(p.value)}
+            pointLabel={(p) => `${Math.round(p.value)}%`}
+            showDates
+          />
         ) : (
           <p className={styles.empty}>Not enough data yet.</p>
         )}

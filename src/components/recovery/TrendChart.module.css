@@ -29,3 +29,14 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+
+.pointLabel {
+  font-size: 9px;
+  font-weight: 700;
+  fill: var(--color-text);
+}
+
+.dateLabel {
+  font-size: 7px;
+  fill: var(--color-text-muted);
+}

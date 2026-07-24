@@ -1,4 +1,6 @@
 .widget {
+  position: relative;
+  flex: none;
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius);
   background: var(--color-bg-elevated);
@@ -7,50 +9,42 @@
   flex-direction: column;
   gap: var(--space-2);
   transition: border-color 0.15s ease;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .widget:hover {
   border-color: var(--color-accent-2);
 }
 
-.small {
-  grid-column: span 1;
-  min-height: 180px;
-}
-
-.medium {
-  grid-column: span 2;
-  min-height: 220px;
-}
-
-.large {
-  grid-column: span 4;
-  min-height: 280px;
-}
-
-@media (max-width: 900px) {
-  .medium,
-  .large {
-    grid-column: span 2;
-  }
-}
-
-@media (max-width: 500px) {
-  .small,
-  .medium,
-  .large {
-    grid-column: span 1;
-  }
-}
-
-.small > *:last-child,
-.medium > *:last-child,
-.large > *:last-child {
-  display: flex;
+.content {
   flex: 1;
+  min-height: 0;
+  display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+}
+
+.resizeHandle {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: nwse-resize;
+  touch-action: none;
+  border-radius: var(--radius);
+}
+
+.resizeHandle:hover {
+  color: var(--color-accent-2);
 }
 
 .header {

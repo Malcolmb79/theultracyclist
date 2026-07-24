@@ -1,13 +1,17 @@
-export type WidgetSize = "small" | "medium" | "large";
-
 export type Widget = {
   id: string;
   source: "strava" | "whoop" | "health";
   metric: string;
   label: string;
   viewType: "stat" | "chart" | "timeline" | "ring" | "combo";
-  size?: WidgetSize;
+  width?: number;
+  height?: number;
 };
+
+export const DEFAULT_WIDGET_WIDTH = 340;
+export const DEFAULT_WIDGET_HEIGHT = 240;
+export const MIN_WIDGET_WIDTH = 200;
+export const MIN_WIDGET_HEIGHT = 160;
 
 export const CATALOG_DRAG_PREFIX = "catalog:";
 

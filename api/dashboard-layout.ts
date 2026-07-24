@@ -7,7 +7,8 @@ export type Widget = {
   metric: string;
   label: string;
   viewType: "stat" | "chart" | "timeline" | "ring" | "combo";
-  size?: "small" | "medium" | "large";
+  width?: number;
+  height?: number;
 };
 
 function readLayout(): Widget[] {

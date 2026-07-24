@@ -119,6 +119,31 @@
   font-size: 0.8rem;
 }
 
+.colorInput {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 2px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-bg-elevated-2);
+  cursor: pointer;
+}
+
+.colorInput::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.colorInput::-webkit-color-swatch {
+  border: none;
+  border-radius: 4px;
+}
+
+.colorInput::-moz-color-swatch {
+  border: none;
+  border-radius: 4px;
+}
+
 .iconButton {
   width: 28px;
   height: 28px;

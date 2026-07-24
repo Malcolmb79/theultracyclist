@@ -9,6 +9,7 @@ export type Widget = {
   viewType: "stat" | "chart" | "timeline" | "ring" | "combo";
   width?: number;
   height?: number;
+  color?: string;
 };
 
 function readLayout(): Widget[] {

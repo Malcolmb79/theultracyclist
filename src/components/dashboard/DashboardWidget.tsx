@@ -11,6 +11,7 @@ import {
   WHOOP_STRAIN_RECOVERY_COMBO_ID,
   DEFAULT_WIDGET_WIDTH,
   DEFAULT_WIDGET_HEIGHT,
+  DEFAULT_WIDGET_COLOR,
   MIN_WIDGET_WIDTH,
   MIN_WIDGET_HEIGHT,
   type Widget,
@@ -21,6 +22,7 @@ interface DashboardWidgetProps {
   widget: Widget;
   metricById: Map<string, MetricDef>;
   onViewTypeChange: (viewType: Widget["viewType"]) => void;
+  onColorChange: (color: string) => void;
   onResize: (width: number, height: number) => void;
   onRemove: () => void;
 }
@@ -38,8 +40,12 @@ function formatValue(value: number, unit: string): string {
   return unit ? `${rounded.toLocaleString()} ${unit}` : rounded.toLocaleString();
 }
 
-function ringColor(metric: MetricDef, value: number): string {
+// Recovery's ring is always health-semantic (red/amber/green banding) and
+// never overridden by the widget's custom color - everything else is purely
+// decorative and defers to the custom color when the user has set one.
+function ringColor(metric: MetricDef, value: number, customColor?: string): string {
   if (metric.id === "whoop.recovery") return recoveryColor(value);
+  if (customColor) return customColor;
   if (metric.id === "whoop.sleepPerformance") return "#8FA9C5";
   if (metric.id === "whoop.strain") return "#4B87F5";
   return "var(--color-accent-2)";
@@ -60,7 +66,14 @@ function combineRefs<T>(...refs: (((node: T) => void) | { current: T | null } | 
   };
 }
 
-export default function DashboardWidget({ widget, metricById, onViewTypeChange, onResize, onRemove }: DashboardWidgetProps) {
+export default function DashboardWidget({
+  widget,
+  metricById,
+  onViewTypeChange,
+  onColorChange,
+  onResize,
+  onRemove,
+}: DashboardWidgetProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: widget.id });
   const isCombo = widget.metric === WHOOP_STRAIN_RECOVERY_COMBO_ID;
   const metric = isCombo ? undefined : metricById.get(widget.metric);
@@ -170,6 +183,13 @@ export default function DashboardWidget({ widget, metricById, onViewTypeChange, 
         </div>
         <span className={styles.label}>{widget.label}</span>
         <div className={styles.controls}>
+          <input
+            type="color"
+            className={styles.colorInput}
+            value={widget.color ?? DEFAULT_WIDGET_COLOR}
+            onChange={(e) => onColorChange(e.target.value)}
+            aria-label="Widget color"
+          />
           {!isCombo && (
             <select
               className={styles.select}
@@ -194,6 +214,7 @@ export default function DashboardWidget({ widget, metricById, onViewTypeChange, 
             strain={metricById.get("whoop.strain")}
             recovery={metricById.get("whoop.recovery")}
             chartHeight={Math.max(24, (contentHeight - COMBO_SECTION_OVERHEAD) / 2)}
+            strainColor={widget.color}
           />
         ) : !metric || metric.series.length === 0 ? (
           <p className={styles.empty}>No data yet for this metric.</p>
@@ -201,18 +222,19 @@ export default function DashboardWidget({ widget, metricById, onViewTypeChange, 
           <StatTile
             value={formatValue(metric.series[metric.series.length - 1].value, metric.unit)}
             label={formatDate(metric.series[metric.series.length - 1].date)}
+            valueColor={widget.color}
           />
         ) : widget.viewType === "ring" ? (
           <RingGauge
             percent={ringPercent(metric, metric.series[metric.series.length - 1].value)}
-            color={ringColor(metric, metric.series[metric.series.length - 1].value)}
+            color={ringColor(metric, metric.series[metric.series.length - 1].value, widget.color)}
             centerValue={formatValue(metric.series[metric.series.length - 1].value, metric.unit)}
             label={formatDate(metric.series[metric.series.length - 1].date)}
             pixelSize={ringSize}
           />
         ) : widget.viewType === "chart" ? (
           metric.series.length > 1 ? (
-            <TrendChart points={metric.series} height={contentHeight} />
+            <TrendChart points={metric.series} height={contentHeight} color={widget.color} />
           ) : (
             <p className={styles.empty}>Need at least 2 data points for a chart.</p>
           )
@@ -225,7 +247,9 @@ export default function DashboardWidget({ widget, metricById, onViewTypeChange, 
               .map((point) => (
                 <li key={point.date} className={styles.timelineRow}>
                   <span>{formatDate(point.date)}</span>
-                  <span>{formatValue(point.value, metric.unit)}</span>
+                  <span style={widget.color ? { color: widget.color } : undefined}>
+                    {formatValue(point.value, metric.unit)}
+                  </span>
                 </li>
               ))}
           </ul>
@@ -251,10 +275,12 @@ function ComboStrainRecovery({
   strain,
   recovery,
   chartHeight,
+  strainColor,
 }: {
   strain: MetricDef | undefined;
   recovery: MetricDef | undefined;
   chartHeight: number;
+  strainColor?: string;
 }) {
   if (!strain?.series.length || !recovery?.series.length) {
     return <p className={styles.empty}>No data yet for this metric.</p>;
@@ -262,6 +288,7 @@ function ComboStrainRecovery({
 
   const strainWeek = strain.series.slice(-COMBO_DAYS);
   const recoveryWeek = recovery.series.slice(-COMBO_DAYS);
+  const resolvedStrainColor = strainColor ?? "#4B87F5";
 
   return (
     <div className={styles.combo}>
@@ -270,10 +297,11 @@ function ComboStrainRecovery({
         {strainWeek.length > 1 ? (
           <TrendChart
             points={strainWeek}
-            pointColor={() => "#4B87F5"}
+            pointColor={() => resolvedStrainColor}
             pointLabel={(p) => p.value.toFixed(1)}
             showDates
             height={chartHeight}
+            color={resolvedStrainColor}
           />
         ) : (
           <p className={styles.empty}>Not enough data yet.</p>

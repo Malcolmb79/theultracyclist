@@ -153,6 +153,9 @@ function DashboardEditor({ password }: { password: string }) {
   const handleViewTypeChange = (id: string, viewType: Widget["viewType"]) =>
     saveWidgets(widgets.map((w) => (w.id === id ? { ...w, viewType } : w)));
 
+  const handleColorChange = (id: string, color: string) =>
+    saveWidgets(widgets.map((w) => (w.id === id ? { ...w, color } : w)));
+
   const handleResize = (id: string, width: number, height: number) =>
     saveWidgets(widgets.map((w) => (w.id === id ? { ...w, width, height } : w)));
 
@@ -213,6 +216,7 @@ function DashboardEditor({ password }: { password: string }) {
                       widget={widget}
                       metricById={metricById}
                       onViewTypeChange={(viewType) => handleViewTypeChange(widget.id, viewType)}
+                      onColorChange={(color) => handleColorChange(widget.id, color)}
                       onResize={(width, height) => handleResize(widget.id, width, height)}
                       onRemove={() => handleRemove(widget.id)}
                     />

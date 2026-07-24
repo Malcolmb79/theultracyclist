@@ -15,6 +15,7 @@ interface TrendChartProps {
   pointLabel?: (point: TrendPoint) => string;
   showDates?: boolean;
   height?: number;
+  color?: string;
 }
 
 function shortDate(iso: string): { weekday: string; day: string } {
@@ -50,7 +51,7 @@ function useMeasuredWidth() {
   return [ref, width] as const;
 }
 
-export default function TrendChart({ points, pointColor, pointLabel, showDates, height }: TrendChartProps) {
+export default function TrendChart({ points, pointColor, pointLabel, showDates, height, color }: TrendChartProps) {
   const [containerRef, viewWidth] = useMeasuredWidth();
 
   if (points.length < 2) {
@@ -89,8 +90,16 @@ export default function TrendChart({ points, pointColor, pointLabel, showDates, 
         aria-hidden="true"
         style={{ display: "block" }}
       >
-        <path d={areaPath} className={pointColor ? styles.areaNeutral : styles.area} />
-        <path d={linePath} className={pointColor ? styles.lineNeutral : styles.line} />
+        <path
+          d={areaPath}
+          className={pointColor && !color ? styles.areaNeutral : styles.area}
+          style={color ? { fill: color } : undefined}
+        />
+        <path
+          d={linePath}
+          className={pointColor && !color ? styles.lineNeutral : styles.line}
+          style={color ? { stroke: color } : undefined}
+        />
         {(pointColor || pointLabel) &&
           points.map((p, i) => (
             <circle

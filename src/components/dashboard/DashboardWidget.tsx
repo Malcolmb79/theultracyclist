@@ -104,6 +104,7 @@ export default function DashboardWidget({ widget, metricById, onViewTypeChange, 
     e.preventDefault();
 
     resizeStart.current = { pointerX: e.clientX, pointerY: e.clientY, width: size.width, height: size.height };
+    console.log("[resize] down", widget.id, resizeStart.current);
 
     const previousBodyOverflow = document.body.style.overflow;
     const previousBodyTouchAction = document.body.style.touchAction;
@@ -111,6 +112,7 @@ export default function DashboardWidget({ widget, metricById, onViewTypeChange, 
     document.body.style.touchAction = "none";
 
     const handleMove = (moveEvent: PointerEvent) => {
+      console.log("[resize] move", widget.id, moveEvent.clientX, moveEvent.clientY, "resizeStart:", resizeStart.current);
       if (!resizeStart.current) return;
       moveEvent.preventDefault();
       const dx = moveEvent.clientX - resizeStart.current.pointerX;
@@ -119,11 +121,13 @@ export default function DashboardWidget({ widget, metricById, onViewTypeChange, 
         width: Math.max(MIN_WIDGET_WIDTH, resizeStart.current.width + dx),
         height: Math.max(minHeight, resizeStart.current.height + dy),
       };
+      console.log("[resize] next", widget.id, next);
       liveSize.current = next;
       setSize(next);
     };
 
-    const finish = () => {
+    const finish = (finishEvent: PointerEvent) => {
+      console.log("[resize] finish", widget.id, finishEvent.type, liveSize.current);
       resizeStart.current = null;
       document.body.style.overflow = previousBodyOverflow;
       document.body.style.touchAction = previousBodyTouchAction;

@@ -8,9 +8,12 @@ import JourneyPage from "./pages/JourneyPage";
 import JourneyEntryPage from "./pages/JourneyEntryPage";
 import FollowPage from "./pages/FollowPage";
 import AboutPage from "./pages/AboutPage";
+import DashboardPage from "./pages/DashboardPage";
 import NotFoundPage from "./pages/NotFoundPage";
 
 export const router = createBrowserRouter([
+  // Not part of the public Layout (no nav/footer) — private tool, not linked from the site.
+  { path: "/dashboard", element: <DashboardPage /> },
   {
     element: <Layout />,
     children: [

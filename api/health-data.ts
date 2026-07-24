@@ -1,83 +1,36 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { persistEnvVar, triggerDeployHook } from "./_lib/vercelEnvStore.js";
 
-const VERCEL_API_BASE = "https://api.vercel.com";
-const MAX_DAYS = 60;
+const MAX_DAYS = 90;
 
-export type HealthDay = {
-  date: string;
-  steps: number | null;
-  vo2Max: number | null;
-  weightKg: number | null;
+// Units that represent a cumulative daily total get summed across same-day
+// samples (steps, calories, minutes, grams of a nutrient); anything else
+// (weight, heart rate, percentages, VO2 max) is a point-in-time reading and
+// gets averaged across the day's samples instead.
+const SUM_UNITS = new Set(["kcal", "count", "min", "g", "mg", "km", "mi", "IU", "mcg"]);
+
+export type MetricValue = { value: number; unit: string };
+export type DayMetrics = Record<string, MetricValue>;
+export type History = Record<string, DayMetrics>;
+
+type HealthAutoExportPayload = {
+  data?: {
+    metrics?: {
+      name: string;
+      units: string;
+      data: { qty?: number; date: string; source?: string }[];
+    }[];
+  };
 };
 
-function readHistory(): HealthDay[] {
+function readHistory(): History {
   try {
     const raw = process.env.APPLE_HEALTH_HISTORY;
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as HealthDay[];
-    return Array.isArray(parsed) ? parsed : [];
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as History) : {};
   } catch {
-    return [];
-  }
-}
-
-// Same self-persisting pattern as api/whoop-data.ts: process.env is the read
-// source for this deployment's lifetime, writes go back to Vercel via PATCH
-// so the next deployment's cold start (and other warm instances, eventually)
-// see the latest value.
-async function persistHistory(history: HealthDay[]): Promise<void> {
-  const apiToken = process.env.VERCEL_API_TOKEN;
-  const projectId = process.env.VERCEL_PROJECT_ID;
-  const teamId = process.env.VERCEL_TEAM_ID;
-  if (!apiToken || !projectId) return;
-
-  try {
-    const teamQuery = teamId ? `?teamId=${teamId}` : "";
-    const listRes = await fetch(`${VERCEL_API_BASE}/v10/projects/${projectId}/env${teamQuery}`, {
-      headers: { Authorization: `Bearer ${apiToken}` },
-    });
-    if (!listRes.ok) {
-      console.error(`Failed to list Vercel env vars: ${listRes.status}`);
-      return;
-    }
-
-    const data = (await listRes.json()) as { envs: { id: string; key: string; target: string[] | string }[] };
-    const envVar = data.envs.find(
-      (e) => e.key === "APPLE_HEALTH_HISTORY" && (Array.isArray(e.target) ? e.target.includes("production") : e.target === "production"),
-    );
-    if (!envVar) {
-      console.error("APPLE_HEALTH_HISTORY (production) env var not found in Vercel project");
-      return;
-    }
-
-    const patchRes = await fetch(`${VERCEL_API_BASE}/v9/projects/${projectId}/env/${envVar.id}${teamQuery}`, {
-      method: "PATCH",
-      headers: { Authorization: `Bearer ${apiToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ value: JSON.stringify(history) }),
-    });
-    if (!patchRes.ok) {
-      console.error(`Failed to update APPLE_HEALTH_HISTORY: ${patchRes.status}`);
-    }
-  } catch (error) {
-    console.error("Failed to persist Apple Health history", error);
-  }
-}
-
-// Env var changes only apply on the *next* deployment's cold start, so a
-// pushed value wouldn't show up on the live site until an unrelated code
-// change deploys. Triggering the project's deploy hook after a successful
-// write makes each push visible within roughly a deploy cycle instead.
-async function triggerRedeploy(): Promise<void> {
-  const hookUrl = process.env.HEALTH_DATA_DEPLOY_HOOK_URL;
-  if (!hookUrl) return;
-
-  try {
-    const res = await fetch(hookUrl, { method: "POST" });
-    if (!res.ok) {
-      console.error(`Deploy hook trigger failed: ${res.status}`);
-    }
-  } catch (error) {
-    console.error("Failed to trigger deploy hook", error);
+    return {};
   }
 }
 
@@ -90,45 +43,57 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
-    // TEMPORARY: log just the metric names + one sample point each, so we
-    // can confirm Health Auto Export's exact field names without flooding
-    // the log with the full per-minute data arrays.
-    const rawBody = req.body as { data?: { metrics?: { name: string; units: string; data: unknown[] }[] } };
-    if (rawBody.data?.metrics) {
-      console.log(
-        "health-data metric names:",
-        JSON.stringify(rawBody.data.metrics.map((m) => ({ name: m.name, units: m.units, sample: m.data[0] }))),
-      );
-    }
-
-    const body = req.body as { date?: string; steps?: number; vo2Max?: number; weightKg?: number };
-    const date = body.date ?? new Date().toISOString().slice(0, 10);
-
-    const entry: HealthDay = {
-      date,
-      steps: typeof body.steps === "number" ? Math.round(body.steps) : null,
-      vo2Max: typeof body.vo2Max === "number" ? Math.round(body.vo2Max * 10) / 10 : null,
-      weightKg: typeof body.weightKg === "number" ? Math.round(body.weightKg * 10) / 10 : null,
-    };
-
+    const payload = req.body as HealthAutoExportPayload;
+    const metrics = payload.data?.metrics ?? [];
     const history = readHistory();
-    const existingIndex = history.findIndex((d) => d.date === date);
-    if (existingIndex >= 0) {
-      history[existingIndex] = { ...history[existingIndex], ...entry };
-    } else {
-      history.unshift(entry);
+
+    for (const metric of metrics) {
+      const isSum = SUM_UNITS.has(metric.units);
+      const byDate = new Map<string, number[]>();
+
+      for (const point of metric.data) {
+        if (typeof point.qty !== "number" || typeof point.date !== "string") continue;
+        const date = point.date.slice(0, 10);
+        const list = byDate.get(date) ?? [];
+        list.push(point.qty);
+        byDate.set(date, list);
+      }
+
+      for (const [date, values] of byDate) {
+        const total = values.reduce((sum, v) => sum + v, 0);
+        const aggregated = isSum ? total : total / values.length;
+        history[date] = history[date] ?? {};
+        history[date][metric.name] = { value: Math.round(aggregated * 100) / 100, unit: metric.units };
+      }
     }
-    history.sort((a, b) => (a.date < b.date ? 1 : -1));
-    const trimmed = history.slice(0, MAX_DAYS);
 
-    await persistHistory(trimmed);
-    await triggerRedeploy();
+    const trimmedDates = Object.keys(history)
+      .sort((a, b) => (a < b ? 1 : -1))
+      .slice(0, MAX_DAYS);
+    const trimmed: History = {};
+    for (const date of trimmedDates) trimmed[date] = history[date];
 
-    res.status(200).json({ ok: true, entry });
+    await persistEnvVar("APPLE_HEALTH_HISTORY", JSON.stringify(trimmed));
+    await triggerDeployHook();
+
+    res.status(200).json({ ok: true, days: trimmedDates.length });
     return;
   }
 
   const history = readHistory();
+
+  const catalogMap = new Map<string, { unit: string; days: number }>();
+  for (const day of Object.values(history)) {
+    for (const [name, metric] of Object.entries(day)) {
+      const existing = catalogMap.get(name);
+      if (existing) existing.days += 1;
+      else catalogMap.set(name, { unit: metric.unit, days: 1 });
+    }
+  }
+  const catalog = Array.from(catalogMap.entries())
+    .map(([name, info]) => ({ name, unit: info.unit, days: info.days }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
   res.setHeader("Cache-Control", "public, s-maxage=1800, stale-while-revalidate=3600");
-  res.status(200).json({ history });
+  res.status(200).json({ history, catalog });
 }

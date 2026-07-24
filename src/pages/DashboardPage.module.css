@@ -1,0 +1,109 @@
+.page {
+  min-height: 100vh;
+  padding: var(--space-5) var(--space-4);
+}
+
+.loading {
+  color: var(--color-text-muted);
+  text-align: center;
+  margin-top: var(--space-6);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: var(--space-4);
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+@media (max-width: 800px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sidebar {
+  position: sticky;
+  top: var(--space-4);
+  align-self: start;
+}
+
+@media (max-width: 800px) {
+  .sidebar {
+    position: static;
+  }
+}
+
+.canvas {
+  min-width: 0;
+}
+
+.emptyCanvas {
+  color: var(--color-text-muted);
+  padding: var(--space-5);
+  text-align: center;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius);
+}
+
+.widgetGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-3);
+  align-items: start;
+}
+
+.gate {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+}
+
+.gateBox {
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.gateTitle {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  text-align: center;
+  margin: 0;
+}
+
+.gateInput {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  font-size: 1rem;
+}
+
+.gateButton {
+  background: var(--color-accent);
+  color: var(--color-bg);
+  border: none;
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.gateButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.gateError {
+  color: var(--color-accent);
+  font-size: 0.85rem;
+  text-align: center;
+  margin: 0;
+}

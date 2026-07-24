@@ -1,0 +1,72 @@
+.catalog {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  margin: 0 0 var(--space-3);
+  letter-spacing: 0.02em;
+}
+
+.group {
+  margin-bottom: var(--space-3);
+}
+
+.groupLabel {
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+  margin: 0 0 var(--space-2);
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.item:last-child {
+  border-bottom: none;
+}
+
+.itemLabel {
+  font-size: 0.9rem;
+}
+
+.addButton {
+  flex: none;
+  background: var(--color-bg-elevated-2);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  border-radius: var(--radius);
+  padding: 0.3rem 0.7rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.addButton:hover:not(:disabled) {
+  border-color: var(--color-accent);
+}
+
+.addButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

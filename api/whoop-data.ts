@@ -1,57 +1,14 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { persistEnvVar, triggerDeployHook } from "./_lib/vercelEnvStore.js";
 
 const TOKEN_URL = "https://api.prod.whoop.com/oauth/oauth2/token";
 const API_BASE = "https://api.prod.whoop.com/developer/v2";
-const VERCEL_API_BASE = "https://api.vercel.com";
 
 type WhoopTokenResponse = {
   access_token: string;
   refresh_token: string;
   expires_in: number;
 };
-
-// Whoop rotates the refresh token on every use. We can't read Vercel env var
-// values back (the API's decrypt=true doesn't actually decrypt for personal
-// access tokens), so process.env stays the read source for this deployment's
-// lifetime, and each rotation is best-effort persisted back to Vercel via
-// PATCH so the *next* deployment's cold start picks up the latest one.
-async function persistRotatedRefreshToken(newRefreshToken: string): Promise<void> {
-  const apiToken = process.env.VERCEL_API_TOKEN;
-  const projectId = process.env.VERCEL_PROJECT_ID;
-  const teamId = process.env.VERCEL_TEAM_ID;
-  if (!apiToken || !projectId) return;
-
-  try {
-    const teamQuery = teamId ? `?teamId=${teamId}` : "";
-    const listRes = await fetch(`${VERCEL_API_BASE}/v10/projects/${projectId}/env${teamQuery}`, {
-      headers: { Authorization: `Bearer ${apiToken}` },
-    });
-    if (!listRes.ok) {
-      console.error(`Failed to list Vercel env vars: ${listRes.status}`);
-      return;
-    }
-
-    const data = (await listRes.json()) as { envs: { id: string; key: string; target: string[] | string }[] };
-    const envVar = data.envs.find(
-      (e) => e.key === "WHOOP_REFRESH_TOKEN" && (Array.isArray(e.target) ? e.target.includes("production") : e.target === "production"),
-    );
-    if (!envVar) {
-      console.error("WHOOP_REFRESH_TOKEN (production) env var not found in Vercel project");
-      return;
-    }
-
-    const patchRes = await fetch(`${VERCEL_API_BASE}/v9/projects/${projectId}/env/${envVar.id}${teamQuery}`, {
-      method: "PATCH",
-      headers: { Authorization: `Bearer ${apiToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ value: newRefreshToken }),
-    });
-    if (!patchRes.ok) {
-      console.error(`Failed to update WHOOP_REFRESH_TOKEN: ${patchRes.status}`);
-    }
-  } catch (error) {
-    console.error("Failed to persist rotated Whoop refresh token", error);
-  }
-}
 
 type WhoopRecoveryRecord = {
   cycle_id: number;
@@ -178,7 +135,8 @@ async function getAccessToken(): Promise<string> {
   currentRefreshToken = data.refresh_token;
 
   if (data.refresh_token !== refreshToken) {
-    await persistRotatedRefreshToken(data.refresh_token);
+    await persistEnvVar("WHOOP_REFRESH_TOKEN", data.refresh_token);
+    await triggerDeployHook();
   }
 
   return cachedToken.accessToken;

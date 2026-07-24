@@ -90,6 +90,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
+    // TEMPORARY: log the raw payload shape so we can see exactly what
+    // Health Auto Export sends and write a real parser for it.
+    console.log("health-data POST body:", JSON.stringify(req.body).slice(0, 4000));
+
     const body = req.body as { date?: string; steps?: number; vo2Max?: number; weightKg?: number };
     const date = body.date ?? new Date().toISOString().slice(0, 10);
 

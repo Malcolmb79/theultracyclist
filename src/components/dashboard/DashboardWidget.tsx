@@ -100,6 +100,7 @@ export default function DashboardWidget({ widget, metricById, onViewTypeChange, 
 
   const handleResizePointerMove = (e: React.PointerEvent) => {
     if (!resizeStart.current) return;
+    e.preventDefault();
     const dx = e.clientX - resizeStart.current.pointerX;
     const dy = e.clientY - resizeStart.current.pointerY;
     const next = {

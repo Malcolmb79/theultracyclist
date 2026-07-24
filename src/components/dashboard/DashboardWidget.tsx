@@ -238,7 +238,7 @@ export default function DashboardWidget({
               points={metric.series}
               height={Math.max(24, contentHeight - TREND_CHART_LABEL_TOP_PAD - TREND_CHART_LABEL_BOTTOM_PAD)}
               color={widget.color}
-              pointLabel={(p) => formatValue(p.value, metric.unit)}
+              pointLabel={(p) => formatValue(p.value, "")}
               showDates
             />
           ) : (

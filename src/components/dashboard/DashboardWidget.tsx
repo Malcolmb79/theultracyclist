@@ -27,6 +27,7 @@ interface DashboardWidgetProps {
 
 const HEADER_HEIGHT = 44;
 const CONTENT_PADDING = 32;
+const MIN_COMBO_HEIGHT = 320;
 
 function formatValue(value: number, unit: string): string {
   const rounded = Number.isInteger(value) ? value : Math.round(value * 10) / 10;
@@ -51,11 +52,14 @@ export default function DashboardWidget({ widget, metricById, onViewTypeChange, 
   const isCombo = widget.metric === WHOOP_STRAIN_RECOVERY_COMBO_ID;
   const metric = isCombo ? undefined : metricById.get(widget.metric);
 
+  const minHeight = isCombo ? MIN_COMBO_HEIGHT : MIN_WIDGET_HEIGHT;
+
   const [size, setSize] = useState({
     width: widget.width ?? DEFAULT_WIDGET_WIDTH,
-    height: widget.height ?? DEFAULT_WIDGET_HEIGHT,
+    height: Math.max(minHeight, widget.height ?? DEFAULT_WIDGET_HEIGHT),
   });
   const resizeStart = useRef<{ pointerX: number; pointerY: number; width: number; height: number } | null>(null);
+  const liveSize = useRef(size);
 
   const handleResizePointerDown = (e: React.PointerEvent) => {
     e.stopPropagation();
@@ -68,16 +72,18 @@ export default function DashboardWidget({ widget, metricById, onViewTypeChange, 
     if (!resizeStart.current) return;
     const dx = e.clientX - resizeStart.current.pointerX;
     const dy = e.clientY - resizeStart.current.pointerY;
-    setSize({
+    const next = {
       width: Math.max(MIN_WIDGET_WIDTH, resizeStart.current.width + dx),
-      height: Math.max(MIN_WIDGET_HEIGHT, resizeStart.current.height + dy),
-    });
+      height: Math.max(minHeight, resizeStart.current.height + dy),
+    };
+    liveSize.current = next;
+    setSize(next);
   };
 
   const handleResizePointerUp = () => {
     if (!resizeStart.current) return;
     resizeStart.current = null;
-    onResize(Math.round(size.width), Math.round(size.height));
+    onResize(Math.round(liveSize.current.width), Math.round(liveSize.current.height));
   };
 
   const dragStyle = {

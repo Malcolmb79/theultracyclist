@@ -91,30 +91,51 @@ export default function DashboardWidget({ widget, metricById, onViewTypeChange, 
     return () => document.removeEventListener("pointerdown", handleOutside);
   }, [selected]);
 
+  // Resize dragging is handled via window-level listeners (rather than
+  // relying solely on the handle's own onPointerMove/onPointerUp + pointer
+  // capture) plus a body scroll lock for the duration of the drag. On iOS
+  // Safari, a vertical-heavy drag starting on a small element can still get
+  // interpreted as a page-scroll gesture even with touch-action: none on
+  // the handle itself; locking body scroll while the pointer is down
+  // guarantees the page can't steal the gesture regardless of exactly
+  // where the touch lands.
   const handleResizePointerDown = (e: React.PointerEvent) => {
     e.stopPropagation();
     e.preventDefault();
-    (e.target as Element).setPointerCapture(e.pointerId);
+
     resizeStart.current = { pointerX: e.clientX, pointerY: e.clientY, width: size.width, height: size.height };
-  };
 
-  const handleResizePointerMove = (e: React.PointerEvent) => {
-    if (!resizeStart.current) return;
-    e.preventDefault();
-    const dx = e.clientX - resizeStart.current.pointerX;
-    const dy = e.clientY - resizeStart.current.pointerY;
-    const next = {
-      width: Math.max(MIN_WIDGET_WIDTH, resizeStart.current.width + dx),
-      height: Math.max(minHeight, resizeStart.current.height + dy),
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousBodyTouchAction = document.body.style.touchAction;
+    document.body.style.overflow = "hidden";
+    document.body.style.touchAction = "none";
+
+    const handleMove = (moveEvent: PointerEvent) => {
+      if (!resizeStart.current) return;
+      moveEvent.preventDefault();
+      const dx = moveEvent.clientX - resizeStart.current.pointerX;
+      const dy = moveEvent.clientY - resizeStart.current.pointerY;
+      const next = {
+        width: Math.max(MIN_WIDGET_WIDTH, resizeStart.current.width + dx),
+        height: Math.max(minHeight, resizeStart.current.height + dy),
+      };
+      liveSize.current = next;
+      setSize(next);
     };
-    liveSize.current = next;
-    setSize(next);
-  };
 
-  const handleResizePointerUp = () => {
-    if (!resizeStart.current) return;
-    resizeStart.current = null;
-    onResize(Math.round(liveSize.current.width), Math.round(liveSize.current.height));
+    const finish = () => {
+      resizeStart.current = null;
+      document.body.style.overflow = previousBodyOverflow;
+      document.body.style.touchAction = previousBodyTouchAction;
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", finish);
+      onResize(Math.round(liveSize.current.width), Math.round(liveSize.current.height));
+    };
+
+    window.addEventListener("pointermove", handleMove, { passive: false });
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", finish);
   };
 
   const dragStyle = {
@@ -214,8 +235,6 @@ export default function DashboardWidget({ widget, metricById, onViewTypeChange, 
       <div
         className={styles.resizeHandle}
         onPointerDown={handleResizePointerDown}
-        onPointerMove={handleResizePointerMove}
-        onPointerUp={handleResizePointerUp}
         role="button"
         tabIndex={0}
         aria-label="Drag to resize"

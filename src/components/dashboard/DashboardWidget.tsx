@@ -156,7 +156,13 @@ function ComboStrainRecovery({
       <div>
         <span className={styles.comboLabel}>Strain</span>
         {strainWeek.length > 1 ? (
-          <TrendChart points={strainWeek} pointLabel={(p) => p.value.toFixed(1)} showDates height={chartHeight} />
+          <TrendChart
+            points={strainWeek}
+            pointColor={() => "#4B87F5"}
+            pointLabel={(p) => p.value.toFixed(1)}
+            showDates
+            height={chartHeight}
+          />
         ) : (
           <p className={styles.empty}>Not enough data yet.</p>
         )}

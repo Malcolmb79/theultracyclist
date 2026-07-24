@@ -4,7 +4,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { formatDate } from "../../utils/formatDate";
 import { recoveryColor } from "../../utils/recoveryColor";
 import StatTile from "../shared/StatTile";
-import TrendChart from "../recovery/TrendChart";
+import TrendChart, { TREND_CHART_LABEL_TOP_PAD, TREND_CHART_LABEL_BOTTOM_PAD } from "../recovery/TrendChart";
 import RingGauge from "./RingGauge";
 import type { MetricDef } from "./useDashboardData";
 import {
@@ -234,7 +234,13 @@ export default function DashboardWidget({
           />
         ) : widget.viewType === "chart" ? (
           metric.series.length > 1 ? (
-            <TrendChart points={metric.series} height={contentHeight} color={widget.color} />
+            <TrendChart
+              points={metric.series}
+              height={Math.max(24, contentHeight - TREND_CHART_LABEL_TOP_PAD - TREND_CHART_LABEL_BOTTOM_PAD)}
+              color={widget.color}
+              pointLabel={(p) => formatValue(p.value, metric.unit)}
+              showDates
+            />
           ) : (
             <p className={styles.empty}>Need at least 2 data points for a chart.</p>
           )

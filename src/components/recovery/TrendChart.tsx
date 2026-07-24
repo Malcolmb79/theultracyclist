@@ -7,6 +7,17 @@ const TOP_PAD = 16;
 const BOTTOM_PAD = 20;
 const DOT_RADIUS = 3;
 
+// Exported so callers can reserve enough height for the plot area *plus*
+// this label padding when pointLabel/showDates are used - otherwise the
+// chart's total rendered height exceeds whatever box it's given and gets
+// clipped by the parent's overflow:hidden.
+export const TREND_CHART_LABEL_TOP_PAD = TOP_PAD;
+export const TREND_CHART_LABEL_BOTTOM_PAD = BOTTOM_PAD;
+// Minimum horizontal space (px) to give each value/date label pair so they
+// don't overlap - dense series (many points in limited width) show labels
+// only every Nth point instead of cramming one under every single dot.
+const MIN_LABEL_SPACING = 42;
+
 type TrendPoint = { date: string; value: number };
 
 interface TrendChartProps {
@@ -71,6 +82,10 @@ export default function TrendChart({ points, pointColor, pointLabel, showDates, 
   const toX = (i: number) => (i / (points.length - 1)) * viewWidth;
   const toY = (value: number) => topPad + plotHeight - ((value - min) / range) * plotHeight;
 
+  const maxLabels = Math.max(2, Math.floor(viewWidth / MIN_LABEL_SPACING));
+  const labelStride = Math.max(1, Math.ceil(points.length / maxLabels));
+  const isLabeled = (i: number) => i % labelStride === 0 || i === points.length - 1;
+
   const linePath = points
     .map((p, i) => `${i === 0 ? "M" : "L"}${toX(i).toFixed(1)},${toY(p.value).toFixed(1)}`)
     .join(" ");
@@ -113,19 +128,22 @@ export default function TrendChart({ points, pointColor, pointLabel, showDates, 
             />
           ))}
         {pointLabel &&
-          points.map((p, i) => (
-            <text
-              key={`label-${p.date}`}
-              x={toX(i)}
-              y={toY(p.value) - 6}
-              textAnchor="middle"
-              className={styles.pointLabel}
-            >
-              {pointLabel(p)}
-            </text>
-          ))}
+          points.map((p, i) =>
+            isLabeled(i) ? (
+              <text
+                key={`label-${p.date}`}
+                x={toX(i)}
+                y={toY(p.value) - 6}
+                textAnchor="middle"
+                className={styles.pointLabel}
+              >
+                {pointLabel(p)}
+              </text>
+            ) : null,
+          )}
         {showDates &&
           points.map((p, i) => {
+            if (!isLabeled(i)) return null;
             const { weekday, day } = shortDate(p.date);
             return (
               <text key={`date-${p.date}`} x={toX(i)} y={viewHeight - 8} textAnchor="middle" className={styles.dateLabel}>

@@ -6,6 +6,51 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  transition: border-color 0.15s ease;
+}
+
+.widget:hover {
+  border-color: var(--color-accent-2);
+}
+
+.small {
+  grid-column: span 1;
+  min-height: 180px;
+}
+
+.medium {
+  grid-column: span 2;
+  min-height: 220px;
+}
+
+.large {
+  grid-column: span 4;
+  min-height: 280px;
+}
+
+@media (max-width: 900px) {
+  .medium,
+  .large {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 500px) {
+  .small,
+  .medium,
+  .large {
+    grid-column: span 1;
+  }
+}
+
+.small > *:last-child,
+.medium > *:last-child,
+.large > *:last-child {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
 .header {

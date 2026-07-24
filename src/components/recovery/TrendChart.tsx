@@ -1,7 +1,7 @@
 import styles from "./TrendChart.module.css";
 
 const VIEW_WIDTH = 300;
-const PLOT_HEIGHT = 40;
+const DEFAULT_PLOT_HEIGHT = 40;
 const TOP_PAD = 16;
 const BOTTOM_PAD = 20;
 const DOT_RADIUS = 3;
@@ -13,6 +13,7 @@ interface TrendChartProps {
   pointColor?: (point: TrendPoint) => string;
   pointLabel?: (point: TrendPoint) => string;
   showDates?: boolean;
+  height?: number;
 }
 
 function shortDate(iso: string): { weekday: string; day: string } {
@@ -23,14 +24,15 @@ function shortDate(iso: string): { weekday: string; day: string } {
   };
 }
 
-export default function TrendChart({ points, pointColor, pointLabel, showDates }: TrendChartProps) {
+export default function TrendChart({ points, pointColor, pointLabel, showDates, height }: TrendChartProps) {
   if (points.length < 2) {
     return null;
   }
 
+  const plotHeight = height ?? DEFAULT_PLOT_HEIGHT;
   const topPad = pointLabel ? TOP_PAD : 0;
   const bottomPad = showDates ? BOTTOM_PAD : 0;
-  const viewHeight = topPad + PLOT_HEIGHT + bottomPad;
+  const viewHeight = topPad + plotHeight + bottomPad;
 
   const values = points.map((p) => p.value);
   const min = Math.min(...values);
@@ -38,16 +40,16 @@ export default function TrendChart({ points, pointColor, pointLabel, showDates }
   const range = max - min || 1;
 
   const toX = (i: number) => (i / (points.length - 1)) * VIEW_WIDTH;
-  const toY = (value: number) => topPad + PLOT_HEIGHT - ((value - min) / range) * PLOT_HEIGHT;
+  const toY = (value: number) => topPad + plotHeight - ((value - min) / range) * plotHeight;
 
   const linePath = points
     .map((p, i) => `${i === 0 ? "M" : "L"}${toX(i).toFixed(1)},${toY(p.value).toFixed(1)}`)
     .join(" ");
 
   const areaPath =
-    `M${toX(0).toFixed(1)},${topPad + PLOT_HEIGHT} ` +
+    `M${toX(0).toFixed(1)},${topPad + plotHeight} ` +
     points.map((p, i) => `L${toX(i).toFixed(1)},${toY(p.value).toFixed(1)}`).join(" ") +
-    ` L${toX(points.length - 1).toFixed(1)},${topPad + PLOT_HEIGHT} Z`;
+    ` L${toX(points.length - 1).toFixed(1)},${topPad + plotHeight} Z`;
 
   return (
     <svg

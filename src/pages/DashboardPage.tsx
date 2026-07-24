@@ -11,7 +11,7 @@ import { SortableContext, arrayMove, rectSortingStrategy } from "@dnd-kit/sortab
 import DataCatalog from "../components/dashboard/DataCatalog";
 import DashboardWidget from "../components/dashboard/DashboardWidget";
 import { useDashboardData } from "../components/dashboard/useDashboardData";
-import { CATALOG_DRAG_PREFIX, WHOOP_STRAIN_RECOVERY_COMBO_ID, type Widget } from "../components/dashboard/types";
+import { CATALOG_DRAG_PREFIX, WHOOP_STRAIN_RECOVERY_COMBO_ID, type Widget, type WidgetSize } from "../components/dashboard/types";
 import type { MetricDef } from "../components/dashboard/useDashboardData";
 import styles from "./DashboardPage.module.css";
 
@@ -136,6 +136,7 @@ function DashboardEditor({ password }: { password: string }) {
       metric: metric.id,
       label: metric.label,
       viewType: defaultViewType(metric),
+      size: "medium",
     };
     saveWidgets([...widgets, widget]);
   };
@@ -144,6 +145,9 @@ function DashboardEditor({ password }: { password: string }) {
 
   const handleViewTypeChange = (id: string, viewType: Widget["viewType"]) =>
     saveWidgets(widgets.map((w) => (w.id === id ? { ...w, viewType } : w)));
+
+  const handleSizeChange = (id: string, size: WidgetSize) =>
+    saveWidgets(widgets.map((w) => (w.id === id ? { ...w, size } : w)));
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -162,6 +166,7 @@ function DashboardEditor({ password }: { password: string }) {
         metric: metric.id,
         label: metric.label,
         viewType: defaultViewType(metric),
+        size: "medium",
       };
 
       const overIndex = widgets.findIndex((w) => w.id === over.id);
@@ -200,6 +205,7 @@ function DashboardEditor({ password }: { password: string }) {
                       widget={widget}
                       metricById={metricById}
                       onViewTypeChange={(viewType) => handleViewTypeChange(widget.id, viewType)}
+                      onSizeChange={(size) => handleSizeChange(widget.id, size)}
                       onRemove={() => handleRemove(widget.id)}
                     />
                   ))}

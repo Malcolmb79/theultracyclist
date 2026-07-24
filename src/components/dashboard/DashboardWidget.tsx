@@ -31,9 +31,16 @@ export default function DashboardWidget({ widget, metric, onViewTypeChange, onRe
   return (
     <div ref={setNodeRef} style={style} className={styles.widget}>
       <div className={styles.header}>
-        <button type="button" className={styles.dragHandle} {...attributes} {...listeners} aria-label="Drag to reorder">
+        <div
+          className={styles.dragHandle}
+          {...attributes}
+          {...listeners}
+          role="button"
+          tabIndex={0}
+          aria-label="Drag to reorder"
+        >
           ⠿
-        </button>
+        </div>
         <span className={styles.label}>{widget.label}</span>
         <div className={styles.controls}>
           <select

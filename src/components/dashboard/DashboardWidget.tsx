@@ -27,7 +27,11 @@ interface DashboardWidgetProps {
 
 const HEADER_HEIGHT = 44;
 const CONTENT_PADDING = 32;
-const MIN_COMBO_HEIGHT = 320;
+const MIN_COMBO_HEIGHT = 360;
+// Per combo section overhead: comboLabel row (~20px) + TrendChart's own
+// top/bottom padding for point labels and date labels (36px), times 2
+// sections, plus the gap between them (var(--space-3), 16px).
+const COMBO_SECTION_OVERHEAD = 2 * (20 + 36) + 16;
 
 function formatValue(value: number, unit: string): string {
   const rounded = Number.isInteger(value) ? value : Math.round(value * 10) / 10;
@@ -135,7 +139,7 @@ export default function DashboardWidget({ widget, metricById, onViewTypeChange, 
           <ComboStrainRecovery
             strain={metricById.get("whoop.strain")}
             recovery={metricById.get("whoop.recovery")}
-            chartHeight={Math.max(24, contentHeight / 2 - 24)}
+            chartHeight={Math.max(24, (contentHeight - COMBO_SECTION_OVERHEAD) / 2)}
           />
         ) : !metric || metric.series.length === 0 ? (
           <p className={styles.empty}>No data yet for this metric.</p>

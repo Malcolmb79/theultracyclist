@@ -81,7 +81,7 @@ export default function DashboardWidget({
   const minHeight = isCombo ? MIN_COMBO_HEIGHT : MIN_WIDGET_HEIGHT;
 
   const [size, setSize] = useState({
-    width: widget.width ?? DEFAULT_WIDGET_WIDTH,
+    width: Math.max(MIN_WIDGET_WIDTH, widget.width ?? DEFAULT_WIDGET_WIDTH),
     height: Math.max(minHeight, widget.height ?? DEFAULT_WIDGET_HEIGHT),
   });
   const resizeStart = useRef<{ pointerX: number; pointerY: number; width: number; height: number } | null>(null);

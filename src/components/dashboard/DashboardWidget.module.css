@@ -65,7 +65,7 @@
 .label {
   font-weight: 600;
   flex: 1;
-  min-width: 0;
+  min-width: 44px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -121,8 +121,8 @@
 
 .colorInput {
   flex: none;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   padding: 2px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);

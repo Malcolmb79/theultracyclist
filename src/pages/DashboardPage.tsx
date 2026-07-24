@@ -177,15 +177,7 @@ function DashboardEditor({ password }: { password: string }) {
   };
 
   return (
-    <DndContext
-      sensors={sensors}
-      onDragStart={(e) => console.log("[dnd] dragStart", e.active.id)}
-      onDragOver={(e) => console.log("[dnd] dragOver", e.active.id, "->", e.over?.id)}
-      onDragEnd={(e) => {
-        console.log("[dnd] dragEnd", e.active.id, "->", e.over?.id);
-        handleDragEnd(e);
-      }}
-    >
+    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className={styles.page}>
         <div className={styles.layout}>
           <aside className={styles.sidebar}>

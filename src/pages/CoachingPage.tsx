@@ -6,6 +6,17 @@ import CoachChatCard from "../components/coaching/CoachChatCard";
 import CoachingWidget from "../components/coaching/CoachingWidget";
 import { useCoachingData } from "../components/coaching/useCoachingData";
 import type { CoachingWidgetId, CoachingWidgetRect, NarrativeInput } from "../components/coaching/types";
+import DataCatalog from "../components/dashboard/DataCatalog";
+import DashboardWidget from "../components/dashboard/DashboardWidget";
+import { useDashboardData } from "../components/dashboard/useDashboardData";
+import {
+  WHOOP_STRAIN_RECOVERY_COMBO_ID,
+  WHOOP_RINGS_COMBO_ID,
+  DEFAULT_WIDGET_WIDTH,
+  DEFAULT_WIDGET_HEIGHT,
+  type Widget,
+} from "../components/dashboard/types";
+import type { MetricDef } from "../components/dashboard/useDashboardData";
 import { useAuthSession } from "../utils/useAuthSession";
 import { useIsMobile } from "../utils/useIsMobile";
 import { computeCanvasHeight } from "../utils/useCanvasItem";
@@ -37,6 +48,23 @@ const DEFAULT_MOBILE: Record<CoachingWidgetId, CoachingWidgetRect> = {
 
 const WIDGET_IDS: CoachingWidgetId[] = ["readiness", "chat", "trainingPlan", "powerZones"];
 
+// Freely-added catalog widgets cascade below whatever's already on the
+// canvas (fixed cards included) rather than stacking at (0,0).
+function nextWidgetPosition(existingBottoms: number[]): { x: number; y: number } {
+  const bottom = existingBottoms.reduce((max, b) => Math.max(max, b), 0);
+  return { x: 0, y: bottom > 0 ? bottom + 20 : 0 };
+}
+
+function defaultViewType(metric: MetricDef): Widget["viewType"] {
+  if (metric.id === WHOOP_STRAIN_RECOVERY_COMBO_ID) return "combo";
+  if (metric.id === WHOOP_RINGS_COMBO_ID) return "rings";
+  return metric.statOnly ? "stat" : "chart";
+}
+
+function nextId(): string {
+  return `cw_${Date.now()}_${Math.round(Math.random() * 1e6)}`;
+}
+
 export default function CoachingPage() {
   const auth = useAuthSession();
 
@@ -57,8 +85,10 @@ export default function CoachingPage() {
 
 function CoachingView() {
   const data = useCoachingData();
+  const dashboardData = useDashboardData();
   const isMobile = useIsMobile();
   const [isResizing, setIsResizing] = useState(false);
+  const [catalogOpen, setCatalogOpen] = useState(false);
 
   const rectFor = (id: CoachingWidgetId): CoachingWidgetRect => {
     const saved = data.status === "ready" ? data.settings.layout?.[id] : undefined;
@@ -77,8 +107,59 @@ function CoachingView() {
     data.saveSettings({ ...data.settings, layout: { ...data.settings.layout, [id]: { ...current, width, height } } });
   };
 
+  const catalogWidgets: Widget[] = data.status === "ready" ? (data.settings.widgets ?? []) : [];
+  const metricById = new Map((dashboardData.status === "ready" ? dashboardData.metrics : []).map((m) => [m.id, m]));
+
+  const saveCatalogWidgets = (next: Widget[]) => {
+    if (data.status !== "ready") return;
+    data.saveSettings({ ...data.settings, widgets: next });
+  };
+
+  const handleAddMetric = (metric: MetricDef) => {
+    const bottoms = [
+      ...WIDGET_IDS.map((id) => rectFor(id).y + rectFor(id).height),
+      ...catalogWidgets.map((w) => (w.y ?? 0) + (w.height ?? DEFAULT_WIDGET_HEIGHT)),
+    ];
+    const position = nextWidgetPosition(bottoms);
+    const widget: Widget = {
+      id: nextId(),
+      source: metric.source,
+      metric: metric.id,
+      label: metric.label,
+      viewType: defaultViewType(metric),
+      x: position.x,
+      y: position.y,
+      width: DEFAULT_WIDGET_WIDTH,
+      height: DEFAULT_WIDGET_HEIGHT,
+    };
+    saveCatalogWidgets([...catalogWidgets, widget]);
+    setCatalogOpen(false);
+  };
+
+  const handleRemoveMetric = (id: string) => saveCatalogWidgets(catalogWidgets.filter((w) => w.id !== id));
+
+  const handleMetricViewTypeChange = (id: string, viewType: Widget["viewType"]) =>
+    saveCatalogWidgets(catalogWidgets.map((w) => (w.id === id ? { ...w, viewType } : w)));
+
+  const handleMetricColorChange = (id: string, color: string) =>
+    saveCatalogWidgets(catalogWidgets.map((w) => (w.id === id ? { ...w, color } : w)));
+
+  const handleMetricMove = (id: string, x: number, y: number) =>
+    saveCatalogWidgets(catalogWidgets.map((w) => (w.id === id ? { ...w, x, y } : w)));
+
+  const handleMetricResize = (id: string, width: number, height: number) =>
+    saveCatalogWidgets(catalogWidgets.map((w) => (w.id === id ? { ...w, width, height } : w)));
+
   const canvasHeight =
-    data.status === "ready" ? computeCanvasHeight(WIDGET_IDS.map((id) => rectFor(id))) : 400;
+    data.status === "ready"
+      ? computeCanvasHeight([
+          ...WIDGET_IDS.map((id) => rectFor(id)),
+          ...catalogWidgets.map((w) => ({
+            y: w.y ?? 0,
+            height: w.height ?? DEFAULT_WIDGET_HEIGHT,
+          })),
+        ])
+      : 400;
 
   return (
     <div className={styles.page}>
@@ -91,14 +172,31 @@ function CoachingView() {
             { label: "Settings", href: "/dashboard/settings" },
           ]}
           trailing={
-            <a href="/api/auth-logout" className={styles.switchLink}>
-              Sign out
-            </a>
+            <>
+              <button
+                type="button"
+                className={styles.catalogToggle}
+                onClick={() => setCatalogOpen((open) => !open)}
+                aria-label={catalogOpen ? "Close data menu" : "Open data menu"}
+                aria-expanded={catalogOpen}
+              >
+                {catalogOpen ? "×" : "☰"}
+              </button>
+              <a href="/api/auth-logout" className={styles.switchLink}>
+                Sign out
+              </a>
+            </>
           }
         />
       </div>
 
       <PageHeader title="Coaching" subtitle="Readiness, power zones, and training plan progress, built from your own data." />
+
+      {catalogOpen && <div className={styles.catalogBackdrop} onClick={() => setCatalogOpen(false)} />}
+
+      <aside className={`${styles.catalogDrawer} ${catalogOpen ? styles.catalogDrawerOpen : ""}`}>
+        <DataCatalog metrics={dashboardData.status === "ready" ? dashboardData.metrics : []} onAdd={handleAddMetric} />
+      </aside>
 
       {data.status === "loading" ? (
         <p className={styles.loading}>Loading…</p>
@@ -143,6 +241,21 @@ function CoachingView() {
           >
             <PowerZonesCard settings={data.settings} recentRides={data.recentRides} />
           </CoachingWidget>
+
+          {catalogWidgets.map((widget) => (
+            <DashboardWidget
+              key={widget.id}
+              widget={widget}
+              metricById={metricById}
+              whoopHistory={dashboardData.status === "ready" ? dashboardData.whoopHistory : []}
+              onViewTypeChange={(viewType) => handleMetricViewTypeChange(widget.id, viewType)}
+              onColorChange={(color) => handleMetricColorChange(widget.id, color)}
+              onMove={(x, y) => handleMetricMove(widget.id, x, y)}
+              onResize={(width, height) => handleMetricResize(widget.id, width, height)}
+              onResizingChange={setIsResizing}
+              onRemove={() => handleRemoveMetric(widget.id)}
+            />
+          ))}
         </main>
       )}
     </div>

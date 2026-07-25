@@ -4,12 +4,30 @@ import { getSessionEmail } from "./_lib/session.js";
 
 type CoachingWidgetRect = { x: number; y: number; width: number; height: number };
 
+// Mirrors dashboard's Widget type (src/components/dashboard/types.ts) -
+// independent local copy, matching how this project keeps the frontend and
+// api/ TypeScript projects decoupled (see coaching-narrative.ts's
+// NarrativeInput for the same pattern).
+type CatalogWidget = {
+  id: string;
+  source: "strava" | "whoop" | "health";
+  metric: string;
+  label: string;
+  viewType: "stat" | "chart" | "timeline" | "ring" | "combo" | "rings";
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  color?: string;
+};
+
 export type CoachingSettings = {
   ftpWatts?: number;
   weeklyDistanceKm?: number;
   weeklyHours?: number;
   phase?: "build" | "recovery" | "taper";
   layout?: Partial<Record<"readiness" | "chat" | "trainingPlan" | "powerZones", CoachingWidgetRect>>;
+  widgets?: CatalogWidget[];
 };
 
 function readSettings(): CoachingSettings {

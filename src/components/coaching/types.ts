@@ -1,3 +1,5 @@
+import type { Widget } from "../dashboard/types";
+
 export type TrainingPhase = "build" | "recovery" | "taper";
 
 export type CoachingWidgetId = "readiness" | "chat" | "trainingPlan" | "powerZones";
@@ -12,6 +14,10 @@ export type CoachingSettings = {
   weeklyHours?: number;
   phase?: TrainingPhase;
   layout?: CoachingLayout;
+  // Freely-added data-catalog widgets (the "hamburger" menu), same shape and
+  // rendering (DashboardWidget) as Dashboard/Trends use - separate from the
+  // 4 fixed coaching cards above, which keep their own `layout` slot.
+  widgets?: Widget[];
 };
 
 export type ReadinessLevel = "hard" | "moderate" | "easy" | "rest";

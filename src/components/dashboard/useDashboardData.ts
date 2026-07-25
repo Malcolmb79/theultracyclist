@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { WHOOP_STRAIN_RECOVERY_COMBO_ID, WHOOP_RINGS_COMBO_ID } from "./types";
+import { WHOOP_STRAIN_RECOVERY_COMBO_ID, WHOOP_RINGS_COMBO_ID, HEALTH_CALENDAR_ID } from "./types";
 import { useUnits } from "../../context/UnitsContext";
 import { convertMetricSeries, convertValueUnit } from "../../utils/units";
 import { computeBmi, findWeightMetricName } from "../../utils/bmi";
@@ -103,6 +103,7 @@ export function useDashboardData(raw: RawSourcesState): DashboardDataState {
           { id: "whoop.sleepHours", source: "whoop", label: "Sleep duration", unit: "h", series: series((d) => d.sleep?.totalSleepHours) },
           { id: WHOOP_STRAIN_RECOVERY_COMBO_ID, source: "whoop", label: "Strain & Recovery", unit: "", series: [], statOnly: true },
           { id: WHOOP_RINGS_COMBO_ID, source: "whoop", label: "Sleep, Recovery & Strain", unit: "", series: [], statOnly: true },
+          { id: HEALTH_CALENDAR_ID, source: "whoop", label: "Health Calendar", unit: "", series: [], statOnly: true },
         );
       }
 

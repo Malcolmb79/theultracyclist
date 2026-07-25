@@ -3,7 +3,7 @@ export type Widget = {
   source: "strava" | "whoop" | "health";
   metric: string;
   label: string;
-  viewType: "stat" | "chart" | "timeline" | "ring" | "combo" | "rings";
+  viewType: "stat" | "chart" | "timeline" | "ring" | "combo" | "rings" | "healthCalendar";
   x?: number;
   y?: number;
   width?: number;
@@ -42,3 +42,8 @@ export const WHOOP_STRAIN_RECOVERY_COMBO_ID = "whoop.strainRecoveryCombo";
 // Special catalog entry: a compact Sleep/Recovery/Strain 3-ring row,
 // matching Whoop's own summary strip - each ring opens that metric's detail.
 export const WHOOP_RINGS_COMBO_ID = "whoop.sleepRecoveryStrainRings";
+
+// Special catalog entry: a single month calendar with Strain/Recovery/
+// Sleep/HRV/Weight all shown per day (small color dots), rather than one
+// metric per calendar the way Trends' calendar view works.
+export const HEALTH_CALENDAR_ID = "whoop.healthCalendar";

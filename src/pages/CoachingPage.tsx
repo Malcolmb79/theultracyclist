@@ -12,6 +12,7 @@ import { useDashboardData } from "../components/dashboard/useDashboardData";
 import {
   WHOOP_STRAIN_RECOVERY_COMBO_ID,
   WHOOP_RINGS_COMBO_ID,
+  HEALTH_CALENDAR_ID,
   DEFAULT_WIDGET_WIDTH,
   DEFAULT_WIDGET_HEIGHT,
   type Widget,
@@ -59,6 +60,7 @@ function nextWidgetPosition(existingBottoms: number[]): { x: number; y: number }
 function defaultViewType(metric: MetricDef): Widget["viewType"] {
   if (metric.id === WHOOP_STRAIN_RECOVERY_COMBO_ID) return "combo";
   if (metric.id === WHOOP_RINGS_COMBO_ID) return "rings";
+  if (metric.id === HEALTH_CALENDAR_ID) return "healthCalendar";
   return metric.statOnly ? "stat" : "chart";
 }
 

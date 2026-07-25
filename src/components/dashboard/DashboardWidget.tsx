@@ -7,12 +7,14 @@ import DashboardStatTile from "./DashboardStatTile";
 import TrendChart, { TREND_CHART_LABEL_TOP_PAD, TREND_CHART_LABEL_BOTTOM_PAD } from "../recovery/TrendChart";
 import RingGauge from "./RingGauge";
 import BmiChart from "./BmiChart";
+import HealthCalendar from "./HealthCalendar";
 import { bmiCategoryColor, isWeightMetricId } from "../../utils/bmi";
 import WhoopDetailModal, { type WhoopDetailKind } from "./WhoopDetailModal";
 import type { MetricDef, WhoopDay } from "./useDashboardData";
 import {
   WHOOP_STRAIN_RECOVERY_COMBO_ID,
   WHOOP_RINGS_COMBO_ID,
+  HEALTH_CALENDAR_ID,
   DEFAULT_WIDGET_WIDTH,
   DEFAULT_WIDGET_HEIGHT,
   DEFAULT_WIDGET_COLOR,
@@ -53,7 +55,13 @@ const DETAIL_KIND_BY_METRIC: Record<string, WhoopDetailKind> = {
 const HEADER_HEIGHT = 44;
 const CONTENT_PADDING = 32;
 const MIN_COMBO_HEIGHT = 360;
-const MIN_RINGS_HEIGHT = 200;
+// .widget's own horizontal chrome eaten from rect.width before any content
+// gets to use it: padding var(--space-4) (24px) on each side plus its 1px
+// border on each side - 48 alone (padding only) under-counts this by 2px,
+// which was enough to clip the rightmost ring at the widget's stated
+// minimum width.
+const WIDGET_HORIZONTAL_CHROME = 24 * 2 + 1 * 2;
+const MIN_RINGS_HEIGHT = 210;
 // .ringsRow's gap (var(--space-3), 16px) between each of the 3 rings - the
 // outer two rings overflow their column and get clipped by .content's
 // overflow:hidden if this isn't subtracted from the available row width.
@@ -62,13 +70,23 @@ const RINGS_ROW_GAP = 16;
 // rendered height (~20px for the uppercase small-caps text underneath).
 const RING_LABEL_OVERHEAD = 28;
 // 3 rings at their smallest (60px, see RingsRow's ringSize floor) plus the
-// 2 row gaps plus the widget's own horizontal padding - below this width
+// 2 row gaps plus the widget's own horizontal chrome - below this width
 // the rings would be forced smaller than their floor and clip.
-const MIN_RINGS_WIDTH = 3 * 60 + RINGS_ROW_GAP * 2 + 48;
+const MIN_RINGS_WIDTH = 3 * 60 + RINGS_ROW_GAP * 2 + WIDGET_HORIZONTAL_CHROME;
 // Per combo section overhead: comboLabel row (~20px) + TrendChart's own
 // top/bottom padding for point labels and date labels (36px), times 2
 // sections, plus the gap between them (var(--space-3), 16px).
 const COMBO_SECTION_OVERHEAD = 2 * (20 + 36) + 16;
+// BmiChart's content (headline + bar + ticks + caption, each with their own
+// gaps) needs more vertical room than a plain stat/chart widget's floor -
+// at the old generic MIN_WIDGET_HEIGHT the headline got clipped against
+// .content's overflow:hidden.
+const MIN_BMI_HEIGHT = 220;
+const MIN_BMI_WIDTH = 220;
+const MIN_HEALTH_CALENDAR_WIDTH = 420;
+const MIN_HEALTH_CALENDAR_HEIGHT = 440;
+const DEFAULT_HEALTH_CALENDAR_WIDTH = 480;
+const DEFAULT_HEALTH_CALENDAR_HEIGHT = 480;
 
 function formatValue(value: number, unit: string): string {
   const rounded = Number.isInteger(value) ? value : Math.round(value * 10) / 10;
@@ -106,9 +124,10 @@ export default function DashboardWidget({
   const isCombo = widget.metric === WHOOP_STRAIN_RECOVERY_COMBO_ID;
   const isRings = widget.metric === WHOOP_RINGS_COMBO_ID;
   const isBmi = widget.metric === "health.bmi";
+  const isHealthCalendar = widget.metric === HEALTH_CALENDAR_ID;
   const detailKind = DETAIL_KIND_BY_METRIC[widget.metric];
   const [openDetail, setOpenDetail] = useState<WhoopDetailKind | null>(null);
-  const metric = isCombo || isRings ? undefined : metricById.get(widget.metric);
+  const metric = isCombo || isRings || isHealthCalendar ? undefined : metricById.get(widget.metric);
   const isMobile = useIsMobile();
 
   // The weight widget's color is always health-semantic (matches the BMI
@@ -118,21 +137,51 @@ export default function DashboardWidget({
   const isWeightWidget = metric ? isWeightMetricId(metric.id) : false;
   const effectiveColor = isWeightWidget && latestBmi != null ? bmiCategoryColor(latestBmi) : widget.color;
 
+  // For the health calendar: weight is shown in whatever unit its own
+  // metric is already display-converted to (no extra conversion needed
+  // here), while BMI per day comes straight from the already-computed
+  // "health.bmi" series so the calendar doesn't need height/weight math
+  // of its own.
+  const weightMetric = Array.from(metricById.values()).find((m) => isWeightMetricId(m.id));
+  const weightByDate = new Map((weightMetric?.series ?? []).map((p) => [p.date.slice(0, 10), p.value]));
+  const weightUnit = weightMetric?.unit ?? "kg";
+  const bmiByDate = new Map((metricById.get("health.bmi")?.series ?? []).map((p) => [p.date.slice(0, 10), p.value]));
+
   const minHeight = isCombo
     ? MIN_COMBO_HEIGHT
     : isRings
       ? MIN_RINGS_HEIGHT
-      : isMobile
-        ? MOBILE_MIN_WIDGET_HEIGHT
-        : MIN_WIDGET_HEIGHT;
-  const minWidth = isRings ? MIN_RINGS_WIDTH : isMobile ? MOBILE_MIN_WIDGET_WIDTH : MIN_WIDGET_WIDTH;
-  const defaultWidth = isMobile ? MOBILE_DEFAULT_WIDGET_WIDTH : DEFAULT_WIDGET_WIDTH;
-  const defaultHeight = isMobile ? MOBILE_DEFAULT_WIDGET_HEIGHT : DEFAULT_WIDGET_HEIGHT;
+      : isBmi
+        ? MIN_BMI_HEIGHT
+        : isHealthCalendar
+          ? MIN_HEALTH_CALENDAR_HEIGHT
+          : isMobile
+            ? MOBILE_MIN_WIDGET_HEIGHT
+            : MIN_WIDGET_HEIGHT;
+  const minWidth = isRings
+    ? MIN_RINGS_WIDTH
+    : isBmi
+      ? MIN_BMI_WIDTH
+      : isHealthCalendar
+        ? MIN_HEALTH_CALENDAR_WIDTH
+        : isMobile
+          ? MOBILE_MIN_WIDGET_WIDTH
+          : MIN_WIDGET_WIDTH;
+  const defaultWidth = isHealthCalendar
+    ? DEFAULT_HEALTH_CALENDAR_WIDTH
+    : isMobile
+      ? MOBILE_DEFAULT_WIDGET_WIDTH
+      : DEFAULT_WIDGET_WIDTH;
+  const defaultHeight = isHealthCalendar
+    ? DEFAULT_HEALTH_CALENDAR_HEIGHT
+    : isMobile
+      ? MOBILE_DEFAULT_WIDGET_HEIGHT
+      : DEFAULT_WIDGET_HEIGHT;
   // A widget already sized for desktop shows visually compressed on mobile
-  // (the saved width/height itself is untouched) - combo/rings are exempt
-  // since they need more room than the cap to render their sub-content.
-  const capWidth = isMobile && !isRings ? MOBILE_CAP_WIDTH : Infinity;
-  const capHeight = isMobile && !isCombo && !isRings ? MOBILE_CAP_HEIGHT : Infinity;
+  // (the saved width/height itself is untouched) - combo/rings/calendar are
+  // exempt since they need more room than the cap to render their sub-content.
+  const capWidth = isMobile && !isRings && !isHealthCalendar ? MOBILE_CAP_WIDTH : Infinity;
+  const capHeight = isMobile && !isCombo && !isRings && !isHealthCalendar ? MOBILE_CAP_HEIGHT : Infinity;
 
   const { rect, handleDragPointerDown, handleResizePointerDown } = useCanvasItem({
     initial: {
@@ -205,7 +254,7 @@ export default function DashboardWidget({
               onChange={(e) => onColorChange(e.target.value)}
               aria-label="Widget color"
             />
-            {!isCombo && !isRings && !isBmi && (
+            {!isCombo && !isRings && !isBmi && !isHealthCalendar && (
               <select
                 className={styles.select}
                 value={widget.viewType}
@@ -241,7 +290,7 @@ export default function DashboardWidget({
               latest={whoopHistory[whoopHistory.length - 1]}
               ringSize={Math.max(
                 60,
-                Math.min((rect.width - 48 - RINGS_ROW_GAP * 2) / 3, contentHeight - RING_LABEL_OVERHEAD),
+                Math.min((rect.width - WIDGET_HORIZONTAL_CHROME - RINGS_ROW_GAP * 2) / 3, contentHeight - RING_LABEL_OVERHEAD),
               )}
               onOpenDetail={setOpenDetail}
             />
@@ -249,6 +298,14 @@ export default function DashboardWidget({
             <BmiChart
               bmi={metric?.series.length ? metric.series[metric.series.length - 1].value : null}
               date={metric?.series.length ? metric.series[metric.series.length - 1].date : null}
+            />
+          ) : isHealthCalendar ? (
+            <HealthCalendar
+              whoopHistory={whoopHistory}
+              weightByDate={weightByDate}
+              weightUnit={weightUnit}
+              bmiByDate={bmiByDate}
+              height={contentHeight}
             />
           ) : !metric || metric.series.length === 0 ? (
             <p className={styles.empty}>No data yet for this metric.</p>

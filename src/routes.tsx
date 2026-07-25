@@ -10,12 +10,14 @@ import FollowPage from "./pages/FollowPage";
 import AboutPage from "./pages/AboutPage";
 import DashboardPage from "./pages/DashboardPage";
 import TrendsPage from "./pages/TrendsPage";
+import CoachingPage from "./pages/CoachingPage";
 import NotFoundPage from "./pages/NotFoundPage";
 
 export const router = createBrowserRouter([
   // Not part of the public Layout (no nav/footer) — private tool, not linked from the site.
   { path: "/dashboard", element: <DashboardPage /> },
   { path: "/dashboard/trends", element: <TrendsPage /> },
+  { path: "/dashboard/coaching", element: <CoachingPage /> },
   {
     element: <Layout />,
     children: [

@@ -1,0 +1,122 @@
+.page {
+  min-height: 100vh;
+  padding: var(--space-5) var(--space-4);
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.topBar {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.switchLink {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  text-decoration: none;
+}
+
+.switchLink:hover {
+  border-color: var(--color-accent-2);
+  color: var(--color-text);
+}
+
+.header {
+  margin-bottom: var(--space-4);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: 2.2rem;
+  margin: 0 0 var(--space-1);
+}
+
+.subtitle {
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.loading {
+  color: var(--color-text-muted);
+  text-align: center;
+  margin-top: var(--space-6);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--space-3);
+  align-items: start;
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: var(--space-4) var(--space-2);
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.gate {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+}
+
+.gateBox {
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.gateTitle {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  text-align: center;
+  margin: 0;
+}
+
+.gateInput {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  font-size: 1rem;
+}
+
+.gateButton {
+  background: var(--color-accent);
+  color: var(--color-bg);
+  border: none;
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.gateButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.gateError {
+  color: var(--color-accent);
+  font-size: 0.85rem;
+  text-align: center;
+  margin: 0;
+}

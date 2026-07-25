@@ -178,6 +178,9 @@ function TrendsEditor({ password }: { password: string }) {
         <a href="/dashboard" className={styles.switchLink}>
           Main dashboard
         </a>
+        <a href="/dashboard/coaching" className={styles.switchLink}>
+          Coaching
+        </a>
       </div>
 
       {catalogOpen && <div className={styles.catalogBackdrop} onClick={() => setCatalogOpen(false)} />}

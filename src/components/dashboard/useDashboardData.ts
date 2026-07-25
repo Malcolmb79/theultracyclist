@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { WHOOP_STRAIN_RECOVERY_COMBO_ID } from "./types";
+import { WHOOP_STRAIN_RECOVERY_COMBO_ID, WHOOP_RINGS_COMBO_ID } from "./types";
 
 export type SeriesPoint = { date: string; value: number };
 
@@ -12,10 +12,17 @@ export type MetricDef = {
   statOnly?: boolean; // true for single-value aggregates (no meaningful chart/timeline)
 };
 
-type WhoopRecovery = { score: number; hrvMs: number; restingHeartRate: number };
-type WhoopStrain = { score: number; avgHeartRate: number; maxHeartRate: number };
-type WhoopSleep = { performancePercent: number; totalSleepHours: number };
-type WhoopDay = { date: string; recovery: WhoopRecovery | null; strain: WhoopStrain | null; sleep: WhoopSleep | null };
+export type WhoopRecovery = { score: number; hrvMs: number; restingHeartRate: number };
+export type WhoopStrain = { score: number; avgHeartRate: number; maxHeartRate: number; zone1to3Minutes: number; zone4to5Minutes: number };
+export type WhoopSleep = {
+  performancePercent: number;
+  totalSleepHours: number;
+  consistencyPercent: number;
+  efficiencyPercent: number;
+  hoursNeeded: number;
+  respiratoryRate: number;
+};
+export type WhoopDay = { date: string; recovery: WhoopRecovery | null; strain: WhoopStrain | null; sleep: WhoopSleep | null };
 
 type StravaRide = {
   id: number;
@@ -52,7 +59,7 @@ function formatMetricName(name: string): string {
 
 export type DashboardDataState =
   | { status: "loading" }
-  | { status: "ready"; metrics: MetricDef[] };
+  | { status: "ready"; metrics: MetricDef[]; whoopHistory: WhoopDay[] };
 
 export function useDashboardData(): DashboardDataState {
   const [state, setState] = useState<DashboardDataState>({ status: "loading" });
@@ -68,9 +75,11 @@ export function useDashboardData(): DashboardDataState {
       if (cancelled) return;
 
       const metrics: MetricDef[] = [];
+      let whoopHistory: WhoopDay[] = [];
 
       if (whoop?.history) {
         const days = (whoop.history as WhoopDay[]).slice().reverse();
+        whoopHistory = days;
         const series = (pick: (d: WhoopDay) => number | null | undefined): SeriesPoint[] =>
           days
             .map((d) => ({ date: d.date, value: pick(d) }))
@@ -85,6 +94,7 @@ export function useDashboardData(): DashboardDataState {
           { id: "whoop.sleepPerformance", source: "whoop", label: "Sleep performance", unit: "%", series: series((d) => d.sleep?.performancePercent) },
           { id: "whoop.sleepHours", source: "whoop", label: "Sleep duration", unit: "h", series: series((d) => d.sleep?.totalSleepHours) },
           { id: WHOOP_STRAIN_RECOVERY_COMBO_ID, source: "whoop", label: "Strain & Recovery", unit: "", series: [], statOnly: true },
+          { id: WHOOP_RINGS_COMBO_ID, source: "whoop", label: "Sleep, Recovery & Strain", unit: "", series: [], statOnly: true },
         );
       }
 
@@ -141,9 +151,9 @@ export function useDashboardData(): DashboardDataState {
         }
       }
 
-      setState({ status: "ready", metrics });
+      setState({ status: "ready", metrics, whoopHistory });
     }).catch(() => {
-      if (!cancelled) setState({ status: "ready", metrics: [] });
+      if (!cancelled) setState({ status: "ready", metrics: [], whoopHistory: [] });
     });
 
     return () => {

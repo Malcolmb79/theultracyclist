@@ -6,9 +6,11 @@ import { recoveryColor } from "../../utils/recoveryColor";
 import StatTile from "../shared/StatTile";
 import TrendChart, { TREND_CHART_LABEL_TOP_PAD, TREND_CHART_LABEL_BOTTOM_PAD } from "../recovery/TrendChart";
 import RingGauge from "./RingGauge";
-import type { MetricDef } from "./useDashboardData";
+import WhoopDetailModal, { type WhoopDetailKind } from "./WhoopDetailModal";
+import type { MetricDef, WhoopDay } from "./useDashboardData";
 import {
   WHOOP_STRAIN_RECOVERY_COMBO_ID,
+  WHOOP_RINGS_COMBO_ID,
   DEFAULT_WIDGET_WIDTH,
   DEFAULT_WIDGET_HEIGHT,
   DEFAULT_WIDGET_COLOR,
@@ -22,12 +24,22 @@ import styles from "./DashboardWidget.module.css";
 interface DashboardWidgetProps {
   widget: Widget;
   metricById: Map<string, MetricDef>;
+  whoopHistory: WhoopDay[];
   onViewTypeChange: (viewType: Widget["viewType"]) => void;
   onColorChange: (color: string) => void;
   onResize: (width: number, height: number) => void;
   onResizingChange: (resizing: boolean) => void;
   onRemove: () => void;
 }
+
+// Maps a widget's underlying metric id to the Whoop detail view it should
+// open on click, matching Whoop's own app behavior of tapping a ring to see
+// its breakdown. Only these three metrics have a matching detail view.
+const DETAIL_KIND_BY_METRIC: Record<string, WhoopDetailKind> = {
+  "whoop.strain": "strain",
+  "whoop.recovery": "recovery",
+  "whoop.sleepPerformance": "sleep",
+};
 
 function snapToGrid(value: number): number {
   return Math.round(value / WIDGET_GRID_SIZE) * WIDGET_GRID_SIZE;
@@ -36,6 +48,7 @@ function snapToGrid(value: number): number {
 const HEADER_HEIGHT = 44;
 const CONTENT_PADDING = 32;
 const MIN_COMBO_HEIGHT = 360;
+const MIN_RINGS_HEIGHT = 200;
 // Per combo section overhead: comboLabel row (~20px) + TrendChart's own
 // top/bottom padding for point labels and date labels (36px), times 2
 // sections, plus the gap between them (var(--space-3), 16px).
@@ -75,6 +88,7 @@ function combineRefs<T>(...refs: (((node: T) => void) | { current: T | null } | 
 export default function DashboardWidget({
   widget,
   metricById,
+  whoopHistory,
   onViewTypeChange,
   onColorChange,
   onResize,
@@ -83,9 +97,12 @@ export default function DashboardWidget({
 }: DashboardWidgetProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: widget.id });
   const isCombo = widget.metric === WHOOP_STRAIN_RECOVERY_COMBO_ID;
-  const metric = isCombo ? undefined : metricById.get(widget.metric);
+  const isRings = widget.metric === WHOOP_RINGS_COMBO_ID;
+  const detailKind = DETAIL_KIND_BY_METRIC[widget.metric];
+  const [openDetail, setOpenDetail] = useState<WhoopDetailKind | null>(null);
+  const metric = isCombo || isRings ? undefined : metricById.get(widget.metric);
 
-  const minHeight = isCombo ? MIN_COMBO_HEIGHT : MIN_WIDGET_HEIGHT;
+  const minHeight = isCombo ? MIN_COMBO_HEIGHT : isRings ? MIN_RINGS_HEIGHT : MIN_WIDGET_HEIGHT;
 
   const [size, setSize] = useState({
     width: Math.max(MIN_WIDGET_WIDTH, widget.width ?? DEFAULT_WIDGET_WIDTH),
@@ -172,114 +189,180 @@ export default function DashboardWidget({
   const ringSize = Math.max(60, Math.min(size.width, contentHeight) - 20);
 
   return (
-    <div
-      ref={combineRefs(setNodeRef, widgetRef)}
-      style={dragStyle}
-      className={styles.widget}
-      data-selected={selected || undefined}
-      onPointerDownCapture={() => setSelected(true)}
-    >
-      <div className={styles.header}>
+    <>
+      <div
+        ref={combineRefs(setNodeRef, widgetRef)}
+        style={dragStyle}
+        className={styles.widget}
+        data-selected={selected || undefined}
+        onPointerDownCapture={() => setSelected(true)}
+      >
+        <div className={styles.header}>
+          <div
+            className={styles.dragHandle}
+            {...attributes}
+            {...listeners}
+            role="button"
+            tabIndex={0}
+            aria-label="Drag to reorder"
+          >
+            ⠿
+          </div>
+          <span className={styles.label}>{widget.label}</span>
+          <div className={styles.controls}>
+            <input
+              type="color"
+              className={styles.colorInput}
+              value={widget.color ?? DEFAULT_WIDGET_COLOR}
+              onChange={(e) => onColorChange(e.target.value)}
+              aria-label="Widget color"
+            />
+            {!isCombo && !isRings && (
+              <select
+                className={styles.select}
+                value={widget.viewType}
+                onChange={(e) => onViewTypeChange(e.target.value as Widget["viewType"])}
+              >
+                <option value="stat">Stat</option>
+                <option value="chart">Chart</option>
+                <option value="ring">Ring</option>
+                <option value="timeline">Timeline</option>
+              </select>
+            )}
+            <button type="button" className={styles.iconButton} onClick={onRemove} aria-label="Remove widget">
+              ×
+            </button>
+          </div>
+        </div>
+
         <div
-          className={styles.dragHandle}
-          {...attributes}
-          {...listeners}
+          className={`${styles.content} ${detailKind ? styles.clickable : ""}`}
+          onClick={detailKind ? () => setOpenDetail(detailKind) : undefined}
+          role={detailKind ? "button" : undefined}
+          tabIndex={detailKind ? 0 : undefined}
+        >
+          {isCombo ? (
+            <ComboStrainRecovery
+              strain={metricById.get("whoop.strain")}
+              recovery={metricById.get("whoop.recovery")}
+              chartHeight={Math.max(24, (contentHeight - COMBO_SECTION_OVERHEAD) / 2)}
+              strainColor={widget.color}
+            />
+          ) : isRings ? (
+            <RingsRow
+              latest={whoopHistory[whoopHistory.length - 1]}
+              ringSize={Math.max(60, Math.min((size.width - 48) / 3, contentHeight) - 8)}
+              onOpenDetail={setOpenDetail}
+            />
+          ) : !metric || metric.series.length === 0 ? (
+            <p className={styles.empty}>No data yet for this metric.</p>
+          ) : widget.viewType === "stat" ? (
+            <StatTile
+              value={formatValue(metric.series[metric.series.length - 1].value, metric.unit)}
+              label={formatDate(metric.series[metric.series.length - 1].date)}
+              valueColor={widget.color}
+            />
+          ) : widget.viewType === "ring" ? (
+            <RingGauge
+              percent={ringPercent(metric, metric.series[metric.series.length - 1].value)}
+              color={ringColor(metric, metric.series[metric.series.length - 1].value, widget.color)}
+              centerValue={formatValue(metric.series[metric.series.length - 1].value, metric.unit)}
+              label={formatDate(metric.series[metric.series.length - 1].date)}
+              pixelSize={ringSize}
+            />
+          ) : widget.viewType === "chart" ? (
+            metric.series.length > 1 ? (
+              <TrendChart
+                points={metric.series}
+                height={Math.max(24, contentHeight - TREND_CHART_LABEL_TOP_PAD - TREND_CHART_LABEL_BOTTOM_PAD)}
+                color={widget.color}
+                pointLabel={(p) => formatValue(p.value, "")}
+                showDates
+              />
+            ) : (
+              <p className={styles.empty}>Need at least 2 data points for a chart.</p>
+            )
+          ) : (
+            <ul className={styles.timeline}>
+              {metric.series
+                .slice()
+                .reverse()
+                .slice(0, 10)
+                .map((point) => (
+                  <li key={point.date} className={styles.timelineRow}>
+                    <span>{formatDate(point.date)}</span>
+                    <span style={widget.color ? { color: widget.color } : undefined}>
+                      {formatValue(point.value, metric.unit)}
+                    </span>
+                  </li>
+                ))}
+            </ul>
+          )}
+        </div>
+
+        <div
+          className={styles.resizeHandle}
+          onPointerDown={handleResizePointerDown}
           role="button"
           tabIndex={0}
-          aria-label="Drag to reorder"
+          aria-label="Drag to resize"
         >
-          ⠿
-        </div>
-        <span className={styles.label}>{widget.label}</span>
-        <div className={styles.controls}>
-          <input
-            type="color"
-            className={styles.colorInput}
-            value={widget.color ?? DEFAULT_WIDGET_COLOR}
-            onChange={(e) => onColorChange(e.target.value)}
-            aria-label="Widget color"
-          />
-          {!isCombo && (
-            <select
-              className={styles.select}
-              value={widget.viewType}
-              onChange={(e) => onViewTypeChange(e.target.value as Widget["viewType"])}
-            >
-              <option value="stat">Stat</option>
-              <option value="chart">Chart</option>
-              <option value="ring">Ring</option>
-              <option value="timeline">Timeline</option>
-            </select>
-          )}
-          <button type="button" className={styles.iconButton} onClick={onRemove} aria-label="Remove widget">
-            ×
-          </button>
+          ⌟
         </div>
       </div>
+      {openDetail && <WhoopDetailModal kind={openDetail} history={whoopHistory} onClose={() => setOpenDetail(null)} />}
+    </>
+  );
+}
 
-      <div className={styles.content}>
-        {isCombo ? (
-          <ComboStrainRecovery
-            strain={metricById.get("whoop.strain")}
-            recovery={metricById.get("whoop.recovery")}
-            chartHeight={Math.max(24, (contentHeight - COMBO_SECTION_OVERHEAD) / 2)}
-            strainColor={widget.color}
-          />
-        ) : !metric || metric.series.length === 0 ? (
-          <p className={styles.empty}>No data yet for this metric.</p>
-        ) : widget.viewType === "stat" ? (
-          <StatTile
-            value={formatValue(metric.series[metric.series.length - 1].value, metric.unit)}
-            label={formatDate(metric.series[metric.series.length - 1].date)}
-            valueColor={widget.color}
-          />
-        ) : widget.viewType === "ring" ? (
+function RingsRow({
+  latest,
+  ringSize,
+  onOpenDetail,
+}: {
+  latest: WhoopDay | undefined;
+  ringSize: number;
+  onOpenDetail: (kind: WhoopDetailKind) => void;
+}) {
+  if (!latest || (!latest.sleep && !latest.recovery && !latest.strain)) {
+    return <p className={styles.empty}>No data yet for this metric.</p>;
+  }
+
+  return (
+    <div className={styles.ringsRow}>
+      {latest.sleep && (
+        <button type="button" className={styles.ringButton} onClick={() => onOpenDetail("sleep")}>
           <RingGauge
-            percent={ringPercent(metric, metric.series[metric.series.length - 1].value)}
-            color={ringColor(metric, metric.series[metric.series.length - 1].value, widget.color)}
-            centerValue={formatValue(metric.series[metric.series.length - 1].value, metric.unit)}
-            label={formatDate(metric.series[metric.series.length - 1].date)}
+            percent={latest.sleep.performancePercent}
+            color="#8FA9C5"
+            centerValue={`${latest.sleep.performancePercent}%`}
+            label="SLEEP"
             pixelSize={ringSize}
           />
-        ) : widget.viewType === "chart" ? (
-          metric.series.length > 1 ? (
-            <TrendChart
-              points={metric.series}
-              height={Math.max(24, contentHeight - TREND_CHART_LABEL_TOP_PAD - TREND_CHART_LABEL_BOTTOM_PAD)}
-              color={widget.color}
-              pointLabel={(p) => formatValue(p.value, "")}
-              showDates
-            />
-          ) : (
-            <p className={styles.empty}>Need at least 2 data points for a chart.</p>
-          )
-        ) : (
-          <ul className={styles.timeline}>
-            {metric.series
-              .slice()
-              .reverse()
-              .slice(0, 10)
-              .map((point) => (
-                <li key={point.date} className={styles.timelineRow}>
-                  <span>{formatDate(point.date)}</span>
-                  <span style={widget.color ? { color: widget.color } : undefined}>
-                    {formatValue(point.value, metric.unit)}
-                  </span>
-                </li>
-              ))}
-          </ul>
-        )}
-      </div>
-
-      <div
-        className={styles.resizeHandle}
-        onPointerDown={handleResizePointerDown}
-        role="button"
-        tabIndex={0}
-        aria-label="Drag to resize"
-      >
-        ⌟
-      </div>
+        </button>
+      )}
+      {latest.recovery && (
+        <button type="button" className={styles.ringButton} onClick={() => onOpenDetail("recovery")}>
+          <RingGauge
+            percent={latest.recovery.score}
+            color={recoveryColor(latest.recovery.score)}
+            centerValue={`${latest.recovery.score}%`}
+            label="RECOVERY"
+            pixelSize={ringSize}
+          />
+        </button>
+      )}
+      {latest.strain && (
+        <button type="button" className={styles.ringButton} onClick={() => onOpenDetail("strain")}>
+          <RingGauge
+            percent={(latest.strain.score / 21) * 100}
+            color="#4B87F5"
+            centerValue={latest.strain.score.toFixed(1)}
+            label="STRAIN"
+            pixelSize={ringSize}
+          />
+        </button>
+      )}
     </div>
   );
 }

@@ -14,6 +14,7 @@ import { useDashboardData } from "../components/dashboard/useDashboardData";
 import {
   CATALOG_DRAG_PREFIX,
   WHOOP_STRAIN_RECOVERY_COMBO_ID,
+  WHOOP_RINGS_COMBO_ID,
   DEFAULT_WIDGET_WIDTH,
   DEFAULT_WIDGET_HEIGHT,
   type Widget,
@@ -60,6 +61,7 @@ function nextId(): string {
 
 function defaultViewType(metric: MetricDef): Widget["viewType"] {
   if (metric.id === WHOOP_STRAIN_RECOVERY_COMBO_ID) return "combo";
+  if (metric.id === WHOOP_RINGS_COMBO_ID) return "rings";
   return metric.statOnly ? "stat" : "chart";
 }
 
@@ -233,6 +235,7 @@ function DashboardEditor({ password }: { password: string }) {
                     key={widget.id}
                     widget={widget}
                     metricById={metricById}
+                    whoopHistory={data.whoopHistory}
                     onViewTypeChange={(viewType) => handleViewTypeChange(widget.id, viewType)}
                     onColorChange={(color) => handleColorChange(widget.id, color)}
                     onResize={(width, height) => handleResize(widget.id, width, height)}

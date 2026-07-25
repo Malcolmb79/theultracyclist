@@ -6,7 +6,7 @@ export type Widget = {
   source: "strava" | "whoop" | "health";
   metric: string;
   label: string;
-  viewType: "stat" | "chart" | "timeline" | "ring" | "combo";
+  viewType: "stat" | "chart" | "timeline" | "ring" | "combo" | "rings";
   width?: number;
   height?: number;
   color?: string;

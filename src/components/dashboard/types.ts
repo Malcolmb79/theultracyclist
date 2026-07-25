@@ -3,7 +3,7 @@ export type Widget = {
   source: "strava" | "whoop" | "health";
   metric: string;
   label: string;
-  viewType: "stat" | "chart" | "timeline" | "ring" | "combo";
+  viewType: "stat" | "chart" | "timeline" | "ring" | "combo" | "rings";
   width?: number;
   height?: number;
   color?: string;
@@ -21,3 +21,7 @@ export const CATALOG_DRAG_PREFIX = "catalog:";
 // Special catalog entry: a preset combining whoop.strain + whoop.recovery
 // into one widget, rather than a single real metric series.
 export const WHOOP_STRAIN_RECOVERY_COMBO_ID = "whoop.strainRecoveryCombo";
+
+// Special catalog entry: a compact Sleep/Recovery/Strain 3-ring row,
+// matching Whoop's own summary strip - each ring opens that metric's detail.
+export const WHOOP_RINGS_COMBO_ID = "whoop.sleepRecoveryStrainRings";

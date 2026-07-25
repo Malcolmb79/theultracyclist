@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { persistEnvVar, triggerDeployHook } from "./_lib/vercelEnvStore.js";
+import { getSessionEmail } from "./_lib/session.js";
 
 export type Goals = {
   weightKg?: number;
@@ -22,19 +23,13 @@ function readGoals(): Goals {
   }
 }
 
-function isAuthorized(req: VercelRequest): boolean {
-  const password = process.env.DASHBOARD_PASSWORD;
-  const authHeader = req.headers.authorization;
-  return Boolean(password) && authHeader === `Bearer ${password}`;
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method === "POST") {
-    if (!isAuthorized(req)) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
-    }
+  if (!getSessionEmail(req)) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
 
+  if (req.method === "POST") {
     const goals = (req.body ?? {}) as Goals;
     await persistEnvVar("PERFORMANCE_GOALS", JSON.stringify(goals));
     await triggerDeployHook();

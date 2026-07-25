@@ -20,40 +20,9 @@ import {
   type Widget,
 } from "../components/dashboard/types";
 import type { MetricDef } from "../components/dashboard/useDashboardData";
+import { useAuthSession } from "../utils/useAuthSession";
+import SignInGate from "../components/shared/SignInGate";
 import styles from "./DashboardPage.module.css";
-
-const STORAGE_KEY = "dashboard-password";
-
-function useUnlock() {
-  const [password, setPassword] = useState<string | null>(() => localStorage.getItem(STORAGE_KEY));
-  const [input, setInput] = useState("");
-  const [error, setError] = useState(false);
-  const [checking, setChecking] = useState(false);
-
-  const submit = async () => {
-    setChecking(true);
-    setError(false);
-    try {
-      const res = await fetch("/api/dashboard-auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: input }),
-      });
-      if (res.ok) {
-        localStorage.setItem(STORAGE_KEY, input);
-        setPassword(input);
-      } else {
-        setError(true);
-      }
-    } catch {
-      setError(true);
-    } finally {
-      setChecking(false);
-    }
-  };
-
-  return { password, input, setInput, error, checking, submit };
-}
 
 function nextId(): string {
   return `w_${Date.now()}_${Math.round(Math.random() * 1e6)}`;
@@ -66,37 +35,26 @@ function defaultViewType(metric: MetricDef): Widget["viewType"] {
 }
 
 export default function DashboardPage() {
-  const { password, input, setInput, error, checking, submit } = useUnlock();
+  const auth = useAuthSession();
 
-  if (!password) {
+  if (auth.status === "loading") {
     return (
-      <div className={styles.gate}>
-        <div className={styles.gateBox}>
-          <h1 className={styles.gateTitle}>Dashboard</h1>
-          <input
-            type="password"
-            className={styles.gateInput}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && submit()}
-            placeholder="Password"
-            autoFocus
-          />
-          <button type="button" className={styles.gateButton} onClick={submit} disabled={checking}>
-            {checking ? "Checking…" : "Unlock"}
-          </button>
-          {error && <p className={styles.gateError}>Incorrect password.</p>}
-        </div>
+      <div className={styles.page}>
+        <p className={styles.loading}>Loading…</p>
       </div>
     );
   }
 
-  return <DashboardEditor password={password} />;
+  if (auth.status === "signed-out") {
+    return <SignInGate title="Dashboard" />;
+  }
+
+  return <DashboardEditor />;
 }
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
-function DashboardEditor({ password }: { password: string }) {
+function DashboardEditor() {
   const data = useDashboardData();
   const [widgets, setWidgets] = useState<Widget[] | null>(null);
   const [catalogOpen, setCatalogOpen] = useState(false);
@@ -124,7 +82,7 @@ function DashboardEditor({ password }: { password: string }) {
     setSaveStatus("saving");
     fetch("/api/dashboard-layout", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${password}` },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ widgets: next }),
     })
       .then((res) => {
@@ -250,6 +208,9 @@ function DashboardEditor({ password }: { password: string }) {
           </a>
           <a href="/dashboard/coaching" className={styles.switchLink}>
             Coaching
+          </a>
+          <a href="/api/auth-logout" className={styles.switchLink}>
+            Sign out
           </a>
         </div>
 

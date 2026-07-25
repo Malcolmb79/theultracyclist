@@ -37,7 +37,7 @@ function startOfWeek(dateStr: string): string {
   return d.toISOString().slice(0, 10);
 }
 
-export function useCoachingData(password: string): CoachingDataState {
+export function useCoachingData(): CoachingDataState {
   const [state, setState] = useState<CoachingDataState>({ status: "loading" });
 
   useEffect(() => {
@@ -94,7 +94,7 @@ export function useCoachingData(password: string): CoachingDataState {
       const saveSettings = async (next: CoachingSettings) => {
         await fetch("/api/coaching-settings", {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${password}` },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(next),
         });
         setState((prev) => (prev.status === "ready" ? { ...prev, settings: next } : prev));
@@ -118,7 +118,7 @@ export function useCoachingData(password: string): CoachingDataState {
     return () => {
       cancelled = true;
     };
-  }, [password]);
+  }, []);
 
   return state;
 }

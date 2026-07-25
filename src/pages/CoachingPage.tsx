@@ -1,76 +1,33 @@
-import { useState } from "react";
 import ReadinessCard from "../components/coaching/ReadinessCard";
 import PowerZonesCard from "../components/coaching/PowerZonesCard";
 import TrainingPlanCard from "../components/coaching/TrainingPlanCard";
 import AINarrativeCard from "../components/coaching/AINarrativeCard";
 import { useCoachingData } from "../components/coaching/useCoachingData";
 import type { NarrativeInput } from "../components/coaching/types";
+import { useAuthSession } from "../utils/useAuthSession";
+import SignInGate from "../components/shared/SignInGate";
 import styles from "./CoachingPage.module.css";
 
-const STORAGE_KEY = "dashboard-password";
-
-function useUnlock() {
-  const [password, setPassword] = useState<string | null>(() => localStorage.getItem(STORAGE_KEY));
-  const [input, setInput] = useState("");
-  const [error, setError] = useState(false);
-  const [checking, setChecking] = useState(false);
-
-  const submit = async () => {
-    setChecking(true);
-    setError(false);
-    try {
-      const res = await fetch("/api/dashboard-auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: input }),
-      });
-      if (res.ok) {
-        localStorage.setItem(STORAGE_KEY, input);
-        setPassword(input);
-      } else {
-        setError(true);
-      }
-    } catch {
-      setError(true);
-    } finally {
-      setChecking(false);
-    }
-  };
-
-  return { password, input, setInput, error, checking, submit };
-}
-
 export default function CoachingPage() {
-  const { password, input, setInput, error, checking, submit } = useUnlock();
+  const auth = useAuthSession();
 
-  if (!password) {
+  if (auth.status === "loading") {
     return (
-      <div className={styles.gate}>
-        <div className={styles.gateBox}>
-          <h1 className={styles.gateTitle}>Coaching</h1>
-          <input
-            type="password"
-            className={styles.gateInput}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && submit()}
-            placeholder="Password"
-            autoFocus
-          />
-          <button type="button" className={styles.gateButton} onClick={submit} disabled={checking}>
-            {checking ? "Checking…" : "Unlock"}
-          </button>
-          {error && <p className={styles.gateError}>Incorrect password.</p>}
-        </div>
+      <div className={styles.page}>
+        <p className={styles.loading}>Loading…</p>
       </div>
     );
   }
 
-  return <CoachingView password={password} />;
+  if (auth.status === "signed-out") {
+    return <SignInGate title="Coaching" />;
+  }
+
+  return <CoachingView />;
 }
 
-function CoachingView({ password }: { password: string }) {
-  const data = useCoachingData(password);
+function CoachingView() {
+  const data = useCoachingData();
 
   return (
     <div className={styles.page}>
@@ -80,6 +37,9 @@ function CoachingView({ password }: { password: string }) {
         </a>
         <a href="/dashboard/trends" className={styles.switchLink}>
           Trends
+        </a>
+        <a href="/api/auth-logout" className={styles.switchLink}>
+          Sign out
         </a>
       </div>
 
@@ -93,7 +53,7 @@ function CoachingView({ password }: { password: string }) {
       ) : (
         <div className={styles.grid}>
           <ReadinessCard readiness={data.readiness} />
-          <AINarrativeCard password={password} input={narrativeInputFrom(data)} />
+          <AINarrativeCard input={narrativeInputFrom(data)} />
           <TrainingPlanCard settings={data.settings} onSaveSettings={data.saveSettings} weeklyProgress={data.weeklyProgress} />
           <PowerZonesCard settings={data.settings} onSaveSettings={data.saveSettings} recentRides={data.recentRides} />
         </div>

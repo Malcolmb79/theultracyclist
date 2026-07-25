@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { getSessionEmail } from "./_lib/session.js";
 
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const MODEL = "claude-haiku-4-5-20251001";
@@ -14,12 +15,6 @@ export type NarrativeInput = {
   weeklyTargetKm: number | null;
   phase: "build" | "recovery" | "taper" | null;
 };
-
-function isAuthorized(req: VercelRequest): boolean {
-  const password = process.env.DASHBOARD_PASSWORD;
-  const authHeader = req.headers.authorization;
-  return Boolean(password) && authHeader === `Bearer ${password}`;
-}
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -60,7 +55,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  if (!isAuthorized(req)) {
+  if (!getSessionEmail(req)) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }

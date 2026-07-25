@@ -3,7 +3,6 @@ import type { NarrativeInput } from "./types";
 import styles from "./AINarrativeCard.module.css";
 
 interface AINarrativeCardProps {
-  password: string;
   input: NarrativeInput;
 }
 
@@ -13,7 +12,7 @@ type NarrativeState =
   | { status: "ready"; text: string }
   | { status: "error" };
 
-export default function AINarrativeCard({ password, input }: AINarrativeCardProps) {
+export default function AINarrativeCard({ input }: AINarrativeCardProps) {
   const [state, setState] = useState<NarrativeState>({ status: "loading" });
 
   useEffect(() => {
@@ -22,7 +21,7 @@ export default function AINarrativeCard({ password, input }: AINarrativeCardProp
 
     fetch("/api/coaching-narrative", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${password}` },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
     })
       .then((res) => res.json())
@@ -43,7 +42,7 @@ export default function AINarrativeCard({ password, input }: AINarrativeCardProp
     };
     // Re-fetch only when the underlying stats actually change, not on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [password, JSON.stringify(input)]);
+  }, [JSON.stringify(input)]);
 
   return (
     <div className={styles.card}>

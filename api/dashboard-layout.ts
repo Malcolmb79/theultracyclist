@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { persistEnvVar, triggerDeployHook } from "./_lib/vercelEnvStore.js";
+import { getSessionEmail } from "./_lib/session.js";
 
 export type Widget = {
   id: string;
@@ -32,19 +33,13 @@ function readLayout(): Widget[] {
   }
 }
 
-function isAuthorized(req: VercelRequest): boolean {
-  const password = process.env.DASHBOARD_PASSWORD;
-  const authHeader = req.headers.authorization;
-  return Boolean(password) && authHeader === `Bearer ${password}`;
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method === "POST") {
-    if (!isAuthorized(req)) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
-    }
+  if (!getSessionEmail(req)) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
 
+  if (req.method === "POST") {
     const widgets = (req.body as { widgets?: Widget[] }).widgets ?? [];
     await persistEnvVar("DASHBOARD_LAYOUT", JSON.stringify(widgets));
     await triggerDeployHook();

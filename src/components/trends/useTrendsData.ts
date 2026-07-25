@@ -54,7 +54,7 @@ export type TrendsDataState =
       saveGoals: (next: Goals) => Promise<void>;
     };
 
-export function useTrendsData(password: string): TrendsDataState {
+export function useTrendsData(): TrendsDataState {
   const [state, setState] = useState<TrendsDataState>({ status: "loading" });
   const [reloadToken, setReloadToken] = useState(0);
 
@@ -260,7 +260,7 @@ export function useTrendsData(password: string): TrendsDataState {
         const saveGoals = async (next: Goals) => {
           await fetch("/api/trends-goals", {
             method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${password}` },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify(next),
           });
           setReloadToken((t) => t + 1);
@@ -284,7 +284,7 @@ export function useTrendsData(password: string): TrendsDataState {
     return () => {
       cancelled = true;
     };
-  }, [password, reloadToken]);
+  }, [reloadToken]);
 
   return state;
 }

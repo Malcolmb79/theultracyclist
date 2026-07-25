@@ -1,0 +1,48 @@
+.gate {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+}
+
+.gateBox {
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.gateTitle {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  text-align: center;
+  margin: 0;
+}
+
+.signInButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  background: #fff;
+  color: #1b1b1b;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-decoration: none;
+}
+
+.signInButton:hover {
+  background: #f2f2f2;
+}
+
+.gateError {
+  color: var(--color-accent);
+  font-size: 0.85rem;
+  text-align: center;
+  margin: 0;
+}

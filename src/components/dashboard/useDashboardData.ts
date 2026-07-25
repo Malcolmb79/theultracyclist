@@ -164,19 +164,22 @@ export function useDashboardData(): DashboardDataState {
         // Derived, not a direct Apple Health field - needs both a weight
         // reading (from the catalog above) and a manually-entered height
         // (Settings, since Apple Health export doesn't reliably include it).
+        // Listed whenever a weight metric exists, even before height is set
+        // (same as any other metric with no data yet) - hiding the option
+        // entirely until height was already configured left it undiscoverable.
         const heightCm = settingsBody?.settings?.heightCm as number | undefined;
         const weightName = findWeightMetricName(catalog);
-        if (heightCm && weightName) {
-          const bmiSeries: SeriesPoint[] = dates
-            .map((date) => {
-              const weightKg = history[date][weightName]?.value;
-              return weightKg == null ? null : { date, value: computeBmi(weightKg, heightCm) };
-            })
-            .filter((p): p is SeriesPoint => p != null);
+        if (weightName) {
+          const bmiSeries: SeriesPoint[] = heightCm
+            ? dates
+                .map((date) => {
+                  const weightKg = history[date][weightName]?.value;
+                  return weightKg == null ? null : { date, value: computeBmi(weightKg, heightCm) };
+                })
+                .filter((p): p is SeriesPoint => p != null)
+            : [];
 
-          if (bmiSeries.length > 0) {
-            metrics.push({ id: "health.bmi", source: "health", label: "BMI", unit: "kg/m²", series: bmiSeries });
-          }
+          metrics.push({ id: "health.bmi", source: "health", label: "BMI", unit: "kg/m²", series: bmiSeries });
         }
       }
 

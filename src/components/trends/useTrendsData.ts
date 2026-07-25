@@ -195,9 +195,12 @@ export function useTrendsData(): TrendsDataState {
 
         // Derived, not a direct Apple Health field - needs both a weight
         // reading (above) and a manually-entered height (Settings, since
-        // Apple Health export doesn't reliably include it).
+        // Apple Health export doesn't reliably include it). Listed whenever
+        // a weight metric exists, even before height is set (same as any
+        // other metric with no data yet) - hiding the option entirely until
+        // height was already configured left it undiscoverable.
         const heightCm = settingsBody?.settings?.heightCm as number | undefined;
-        if (heightCm && weightKey) {
+        if (weightKey) {
           metrics.push({
             id: "health.bmi",
             source: "health",
@@ -205,6 +208,7 @@ export function useTrendsData(): TrendsDataState {
             unit: "kg/m²",
             aggregation: "avg",
             getValue: (date) => {
+              if (!heightCm) return null;
               const weightKg = healthHistory[date]?.[weightKey]?.value;
               return weightKg == null ? null : computeBmi(weightKg, heightCm);
             },

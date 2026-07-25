@@ -163,7 +163,7 @@ function buildSleep(record: WhoopSleepRecord | undefined): Sleep | null {
 function zoneMinutesByDate(workouts: WhoopWorkoutRecord[]): Map<string, { zone1to3: number; zone4to5: number }> {
   const byDate = new Map<string, { zone1to3: number; zone4to5: number }>();
   for (const workout of workouts) {
-    if (workout.score_state !== "SCORED" || !workout.score) continue;
+    if (workout.score_state !== "SCORED" || !workout.score?.zone_duration) continue;
     const date = workout.start.slice(0, 10);
     const z = workout.score.zone_duration;
     const zone1to3 = (z.zone_one_milli + z.zone_two_milli + z.zone_three_milli) / 60000;

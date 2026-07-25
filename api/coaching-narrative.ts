@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getSessionEmail } from "./_lib/session.js";
 import { irelandTimeContext } from "./_lib/timeContext.js";
+import { ATHLETE_PROFILE, DATA_SEMANTICS, SEASON_PLAN } from "./_lib/coachContext.js";
 
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const MODEL = "claude-haiku-4-5-20251001";
@@ -29,7 +30,7 @@ function buildPrompt(input: NarrativeInput): string {
   if (input.recoveryScore != null) lines.push(`Recovery score: ${input.recoveryScore}%`);
   if (input.hrvMs != null) lines.push(`HRV: ${input.hrvMs} ms`);
   if (input.restingHeartRate != null) lines.push(`Resting heart rate: ${input.restingHeartRate} bpm`);
-  if (input.strainScore != null) lines.push(`Yesterday's strain: ${input.strainScore}`);
+  if (input.strainScore != null) lines.push(`Today's strain so far (live, still rising through the day): ${input.strainScore}`);
   if (input.recentAvgStrain != null) lines.push(`Average strain, last 3 days: ${input.recentAvgStrain}`);
   if (input.sleepPerformance != null) lines.push(`Sleep performance: ${input.sleepPerformance}%`);
   if (input.weeklyDistanceKm != null && input.weeklyTargetKm != null) {
@@ -43,22 +44,30 @@ function buildPrompt(input: NarrativeInput): string {
   );
 
   return (
-    "You are an experienced cycling coach writing a short daily note for an athlete preparing for an " +
+    "You are a professional cycling coach writing a short daily note for an athlete preparing for an " +
     "unsupported ultra-distance record attempt (Ireland, north to south, roughly 570km solo, one continuous " +
-    "unsupported effort). " +
+    "unsupported effort). This note is the first thing they see when they open the chat, so before anything " +
+    "else, note the time of day below and let it shape your tone.\n\n" +
     irelandTimeContext() +
-    " Draw on real coaching substance: HRV- and RHR-informed readiness (a depressed HRV " +
-    "or elevated RHR relative to the athlete's own baseline signals accumulated fatigue earlier and more " +
-    "reliably than recovery score alone), the balance between strain and recovery over the last few days, " +
-    "sleep's role in adaptation, and where today sits in the athlete's current training phase (build, " +
-    "recovery, or taper) - including, when relevant, the specific demands of race-pace fueling, conservative " +
-    "pacing, and taper design for a multi-day unsupported solo effort.\n\n" +
-    "Based on the data below, write a 2-4 sentence coaching note: how they should approach today's training " +
-    "given their recovery and recent load, referencing the specific numbers naturally. Check whether they've " +
-    "already ridden today (below) before writing anything about today's session - if they have, don't ask " +
-    "what's on the schedule or suggest they still need to train today; instead speak to recovery from that " +
-    "ride and what it means for tomorrow. Be direct and practical, not generic motivational filler. Do not " +
-    "use markdown formatting.\n\n" +
+    "\n\n" +
+    ATHLETE_PROFILE +
+    "\n\n" +
+    DATA_SEMANTICS +
+    "\n\n" +
+    SEASON_PLAN +
+    "\n\n" +
+    "Draw on real coaching substance: HRV- and RHR-informed readiness (a depressed HRV or elevated RHR " +
+    "relative to the athlete's own baseline signals accumulated fatigue earlier and more reliably than " +
+    "recovery score alone), the balance between strain and recovery, sleep's role in adaptation, and where " +
+    "today sits in the athlete's current training phase (build, recovery, or taper) - including, when " +
+    "relevant, the specific demands of race-pace fueling, conservative pacing, and taper design for a " +
+    "multi-day unsupported solo effort.\n\n" +
+    "This is a greeting, not a full briefing: write just 1-2 short, concise sentences - how they should " +
+    "approach today given their recovery and recent load, referencing the specific numbers naturally. Check " +
+    "whether they've already ridden today (below) before writing anything about today's session - if they " +
+    "have, don't ask what's on the schedule or suggest they still need to train today; instead speak to " +
+    "recovery from that ride and what it means for tomorrow. Be direct and practical, not generic " +
+    "motivational filler. Do not use markdown formatting.\n\n" +
     (input.customRules
       ? `The athlete has set these standing rules - always follow them, even over generic best practice:\n${input.customRules}\n\n`
       : "") +

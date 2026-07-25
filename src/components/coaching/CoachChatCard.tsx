@@ -48,27 +48,35 @@ export default function CoachChatCard({ input, settings, onSaveSettings, dataAva
     setStatus("loading");
     setMessages([]);
 
-    fetch("/api/coaching-narrative", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
-    })
-      .then((res) => res.json())
-      .then((body: { configured: boolean; text?: string }) => {
-        if (cancelled) return;
-        if (!body.configured) {
-          setStatus("unconfigured");
-        } else {
-          setMessages([{ role: "assistant", content: body.text ?? "" }]);
-          setStatus("ready");
-        }
+    // A short deliberate pause before the first read of the session - gives
+    // a just-finished ride or overnight Whoop sync a few extra seconds to
+    // land before the coach forms an opinion on stale data.
+    const timer = setTimeout(() => {
+      if (cancelled) return;
+
+      fetch("/api/coaching-narrative", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
       })
-      .catch(() => {
-        if (!cancelled) setStatus("error");
-      });
+        .then((res) => res.json())
+        .then((body: { configured: boolean; text?: string }) => {
+          if (cancelled) return;
+          if (!body.configured) {
+            setStatus("unconfigured");
+          } else {
+            setMessages([{ role: "assistant", content: body.text ?? "" }]);
+            setStatus("ready");
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setStatus("error");
+        });
+    }, 10_000);
 
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
     // Re-fetch only when the underlying stats (or data availability) actually change, not on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps

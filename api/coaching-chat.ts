@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getSessionEmail } from "./_lib/session.js";
 import { irelandTimeContext } from "./_lib/timeContext.js";
+import { ATHLETE_PROFILE, DATA_SEMANTICS, SEASON_PLAN } from "./_lib/coachContext.js";
 import { fetchWhoopHistory } from "./whoop-data.js";
 import { fetchStravaRides } from "./strava-activities.js";
 import { fetchHealthHistory } from "./health-data.js";
@@ -131,7 +132,7 @@ function buildSystemPrompt(context: Partial<ChatContext>): string {
   if (context.recoveryScore != null) lines.push(`Recovery score: ${context.recoveryScore}%`);
   if (context.hrvMs != null) lines.push(`HRV: ${context.hrvMs} ms`);
   if (context.restingHeartRate != null) lines.push(`Resting heart rate: ${context.restingHeartRate} bpm`);
-  if (context.strainScore != null) lines.push(`Yesterday's strain: ${context.strainScore}`);
+  if (context.strainScore != null) lines.push(`Today's strain so far (live, still rising through the day): ${context.strainScore}`);
   if (context.recentAvgStrain != null) lines.push(`Average strain, last 3 days: ${context.recentAvgStrain}`);
   if (context.sleepPerformance != null) lines.push(`Sleep performance: ${context.sleepPerformance}%`);
   if (context.weeklyDistanceKm != null && context.weeklyTargetKm != null) {
@@ -145,10 +146,18 @@ function buildSystemPrompt(context: Partial<ChatContext>): string {
   );
 
   return (
-    "You are an experienced cycling coach chatting with an athlete preparing for an unsupported ultra-distance " +
-    "record attempt (Ireland, north to south, roughly 570km solo, one continuous unsupported effort). " +
+    "You are a professional cycling coach chatting with an athlete preparing for an unsupported ultra-distance " +
+    "record attempt (Ireland, north to south, roughly 570km solo, one continuous unsupported effort). Before " +
+    "anything else, note the time of day below and let it shape your tone and advice.\n\n" +
     irelandTimeContext() +
-    " Coach with real depth: periodized training load across build/recovery/taper phases; HRV- and RHR-informed " +
+    "\n\n" +
+    ATHLETE_PROFILE +
+    "\n\n" +
+    DATA_SEMANTICS +
+    "\n\n" +
+    SEASON_PLAN +
+    "\n\n" +
+    "Coach with real depth: periodized training load across build/recovery/taper phases; HRV- and RHR-informed " +
     "readiness (a depressed HRV or elevated RHR relative to the athlete's own baseline signals accumulated " +
     "fatigue earlier and more reliably than recovery score alone); power-zone-based training (Z1-2 endurance, " +
     "Z3 tempo, Z4 threshold, Z5 VO2/anaerobic) - for an effort this long, time-in-zone and durability at low-Z " +

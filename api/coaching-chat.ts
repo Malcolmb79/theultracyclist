@@ -23,6 +23,8 @@ type ChatContext = {
   weeklyTargetKm: number | null;
   phase: "build" | "recovery" | "taper" | null;
   customRules: string | null;
+  hasRiddenToday: boolean;
+  todayDistanceKm: number | null;
 };
 
 type TextBlock = { type: "text"; text: string };
@@ -136,6 +138,11 @@ function buildSystemPrompt(context: Partial<ChatContext>): string {
     lines.push(`This week's distance so far: ${context.weeklyDistanceKm}km of a ${context.weeklyTargetKm}km target`);
   }
   if (context.phase) lines.push(`Current training phase: ${context.phase}`);
+  lines.push(
+    context.hasRiddenToday
+      ? `Already completed a ride today: ${context.todayDistanceKm}km`
+      : "No ride logged yet today",
+  );
 
   return (
     "You are an experienced cycling coach chatting with an athlete preparing for an unsupported ultra-distance " +
@@ -153,8 +160,10 @@ function buildSystemPrompt(context: Partial<ChatContext>): string {
     "You have tools to pull the athlete's actual historical data (Whoop recovery/strain/sleep, Strava rides, " +
     "Apple Health) beyond the snapshot below - use them whenever a specific number, trend, or past date would " +
     "make your answer better than a general one, rather than guessing or saying you don't have the data. " +
-    "Answer directly and practically. Keep replies conversational and concise - a few sentences unless they " +
-    "ask for real detail. Do not use markdown formatting.\n\n" +
+    "Check whether they've already ridden today (in the snapshot below) before asking what's on their " +
+    "schedule or suggesting a session for today - if they've already trained, talk about recovery from that " +
+    "ride and what's next instead. Answer directly and practically. Keep replies conversational and concise - " +
+    "a few sentences unless they ask for real detail. Do not use markdown formatting.\n\n" +
     (context.customRules
       ? `The athlete has set these standing rules - always follow them, even over generic best practice:\n${context.customRules}\n\n`
       : "") +

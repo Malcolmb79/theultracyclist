@@ -16,6 +16,8 @@ export type NarrativeInput = {
   weeklyTargetKm: number | null;
   phase: "build" | "recovery" | "taper" | null;
   customRules: string | null;
+  hasRiddenToday: boolean;
+  todayDistanceKm: number | null;
 };
 
 function today(): string {
@@ -34,6 +36,11 @@ function buildPrompt(input: NarrativeInput): string {
     lines.push(`This week's distance so far: ${input.weeklyDistanceKm}km of a ${input.weeklyTargetKm}km target`);
   }
   if (input.phase) lines.push(`Current training phase: ${input.phase}`);
+  lines.push(
+    input.hasRiddenToday
+      ? `Already completed a ride today: ${input.todayDistanceKm}km`
+      : "No ride logged yet today",
+  );
 
   return (
     "You are an experienced cycling coach writing a short daily note for an athlete preparing for an " +
@@ -47,8 +54,11 @@ function buildPrompt(input: NarrativeInput): string {
     "recovery, or taper) - including, when relevant, the specific demands of race-pace fueling, conservative " +
     "pacing, and taper design for a multi-day unsupported solo effort.\n\n" +
     "Based on the data below, write a 2-4 sentence coaching note: how they should approach today's training " +
-    "given their recovery and recent load, referencing the specific numbers naturally. Be direct and " +
-    "practical, not generic motivational filler. Do not use markdown formatting.\n\n" +
+    "given their recovery and recent load, referencing the specific numbers naturally. Check whether they've " +
+    "already ridden today (below) before writing anything about today's session - if they have, don't ask " +
+    "what's on the schedule or suggest they still need to train today; instead speak to recovery from that " +
+    "ride and what it means for tomorrow. Be direct and practical, not generic motivational filler. Do not " +
+    "use markdown formatting.\n\n" +
     (input.customRules
       ? `The athlete has set these standing rules - always follow them, even over generic best practice:\n${input.customRules}\n\n`
       : "") +

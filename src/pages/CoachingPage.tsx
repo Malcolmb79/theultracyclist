@@ -280,5 +280,7 @@ function narrativeInputFrom(data: Extract<ReturnType<typeof useCoachingData>, { 
     weeklyTargetKm: data.weeklyProgress.distanceTargetKm,
     phase: data.settings.phase ?? null,
     customRules: data.settings.customRules ?? null,
+    hasRiddenToday: data.hasRiddenToday,
+    todayDistanceKm: data.todayDistanceKm,
   };
 }

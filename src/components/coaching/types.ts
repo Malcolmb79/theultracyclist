@@ -73,6 +73,8 @@ export type NarrativeInput = {
   weeklyTargetKm: number | null;
   phase: TrainingPhase | null;
   customRules: string | null;
+  hasRiddenToday: boolean;
+  todayDistanceKm: number | null;
 };
 
 export const PHASE_GUIDANCE: Record<TrainingPhase, { label: string; description: string }> = {

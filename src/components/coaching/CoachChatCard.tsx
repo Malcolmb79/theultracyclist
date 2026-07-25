@@ -109,7 +109,7 @@ export default function CoachChatCard({ input, settings, onSaveSettings, dataAva
   return (
     <div className={styles.card}>
       <div className={styles.headerRow}>
-        <span className={styles.eyebrow}>Coach's chat</span>
+        <span className={styles.eyebrow}>My AI Coach</span>
         <button
           type="button"
           className={styles.rulesToggle}

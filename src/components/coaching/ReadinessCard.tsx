@@ -15,7 +15,9 @@ export default function ReadinessCard({ readiness }: { readiness: Readiness }) {
       <span className={styles.headline} style={{ color: LEVEL_COLOR[readiness.level] }}>
         {readiness.headline}
       </span>
-      <p className={styles.reason}>{readiness.reason}</p>
+      <p className={styles.reason} style={{ color: LEVEL_COLOR[readiness.level] }}>
+        {readiness.reason}
+      </p>
       <div className={styles.stats}>
         {readiness.recoveryScore != null && (
           <div className={styles.stat}>

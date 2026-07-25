@@ -41,12 +41,26 @@ export type CoachingDataState =
       // succeed (vs. succeeding with genuinely no data) - lets the coach
       // chat card wait to speak rather than opening on an empty snapshot.
       dataAvailable: boolean;
+      // Whether a ride's already been logged today (local calendar day) -
+      // so the coach can tell "haven't ridden yet" apart from "already
+      // trained" instead of asking what's on the schedule after the fact.
+      hasRiddenToday: boolean;
+      todayDistanceKm: number | null;
     };
 
 function startOfWeek(dateStr: string): string {
   const d = new Date(`${dateStr}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() - d.getUTCDay());
   return d.toISOString().slice(0, 10);
+}
+
+// Local (not UTC) calendar date, so "today" matches what it actually is for
+// whoever's looking at the browser clock, not the UTC day boundary.
+function localDateStr(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 export function useCoachingData(): CoachingDataState {
@@ -99,6 +113,13 @@ export function useCoachingData(): CoachingDataState {
         rideCount: thisWeekRides.length,
       };
 
+      const todayLocalStr = localDateStr(new Date());
+      const todaysRides = rides.filter((r) => localDateStr(new Date(r.startDate)) === todayLocalStr);
+      const hasRiddenToday = todaysRides.length > 0;
+      const todayDistanceKm = hasRiddenToday
+        ? Math.round(todaysRides.reduce((sum, r) => sum + r.distanceKm, 0) * 10) / 10
+        : null;
+
       const recentRides: RideZoneClassification[] = rides.slice(0, 8).map((r) => {
         const avgWatts = r.weightedAvgWatts ?? r.avgWatts ?? 0;
         return {
@@ -119,7 +140,18 @@ export function useCoachingData(): CoachingDataState {
         setState((prev) => (prev.status === "ready" ? { ...prev, settings: next } : prev));
       };
 
-      setState({ status: "ready", readiness, settings, saveSettings, weeklyProgress, recentRides, recoveryHistory, dataAvailable });
+      setState({
+        status: "ready",
+        readiness,
+        settings,
+        saveSettings,
+        weeklyProgress,
+        recentRides,
+        recoveryHistory,
+        dataAvailable,
+        hasRiddenToday,
+        todayDistanceKm,
+      });
     }).catch(() => {
       if (!cancelled) {
         setState({
@@ -131,6 +163,8 @@ export function useCoachingData(): CoachingDataState {
           recentRides: [],
           recoveryHistory: [],
           dataAvailable: false,
+          hasRiddenToday: false,
+          todayDistanceKm: null,
         });
       }
     });

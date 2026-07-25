@@ -49,6 +49,17 @@ const HEADER_HEIGHT = 44;
 const CONTENT_PADDING = 32;
 const MIN_COMBO_HEIGHT = 360;
 const MIN_RINGS_HEIGHT = 200;
+// .ringsRow's gap (var(--space-3), 16px) between each of the 3 rings - the
+// outer two rings overflow their column and get clipped by .content's
+// overflow:hidden if this isn't subtracted from the available row width.
+const RINGS_ROW_GAP = 16;
+// RingGauge's own .wrap gap (var(--space-2), 8px) plus its label row's
+// rendered height (~20px for the uppercase small-caps text underneath).
+const RING_LABEL_OVERHEAD = 28;
+// 3 rings at their smallest (60px, see RingsRow's ringSize floor) plus the
+// 2 row gaps plus the widget's own horizontal padding - below this width
+// the rings would be forced smaller than their floor and clip.
+const MIN_RINGS_WIDTH = 3 * 60 + RINGS_ROW_GAP * 2 + 48;
 // Per combo section overhead: comboLabel row (~20px) + TrendChart's own
 // top/bottom padding for point labels and date labels (36px), times 2
 // sections, plus the gap between them (var(--space-3), 16px).
@@ -103,9 +114,10 @@ export default function DashboardWidget({
   const metric = isCombo || isRings ? undefined : metricById.get(widget.metric);
 
   const minHeight = isCombo ? MIN_COMBO_HEIGHT : isRings ? MIN_RINGS_HEIGHT : MIN_WIDGET_HEIGHT;
+  const minWidth = isRings ? MIN_RINGS_WIDTH : MIN_WIDGET_WIDTH;
 
   const [size, setSize] = useState({
-    width: Math.max(MIN_WIDGET_WIDTH, widget.width ?? DEFAULT_WIDGET_WIDTH),
+    width: Math.max(minWidth, widget.width ?? DEFAULT_WIDGET_WIDTH),
     height: Math.max(minHeight, widget.height ?? DEFAULT_WIDGET_HEIGHT),
   });
   const resizeStart = useRef<{ pointerX: number; pointerY: number; width: number; height: number } | null>(null);
@@ -154,7 +166,7 @@ export default function DashboardWidget({
       const dx = moveEvent.clientX - resizeStart.current.pointerX;
       const dy = moveEvent.clientY - resizeStart.current.pointerY;
       const next = {
-        width: Math.max(MIN_WIDGET_WIDTH, snapToGrid(resizeStart.current.width + dx)),
+        width: Math.max(minWidth, snapToGrid(resizeStart.current.width + dx)),
         height: Math.max(minHeight, snapToGrid(resizeStart.current.height + dy)),
       };
       liveSize.current = next;
@@ -251,7 +263,10 @@ export default function DashboardWidget({
           ) : isRings ? (
             <RingsRow
               latest={whoopHistory[whoopHistory.length - 1]}
-              ringSize={Math.max(60, Math.min((size.width - 48) / 3, contentHeight) - 8)}
+              ringSize={Math.max(
+                60,
+                Math.min((size.width - 48 - RINGS_ROW_GAP * 2) / 3, contentHeight - RING_LABEL_OVERHEAD),
+              )}
               onOpenDetail={setOpenDetail}
             />
           ) : !metric || metric.series.length === 0 ? (

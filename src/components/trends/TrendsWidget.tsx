@@ -161,7 +161,7 @@ export default function TrendsWidget({
             className={styles.colorInput}
             value={color}
             onChange={(e) => onColorChange(e.target.value)}
-            aria-label="Widget color"
+            aria-label="Widget colour"
           />
           <select
             className={styles.select}

@@ -4,6 +4,10 @@
 // from the athlete's TrainingPeaks ATP export (no live TrainingPeaks API
 // integration exists here) - edit this file directly if the plan changes.
 
+export const LANGUAGE_STYLE =
+  'Write in UK English throughout - British spelling ("colour", "favourite", "organise", "prioritise", "metre") ' +
+  "and phrasing, never American.";
+
 export const ATHLETE_PROFILE =
   "Athlete profile: 46 years old, a competitive cyclist returning to training after a long break from the bike. " +
   "Ramp volume and intensity up gradually and conservatively rather than assuming an established base - err on " +
@@ -21,7 +25,7 @@ export const DATA_SEMANTICS =
   "get_rides/get_recovery_history) before advising on today's session - never assume nothing's been done yet.";
 
 export const SEASON_PLAN =
-  "Season plan (from the athlete's TrainingPeaks Annual Training Plan): periodized toward the target event itself " +
+  "Season plan (from the athlete's TrainingPeaks Annual Training Plan): periodised toward the target event itself " +
   '- "World Record Ultra", the week of June 7-13, 2027 (the Ireland north-south unsupported record attempt). ' +
   "Phase sequence and approximate dates: Preparation (through late Aug 2026) -> Base 1 (late Aug-early Oct 2026) " +
   "-> Base 2 (early Oct-early Dec 2026) -> Base 3 (early Dec 2026-late Mar 2027) -> Build 1 (late Mar-mid Apr " +

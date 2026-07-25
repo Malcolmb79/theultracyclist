@@ -32,7 +32,7 @@ export default function PreviousRecordPage() {
           <StatTile value={`${previousRecord.distanceKm} km`} label="Distance" />
           <StatTile value={`${previousRecord.avgSpeedKmh} km/h`} label="Avg speed" />
           <StatTile value={`${previousRecord.maxSpeedKmh} km/h`} label="Max speed" />
-          <StatTile value={`${previousRecord.elevationM.toLocaleString()} m`} label="Elevation" />
+          <StatTile value={`${previousRecord.elevationM.toLocaleString("en-GB")} m`} label="Elevation" />
         </div>
 
         <SectionHeading title="Support crew" />

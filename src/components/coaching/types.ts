@@ -90,7 +90,7 @@ export const PHASE_GUIDANCE: Record<TrainingPhase, { label: string; description:
   recovery: {
     label: "Recovery",
     description:
-      "Cut weekly volume by roughly a third to a half compared to your build weeks. No hard intervals - aerobic spins only, and prioritize sleep.",
+      "Cut weekly volume by roughly a third to a half compared to your build weeks. No hard intervals - aerobic spins only, and prioritise sleep.",
   },
   taper: {
     label: "Taper",

@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getSessionEmail } from "./_lib/session.js";
 import { irelandTimeContext } from "./_lib/timeContext.js";
-import { ATHLETE_PROFILE, DATA_SEMANTICS, SEASON_PLAN } from "./_lib/coachContext.js";
+import { ATHLETE_PROFILE, DATA_SEMANTICS, SEASON_PLAN, LANGUAGE_STYLE } from "./_lib/coachContext.js";
 
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const MODEL = "claude-haiku-4-5-20251001";
@@ -55,6 +55,8 @@ function buildPrompt(input: NarrativeInput): string {
     DATA_SEMANTICS +
     "\n\n" +
     SEASON_PLAN +
+    "\n\n" +
+    LANGUAGE_STYLE +
     "\n\n" +
     "Draw on real coaching substance: HRV- and RHR-informed readiness (a depressed HRV or elevated RHR " +
     "relative to the athlete's own baseline signals accumulated fatigue earlier and more reliably than " +

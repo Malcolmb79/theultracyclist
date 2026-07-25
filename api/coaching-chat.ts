@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getSessionEmail } from "./_lib/session.js";
 import { irelandTimeContext } from "./_lib/timeContext.js";
-import { ATHLETE_PROFILE, DATA_SEMANTICS, SEASON_PLAN } from "./_lib/coachContext.js";
+import { ATHLETE_PROFILE, DATA_SEMANTICS, SEASON_PLAN, LANGUAGE_STYLE } from "./_lib/coachContext.js";
 import { fetchWhoopHistory } from "./whoop-data.js";
 import { fetchStravaRides } from "./strava-activities.js";
 import { fetchHealthHistory } from "./health-data.js";
@@ -157,7 +157,9 @@ function buildSystemPrompt(context: Partial<ChatContext>): string {
     "\n\n" +
     SEASON_PLAN +
     "\n\n" +
-    "Coach with real depth: periodized training load across build/recovery/taper phases; HRV- and RHR-informed " +
+    LANGUAGE_STYLE +
+    "\n\n" +
+    "Coach with real depth: periodised training load across build/recovery/taper phases; HRV- and RHR-informed " +
     "readiness (a depressed HRV or elevated RHR relative to the athlete's own baseline signals accumulated " +
     "fatigue earlier and more reliably than recovery score alone); power-zone-based training (Z1-2 endurance, " +
     "Z3 tempo, Z4 threshold, Z5 VO2/anaerobic) - for an effort this long, time-in-zone and durability at low-Z " +

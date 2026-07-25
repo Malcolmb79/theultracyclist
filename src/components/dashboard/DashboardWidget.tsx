@@ -111,7 +111,7 @@ const DEFAULT_HEALTH_CALENDAR_HEIGHT = 480;
 
 function formatValue(value: number, unit: string): string {
   const rounded = Number.isInteger(value) ? value : Math.round(value * 10) / 10;
-  return unit ? `${rounded.toLocaleString()} ${unit}` : rounded.toLocaleString();
+  return unit ? `${rounded.toLocaleString("en-GB")} ${unit}` : rounded.toLocaleString("en-GB");
 }
 
 // Recovery's ring is always health-semantic (red/amber/green banding) and
@@ -273,7 +273,7 @@ export default function DashboardWidget({
               className={styles.colorInput}
               value={widget.color ?? DEFAULT_WIDGET_COLOR}
               onChange={(e) => onColorChange(e.target.value)}
-              aria-label="Widget color"
+              aria-label="Widget colour"
             />
             {!isCombo && !isRings && !isBmi && !isHealthCalendar && (
               <select

@@ -1,36 +1,18 @@
+import { BMI_BANDS, BMI_DOMAIN_MAX, BMI_DOMAIN_MIN, bmiCategory } from "../../utils/bmi";
 import styles from "./BmiChart.module.css";
-
-// Standard WHO BMI classification bands, matching a typical clinical BMI
-// chart (underweight/healthy/overweight/obese/extremely obese).
-const DOMAIN_MIN = 15;
-const DOMAIN_MAX = 45;
-
-type Band = { label: string; max: number; color: string };
-
-const BANDS: Band[] = [
-  { label: "Underweight", max: 18.5, color: "#f4d35e" },
-  { label: "Healthy", max: 25, color: "var(--color-accent-2)" },
-  { label: "Overweight", max: 30, color: "var(--color-amber)" },
-  { label: "Obese", max: 40, color: "var(--color-accent)" },
-  { label: "Extremely obese", max: DOMAIN_MAX, color: "#8b1e1e" },
-];
 
 const TICKS = [18.5, 25, 30, 40];
 
 function percentFor(bmi: number): number {
-  const clamped = Math.max(DOMAIN_MIN, Math.min(DOMAIN_MAX, bmi));
-  return ((clamped - DOMAIN_MIN) / (DOMAIN_MAX - DOMAIN_MIN)) * 100;
-}
-
-function categoryFor(bmi: number): Band {
-  return BANDS.find((band) => bmi < band.max) ?? BANDS[BANDS.length - 1];
+  const clamped = Math.max(BMI_DOMAIN_MIN, Math.min(BMI_DOMAIN_MAX, bmi));
+  return ((clamped - BMI_DOMAIN_MIN) / (BMI_DOMAIN_MAX - BMI_DOMAIN_MIN)) * 100;
 }
 
 const SEGMENTS = (() => {
-  let start = DOMAIN_MIN;
-  return BANDS.map((band) => {
-    const end = Math.min(band.max, DOMAIN_MAX);
-    const widthPercent = ((end - start) / (DOMAIN_MAX - DOMAIN_MIN)) * 100;
+  let start = BMI_DOMAIN_MIN;
+  return BMI_BANDS.map((band) => {
+    const end = Math.min(band.max, BMI_DOMAIN_MAX);
+    const widthPercent = ((end - start) / (BMI_DOMAIN_MAX - BMI_DOMAIN_MIN)) * 100;
     start = end;
     return { ...band, widthPercent };
   });
@@ -50,7 +32,7 @@ export default function BmiChart({ bmi, date }: BmiChartProps) {
     );
   }
 
-  const category = categoryFor(bmi);
+  const category = bmiCategory(bmi);
   const markerPercent = percentFor(bmi);
 
   return (

@@ -7,6 +7,7 @@ import DashboardStatTile from "./DashboardStatTile";
 import TrendChart, { TREND_CHART_LABEL_TOP_PAD, TREND_CHART_LABEL_BOTTOM_PAD } from "../recovery/TrendChart";
 import RingGauge from "./RingGauge";
 import BmiChart from "./BmiChart";
+import { bmiCategoryColor, isWeightMetricId } from "../../utils/bmi";
 import WhoopDetailModal, { type WhoopDetailKind } from "./WhoopDetailModal";
 import type { MetricDef, WhoopDay } from "./useDashboardData";
 import {
@@ -109,6 +110,13 @@ export default function DashboardWidget({
   const [openDetail, setOpenDetail] = useState<WhoopDetailKind | null>(null);
   const metric = isCombo || isRings ? undefined : metricById.get(widget.metric);
   const isMobile = useIsMobile();
+
+  // The weight widget's color is always health-semantic (matches the BMI
+  // widget's own red/amber/green banding for the current BMI) rather than
+  // the custom color picker, same precedent as the recovery ring below.
+  const latestBmi = metricById.get("health.bmi")?.series.at(-1)?.value;
+  const isWeightWidget = metric ? isWeightMetricId(metric.id) : false;
+  const effectiveColor = isWeightWidget && latestBmi != null ? bmiCategoryColor(latestBmi) : widget.color;
 
   const minHeight = isCombo
     ? MIN_COMBO_HEIGHT
@@ -248,12 +256,12 @@ export default function DashboardWidget({
             <DashboardStatTile
               value={formatValue(metric.series[metric.series.length - 1].value, metric.unit)}
               label={formatDate(metric.series[metric.series.length - 1].date)}
-              valueColor={widget.color}
+              valueColor={effectiveColor}
             />
           ) : widget.viewType === "ring" ? (
             <RingGauge
               percent={ringPercent(metric, metric.series[metric.series.length - 1].value)}
-              color={ringColor(metric, metric.series[metric.series.length - 1].value, widget.color)}
+              color={ringColor(metric, metric.series[metric.series.length - 1].value, effectiveColor)}
               centerValue={formatValue(metric.series[metric.series.length - 1].value, metric.unit)}
               label={formatDate(metric.series[metric.series.length - 1].date)}
               pixelSize={ringSize}
@@ -263,7 +271,7 @@ export default function DashboardWidget({
               <TrendChart
                 points={metric.series}
                 height={Math.max(24, contentHeight - TREND_CHART_LABEL_TOP_PAD - TREND_CHART_LABEL_BOTTOM_PAD)}
-                color={widget.color}
+                color={effectiveColor}
                 pointLabel={(p) => formatValue(p.value, "")}
                 showDates
               />
@@ -279,7 +287,7 @@ export default function DashboardWidget({
                 .map((point) => (
                   <li key={point.date} className={styles.timelineRow}>
                     <span>{formatDate(point.date)}</span>
-                    <span style={widget.color ? { color: widget.color } : undefined}>
+                    <span style={effectiveColor ? { color: effectiveColor } : undefined}>
                       {formatValue(point.value, metric.unit)}
                     </span>
                   </li>

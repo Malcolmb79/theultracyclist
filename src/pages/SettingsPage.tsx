@@ -41,9 +41,10 @@ function SettingsEditor() {
 
   const [settings, setSettings] = useState<CoachingSettings | null>(null);
   const [ftpInput, setFtpInput] = useState("");
+  const [heightInput, setHeightInput] = useState("");
   const [distanceInput, setDistanceInput] = useState("");
   const [hoursInput, setHoursInput] = useState("");
-  const [saving, setSaving] = useState<"ftp" | "targets" | null>(null);
+  const [saving, setSaving] = useState<"ftp" | "height" | "targets" | null>(null);
   const [whoopStatus] = useState(whoopStatusFromQuery);
 
   useEffect(() => {
@@ -64,6 +65,7 @@ function SettingsEditor() {
         const s = body.settings ?? {};
         setSettings(s);
         setFtpInput(s.ftpWatts?.toString() ?? "");
+        setHeightInput(s.heightCm?.toString() ?? "");
         setDistanceInput(
           s.weeklyDistanceKm != null
             ? roundTo1(convertValueUnit(s.weeklyDistanceKm, "km", system).value).toString()
@@ -94,6 +96,16 @@ function SettingsEditor() {
     setSaving("ftp");
     try {
       await persist({ ...settings, ftpWatts: ftpInput === "" ? undefined : Number(ftpInput) });
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const handleSaveHeight = async () => {
+    if (!settings) return;
+    setSaving("height");
+    try {
+      await persist({ ...settings, heightCm: heightInput === "" ? undefined : Number(heightInput) });
     } finally {
       setSaving(null);
     }
@@ -177,6 +189,29 @@ function SettingsEditor() {
             disabled={saving === "ftp" || !settings}
           >
             {saving === "ftp" ? "Saving…" : "Save"}
+          </button>
+        </div>
+
+        <div className={styles.section}>
+          <p className={styles.sectionTitle}>Height</p>
+          <p className={styles.sectionHint}>Used to compute the BMI widget, available on Dashboard, Trends, and Coaching.</p>
+          <div className={styles.inputRow}>
+            <input
+              type="number"
+              className={styles.input}
+              value={heightInput}
+              onChange={(e) => setHeightInput(e.target.value)}
+              placeholder="cm"
+            />
+            <span className={styles.inputUnit}>cm</span>
+          </div>
+          <button
+            type="button"
+            className={styles.saveButton}
+            onClick={handleSaveHeight}
+            disabled={saving === "height" || !settings}
+          >
+            {saving === "height" ? "Saving…" : "Save"}
           </button>
         </div>
 

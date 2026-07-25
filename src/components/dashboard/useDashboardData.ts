@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { WHOOP_STRAIN_RECOVERY_COMBO_ID, WHOOP_RINGS_COMBO_ID } from "./types";
 import { useUnits } from "../../context/UnitsContext";
 import { convertMetricSeries } from "../../utils/units";
+import { computeBmi, findWeightMetricName } from "../../utils/bmi";
 
 export type SeriesPoint = { date: string; value: number };
 
@@ -80,7 +81,8 @@ export function useDashboardData(): DashboardDataState {
       fetch("/api/whoop-data").then((r) => (r.ok ? r.json() : null)),
       fetch("/api/strava-activities").then((r) => (r.ok ? r.json() : null)),
       fetch("/api/health-data").then((r) => (r.ok ? r.json() : null)),
-    ]).then(([whoop, strava, health]) => {
+      fetch("/api/coaching-settings").then((r) => (r.ok ? r.json() : null)),
+    ]).then(([whoop, strava, health, settingsBody]) => {
       if (cancelled) return;
 
       const metrics: MetricDef[] = [];
@@ -157,6 +159,24 @@ export function useDashboardData(): DashboardDataState {
             unit: entry.unit,
             series,
           });
+        }
+
+        // Derived, not a direct Apple Health field - needs both a weight
+        // reading (from the catalog above) and a manually-entered height
+        // (Settings, since Apple Health export doesn't reliably include it).
+        const heightCm = settingsBody?.settings?.heightCm as number | undefined;
+        const weightName = findWeightMetricName(catalog);
+        if (heightCm && weightName) {
+          const bmiSeries: SeriesPoint[] = dates
+            .map((date) => {
+              const weightKg = history[date][weightName]?.value;
+              return weightKg == null ? null : { date, value: computeBmi(weightKg, heightCm) };
+            })
+            .filter((p): p is SeriesPoint => p != null);
+
+          if (bmiSeries.length > 0) {
+            metrics.push({ id: "health.bmi", source: "health", label: "BMI", unit: "kg/m²", series: bmiSeries });
+          }
         }
       }
 

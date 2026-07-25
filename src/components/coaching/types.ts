@@ -10,6 +10,10 @@ export type CoachingLayout = Partial<Record<CoachingWidgetId, CoachingWidgetRect
 
 export type CoachingSettings = {
   ftpWatts?: number;
+  // Always centimeters regardless of the metric/imperial display toggle -
+  // used only to derive the BMI widget (see src/utils/bmi.ts), which has no
+  // meaningful imperial "unit" of its own to convert to.
+  heightCm?: number;
   weeklyDistanceKm?: number;
   weeklyHours?: number;
   phase?: TrainingPhase;

@@ -23,6 +23,8 @@ type CatalogWidget = {
 
 export type CoachingSettings = {
   ftpWatts?: number;
+  // Always centimeters - see the client-side CoachingSettings type for why.
+  heightCm?: number;
   weeklyDistanceKm?: number;
   weeklyHours?: number;
   phase?: "build" | "recovery" | "taper";

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { GOAL_METRIC_IDS, type Goals } from "./types";
 import { useUnits } from "../../context/UnitsContext";
 import { convertTrendMetric } from "../../utils/units";
+import { computeBmi } from "../../utils/bmi";
 
 export type TrendMetricDef = {
   id: string;
@@ -69,8 +70,9 @@ export function useTrendsData(): TrendsDataState {
       fetch("/api/strava-activities").then((r) => (r.ok ? r.json() : null)),
       fetch("/api/health-data").then((r) => (r.ok ? r.json() : null)),
       fetch("/api/trends-goals").then((r) => (r.ok ? r.json() : null)),
+      fetch("/api/coaching-settings").then((r) => (r.ok ? r.json() : null)),
     ])
-      .then(([whoop, strava, health, goalsBody]) => {
+      .then(([whoop, strava, health, goalsBody, settingsBody]) => {
         if (cancelled) return;
 
         const goals: Goals = goalsBody?.goals ?? {};
@@ -190,6 +192,24 @@ export function useTrendsData(): TrendsDataState {
         const fatKey = findHealthKey(healthCatalog, [/^total_fat$/i, /fat/i]);
         const carbsKey = findHealthKey(healthCatalog, [/carbohydrate/i]);
         const calorieKey = findHealthKey(healthCatalog, [/dietary_energy/i, /dietary.*calorie/i]);
+
+        // Derived, not a direct Apple Health field - needs both a weight
+        // reading (above) and a manually-entered height (Settings, since
+        // Apple Health export doesn't reliably include it).
+        const heightCm = settingsBody?.settings?.heightCm as number | undefined;
+        if (heightCm && weightKey) {
+          metrics.push({
+            id: "health.bmi",
+            source: "health",
+            label: "BMI",
+            unit: "kg/m²",
+            aggregation: "avg",
+            getValue: (date) => {
+              const weightKg = healthHistory[date]?.[weightKey]?.value;
+              return weightKg == null ? null : computeBmi(weightKg, heightCm);
+            },
+          });
+        }
 
         metrics.push(
           {

@@ -1,0 +1,72 @@
+.editor {
+  padding: var(--space-3);
+  margin-bottom: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-bg-elevated);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  margin: 0 0 var(--space-2);
+}
+
+.hint {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  margin: 0 0 var(--space-3);
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.fieldLabel {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.inputRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: none;
+}
+
+.input {
+  width: 70px;
+  background: var(--color-bg-elevated-2);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  border-radius: var(--radius);
+  padding: 0.25rem 0.4rem;
+  font-size: 0.85rem;
+}
+
+.unit {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  width: 32px;
+}
+
+.saveButton {
+  width: 100%;
+  margin-top: var(--space-2);
+  background: var(--color-accent);
+  color: var(--color-bg);
+  border: none;
+  border-radius: var(--radius);
+  padding: var(--space-2);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.saveButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

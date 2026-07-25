@@ -245,6 +245,9 @@ function DashboardEditor({ password }: { password: string }) {
               </span>
             )
           )}
+          <a href="/dashboard/trends" className={styles.switchLink}>
+            Trends
+          </a>
         </div>
 
         {catalogOpen && (

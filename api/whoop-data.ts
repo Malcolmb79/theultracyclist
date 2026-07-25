@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { persistEnvVar, triggerDeployHook } from "./_lib/vercelEnvStore.js";
+import { getJSON, setJSON } from "./_lib/kvStore.js";
 
 const TOKEN_URL = "https://api.prod.whoop.com/oauth/oauth2/token";
 const API_BASE = "https://api.prod.whoop.com/developer/v2";
@@ -174,8 +174,22 @@ function zoneMinutesByDate(workouts: WhoopWorkoutRecord[]): Map<string, { zone1t
   return byDate;
 }
 
+// Refresh tokens are single-use and rotate on every refresh - Redis (not the
+// old persistEnvVar+redeploy pair) is what makes that safe. A redeploy only
+// takes effect on its *next* build, so a token rotated between two nearby
+// deploys could get orphaned by whichever deploy happened to bake in the
+// older value, permanently dead-ending the refresh chain. Redis writes are
+// immediately visible to every warm and cold lambda alike, so there's no
+// window for that race.
+const REFRESH_TOKEN_KEY = "WHOOP_REFRESH_TOKEN";
+
 let cachedToken: { accessToken: string; expiresAt: number } | null = null;
 let currentRefreshToken: string | null = null;
+
+export async function persistWhoopRefreshToken(token: string): Promise<void> {
+  currentRefreshToken = token;
+  await setJSON(REFRESH_TOKEN_KEY, token);
+}
 
 async function getAccessToken(): Promise<string> {
   if (cachedToken && cachedToken.expiresAt - 60 > Date.now() / 1000) {
@@ -184,7 +198,10 @@ async function getAccessToken(): Promise<string> {
 
   const clientId = process.env.WHOOP_CLIENT_ID;
   const clientSecret = process.env.WHOOP_CLIENT_SECRET;
-  const refreshToken = currentRefreshToken ?? process.env.WHOOP_REFRESH_TOKEN;
+  // WHOOP_REFRESH_TOKEN env var is a one-time seed for first setup only -
+  // once the flow below has rotated a token into Redis, that's the source
+  // of truth from here on.
+  const refreshToken = currentRefreshToken ?? (await getJSON<string>(REFRESH_TOKEN_KEY)) ?? process.env.WHOOP_REFRESH_TOKEN;
 
   if (!clientId || !clientSecret || !refreshToken) {
     throw new Error("Whoop API credentials are not configured");
@@ -210,12 +227,7 @@ async function getAccessToken(): Promise<string> {
 
   const data = (await response.json()) as WhoopTokenResponse;
   cachedToken = { accessToken: data.access_token, expiresAt: Date.now() / 1000 + data.expires_in };
-  currentRefreshToken = data.refresh_token;
-
-  if (data.refresh_token !== refreshToken) {
-    await persistEnvVar("WHOOP_REFRESH_TOKEN", data.refresh_token);
-    await triggerDeployHook();
-  }
+  await persistWhoopRefreshToken(data.refresh_token);
 
   return cachedToken.accessToken;
 }

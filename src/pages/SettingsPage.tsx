@@ -30,6 +30,11 @@ function roundTo1(value: number): number {
   return Math.round(value * 10) / 10;
 }
 
+function whoopStatusFromQuery(): "connected" | "failed" | null {
+  const value = new URLSearchParams(window.location.search).get("whoop");
+  return value === "connected" || value === "failed" ? value : null;
+}
+
 function SettingsEditor() {
   const { system, setSystem } = useUnits();
   const distanceUnit = convertValueUnit(1, "km", system).unit;
@@ -39,6 +44,16 @@ function SettingsEditor() {
   const [distanceInput, setDistanceInput] = useState("");
   const [hoursInput, setHoursInput] = useState("");
   const [saving, setSaving] = useState<"ftp" | "targets" | null>(null);
+  const [whoopStatus] = useState(whoopStatusFromQuery);
+
+  useEffect(() => {
+    if (!whoopStatus) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("whoop");
+    window.history.replaceState({}, "", url.toString());
+    // Only strip the redirect param once, on mount - not on every whoopStatus read.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -204,6 +219,16 @@ function SettingsEditor() {
           >
             {saving === "targets" ? "Saving…" : "Save"}
           </button>
+        </div>
+
+        <div className={styles.section}>
+          <p className={styles.sectionTitle}>Connections</p>
+          <p className={styles.sectionHint}>Reconnect a data source if its dashboard widgets go blank.</p>
+          {whoopStatus === "connected" && <p className={styles.statusOk}>Whoop reconnected.</p>}
+          {whoopStatus === "failed" && <p className={styles.statusFail}>Couldn't reconnect Whoop - try again.</p>}
+          <a href="/api/whoop-authorize" className={styles.connectButton}>
+            Reconnect Whoop
+          </a>
         </div>
       </div>
     </div>

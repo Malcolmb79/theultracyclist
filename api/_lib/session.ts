@@ -3,6 +3,7 @@ import type { VercelRequest } from "@vercel/node";
 
 export const SESSION_COOKIE_NAME = "dash_session";
 export const OAUTH_STATE_COOKIE_NAME = "oauth_state";
+export const WHOOP_OAUTH_STATE_COOKIE_NAME = "whoop_oauth_state";
 const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
 function sign(value: string, secret: string): string {

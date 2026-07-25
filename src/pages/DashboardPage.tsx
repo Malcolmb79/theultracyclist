@@ -7,6 +7,7 @@ import {
   WHOOP_STRAIN_RECOVERY_COMBO_ID,
   WHOOP_RINGS_COMBO_ID,
   HEALTH_CALENDAR_ID,
+  CALORIES_BALANCE_ID,
   DEFAULT_WIDGET_WIDTH,
   DEFAULT_WIDGET_HEIGHT,
   type Widget,
@@ -27,6 +28,7 @@ function defaultViewType(metric: MetricDef): Widget["viewType"] {
   if (metric.id === WHOOP_STRAIN_RECOVERY_COMBO_ID) return "combo";
   if (metric.id === WHOOP_RINGS_COMBO_ID) return "rings";
   if (metric.id === HEALTH_CALENDAR_ID) return "healthCalendar";
+  if (metric.id === CALORIES_BALANCE_ID) return "caloriesBalance";
   return metric.statOnly ? "stat" : "chart";
 }
 

@@ -3,7 +3,7 @@ export type Widget = {
   source: "strava" | "whoop" | "health";
   metric: string;
   label: string;
-  viewType: "stat" | "chart" | "timeline" | "ring" | "combo" | "rings" | "healthCalendar";
+  viewType: "stat" | "chart" | "timeline" | "ring" | "combo" | "rings" | "healthCalendar" | "caloriesBalance";
   x?: number;
   y?: number;
   width?: number;
@@ -47,3 +47,8 @@ export const WHOOP_RINGS_COMBO_ID = "whoop.sleepRecoveryStrainRings";
 // Sleep/HRV/Weight all shown per day (small color dots), rather than one
 // metric per calendar the way Trends' calendar view works.
 export const HEALTH_CALENDAR_ID = "whoop.healthCalendar";
+
+// Special catalog entry: dietary (consumed) vs active+basal (burned)
+// energy for the day, side by side with the net difference - rather than
+// two separate single-metric widgets the athlete has to compare by eye.
+export const CALORIES_BALANCE_ID = "health.caloriesBalance";

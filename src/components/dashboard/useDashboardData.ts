@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { WHOOP_STRAIN_RECOVERY_COMBO_ID, WHOOP_RINGS_COMBO_ID, HEALTH_CALENDAR_ID } from "./types";
+import { WHOOP_STRAIN_RECOVERY_COMBO_ID, WHOOP_RINGS_COMBO_ID, HEALTH_CALENDAR_ID, CALORIES_BALANCE_ID } from "./types";
 import { useUnits } from "../../context/UnitsContext";
 import { convertMetricSeries, convertValueUnit } from "../../utils/units";
 import { computeBmi, findWeightMetricName } from "../../utils/bmi";
@@ -185,6 +185,14 @@ export function useDashboardData(raw: RawSourcesState): DashboardDataState {
             : [];
 
           metrics.push({ id: "health.bmi", source: "health", label: "BMI", unit: "kg/m²", series: bmiSeries });
+        }
+
+        // Listed whenever either side of the comparison exists in the
+        // catalog - the widget itself shows "—" for whichever side is
+        // actually missing, same as any other metric with partial data.
+        const hasCaloriesData = catalog.some((c) => /dietary_energy|active_energy/i.test(c.name));
+        if (hasCaloriesData) {
+          metrics.push({ id: CALORIES_BALANCE_ID, source: "health", label: "Calories: Consumed vs Burned", unit: "", series: [], statOnly: true });
         }
       }
 

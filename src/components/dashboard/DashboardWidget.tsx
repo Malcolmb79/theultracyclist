@@ -9,13 +9,16 @@ import TrendChart, { TREND_CHART_LABEL_TOP_PAD, TREND_CHART_LABEL_BOTTOM_PAD } f
 import RingGauge from "./RingGauge";
 import BmiChart from "./BmiChart";
 import HealthCalendar from "./HealthCalendar";
+import CaloriesBalanceCard from "./CaloriesBalanceCard";
 import { bmiCategoryColor, isWeightMetricId } from "../../utils/bmi";
+import { hrvReadinessColor } from "../../utils/hrvColor";
 import WhoopDetailModal, { type WhoopDetailKind } from "./WhoopDetailModal";
 import type { MetricDef, WhoopDay } from "./useDashboardData";
 import {
   WHOOP_STRAIN_RECOVERY_COMBO_ID,
   WHOOP_RINGS_COMBO_ID,
   HEALTH_CALENDAR_ID,
+  CALORIES_BALANCE_ID,
   DEFAULT_WIDGET_WIDTH,
   DEFAULT_WIDGET_HEIGHT,
   DEFAULT_WIDGET_COLOR,
@@ -108,6 +111,11 @@ const MIN_HEALTH_CALENDAR_WIDTH = 420;
 const MIN_HEALTH_CALENDAR_HEIGHT = 440;
 const DEFAULT_HEALTH_CALENDAR_WIDTH = 480;
 const DEFAULT_HEALTH_CALENDAR_HEIGHT = 480;
+// CaloriesBalanceCard has two label/value/bar rows plus a net line and
+// caption - more vertical content than BMI's single bar, so it gets its
+// own (slightly taller) floor rather than clipping at MIN_BMI_HEIGHT.
+const MIN_CALORIES_HEIGHT = 240;
+const MIN_CALORIES_WIDTH = 220;
 
 function formatValue(value: number, unit: string): string {
   const rounded = Number.isInteger(value) ? value : Math.round(value * 10) / 10;
@@ -146,9 +154,10 @@ export default function DashboardWidget({
   const isRings = widget.metric === WHOOP_RINGS_COMBO_ID;
   const isBmi = widget.metric === "health.bmi";
   const isHealthCalendar = widget.metric === HEALTH_CALENDAR_ID;
+  const isCaloriesBalance = widget.metric === CALORIES_BALANCE_ID;
   const detailKind = DETAIL_KIND_BY_METRIC[widget.metric];
   const [openDetail, setOpenDetail] = useState<WhoopDetailKind | null>(null);
-  const metric = isCombo || isRings || isHealthCalendar ? undefined : metricById.get(widget.metric);
+  const metric = isCombo || isRings || isHealthCalendar || isCaloriesBalance ? undefined : metricById.get(widget.metric);
   const isMobile = useIsMobile();
 
   // The weight widget's color is always health-semantic (matches the BMI
@@ -156,7 +165,15 @@ export default function DashboardWidget({
   // the custom color picker, same precedent as the recovery ring below.
   const latestBmi = metricById.get("health.bmi")?.series.at(-1)?.value;
   const isWeightWidget = metric ? isWeightMetricId(metric.id) : false;
-  const effectiveColor = isWeightWidget && latestBmi != null ? bmiCategoryColor(latestBmi) : widget.color;
+  // HRV has no universal "good" number, so it's banded by deviation from
+  // the athlete's own recent baseline rather than a fixed value - see
+  // hrvColor.ts for the reasoning.
+  const isHrvWidget = metric?.id === "whoop.hrv";
+  const effectiveColor = isWeightWidget && latestBmi != null
+    ? bmiCategoryColor(latestBmi)
+    : isHrvWidget && metric && metric.series.length >= 2
+      ? hrvReadinessColor(metric.series.map((p) => p.value))
+      : widget.color;
 
   // For the health calendar: weight is shown in whatever unit its own
   // metric is already display-converted to (no extra conversion needed
@@ -168,6 +185,23 @@ export default function DashboardWidget({
   const weightUnit = weightMetric?.unit ?? "kg";
   const bmiByDate = new Map((metricById.get("health.bmi")?.series ?? []).map((p) => [p.date.slice(0, 10), p.value]));
 
+  // For calories balance: "burned" is active energy plus basal/resting
+  // energy when the export includes it (falls back to active-only if not).
+  const allMetrics = Array.from(metricById.values());
+  const consumedMetric = allMetrics.find((m) => /dietary_energy/i.test(m.id));
+  const activeMetric = allMetrics.find((m) => /active_energy/i.test(m.id));
+  const basalMetric = allMetrics.find((m) => /basal_energy|resting_energy/i.test(m.id));
+  const consumedByDate = new Map((consumedMetric?.series ?? []).map((p) => [p.date.slice(0, 10), p.value]));
+  const activeByDate = new Map((activeMetric?.series ?? []).map((p) => [p.date.slice(0, 10), p.value]));
+  const basalByDate = new Map((basalMetric?.series ?? []).map((p) => [p.date.slice(0, 10), p.value]));
+  const caloriesDates = [...consumedByDate.keys(), ...activeByDate.keys(), ...basalByDate.keys()].sort();
+  const latestCaloriesDate = caloriesDates.at(-1) ?? null;
+  const consumedLatest = latestCaloriesDate ? consumedByDate.get(latestCaloriesDate) ?? null : null;
+  const burnedLatest =
+    latestCaloriesDate && (activeByDate.has(latestCaloriesDate) || basalByDate.has(latestCaloriesDate))
+      ? (activeByDate.get(latestCaloriesDate) ?? 0) + (basalByDate.get(latestCaloriesDate) ?? 0)
+      : null;
+
   const minHeight = isCombo
     ? MIN_COMBO_HEIGHT
     : isRings
@@ -176,18 +210,22 @@ export default function DashboardWidget({
         ? MIN_BMI_HEIGHT
         : isHealthCalendar
           ? MIN_HEALTH_CALENDAR_HEIGHT
-          : isMobile
-            ? MOBILE_MIN_WIDGET_HEIGHT
-            : MIN_WIDGET_HEIGHT;
+          : isCaloriesBalance
+            ? MIN_CALORIES_HEIGHT
+            : isMobile
+              ? MOBILE_MIN_WIDGET_HEIGHT
+              : MIN_WIDGET_HEIGHT;
   const minWidth = isRings
     ? MIN_RINGS_WIDTH
     : isBmi
       ? MIN_BMI_WIDTH
       : isHealthCalendar
         ? MIN_HEALTH_CALENDAR_WIDTH
-        : isMobile
-          ? MOBILE_MIN_WIDGET_WIDTH
-          : MIN_WIDGET_WIDTH;
+        : isCaloriesBalance
+          ? MIN_CALORIES_WIDTH
+          : isMobile
+            ? MOBILE_MIN_WIDGET_WIDTH
+            : MIN_WIDGET_WIDTH;
   const defaultWidth = isHealthCalendar
     ? DEFAULT_HEALTH_CALENDAR_WIDTH
     : isMobile
@@ -275,7 +313,7 @@ export default function DashboardWidget({
               onChange={(e) => onColorChange(e.target.value)}
               aria-label="Widget colour"
             />
-            {!isCombo && !isRings && !isBmi && !isHealthCalendar && (
+            {!isCombo && !isRings && !isBmi && !isHealthCalendar && !isCaloriesBalance && (
               <select
                 className={styles.select}
                 value={widget.viewType}
@@ -325,6 +363,8 @@ export default function DashboardWidget({
               bmiByDate={bmiByDate}
               height={contentHeight}
             />
+          ) : isCaloriesBalance ? (
+            <CaloriesBalanceCard consumed={consumedLatest} burned={burnedLatest} date={latestCaloriesDate} />
           ) : !metric || metric.series.length === 0 ? (
             <p className={styles.empty}>No data yet for this metric.</p>
           ) : widget.viewType === "stat" ? (

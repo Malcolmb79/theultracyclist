@@ -7,7 +7,9 @@
 export const ATHLETE_PROFILE =
   "Athlete profile: 46 years old, a competitive cyclist returning to training after a long break from the bike. " +
   "Ramp volume and intensity up gradually and conservatively rather than assuming an established base - err on " +
-  "the side of caution with load increases given the return-to-training context. Sleep goal: 8+ hours nightly.";
+  "the side of caution with load increases given the return-to-training context. Sleep goal: 8+ hours nightly. " +
+  "Their training week runs Monday-Sunday, not Sunday-Saturday - the weekly distance/hours figures below are " +
+  "already computed on that boundary, so reason about \"this week\" the same way.";
 
 export const DATA_SEMANTICS =
   'Data semantics: on the Sleep, Recovery & Strain dashboard, "today"\'s strain is LIVE - it keeps rising all ' +

@@ -91,6 +91,19 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: text;
+}
+
+.labelInput {
+  flex: 1;
+  min-width: 44px;
+  font: inherit;
+  font-weight: 600;
+  background: var(--color-bg-elevated-2);
+  color: var(--color-text);
+  border: 1px solid var(--color-accent-2);
+  border-radius: var(--radius);
+  padding: 0.1rem 0.35rem;
 }
 
 .dragHandle {

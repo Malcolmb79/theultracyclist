@@ -145,6 +145,9 @@ function DashboardEditor() {
   const handleColorChange = (id: string, color: string) =>
     saveWidgets(widgets.map((w) => (w.id === id ? { ...w, color } : w)));
 
+  const handleLabelChange = (id: string, label: string) =>
+    saveWidgets(widgets.map((w) => (w.id === id ? { ...w, label } : w)));
+
   const handleMove = (id: string, x: number, y: number) =>
     saveWidgets(widgets.map((w) => (w.id === id ? { ...w, x, y } : w)));
 
@@ -219,6 +222,7 @@ function DashboardEditor() {
                 whoopHistory={data.whoopHistory}
                 onViewTypeChange={(viewType) => handleViewTypeChange(widget.id, viewType)}
                 onColorChange={(color) => handleColorChange(widget.id, color)}
+                onLabelChange={(label) => handleLabelChange(widget.id, label)}
                 onMove={(x, y) => handleMove(widget.id, x, y)}
                 onResize={(width, height) => handleResize(widget.id, width, height)}
                 onResizingChange={setIsResizing}

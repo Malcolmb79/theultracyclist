@@ -150,6 +150,9 @@ function CoachingView() {
   const handleMetricColorChange = (id: string, color: string) =>
     saveCatalogWidgets(catalogWidgets.map((w) => (w.id === id ? { ...w, color } : w)));
 
+  const handleMetricLabelChange = (id: string, label: string) =>
+    saveCatalogWidgets(catalogWidgets.map((w) => (w.id === id ? { ...w, label } : w)));
+
   const handleMetricMove = (id: string, x: number, y: number) =>
     saveCatalogWidgets(catalogWidgets.map((w) => (w.id === id ? { ...w, x, y } : w)));
 
@@ -261,6 +264,7 @@ function CoachingView() {
               whoopHistory={dashboardData.status === "ready" ? dashboardData.whoopHistory : []}
               onViewTypeChange={(viewType) => handleMetricViewTypeChange(widget.id, viewType)}
               onColorChange={(color) => handleMetricColorChange(widget.id, color)}
+              onLabelChange={(label) => handleMetricLabelChange(widget.id, label)}
               onMove={(x, y) => handleMetricMove(widget.id, x, y)}
               onResize={(width, height) => handleMetricResize(widget.id, width, height)}
               onResizingChange={setIsResizing}

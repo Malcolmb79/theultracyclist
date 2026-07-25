@@ -41,6 +41,7 @@ interface DashboardWidgetProps {
   whoopHistory: WhoopDay[];
   onViewTypeChange: (viewType: Widget["viewType"]) => void;
   onColorChange: (color: string) => void;
+  onLabelChange: (label: string) => void;
   onMove: (x: number, y: number) => void;
   onResize: (width: number, height: number) => void;
   onResizingChange: (resizing: boolean) => void;
@@ -145,6 +146,7 @@ export default function DashboardWidget({
   whoopHistory,
   onViewTypeChange,
   onColorChange,
+  onLabelChange,
   onMove,
   onResize,
   onResizingChange,
@@ -274,6 +276,20 @@ export default function DashboardWidget({
     return () => document.removeEventListener("pointerdown", handleOutside);
   }, [selected]);
 
+  const [editingLabel, setEditingLabel] = useState(false);
+  const [labelDraft, setLabelDraft] = useState(widget.label);
+
+  useEffect(() => {
+    setLabelDraft(widget.label);
+  }, [widget.label]);
+
+  const commitLabel = () => {
+    const trimmed = labelDraft.trim();
+    if (trimmed && trimmed !== widget.label) onLabelChange(trimmed);
+    else setLabelDraft(widget.label);
+    setEditingLabel(false);
+  };
+
   const positionStyle = {
     position: "absolute" as const,
     left: rect.x,
@@ -304,7 +320,26 @@ export default function DashboardWidget({
           >
             ⠿
           </div>
-          <span className={styles.label}>{widget.label}</span>
+          {editingLabel ? (
+            <input
+              className={styles.labelInput}
+              value={labelDraft}
+              onChange={(e) => setLabelDraft(e.target.value)}
+              onBlur={commitLabel}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitLabel();
+                if (e.key === "Escape") {
+                  setLabelDraft(widget.label);
+                  setEditingLabel(false);
+                }
+              }}
+              autoFocus
+            />
+          ) : (
+            <span className={styles.label} onClick={() => setEditingLabel(true)} title="Click to rename">
+              {widget.label}
+            </span>
+          )}
           <div className={styles.controls}>
             <input
               type="color"

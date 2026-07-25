@@ -51,10 +51,14 @@ function elevationGain(points: { altitudeM: number }[]): number {
 }
 
 function formatMetricName(name: string): string {
-  return name
+  const formatted = name
     .split("_")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
+  // Apple Health's own field names ("Active Energy", "Dietary Energy", etc.)
+  // don't use the word "calories" anywhere, making them easy to miss when
+  // scanning the catalog for calorie data - call it out explicitly.
+  return name.includes("energy") ? `${formatted} (Calories)` : formatted;
 }
 
 export type DashboardDataState =

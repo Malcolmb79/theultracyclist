@@ -56,7 +56,7 @@ export default function HealthCalendar({ whoopHistory, weightByDate, weightUnit,
   }
 
   const gridHeight = Math.max(
-    numRows * 38,
+    numRows * 44,
     height - HEADER_ROW_HEIGHT - WEEKDAY_ROW_HEIGHT - LEGEND_ROW_HEIGHT - GRID_GAP * 3,
   );
 
@@ -86,11 +86,25 @@ export default function HealthCalendar({ whoopHistory, weightByDate, weightUnit,
           const weightVal = weightByDate.get(dateStr);
           const bmi = bmiByDate.get(dateStr);
 
+          // Recovery/HRV/Sleep get their actual numbers shown directly
+          // (colored for at-a-glance reading) since those are the three the
+          // athlete wants visible without opening the day detail. Strain
+          // and weight stay as plain color dots - less critical day-to-day,
+          // and there's only so much a ~50px cell can show before it's
+          // unreadable clutter.
+          const values: { color: string; text: string; label: string }[] = [];
+          if (day?.recovery) {
+            values.push({ color: recoveryColor(day.recovery.score), text: `${day.recovery.score}%`, label: `Recovery ${day.recovery.score}%` });
+          }
+          if (day?.recovery?.hrvMs != null) {
+            values.push({ color: HRV_COLOR, text: `${day.recovery.hrvMs}`, label: `HRV ${day.recovery.hrvMs}ms` });
+          }
+          if (day?.sleep) {
+            values.push({ color: SLEEP_COLOR, text: `${day.sleep.performancePercent}%`, label: `Sleep ${day.sleep.performancePercent}%` });
+          }
+
           const dots: { color: string; label: string }[] = [];
-          if (day?.recovery) dots.push({ color: recoveryColor(day.recovery.score), label: `Recovery ${day.recovery.score}%` });
           if (day?.strain) dots.push({ color: STRAIN_COLOR, label: `Strain ${day.strain.score.toFixed(1)}` });
-          if (day?.sleep) dots.push({ color: SLEEP_COLOR, label: `Sleep ${day.sleep.performancePercent}%` });
-          if (day?.recovery?.hrvMs != null) dots.push({ color: HRV_COLOR, label: `HRV ${day.recovery.hrvMs}ms` });
           if (weightVal != null) {
             dots.push({
               color: bmi != null ? bmiCategoryColor(bmi) : WEIGHT_FALLBACK_COLOR,
@@ -98,8 +112,10 @@ export default function HealthCalendar({ whoopHistory, weightByDate, weightUnit,
             });
           }
 
-          const hasData = dots.length > 0;
-          const title = hasData ? [dateStr, ...dots.map((d) => d.label), "Click for details"].join(" · ") : dateStr;
+          const hasData = values.length > 0 || dots.length > 0;
+          const title = hasData
+            ? [dateStr, ...values.map((v) => v.label), ...dots.map((d) => d.label), "Click for details"].join(" · ")
+            : dateStr;
 
           return (
             <button
@@ -110,19 +126,21 @@ export default function HealthCalendar({ whoopHistory, weightByDate, weightUnit,
               onClick={() => setOpenDate(dateStr)}
             >
               <span className={styles.dayNumber}>{Number(dateStr.slice(8, 10))}</span>
-              {hasData && (
-                <>
-                  <div className={styles.dots}>
-                    {dots.map((d, idx) => (
-                      <span key={idx} className={styles.dot} style={{ background: d.color }} />
-                    ))}
-                  </div>
-                  {day?.recovery && (
-                    <span className={styles.recoveryValue} style={{ color: recoveryColor(day.recovery.score) }}>
-                      {day.recovery.score}%
+              {values.length > 0 && (
+                <div className={styles.metrics}>
+                  {values.map((v, idx) => (
+                    <span key={idx} className={styles.metricValue} style={{ color: v.color }}>
+                      {v.text}
                     </span>
-                  )}
-                </>
+                  ))}
+                </div>
+              )}
+              {dots.length > 0 && (
+                <div className={styles.dots}>
+                  {dots.map((d, idx) => (
+                    <span key={idx} className={styles.dot} style={{ background: d.color }} />
+                  ))}
+                </div>
               )}
             </button>
           );

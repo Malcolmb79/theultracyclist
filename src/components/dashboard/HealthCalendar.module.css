@@ -91,10 +91,20 @@
   border-radius: 50%;
 }
 
-.recoveryValue {
-  font-size: 0.65rem;
+.metrics {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0 3px;
+  max-width: 100%;
+  line-height: 1.2;
+}
+
+.metricValue {
+  font-size: 0.55rem;
   font-weight: 700;
-  line-height: 1;
+  white-space: nowrap;
 }
 
 .legend {

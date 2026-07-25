@@ -73,7 +73,11 @@ export async function readEnvVarLive(key: string): Promise<string | null> {
     const envVar = data.envs.find(
       (e) => e.key === key && (Array.isArray(e.target) ? e.target.includes("production") : e.target === "production"),
     );
-    return envVar?.value ?? null;
+    // A failed/undecryptable read can come back as an empty string rather
+    // than an absent field - treat that the same as "not found" so callers
+    // fall back to process.env instead of mistaking it for genuinely empty
+    // saved data (a real empty layout is serialized as "[]", never "").
+    return envVar?.value || null;
   } catch {
     return null;
   }

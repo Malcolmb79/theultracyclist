@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { persistEnvVar, triggerDeployHook } from "./_lib/vercelEnvStore.js";
+import { getJSON, setJSON } from "./_lib/kvStore.js";
 import { getSessionEmail } from "./_lib/session.js";
 
 export type Goals = {
@@ -12,7 +12,10 @@ export type Goals = {
   calorieGoalRestDay?: number;
 };
 
-function readGoals(): Goals {
+const KV_KEY = "PERFORMANCE_GOALS";
+
+// One-time migration fallback - see dashboard-layout.ts for why.
+function readLegacyGoals(): Goals {
   try {
     const raw = process.env.PERFORMANCE_GOALS;
     if (!raw) return {};
@@ -31,11 +34,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === "POST") {
     const goals = (req.body ?? {}) as Goals;
-    await persistEnvVar("PERFORMANCE_GOALS", JSON.stringify(goals));
-    await triggerDeployHook();
+    await setJSON(KV_KEY, goals);
     res.status(200).json({ ok: true });
     return;
   }
 
-  res.status(200).json({ goals: readGoals() });
+  const goals = (await getJSON<Goals>(KV_KEY)) ?? readLegacyGoals();
+  res.status(200).json({ goals });
 }

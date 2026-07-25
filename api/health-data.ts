@@ -1,7 +1,11 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { persistEnvVar, triggerDeployHook } from "./_lib/vercelEnvStore.js";
 
-const MAX_DAYS = 90;
+// Active retention cap - the POST handler below trims stored history to the
+// most recent MAX_DAYS on every ingest, permanently discarding older days.
+// Raised from 90 to keep a full year available to the coach; the JSON is
+// small so storage cost isn't a concern.
+const MAX_DAYS = 365;
 
 // Units that represent a cumulative daily total get summed across same-day
 // samples (steps, calories, minutes, grams of a nutrient); anything else
@@ -32,6 +36,32 @@ function readHistory(): History {
   } catch {
     return {};
   }
+}
+
+// In-process accessor for the tool-calling coach: same stored history the
+// GET route reads, filtered to a day window and optionally to specific
+// metric names.
+export function fetchHealthHistory(days: number = MAX_DAYS, metricNames?: string[]): History {
+  const history = readHistory();
+  const cutoff = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+
+  const filtered: History = {};
+  for (const [date, metrics] of Object.entries(history)) {
+    if (date < cutoff) continue;
+
+    if (!metricNames || metricNames.length === 0) {
+      filtered[date] = metrics;
+      continue;
+    }
+
+    const subset: DayMetrics = {};
+    for (const name of metricNames) {
+      if (metrics[name]) subset[name] = metrics[name];
+    }
+    if (Object.keys(subset).length > 0) filtered[date] = subset;
+  }
+
+  return filtered;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

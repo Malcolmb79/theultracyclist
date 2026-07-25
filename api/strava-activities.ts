@@ -5,6 +5,7 @@ const ACTIVITIES_URL = "https://www.strava.com/api/v3/athlete/activities";
 const ATHLETE_URL = "https://www.strava.com/api/v3/athlete";
 const RIDE_TYPES = new Set(["Ride", "GravelRide", "MountainBikeRide", "VirtualRide", "EBikeRide"]);
 const RIDE_COUNT = 6;
+const PER_PAGE = 200; // Strava's activities endpoint max page size.
 
 type ElevationPoint = { distanceKm: number; altitudeM: number };
 
@@ -164,8 +165,63 @@ async function getAccessToken(): Promise<string> {
   return cachedToken.accessToken;
 }
 
+// Strava's activities endpoint paginates via `page`/`per_page` (max 200 per
+// page); walk pages until enough ride-type activities are collected or the
+// account runs out of history.
+async function fetchRideActivities(authHeader: HeadersInit, count: number): Promise<StravaActivity[]> {
+  const rides: StravaActivity[] = [];
+  let page = 1;
+
+  while (rides.length < count) {
+    const res = await fetch(`${ACTIVITIES_URL}?per_page=${PER_PAGE}&page=${page}`, { headers: authHeader });
+    if (!res.ok) throw new Error(`Strava activities fetch failed: ${res.status}`);
+
+    const activities = (await res.json()) as StravaActivity[];
+    if (activities.length === 0) break;
+
+    rides.push(...activities.filter((a) => RIDE_TYPES.has(a.sport_type || a.type)));
+    if (activities.length < PER_PAGE) break;
+    page += 1;
+  }
+
+  return rides.slice(0, count);
+}
+
+export async function fetchStravaRides(count: number = RIDE_COUNT): Promise<Ride[]> {
+  const accessToken = await getAccessToken();
+  const authHeader = { Authorization: `Bearer ${accessToken}` };
+
+  const rideActivities = await fetchRideActivities(authHeader, count);
+
+  return Promise.all(
+    rideActivities.map(async (activity) => ({
+      id: activity.id,
+      name: activity.name,
+      distanceKm: Math.round((activity.distance / 1000) * 10) / 10,
+      movingTimeMinutes: Math.round(activity.moving_time / 60),
+      startDate: activity.start_date,
+      url: `https://www.strava.com/activities/${activity.id}`,
+      polyline: activity.map?.summary_polyline ?? "",
+      avgWatts: activity.device_watts ? Math.round(activity.average_watts ?? 0) : null,
+      weightedAvgWatts: activity.device_watts && activity.weighted_average_watts != null
+        ? Math.round(activity.weighted_average_watts)
+        : null,
+      avgHeartrate: activity.has_heartrate && activity.average_heartrate != null
+        ? Math.round(activity.average_heartrate)
+        : null,
+      maxHeartrate: activity.has_heartrate && activity.max_heartrate != null
+        ? Math.round(activity.max_heartrate)
+        : null,
+      relativeEffort: activity.suffer_score != null ? Math.round(activity.suffer_score) : null,
+      elevationProfile: await fetchElevationProfile(activity.id, authHeader),
+    })),
+  );
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
+    const rides = await fetchStravaRides(RIDE_COUNT);
+
     const accessToken = await getAccessToken();
     const authHeader = { Authorization: `Bearer ${accessToken}` };
 
@@ -174,15 +230,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const monthAgoMs = nowMs - 30 * 24 * 60 * 60 * 1000;
     const monthAgoEpoch = Math.floor(monthAgoMs / 1000);
 
-    const [activitiesRes, monthActivitiesRes, athleteRes] = await Promise.all([
-      fetch(`${ACTIVITIES_URL}?per_page=15`, { headers: authHeader }),
+    const [monthActivitiesRes, athleteRes] = await Promise.all([
       fetch(`${ACTIVITIES_URL}?after=${monthAgoEpoch}&per_page=100`, { headers: authHeader }),
       fetch(ATHLETE_URL, { headers: authHeader }),
     ]);
 
-    if (!activitiesRes.ok) {
-      throw new Error(`Strava activities fetch failed: ${activitiesRes.status}`);
-    }
     if (!monthActivitiesRes.ok) {
       throw new Error(`Strava month activities fetch failed: ${monthActivitiesRes.status}`);
     }
@@ -190,7 +242,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       throw new Error(`Strava athlete fetch failed: ${athleteRes.status}`);
     }
 
-    const activities = (await activitiesRes.json()) as StravaActivity[];
     const monthActivities = (await monthActivitiesRes.json()) as StravaActivity[];
     const athleteData = (await athleteRes.json()) as StravaAthlete;
 
@@ -207,34 +258,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       avatarUrl: athleteData.profile_medium ?? null,
       profileUrl: `https://www.strava.com/athletes/${athleteData.id}`,
     };
-
-    const rideActivities = activities
-      .filter((activity) => RIDE_TYPES.has(activity.sport_type || activity.type))
-      .slice(0, RIDE_COUNT);
-
-    const rides: Ride[] = await Promise.all(
-      rideActivities.map(async (activity) => ({
-        id: activity.id,
-        name: activity.name,
-        distanceKm: Math.round((activity.distance / 1000) * 10) / 10,
-        movingTimeMinutes: Math.round(activity.moving_time / 60),
-        startDate: activity.start_date,
-        url: `https://www.strava.com/activities/${activity.id}`,
-        polyline: activity.map?.summary_polyline ?? "",
-        avgWatts: activity.device_watts ? Math.round(activity.average_watts ?? 0) : null,
-        weightedAvgWatts: activity.device_watts && activity.weighted_average_watts != null
-          ? Math.round(activity.weighted_average_watts)
-          : null,
-        avgHeartrate: activity.has_heartrate && activity.average_heartrate != null
-          ? Math.round(activity.average_heartrate)
-          : null,
-        maxHeartrate: activity.has_heartrate && activity.max_heartrate != null
-          ? Math.round(activity.max_heartrate)
-          : null,
-        relativeEffort: activity.suffer_score != null ? Math.round(activity.suffer_score) : null,
-        elevationProfile: await fetchElevationProfile(activity.id, authHeader),
-      })),
-    );
 
     res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=600");
     res.status(200).json({ athlete, rides, summary });

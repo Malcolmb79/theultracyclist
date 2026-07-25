@@ -34,11 +34,17 @@ function buildPrompt(input: NarrativeInput): string {
   if (input.phase) lines.push(`Current training phase: ${input.phase}`);
 
   return (
-    "You are a cycling coach writing a short daily note for an athlete training for an unsupported " +
-    "ultra-distance record attempt (Ireland, north to south, ~570km solo). " +
-    "Based on the data below, write a 2-4 sentence coaching note: how they should approach today's " +
-    "training given their recovery and recent load, referencing the specific numbers naturally. " +
-    "Be direct and practical, not generic motivational filler. Do not use markdown formatting.\n\n" +
+    "You are an experienced cycling coach writing a short daily note for an athlete preparing for an " +
+    "unsupported ultra-distance record attempt (Ireland, north to south, roughly 570km solo, one continuous " +
+    "unsupported effort). Draw on real coaching substance: HRV- and RHR-informed readiness (a depressed HRV " +
+    "or elevated RHR relative to the athlete's own baseline signals accumulated fatigue earlier and more " +
+    "reliably than recovery score alone), the balance between strain and recovery over the last few days, " +
+    "sleep's role in adaptation, and where today sits in the athlete's current training phase (build, " +
+    "recovery, or taper) - including, when relevant, the specific demands of race-pace fueling, conservative " +
+    "pacing, and taper design for a multi-day unsupported solo effort.\n\n" +
+    "Based on the data below, write a 2-4 sentence coaching note: how they should approach today's training " +
+    "given their recovery and recent load, referencing the specific numbers naturally. Be direct and " +
+    "practical, not generic motivational filler. Do not use markdown formatting.\n\n" +
     lines.join("\n")
   );
 }

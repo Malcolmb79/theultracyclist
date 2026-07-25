@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { persistEnvVar, triggerDeployHook } from "./_lib/vercelEnvStore.js";
+import { getJSON, setJSON } from "./_lib/kvStore.js";
 import { getSessionEmail } from "./_lib/session.js";
 
 type CoachingWidgetRect = { x: number; y: number; width: number; height: number };
@@ -30,7 +30,10 @@ export type CoachingSettings = {
   widgets?: CatalogWidget[];
 };
 
-function readSettings(): CoachingSettings {
+const KV_KEY = "COACHING_SETTINGS";
+
+// One-time migration fallback - see dashboard-layout.ts for why.
+function readLegacySettings(): CoachingSettings {
   try {
     const raw = process.env.COACHING_SETTINGS;
     if (!raw) return {};
@@ -49,11 +52,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === "POST") {
     const settings = (req.body ?? {}) as CoachingSettings;
-    await persistEnvVar("COACHING_SETTINGS", JSON.stringify(settings));
-    await triggerDeployHook();
+    await setJSON(KV_KEY, settings);
     res.status(200).json({ ok: true });
     return;
   }
 
-  res.status(200).json({ settings: readSettings() });
+  const settings = (await getJSON<CoachingSettings>(KV_KEY)) ?? readLegacySettings();
+  res.status(200).json({ settings });
 }

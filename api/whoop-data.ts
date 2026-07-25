@@ -70,7 +70,7 @@ type WhoopWorkoutRecord = {
   };
 };
 
-type WhoopCollection<T> = { records: T[] };
+type WhoopCollection<T> = { records: T[]; next_token?: string | null };
 
 export type Recovery = { score: number; hrvMs: number; restingHeartRate: number };
 export type Strain = {
@@ -99,7 +99,15 @@ export type DaySummary = {
   sleep: Sleep | null;
 };
 
-const DAYS = 25; // Whoop's collection endpoints cap `limit` at 25.
+export type WhoopHistoryResult = {
+  recovery: Recovery | null;
+  strain: Strain | null;
+  sleep: Sleep | null;
+  history: DaySummary[];
+};
+
+const DAYS = 25; // default window for the dashboard's own GET - Whoop's collection endpoints cap `limit` at 25 per page.
+const PAGE_LIMIT = 25;
 
 function buildRecovery(record: WhoopRecoveryRecord | undefined): Recovery | null {
   return record?.score_state === "SCORED" && record.score
@@ -212,55 +220,75 @@ async function getAccessToken(): Promise<string> {
   return cachedToken.accessToken;
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  try {
-    const accessToken = await getAccessToken();
-    const authHeader = { Authorization: `Bearer ${accessToken}` };
+// Whoop's collection endpoints only return up to PAGE_LIMIT records per
+// call, so a `days` window longer than that needs the `nextToken` cursor
+// walked forward until the API stops returning more pages.
+async function fetchCollection<T>(path: string, authHeader: HeadersInit, days: number): Promise<T[]> {
+  const rangeStart = new Date(Date.now() - days * 86400000).toISOString();
+  const records: T[] = [];
+  let nextToken: string | undefined;
+  const maxPages = Math.ceil(days / PAGE_LIMIT) + 1;
 
-    const rangeStart = new Date(Date.now() - DAYS * 86400000).toISOString();
+  for (let page = 0; page < maxPages; page++) {
+    const url = new URL(`${API_BASE}${path}`);
+    url.searchParams.set("limit", String(PAGE_LIMIT));
+    url.searchParams.set("start", rangeStart);
+    if (nextToken) url.searchParams.set("nextToken", nextToken);
 
-    const [recoveryRes, cycleRes, sleepRes, workoutRes] = await Promise.all([
-      fetch(`${API_BASE}/recovery?limit=${DAYS}`, { headers: authHeader }),
-      fetch(`${API_BASE}/cycle?limit=${DAYS}`, { headers: authHeader }),
-      fetch(`${API_BASE}/activity/sleep?limit=${DAYS}`, { headers: authHeader }),
-      fetch(`${API_BASE}/activity/workout?start=${rangeStart}`, { headers: authHeader }),
-    ]);
+    const res = await fetch(url.toString(), { headers: authHeader });
+    if (!res.ok) throw new Error(`Whoop fetch failed: ${path}=${res.status}`);
 
-    if (!recoveryRes.ok || !cycleRes.ok || !sleepRes.ok) {
-      throw new Error(
-        `Whoop fetch failed: recovery=${recoveryRes.status} cycle=${cycleRes.status} sleep=${sleepRes.status}`,
-      );
-    }
+    const data = (await res.json()) as WhoopCollection<T>;
+    records.push(...data.records);
 
-    const recoveryData = (await recoveryRes.json()) as WhoopCollection<WhoopRecoveryRecord>;
-    const cycleData = (await cycleRes.json()) as WhoopCollection<WhoopCycleRecord>;
-    const sleepData = (await sleepRes.json()) as WhoopCollection<WhoopSleepRecord>;
+    if (!data.next_token || data.records.length === 0) break;
+    nextToken = data.next_token;
+  }
+
+  return records;
+}
+
+export async function fetchWhoopHistory(days: number = DAYS): Promise<WhoopHistoryResult> {
+  const accessToken = await getAccessToken();
+  const authHeader = { Authorization: `Bearer ${accessToken}` };
+
+  const [recoveryRecords, cycleRecords, sleepRecords, workoutRecords] = await Promise.all([
+    fetchCollection<WhoopRecoveryRecord>("/recovery", authHeader, days),
+    fetchCollection<WhoopCycleRecord>("/cycle", authHeader, days),
+    fetchCollection<WhoopSleepRecord>("/activity/sleep", authHeader, days),
     // Heart-rate zone breakdown is a nice-to-have on top of the core scores -
     // if the workout fetch fails for any reason, degrade to zeroed zone
-    // minutes rather than failing the whole dashboard.
-    const workoutData = workoutRes.ok ? ((await workoutRes.json()) as WhoopCollection<WhoopWorkoutRecord>) : { records: [] };
+    // minutes rather than failing the whole request.
+    fetchCollection<WhoopWorkoutRecord>("/activity/workout", authHeader, days).catch(() => [] as WhoopWorkoutRecord[]),
+  ]);
 
-    const cyclesById = new Map(cycleData.records.map((c) => [c.id, c]));
-    const sleepsById = new Map(sleepData.records.map((s) => [s.id, s]));
-    const zonesByDate = zoneMinutesByDate(workoutData.records);
+  const cyclesById = new Map(cycleRecords.map((c) => [c.id, c]));
+  const sleepsById = new Map(sleepRecords.map((s) => [s.id, s]));
+  const zonesByDate = zoneMinutesByDate(workoutRecords);
 
-    const history: DaySummary[] = recoveryData.records.map((recoveryRecord) => {
-      const cycleRecord = cyclesById.get(recoveryRecord.cycle_id);
-      const sleepRecord = sleepsById.get(recoveryRecord.sleep_id);
-      const date = cycleRecord?.start ?? new Date().toISOString();
-      const zoneMinutes = zonesByDate.get(date.slice(0, 10)) ?? { zone1to3: 0, zone4to5: 0 };
-      return {
-        date,
-        recovery: buildRecovery(recoveryRecord),
-        strain: buildStrain(cycleRecord, zoneMinutes),
-        sleep: buildSleep(sleepRecord),
-      };
-    });
+  const history: DaySummary[] = recoveryRecords.map((recoveryRecord) => {
+    const cycleRecord = cyclesById.get(recoveryRecord.cycle_id);
+    const sleepRecord = sleepsById.get(recoveryRecord.sleep_id);
+    const date = cycleRecord?.start ?? new Date().toISOString();
+    const zoneMinutes = zonesByDate.get(date.slice(0, 10)) ?? { zone1to3: 0, zone4to5: 0 };
+    return {
+      date,
+      recovery: buildRecovery(recoveryRecord),
+      strain: buildStrain(cycleRecord, zoneMinutes),
+      sleep: buildSleep(sleepRecord),
+    };
+  });
 
-    const latest = history[0] ?? { recovery: null, strain: null, sleep: null };
+  const latest = history[0] ?? { recovery: null, strain: null, sleep: null };
 
+  return { recovery: latest.recovery, strain: latest.strain, sleep: latest.sleep, history };
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  try {
+    const result = await fetchWhoopHistory(DAYS);
     res.setHeader("Cache-Control", "public, s-maxage=1800, stale-while-revalidate=3600");
-    res.status(200).json({ recovery: latest.recovery, strain: latest.strain, sleep: latest.sleep, history });
+    res.status(200).json(result);
   } catch (error) {
     console.error(error);
     res.status(502).json({ error: "Unable to load Whoop data" });

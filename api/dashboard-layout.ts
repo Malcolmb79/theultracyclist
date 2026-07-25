@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { persistEnvVar, triggerDeployHook } from "./_lib/vercelEnvStore.js";
+import { getJSON, setJSON } from "./_lib/kvStore.js";
 import { getSessionEmail } from "./_lib/session.js";
 
 export type Widget = {
@@ -15,16 +15,14 @@ export type Widget = {
   color?: string;
 };
 
-// Vercel's decrypt=true for a personal access token doesn't reliably signal
-// failure - a var it can't actually decrypt can come back looking like
-// valid (empty-ish) data rather than erroring, so there's no safe way to
-// tell "genuinely empty" apart from "failed to read" by inspecting the
-// value. Reading straight from process.env (this deployment's build-time
-// snapshot) is less fresh but never silently fabricates an empty layout -
-// a page load can occasionally lag behind the very latest save until the
-// deploy hook below lands, but it can never show *nothing* when there's
-// real saved data. Given the choice, staleness beats data loss.
-function readLayout(): Widget[] {
+const KV_KEY = "DASHBOARD_LAYOUT";
+
+// One-time migration fallback: this key used to live in a Vercel project
+// env var (only visible after a redeploy - see _lib/vercelEnvStore.ts for
+// why that caused lost updates). Until the first post-migration save lands
+// in Redis, fall back to whatever's still in the env var so nothing saved
+// before the cutover disappears.
+function readLegacyLayout(): Widget[] {
   try {
     const raw = process.env.DASHBOARD_LAYOUT;
     if (!raw) return [];
@@ -43,11 +41,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === "POST") {
     const widgets = (req.body as { widgets?: Widget[] }).widgets ?? [];
-    await persistEnvVar("DASHBOARD_LAYOUT", JSON.stringify(widgets));
-    await triggerDeployHook();
+    await setJSON(KV_KEY, widgets);
     res.status(200).json({ ok: true });
     return;
   }
 
-  res.status(200).json({ widgets: readLayout() });
+  const widgets = (await getJSON<Widget[]>(KV_KEY)) ?? readLegacyLayout();
+  res.status(200).json({ widgets });
 }

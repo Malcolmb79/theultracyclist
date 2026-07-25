@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { persistEnvVar, triggerDeployHook } from "./_lib/vercelEnvStore.js";
+import { getJSON, setJSON } from "./_lib/kvStore.js";
 import { getSessionEmail } from "./_lib/session.js";
 
 export type TrendsWidget = {
@@ -14,7 +14,10 @@ export type TrendsWidget = {
   height?: number;
 };
 
-function readLayout(): TrendsWidget[] {
+const KV_KEY = "TRENDS_LAYOUT";
+
+// One-time migration fallback - see dashboard-layout.ts for why.
+function readLegacyLayout(): TrendsWidget[] {
   try {
     const raw = process.env.TRENDS_LAYOUT;
     if (!raw) return [];
@@ -33,11 +36,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === "POST") {
     const widgets = (req.body as { widgets?: TrendsWidget[] }).widgets ?? [];
-    await persistEnvVar("TRENDS_LAYOUT", JSON.stringify(widgets));
-    await triggerDeployHook();
+    await setJSON(KV_KEY, widgets);
     res.status(200).json({ ok: true });
     return;
   }
 
-  res.status(200).json({ widgets: readLayout() });
+  const widgets = (await getJSON<TrendsWidget[]>(KV_KEY)) ?? readLegacyLayout();
+  res.status(200).json({ widgets });
 }

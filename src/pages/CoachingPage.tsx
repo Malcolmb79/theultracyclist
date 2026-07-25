@@ -263,13 +263,14 @@ function CoachingView() {
 }
 
 function narrativeInputFrom(data: Extract<ReturnType<typeof useCoachingData>, { status: "ready" }>): NarrativeInput {
+  const latest = data.recoveryHistory.at(-1);
   return {
     recoveryScore: data.readiness.recoveryScore,
-    hrvMs: null,
-    restingHeartRate: null,
-    strainScore: data.recoveryHistory.at(-1)?.strain ?? null,
+    hrvMs: latest?.hrvMs ?? null,
+    restingHeartRate: latest?.restingHeartRate ?? null,
+    strainScore: latest?.strain ?? null,
     recentAvgStrain: data.readiness.recentAvgStrain,
-    sleepPerformance: null,
+    sleepPerformance: latest?.sleepPerformance ?? null,
     weeklyDistanceKm: data.weeklyProgress.distanceKm,
     weeklyTargetKm: data.weeklyProgress.distanceTargetKm,
     phase: data.settings.phase ?? null,

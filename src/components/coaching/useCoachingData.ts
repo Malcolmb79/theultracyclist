@@ -5,8 +5,9 @@ import { classifyPower } from "./powerZones";
 
 type WhoopDayRaw = {
   date: string;
-  recovery: { score: number } | null;
+  recovery: { score: number; hrvMs: number; restingHeartRate: number } | null;
   strain: { score: number } | null;
+  sleep: { performancePercent: number } | null;
 };
 
 type StravaRide = {
@@ -28,7 +29,14 @@ export type CoachingDataState =
       saveSettings: (next: CoachingSettings) => Promise<void>;
       weeklyProgress: WeeklyProgress;
       recentRides: RideZoneClassification[];
-      recoveryHistory: { date: string; recovery: number | null; strain: number | null }[];
+      recoveryHistory: {
+        date: string;
+        recovery: number | null;
+        strain: number | null;
+        hrvMs: number | null;
+        restingHeartRate: number | null;
+        sleepPerformance: number | null;
+      }[];
     };
 
 function startOfWeek(dateStr: string): string {
@@ -58,6 +66,9 @@ export function useCoachingData(): CoachingDataState {
         date: d.date.slice(0, 10),
         recovery: d.recovery?.score ?? null,
         strain: d.strain?.score ?? null,
+        hrvMs: d.recovery?.hrvMs ?? null,
+        restingHeartRate: d.recovery?.restingHeartRate ?? null,
+        sleepPerformance: d.sleep?.performancePercent ?? null,
       }));
 
       const latest = recoveryHistory[recoveryHistory.length - 1];

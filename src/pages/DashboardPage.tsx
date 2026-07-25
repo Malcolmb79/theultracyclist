@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   DndContext,
   PointerSensor,
@@ -94,11 +94,15 @@ export default function DashboardPage() {
   return <DashboardEditor password={password} />;
 }
 
+type SaveStatus = "idle" | "saving" | "saved" | "error";
+
 function DashboardEditor({ password }: { password: string }) {
   const data = useDashboardData();
   const [widgets, setWidgets] = useState<Widget[] | null>(null);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const lastAttempt = useRef<Widget[] | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -115,15 +119,30 @@ function DashboardEditor({ password }: { password: string }) {
     };
   }, []);
 
-  const saveWidgets = (next: Widget[]) => {
-    setWidgets(next);
+  const persist = (next: Widget[]) => {
+    lastAttempt.current = next;
+    setSaveStatus("saving");
     fetch("/api/dashboard-layout", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${password}` },
       body: JSON.stringify({ widgets: next }),
-    }).catch(() => {
-      // best-effort; layout stays correct locally even if the save fails
-    });
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`Save failed: ${res.status}`);
+        setSaveStatus("saved");
+      })
+      .catch(() => {
+        setSaveStatus("error");
+      });
+  };
+
+  const saveWidgets = (next: Widget[]) => {
+    setWidgets(next);
+    persist(next);
+  };
+
+  const retrySave = () => {
+    if (lastAttempt.current) persist(lastAttempt.current);
   };
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
@@ -137,7 +156,6 @@ function DashboardEditor({ password }: { password: string }) {
   }
 
   const metricById = new Map(data.metrics.map((m) => [m.id, m]));
-  const addedIds = new Set(widgets.map((w) => w.metric));
 
   const handleAdd = (metric: MetricDef) => {
     const widget: Widget = {
@@ -173,7 +191,7 @@ function DashboardEditor({ password }: { password: string }) {
     if (activeId.startsWith(CATALOG_DRAG_PREFIX)) {
       const metricId = activeId.slice(CATALOG_DRAG_PREFIX.length);
       const metric = metricById.get(metricId);
-      if (!metric || addedIds.has(metric.id)) return;
+      if (!metric) return;
 
       const newWidget: Widget = {
         id: nextId(),
@@ -206,22 +224,35 @@ function DashboardEditor({ password }: { password: string }) {
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className={styles.page}>
-        <button
-          type="button"
-          className={styles.catalogToggle}
-          onClick={() => setCatalogOpen((open) => !open)}
-          aria-label={catalogOpen ? "Close data menu" : "Open data menu"}
-          aria-expanded={catalogOpen}
-        >
-          {catalogOpen ? "×" : "☰"}
-        </button>
+        <div className={styles.topBar}>
+          <button
+            type="button"
+            className={styles.catalogToggle}
+            onClick={() => setCatalogOpen((open) => !open)}
+            aria-label={catalogOpen ? "Close data menu" : "Open data menu"}
+            aria-expanded={catalogOpen}
+          >
+            {catalogOpen ? "×" : "☰"}
+          </button>
+          {saveStatus === "error" ? (
+            <button type="button" className={`${styles.saveStatus} ${styles.saveStatusError}`} onClick={retrySave}>
+              Save failed — tap to retry
+            </button>
+          ) : (
+            saveStatus !== "idle" && (
+              <span className={`${styles.saveStatus} ${saveStatus === "saved" ? styles.saveStatusSaved : ""}`}>
+                {saveStatus === "saving" ? "Saving…" : "Saved"}
+              </span>
+            )
+          )}
+        </div>
 
         {catalogOpen && (
           <div className={styles.catalogBackdrop} onClick={() => setCatalogOpen(false)} />
         )}
 
         <aside className={`${styles.catalogDrawer} ${catalogOpen ? styles.catalogDrawerOpen : ""}`}>
-          <DataCatalog metrics={data.metrics} addedIds={addedIds} onAdd={handleAdd} />
+          <DataCatalog metrics={data.metrics} onAdd={handleAdd} />
         </aside>
 
         <Canvas>

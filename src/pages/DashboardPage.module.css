@@ -9,11 +9,18 @@
   margin-top: var(--space-6);
 }
 
-.catalogToggle {
+.topBar {
   position: fixed;
   top: var(--space-4);
   left: var(--space-4);
   z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.catalogToggle {
+  flex: none;
   width: 44px;
   height: 44px;
   display: flex;
@@ -29,6 +36,30 @@
 
 .catalogToggle:hover {
   border-color: var(--color-accent-2);
+}
+
+.saveStatus {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 44px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.saveStatusError {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+  cursor: pointer;
+}
+
+.saveStatusSaved {
+  color: var(--color-accent-2);
 }
 
 .catalogBackdrop {

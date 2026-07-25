@@ -6,10 +6,12 @@ function teamQuery(): string {
 }
 
 // process.env is a snapshot taken at deployment/cold-start time, so writing
-// a new value here only becomes the read source once a fresh deployment
-// happens (see triggerDeployHook). Vercel's decrypt=true doesn't actually
-// decrypt for personal access tokens, so we can't read the live value back
-// mid-deployment — process.env stays authoritative for the running instance.
+// a new value here only becomes process.env's read source once a fresh
+// deployment happens (see triggerDeployHook). For "sensitive"-type vars,
+// Vercel's decrypt=true never recovers the value (by design) so process.env
+// is the only read path and callers must wait out the redeploy. For
+// non-sensitive vars, readEnvVarLive() below can read the current value
+// immediately without waiting on a deployment at all.
 export async function persistEnvVar(key: string, value: string): Promise<void> {
   const apiToken = process.env.VERCEL_API_TOKEN;
   const projectId = process.env.VERCEL_PROJECT_ID;
@@ -43,6 +45,37 @@ export async function persistEnvVar(key: string, value: string): Promise<void> {
     }
   } catch (error) {
     console.error(`Failed to persist ${key}`, error);
+  }
+}
+
+// Best-effort live read of a non-sensitive ("plain"/"encrypted" type, not
+// "sensitive" type) env var straight from Vercel's API, bypassing the
+// deployment-snapshot staleness that process.env has. Vercel's decrypt=true
+// genuinely can't recover "sensitive"-type values (by design, write-only),
+// but plain values do come back readable this way - useful for data that
+// changes far more often than deployments do (e.g. dashboard layout edits),
+// where waiting for a redeploy to see your own last write would mean a
+// refresh in that window shows stale data. Returns null on any failure so
+// callers can fall back to process.env.
+export async function readEnvVarLive(key: string): Promise<string | null> {
+  const apiToken = process.env.VERCEL_API_TOKEN;
+  const projectId = process.env.VERCEL_PROJECT_ID;
+  if (!apiToken || !projectId) return null;
+
+  try {
+    const decryptParam = teamQuery() ? "&decrypt=true" : "?decrypt=true";
+    const listRes = await fetch(`${VERCEL_API_BASE}/v10/projects/${projectId}/env${teamQuery()}${decryptParam}`, {
+      headers: { Authorization: `Bearer ${apiToken}` },
+    });
+    if (!listRes.ok) return null;
+
+    const data = (await listRes.json()) as { envs: { key: string; value?: string; target: string[] | string }[] };
+    const envVar = data.envs.find(
+      (e) => e.key === key && (Array.isArray(e.target) ? e.target.includes("production") : e.target === "production"),
+    );
+    return envVar?.value ?? null;
+  } catch {
+    return null;
   }
 }
 

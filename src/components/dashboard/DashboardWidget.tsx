@@ -63,17 +63,37 @@ const MIN_COMBO_HEIGHT = 360;
 // minimum width.
 const WIDGET_HORIZONTAL_CHROME = 24 * 2 + 1 * 2;
 const MIN_RINGS_HEIGHT = 210;
-// .ringsRow's gap (var(--space-3), 16px) between each of the 3 rings - the
+// .ringsRow's gap between each of the 3 rings at a comfortable width - the
 // outer two rings overflow their column and get clipped by .content's
 // overflow:hidden if this isn't subtracted from the available row width.
-const RINGS_ROW_GAP = 16;
+const RINGS_ROW_GAP = 16; // matches var(--space-3), the CSS fallback
+const MIN_RINGS_ROW_GAP = 4;
+// Below this measured width the gap is already at its floor; above this,
+// full-size RINGS_ROW_GAP. Matches the width band where the rings
+// themselves are being squeezed toward their own 60px floor, so shrinking
+// the gap actually buys them room instead of shrinking two things at once
+// for no benefit.
+const RINGS_GAP_SHRINK_START = 260;
+const RINGS_GAP_SHRINK_END = 400;
 // RingGauge's own .wrap gap (var(--space-2), 8px) plus its label row's
 // rendered height (~20px for the uppercase small-caps text underneath).
 const RING_LABEL_OVERHEAD = 28;
 // 3 rings at their smallest (60px, see RingsRow's ringSize floor) plus the
-// 2 row gaps plus the widget's own horizontal chrome - below this width
-// the rings would be forced smaller than their floor and clip.
-const MIN_RINGS_WIDTH = 3 * 60 + RINGS_ROW_GAP * 2 + WIDGET_HORIZONTAL_CHROME;
+// 2 row gaps (at their floor) plus the widget's own horizontal chrome -
+// below this width the rings would be forced smaller than their floor and
+// clip.
+const MIN_RINGS_WIDTH = 3 * 60 + MIN_RINGS_ROW_GAP * 2 + WIDGET_HORIZONTAL_CHROME;
+
+// Shrinks the gap between rings as the widget gets smaller, so at the
+// smallest sizes the rings themselves get more of the available width
+// instead of a fixed 16px gap eating into it regardless of how cramped
+// the widget already is.
+function ringsRowGap(measuredWidth: number): number {
+  if (measuredWidth >= RINGS_GAP_SHRINK_END) return RINGS_ROW_GAP;
+  if (measuredWidth <= RINGS_GAP_SHRINK_START) return MIN_RINGS_ROW_GAP;
+  const t = (measuredWidth - RINGS_GAP_SHRINK_START) / (RINGS_GAP_SHRINK_END - RINGS_GAP_SHRINK_START);
+  return Math.round(MIN_RINGS_ROW_GAP + t * (RINGS_ROW_GAP - MIN_RINGS_ROW_GAP));
+}
 // Per combo section overhead: comboLabel row (~20px) + TrendChart's own
 // top/bottom padding for point labels and date labels (36px), times 2
 // sections, plus the gap between them (var(--space-3), 16px).
@@ -385,13 +405,11 @@ function RingsRow({
     return <p className={styles.empty}>No data yet for this metric.</p>;
   }
 
-  const ringSize = Math.max(
-    60,
-    Math.min((measuredWidth - RINGS_ROW_GAP * 2) / 3, contentHeight - RING_LABEL_OVERHEAD),
-  );
+  const gap = ringsRowGap(measuredWidth);
+  const ringSize = Math.max(60, Math.min((measuredWidth - gap * 2) / 3, contentHeight - RING_LABEL_OVERHEAD));
 
   return (
-    <div className={styles.ringsRow} ref={containerRef}>
+    <div className={styles.ringsRow} ref={containerRef} style={{ gap }}>
       {latest.sleep && (
         <button type="button" className={styles.ringButton} onClick={() => onOpenDetail("sleep")}>
           <RingGauge

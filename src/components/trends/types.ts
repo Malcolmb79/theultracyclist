@@ -6,7 +6,22 @@ export type TrendsWidgetConfig = {
   label: string;
   viewType: TrendsViewType;
   color?: string;
+  width?: number;
+  height?: number;
 };
+
+export const DEFAULT_WIDGET_WIDTH = 200;
+export const DEFAULT_WIDGET_HEIGHT = 160;
+export const MIN_WIDGET_WIDTH = 200;
+export const MIN_WIDGET_HEIGHT = 160;
+// Calendar needs real room to show a value per day - a 7-column grid at the
+// stat-widget minimum would give ~25px cells, unreadable. Default big enough
+// to show the current month clearly; still user-resizable from there.
+export const DEFAULT_CALENDAR_WIDTH = 480;
+export const DEFAULT_CALENDAR_HEIGHT = 460;
+export const MIN_CALENDAR_WIDTH = 420;
+export const MIN_CALENDAR_HEIGHT = 420;
+export const WIDGET_GRID_SIZE = 20;
 
 export type Goals = {
   weightKg?: number;

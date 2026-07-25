@@ -12,7 +12,16 @@ const MONTH_LABELS = [
 interface CalendarViewProps {
   metric: TrendMetricDef;
   color: string;
+  // Available content height in px, so cells can size to fill it (a pure
+  // aspect-ratio approach ties cell height to width only, causing overflow
+  // or a lot of empty space depending on how a given month's row count and
+  // the widget's chosen width/height happen to interact).
+  height: number;
 }
+
+const HEADER_ROW_HEIGHT = 22;
+const WEEKDAY_ROW_HEIGHT = 16;
+const GRID_GAP = 3;
 
 function shiftMonth(monthKey: string, delta: number): string {
   const [year, month] = monthKey.split("-").map(Number);
@@ -20,18 +29,21 @@ function shiftMonth(monthKey: string, delta: number): string {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
-export default function CalendarView({ metric, color }: CalendarViewProps) {
+export default function CalendarView({ metric, color, height }: CalendarViewProps) {
   const [monthKey, setMonthKey] = useState(() => today().slice(0, 7));
   const [year, month] = monthKey.split("-").map(Number);
 
   const firstWeekday = new Date(Date.UTC(year, month - 1, 1)).getUTCDay();
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const numRows = Math.ceil((firstWeekday + daysInMonth) / 7);
 
   const cells: (string | null)[] = [];
   for (let i = 0; i < firstWeekday; i++) cells.push(null);
   for (let day = 1; day <= daysInMonth; day++) {
     cells.push(`${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`);
   }
+
+  const gridHeight = Math.max(numRows * 30, height - HEADER_ROW_HEIGHT - WEEKDAY_ROW_HEIGHT - GRID_GAP * 2);
 
   return (
     <div className={styles.calendar}>
@@ -51,7 +63,7 @@ export default function CalendarView({ metric, color }: CalendarViewProps) {
           <span key={i}>{w}</span>
         ))}
       </div>
-      <div className={styles.grid}>
+      <div className={styles.grid} style={{ height: gridHeight, gridTemplateRows: `repeat(${numRows}, 1fr)` }}>
         {cells.map((dateStr, i) => {
           if (!dateStr) return <div key={`empty-${i}`} className={styles.cell} />;
           const value = metric.getValue(dateStr);

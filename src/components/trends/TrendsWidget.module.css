@@ -1,6 +1,5 @@
 .widget {
-  width: 200px;
-  height: 160px;
+  position: relative;
   flex: none;
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius);
@@ -10,16 +9,12 @@
   flex-direction: column;
   gap: var(--space-2);
   box-sizing: border-box;
+  overflow: hidden;
   transition: border-color 0.15s ease;
 }
 
 .widget:hover {
   border-color: var(--color-accent-2);
-}
-
-.widgetCalendar {
-  width: 300px;
-  height: 320px;
 }
 
 .header {
@@ -32,7 +27,7 @@
 .label {
   font-weight: 600;
   flex: 1;
-  min-width: 0;
+  min-width: 44px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -46,7 +41,8 @@
   flex: none;
 }
 
-.widget:hover .controls {
+.widget:hover .controls,
+.widget[data-selected] .controls {
   display: flex;
 }
 
@@ -127,4 +123,27 @@
   font-size: 0.8rem;
   text-align: center;
   margin: 0;
+}
+
+.resizeHandle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 0 4px 4px 0;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: nwse-resize;
+  touch-action: none;
+  overscroll-behavior: none;
+  border-radius: var(--radius);
+}
+
+.resizeHandle:hover {
+  color: var(--color-accent-2);
 }

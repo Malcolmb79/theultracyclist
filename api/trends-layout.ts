@@ -7,6 +7,8 @@ export type TrendsWidget = {
   label: string;
   viewType: "day" | "week" | "month" | "calendar";
   color?: string;
+  width?: number;
+  height?: number;
 };
 
 function readLayout(): TrendsWidget[] {

@@ -77,6 +77,7 @@ function TrendsEditor({ password }: { password: string }) {
   const data = useTrendsData(password);
   const [widgets, setWidgets] = useState<TrendsWidgetConfig[] | null>(null);
   const [catalogOpen, setCatalogOpen] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const lastAttempt = useRef<TrendsWidgetConfig[] | null>(null);
 
@@ -148,6 +149,9 @@ function TrendsEditor({ password }: { password: string }) {
   const handleColorChange = (id: string, color: string) =>
     saveWidgets(widgets.map((w) => (w.id === id ? { ...w, color } : w)));
 
+  const handleResize = (id: string, width: number, height: number) =>
+    saveWidgets(widgets.map((w) => (w.id === id ? { ...w, width, height } : w)));
+
   return (
     <div className={styles.page}>
       <div className={styles.topBar}>
@@ -186,7 +190,7 @@ function TrendsEditor({ password }: { password: string }) {
         {widgets.length === 0 ? (
           <p className={styles.emptyCanvas}>Open the menu to add data and build your trends dashboard.</p>
         ) : (
-          <div className={styles.widgetGrid}>
+          <div className={`${styles.widgetGrid} ${isResizing ? styles.widgetGridSnap : ""}`}>
             {widgets.map((widget) => (
               <TrendsWidget
                 key={widget.id}
@@ -195,6 +199,8 @@ function TrendsEditor({ password }: { password: string }) {
                 days={data.days}
                 onViewTypeChange={(viewType) => handleViewTypeChange(widget.id, viewType)}
                 onColorChange={(color) => handleColorChange(widget.id, color)}
+                onResize={(width, height) => handleResize(widget.id, width, height)}
+                onResizingChange={setIsResizing}
                 onRemove={() => handleRemove(widget.id)}
               />
             ))}

@@ -11,7 +11,6 @@ export default function DashboardStatTile({ value, label, valueColor }: Dashboar
   const accent = valueColor ?? "var(--color-accent-2)";
   return (
     <div className={styles.tile}>
-      <span className={styles.badge} style={{ background: accent }} />
       <div className={styles.value} style={{ color: accent }}>
         {value}
       </div>

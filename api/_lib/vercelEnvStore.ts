@@ -7,11 +7,14 @@ function teamQuery(): string {
 
 // process.env is a snapshot taken at deployment/cold-start time, so writing
 // a new value here only becomes process.env's read source once a fresh
-// deployment happens (see triggerDeployHook). For "sensitive"-type vars,
-// Vercel's decrypt=true never recovers the value (by design) so process.env
-// is the only read path and callers must wait out the redeploy. For
-// non-sensitive vars, readEnvVarLive() below can read the current value
-// immediately without waiting on a deployment at all.
+// deployment happens (see triggerDeployHook) - callers must wait out the
+// redeploy to read their own write. A live-read-via-decrypt=true approach
+// was tried and reverted: Vercel's decrypt doesn't reliably signal failure
+// for a personal access token, so a var it can't actually decrypt can come
+// back looking like valid (empty) data instead of erroring, with no safe
+// way to tell those two cases apart from the response alone. That's worse
+// than staleness - it silently fabricated an empty dashboard layout in
+// production. process.env + triggerDeployHook is slower but never lies.
 export async function persistEnvVar(key: string, value: string): Promise<void> {
   const apiToken = process.env.VERCEL_API_TOKEN;
   const projectId = process.env.VERCEL_PROJECT_ID;
@@ -45,41 +48,6 @@ export async function persistEnvVar(key: string, value: string): Promise<void> {
     }
   } catch (error) {
     console.error(`Failed to persist ${key}`, error);
-  }
-}
-
-// Best-effort live read of a non-sensitive ("plain"/"encrypted" type, not
-// "sensitive" type) env var straight from Vercel's API, bypassing the
-// deployment-snapshot staleness that process.env has. Vercel's decrypt=true
-// genuinely can't recover "sensitive"-type values (by design, write-only),
-// but plain values do come back readable this way - useful for data that
-// changes far more often than deployments do (e.g. dashboard layout edits),
-// where waiting for a redeploy to see your own last write would mean a
-// refresh in that window shows stale data. Returns null on any failure so
-// callers can fall back to process.env.
-export async function readEnvVarLive(key: string): Promise<string | null> {
-  const apiToken = process.env.VERCEL_API_TOKEN;
-  const projectId = process.env.VERCEL_PROJECT_ID;
-  if (!apiToken || !projectId) return null;
-
-  try {
-    const decryptParam = teamQuery() ? "&decrypt=true" : "?decrypt=true";
-    const listRes = await fetch(`${VERCEL_API_BASE}/v10/projects/${projectId}/env${teamQuery()}${decryptParam}`, {
-      headers: { Authorization: `Bearer ${apiToken}` },
-    });
-    if (!listRes.ok) return null;
-
-    const data = (await listRes.json()) as { envs: { key: string; value?: string; target: string[] | string }[] };
-    const envVar = data.envs.find(
-      (e) => e.key === key && (Array.isArray(e.target) ? e.target.includes("production") : e.target === "production"),
-    );
-    // A failed/undecryptable read can come back as an empty string rather
-    // than an absent field - treat that the same as "not found" so callers
-    // fall back to process.env instead of mistaking it for genuinely empty
-    // saved data (a real empty layout is serialized as "[]", never "").
-    return envVar?.value || null;
-  } catch {
-    return null;
   }
 }
 

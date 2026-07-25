@@ -1,6 +1,6 @@
 .page {
   min-height: 100vh;
-  padding: calc(var(--space-5) + 56px) var(--space-4) var(--space-5);
+  padding: var(--space-4) var(--space-4) var(--space-5);
 }
 
 .loading {
@@ -10,13 +10,12 @@
 }
 
 .topBar {
-  position: fixed;
-  top: var(--space-4);
-  left: var(--space-4);
+  position: sticky;
+  top: 0;
   z-index: 30;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
+  background: var(--color-bg);
+  margin: 0 calc(var(--space-4) * -1);
+  padding: 0 var(--space-4);
 }
 
 .catalogToggle {
@@ -144,7 +143,7 @@
    fits on a phone screen without excess padding eating into it. */
 @media (max-width: 640px) {
   .page {
-    padding: calc(var(--space-4) + 56px) var(--space-2) var(--space-3);
+    padding: var(--space-3) var(--space-2) var(--space-3);
   }
 
   .widgetGrid {

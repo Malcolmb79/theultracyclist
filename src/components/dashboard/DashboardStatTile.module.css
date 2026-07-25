@@ -1,0 +1,41 @@
+.tile {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.badge {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  display: block;
+  margin-bottom: var(--space-2);
+}
+
+.value {
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 5vw, 2.5rem);
+  line-height: 1;
+}
+
+.label {
+  margin-top: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 640px) {
+  .badge {
+    margin-bottom: var(--space-1);
+  }
+
+  .value {
+    font-size: clamp(1.3rem, 5vw, 2rem);
+  }
+
+  .label {
+    margin-top: var(--space-1);
+    font-size: 0.7rem;
+  }
+}

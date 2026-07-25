@@ -22,6 +22,8 @@ import {
 import type { MetricDef } from "../components/dashboard/useDashboardData";
 import { useAuthSession } from "../utils/useAuthSession";
 import SignInGate from "../components/shared/SignInGate";
+import TabNav from "../components/shared/TabNav";
+import PageHeader from "../components/shared/PageHeader";
 import styles from "./DashboardPage.module.css";
 
 function nextId(): string {
@@ -183,36 +185,43 @@ function DashboardEditor() {
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className={styles.page}>
         <div className={styles.topBar}>
-          <button
-            type="button"
-            className={styles.catalogToggle}
-            onClick={() => setCatalogOpen((open) => !open)}
-            aria-label={catalogOpen ? "Close data menu" : "Open data menu"}
-            aria-expanded={catalogOpen}
-          >
-            {catalogOpen ? "×" : "☰"}
-          </button>
-          {saveStatus === "error" ? (
-            <button type="button" className={`${styles.saveStatus} ${styles.saveStatusError}`} onClick={retrySave}>
-              Save failed — tap to retry
-            </button>
-          ) : (
-            saveStatus !== "idle" && (
-              <span className={`${styles.saveStatus} ${saveStatus === "saved" ? styles.saveStatusSaved : ""}`}>
-                {saveStatus === "saving" ? "Saving…" : "Saved"}
-              </span>
-            )
-          )}
-          <a href="/dashboard/trends" className={styles.switchLink}>
-            Trends
-          </a>
-          <a href="/dashboard/coaching" className={styles.switchLink}>
-            Coaching
-          </a>
-          <a href="/api/auth-logout" className={styles.switchLink}>
-            Sign out
-          </a>
+          <TabNav
+            items={[
+              { label: "Dashboard", href: "/dashboard", active: true },
+              { label: "Trends", href: "/dashboard/trends" },
+              { label: "Coaching", href: "/dashboard/coaching" },
+            ]}
+            trailing={
+              <>
+                <button
+                  type="button"
+                  className={styles.catalogToggle}
+                  onClick={() => setCatalogOpen((open) => !open)}
+                  aria-label={catalogOpen ? "Close data menu" : "Open data menu"}
+                  aria-expanded={catalogOpen}
+                >
+                  {catalogOpen ? "×" : "☰"}
+                </button>
+                {saveStatus === "error" ? (
+                  <button type="button" className={`${styles.saveStatus} ${styles.saveStatusError}`} onClick={retrySave}>
+                    Save failed — tap to retry
+                  </button>
+                ) : (
+                  saveStatus !== "idle" && (
+                    <span className={`${styles.saveStatus} ${saveStatus === "saved" ? styles.saveStatusSaved : ""}`}>
+                      {saveStatus === "saving" ? "Saving…" : "Saved"}
+                    </span>
+                  )
+                )}
+                <a href="/api/auth-logout" className={styles.switchLink}>
+                  Sign out
+                </a>
+              </>
+            }
+          />
         </div>
+
+        <PageHeader title="Dashboard" subtitle="Drag, resize, and add widgets from your connected data sources." />
 
         {catalogOpen && (
           <div className={styles.catalogBackdrop} onClick={() => setCatalogOpen(false)} />

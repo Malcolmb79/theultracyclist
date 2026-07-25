@@ -5,6 +5,8 @@ import { useTrendsData, type TrendMetricDef } from "../components/trends/useTren
 import type { TrendsWidgetConfig, TrendsViewType } from "../components/trends/types";
 import { useAuthSession } from "../utils/useAuthSession";
 import SignInGate from "../components/shared/SignInGate";
+import TabNav from "../components/shared/TabNav";
+import PageHeader from "../components/shared/PageHeader";
 import styles from "./TrendsPage.module.css";
 
 function nextId(): string {
@@ -113,36 +115,43 @@ function TrendsEditor() {
   return (
     <div className={styles.page}>
       <div className={styles.topBar}>
-        <button
-          type="button"
-          className={styles.catalogToggle}
-          onClick={() => setCatalogOpen((open) => !open)}
-          aria-label={catalogOpen ? "Close data menu" : "Open data menu"}
-          aria-expanded={catalogOpen}
-        >
-          {catalogOpen ? "×" : "☰"}
-        </button>
-        {saveStatus === "error" ? (
-          <button type="button" className={`${styles.saveStatus} ${styles.saveStatusError}`} onClick={retrySave}>
-            Save failed — tap to retry
-          </button>
-        ) : (
-          saveStatus !== "idle" && (
-            <span className={`${styles.saveStatus} ${saveStatus === "saved" ? styles.saveStatusSaved : ""}`}>
-              {saveStatus === "saving" ? "Saving…" : "Saved"}
-            </span>
-          )
-        )}
-        <a href="/dashboard" className={styles.switchLink}>
-          Main dashboard
-        </a>
-        <a href="/dashboard/coaching" className={styles.switchLink}>
-          Coaching
-        </a>
-        <a href="/api/auth-logout" className={styles.switchLink}>
-          Sign out
-        </a>
+        <TabNav
+          items={[
+            { label: "Dashboard", href: "/dashboard" },
+            { label: "Trends", href: "/dashboard/trends", active: true },
+            { label: "Coaching", href: "/dashboard/coaching" },
+          ]}
+          trailing={
+            <>
+              <button
+                type="button"
+                className={styles.catalogToggle}
+                onClick={() => setCatalogOpen((open) => !open)}
+                aria-label={catalogOpen ? "Close data menu" : "Open data menu"}
+                aria-expanded={catalogOpen}
+              >
+                {catalogOpen ? "×" : "☰"}
+              </button>
+              {saveStatus === "error" ? (
+                <button type="button" className={`${styles.saveStatus} ${styles.saveStatusError}`} onClick={retrySave}>
+                  Save failed — tap to retry
+                </button>
+              ) : (
+                saveStatus !== "idle" && (
+                  <span className={`${styles.saveStatus} ${saveStatus === "saved" ? styles.saveStatusSaved : ""}`}>
+                    {saveStatus === "saving" ? "Saving…" : "Saved"}
+                  </span>
+                )
+              )}
+              <a href="/api/auth-logout" className={styles.switchLink}>
+                Sign out
+              </a>
+            </>
+          }
+        />
       </div>
+
+      <PageHeader title="Trends" subtitle="Daily, weekly, and monthly views of your training and recovery data." />
 
       {catalogOpen && <div className={styles.catalogBackdrop} onClick={() => setCatalogOpen(false)} />}
 

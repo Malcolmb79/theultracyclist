@@ -4,7 +4,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { formatDate } from "../../utils/formatDate";
 import { recoveryColor } from "../../utils/recoveryColor";
 import { useIsMobile } from "../../utils/useIsMobile";
-import StatTile from "../shared/StatTile";
+import DashboardStatTile from "./DashboardStatTile";
 import TrendChart, { TREND_CHART_LABEL_TOP_PAD, TREND_CHART_LABEL_BOTTOM_PAD } from "../recovery/TrendChart";
 import RingGauge from "./RingGauge";
 import WhoopDetailModal, { type WhoopDetailKind } from "./WhoopDetailModal";
@@ -293,7 +293,7 @@ export default function DashboardWidget({
           ) : !metric || metric.series.length === 0 ? (
             <p className={styles.empty}>No data yet for this metric.</p>
           ) : widget.viewType === "stat" ? (
-            <StatTile
+            <DashboardStatTile
               value={formatValue(metric.series[metric.series.length - 1].value, metric.unit)}
               label={formatDate(metric.series[metric.series.length - 1].date)}
               valueColor={widget.color}

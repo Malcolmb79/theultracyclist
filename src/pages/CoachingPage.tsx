@@ -6,6 +6,8 @@ import { useCoachingData } from "../components/coaching/useCoachingData";
 import type { NarrativeInput } from "../components/coaching/types";
 import { useAuthSession } from "../utils/useAuthSession";
 import SignInGate from "../components/shared/SignInGate";
+import TabNav from "../components/shared/TabNav";
+import PageHeader from "../components/shared/PageHeader";
 import styles from "./CoachingPage.module.css";
 
 export default function CoachingPage() {
@@ -32,21 +34,21 @@ function CoachingView() {
   return (
     <div className={styles.page}>
       <div className={styles.topBar}>
-        <a href="/dashboard" className={styles.switchLink}>
-          Main dashboard
-        </a>
-        <a href="/dashboard/trends" className={styles.switchLink}>
-          Trends
-        </a>
-        <a href="/api/auth-logout" className={styles.switchLink}>
-          Sign out
-        </a>
+        <TabNav
+          items={[
+            { label: "Dashboard", href: "/dashboard" },
+            { label: "Trends", href: "/dashboard/trends" },
+            { label: "Coaching", href: "/dashboard/coaching", active: true },
+          ]}
+          trailing={
+            <a href="/api/auth-logout" className={styles.switchLink}>
+              Sign out
+            </a>
+          }
+        />
       </div>
 
-      <div className={styles.header}>
-        <h1 className={styles.title}>Coaching</h1>
-        <p className={styles.subtitle}>Readiness, power zones, and training plan progress, built from your own data.</p>
-      </div>
+      <PageHeader title="Coaching" subtitle="Readiness, power zones, and training plan progress, built from your own data." />
 
       {data.status === "loading" ? (
         <p className={styles.loading}>Loading…</p>

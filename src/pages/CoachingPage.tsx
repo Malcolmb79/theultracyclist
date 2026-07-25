@@ -1,7 +1,7 @@
 import ReadinessCard from "../components/coaching/ReadinessCard";
 import PowerZonesCard from "../components/coaching/PowerZonesCard";
 import TrainingPlanCard from "../components/coaching/TrainingPlanCard";
-import AINarrativeCard from "../components/coaching/AINarrativeCard";
+import CoachChatCard from "../components/coaching/CoachChatCard";
 import { useCoachingData } from "../components/coaching/useCoachingData";
 import type { NarrativeInput } from "../components/coaching/types";
 import { useAuthSession } from "../utils/useAuthSession";
@@ -56,7 +56,7 @@ function CoachingView() {
       ) : (
         <div className={styles.grid}>
           <ReadinessCard readiness={data.readiness} />
-          <AINarrativeCard input={narrativeInputFrom(data)} />
+          <CoachChatCard input={narrativeInputFrom(data)} />
           <TrainingPlanCard settings={data.settings} onSaveSettings={data.saveSettings} weeklyProgress={data.weeklyProgress} />
           <PowerZonesCard settings={data.settings} onSaveSettings={data.saveSettings} recentRides={data.recentRides} />
         </div>

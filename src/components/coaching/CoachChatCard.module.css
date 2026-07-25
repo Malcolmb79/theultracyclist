@@ -1,0 +1,96 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-radius: var(--radius);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+}
+
+.eyebrow {
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.messages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.text {
+  align-self: flex-start;
+  max-width: 90%;
+  color: var(--color-text);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.userMessage {
+  align-self: flex-end;
+  max-width: 90%;
+  color: var(--color-bg);
+  background: var(--color-accent-2);
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.muted {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.muted code {
+  background: var(--color-bg-elevated-2);
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+.composer {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.input {
+  flex: 1;
+  background: var(--color-bg-elevated-2);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3);
+  font-size: 0.9rem;
+}
+
+.input:disabled {
+  opacity: 0.6;
+}
+
+.sendButton {
+  flex: none;
+  background: var(--color-accent);
+  color: var(--color-bg);
+  border: none;
+  border-radius: var(--radius);
+  padding: 0 var(--space-4);
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.sendButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

@@ -19,6 +19,7 @@ import {
 import type { MetricDef } from "../components/dashboard/useDashboardData";
 import { useAuthSession } from "../utils/useAuthSession";
 import { useIsMobile } from "../utils/useIsMobile";
+import { useRawSources } from "../utils/useRawSources";
 import { computeCanvasHeight } from "../utils/useCanvasItem";
 import SignInGate from "../components/shared/SignInGate";
 import TabNav from "../components/shared/TabNav";
@@ -84,8 +85,9 @@ export default function CoachingPage() {
 }
 
 function CoachingView() {
-  const data = useCoachingData();
-  const dashboardData = useDashboardData();
+  const raw = useRawSources();
+  const data = useCoachingData(raw);
+  const dashboardData = useDashboardData(raw);
   const isMobile = useIsMobile();
   const [isResizing, setIsResizing] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);

@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import type { CoachingSettings, Readiness, RideZoneClassification, WeeklyProgress } from "./types";
 import { computeReadiness } from "./readiness";
 import { classifyPower } from "./powerZones";
+import type { RawSourcesState } from "../../utils/useRawSources";
 
 type WhoopDayRaw = {
   date: string;
@@ -67,26 +68,20 @@ function localDateStr(d: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-export function useCoachingData(): CoachingDataState {
-  const [state, setState] = useState<CoachingDataState>({ status: "loading" });
+export function useCoachingData(raw: RawSourcesState): CoachingDataState {
+  return useMemo<CoachingDataState>(() => {
+    if (raw.status !== "ready") return { status: "loading" };
 
-  useEffect(() => {
-    let cancelled = false;
+    const whoop = raw.whoop as { history?: WhoopDayRaw[] } | null;
+    const strava = raw.strava as { rides?: StravaRide[] } | null;
 
-    Promise.all([
-      fetch("/api/whoop-data").then((r) => (r.ok ? r.json() : null)),
-      fetch("/api/strava-activities").then((r) => (r.ok ? r.json() : null)),
-      fetch("/api/coaching-settings").then((r) => (r.ok ? r.json() : null)),
-    ]).then(([whoop, strava, settingsBody]) => {
-      if (cancelled) return;
-
-      // Both fetches resolving null means they came back non-ok (outage,
-      // stale token, etc.), not "no data yet" - don't let the coach open on
-      // an empty snapshot in that case.
-      const dataAvailable = whoop != null && strava != null;
-      const settings: CoachingSettings = settingsBody?.settings ?? {};
-      const whoopDays = ((whoop?.history as WhoopDayRaw[] | undefined) ?? []).slice().reverse(); // oldest first
-      const rides = (strava?.rides as StravaRide[] | undefined) ?? [];
+    // Both resolving null means the fetches came back non-ok (outage, stale
+    // token, etc.), not "no data yet" - don't let the coach open on an empty
+    // snapshot in that case.
+    const dataAvailable = whoop != null && strava != null;
+    const settings = raw.settings as CoachingSettings;
+    const whoopDays = (whoop?.history ?? []).slice().reverse(); // oldest first
+    const rides = strava?.rides ?? [];
 
       const recoveryHistory = whoopDays.map((d) => ({
         date: d.date.slice(0, 10),
@@ -135,48 +130,17 @@ export function useCoachingData(): CoachingDataState {
         };
       });
 
-      const saveSettings = async (next: CoachingSettings) => {
-        await fetch("/api/coaching-settings", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(next),
-        });
-        setState((prev) => (prev.status === "ready" ? { ...prev, settings: next } : prev));
-      };
-
-      setState({
-        status: "ready",
-        readiness,
-        settings,
-        saveSettings,
-        weeklyProgress,
-        recentRides,
-        recoveryHistory,
-        dataAvailable,
-        hasRiddenToday,
-        todayDistanceKm,
-      });
-    }).catch(() => {
-      if (!cancelled) {
-        setState({
-          status: "ready",
-          readiness: computeReadiness(null, null),
-          settings: {},
-          saveSettings: async () => {},
-          weeklyProgress: { distanceKm: 0, distanceTargetKm: null, hours: 0, hoursTargetHours: null, rideCount: 0 },
-          recentRides: [],
-          recoveryHistory: [],
-          dataAvailable: false,
-          hasRiddenToday: false,
-          todayDistanceKm: null,
-        });
-      }
-    });
-
-    return () => {
-      cancelled = true;
+    return {
+      status: "ready",
+      readiness,
+      settings,
+      saveSettings: raw.saveSettings as (next: CoachingSettings) => Promise<void>,
+      weeklyProgress,
+      recentRides,
+      recoveryHistory,
+      dataAvailable,
+      hasRiddenToday,
+      todayDistanceKm,
     };
-  }, []);
-
-  return state;
+  }, [raw]);
 }

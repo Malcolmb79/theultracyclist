@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { WHOOP_STRAIN_RECOVERY_COMBO_ID, WHOOP_RINGS_COMBO_ID } from "./types";
 import { useUnits } from "../../context/UnitsContext";
 import { convertMetricSeries, convertValueUnit } from "../../utils/units";
 import { computeBmi, findWeightMetricName } from "../../utils/bmi";
+import type { RawSourcesState } from "../../utils/useRawSources";
 
 export type SeriesPoint = { date: string; value: number };
 
@@ -68,24 +69,20 @@ export type DashboardDataState =
   | { status: "loading" }
   | { status: "ready"; metrics: MetricDef[]; whoopHistory: WhoopDay[] };
 
-type RawData = { metrics: MetricDef[]; whoopHistory: WhoopDay[] };
-
-export function useDashboardData(): DashboardDataState {
+export function useDashboardData(raw: RawSourcesState): DashboardDataState {
   const { system } = useUnits();
-  const [raw, setRaw] = useState<RawData | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  return useMemo<DashboardDataState>(() => {
+    if (raw.status !== "ready") return { status: "loading" };
 
-    Promise.all([
-      fetch("/api/whoop-data").then((r) => (r.ok ? r.json() : null)),
-      fetch("/api/strava-activities").then((r) => (r.ok ? r.json() : null)),
-      fetch("/api/health-data").then((r) => (r.ok ? r.json() : null)),
-      fetch("/api/coaching-settings").then((r) => (r.ok ? r.json() : null)),
-    ]).then(([whoop, strava, health, settingsBody]) => {
-      if (cancelled) return;
+    const whoop = raw.whoop as { history?: WhoopDay[] } | null;
+    const strava = raw.strava as
+      | { rides?: StravaRide[]; summary?: { weekly?: StravaPeriodSummary; monthly?: StravaPeriodSummary } }
+      | null;
+    const health = raw.health as { catalog?: HealthCatalogEntry[]; history?: HealthHistory } | null;
+    const settings = raw.settings;
 
-      const metrics: MetricDef[] = [];
+    const metrics: MetricDef[] = [];
       let whoopHistory: WhoopDay[] = [];
 
       if (whoop?.history) {
@@ -167,7 +164,7 @@ export function useDashboardData(): DashboardDataState {
         // Listed whenever a weight metric exists, even before height is set
         // (same as any other metric with no data yet) - hiding the option
         // entirely until height was already configured left it undiscoverable.
-        const heightCm = settingsBody?.settings?.heightCm as number | undefined;
+        const heightCm = settings.heightCm as number | undefined;
         const weightName = findWeightMetricName(catalog);
         // Apple Health may export weight in lb or kg depending on the
         // athlete's device unit settings - BMI math needs real kilograms
@@ -190,22 +187,10 @@ export function useDashboardData(): DashboardDataState {
         }
       }
 
-      setRaw({ metrics, whoopHistory });
-    }).catch(() => {
-      if (!cancelled) setRaw({ metrics: [], whoopHistory: [] });
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return useMemo<DashboardDataState>(() => {
-    if (!raw) return { status: "loading" };
     return {
       status: "ready",
-      metrics: raw.metrics.map((m) => convertMetricSeries(m, system)),
-      whoopHistory: raw.whoopHistory,
+      metrics: metrics.map((m) => convertMetricSeries(m, system)),
+      whoopHistory,
     };
   }, [raw, system]);
 }

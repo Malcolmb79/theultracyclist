@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import DataCatalog from "../components/dashboard/DataCatalog";
 import DashboardWidget from "../components/dashboard/DashboardWidget";
 import { useDashboardData } from "../components/dashboard/useDashboardData";
+import { useRawSources } from "../utils/useRawSources";
 import {
   WHOOP_STRAIN_RECOVERY_COMBO_ID,
   WHOOP_RINGS_COMBO_ID,
@@ -56,7 +57,8 @@ export default function DashboardPage() {
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 function DashboardEditor() {
-  const data = useDashboardData();
+  const raw = useRawSources();
+  const data = useDashboardData(raw);
   const [widgets, setWidgets] = useState<Widget[] | null>(null);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [isResizing, setIsResizing] = useState(false);

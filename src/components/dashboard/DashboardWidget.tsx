@@ -381,6 +381,7 @@ function ComboStrainRecovery({
             showDates
             height={chartHeight}
             color={resolvedStrainColor}
+            showArea={false}
           />
         ) : (
           <p className={styles.empty}>Not enough data yet.</p>

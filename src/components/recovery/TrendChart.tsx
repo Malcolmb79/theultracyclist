@@ -27,6 +27,7 @@ interface TrendChartProps {
   showDates?: boolean;
   height?: number;
   color?: string;
+  showArea?: boolean; // default true - set false for a line-only chart with no fill beneath it
 }
 
 function shortDate(iso: string): { weekday: string; day: string } {
@@ -62,7 +63,7 @@ function useMeasuredWidth() {
   return [ref, width] as const;
 }
 
-export default function TrendChart({ points, pointColor, pointLabel, showDates, height, color }: TrendChartProps) {
+export default function TrendChart({ points, pointColor, pointLabel, showDates, height, color, showArea = true }: TrendChartProps) {
   const [containerRef, viewWidth] = useMeasuredWidth();
 
   if (points.length < 2) {
@@ -105,11 +106,13 @@ export default function TrendChart({ points, pointColor, pointLabel, showDates, 
         aria-hidden="true"
         style={{ display: "block" }}
       >
-        <path
-          d={areaPath}
-          className={pointColor && !color ? styles.areaNeutral : styles.area}
-          style={color ? { fill: color } : undefined}
-        />
+        {showArea && (
+          <path
+            d={areaPath}
+            className={pointColor && !color ? styles.areaNeutral : styles.area}
+            style={color ? { fill: color } : undefined}
+          />
+        )}
         <path
           d={linePath}
           className={pointColor && !color ? styles.lineNeutral : styles.line}
@@ -122,7 +125,7 @@ export default function TrendChart({ points, pointColor, pointLabel, showDates, 
               cx={toX(i)}
               cy={toY(p.value)}
               r={DOT_RADIUS}
-              fill={pointColor ? pointColor(p) : "var(--color-accent-2)"}
+              fill={pointColor ? pointColor(p) : (color ?? "var(--color-accent-2)")}
               stroke="var(--color-bg-elevated)"
               strokeWidth={1}
             />

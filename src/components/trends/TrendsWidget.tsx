@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useCanvasItem } from "../../utils/useCanvasItem";
 import type { TrendMetricDef } from "./useTrendsData";
 import type { TrendsWidgetConfig, TrendsViewType } from "./types";
+import HealthCalendar from "../dashboard/HealthCalendar";
+import type { HealthCalendarDay } from "../dashboard/HealthDayDetailModal";
 import {
   DEFAULT_TRENDS_COLOR,
   DEFAULT_WIDGET_WIDTH,
@@ -33,6 +35,10 @@ interface TrendsWidgetProps {
   widget: TrendsWidgetConfig;
   metric: TrendMetricDef | undefined;
   days: string[];
+  whoopHistory: HealthCalendarDay[];
+  weightByDate: Map<string, number>;
+  weightUnit: string;
+  bmiByDate: Map<string, number>;
   onViewTypeChange: (viewType: TrendsViewType) => void;
   onColorChange: (color: string) => void;
   onMove: (x: number, y: number) => void;
@@ -46,6 +52,7 @@ const VIEW_LABEL: Record<TrendsViewType, string> = {
   week: "This week",
   month: "This month",
   calendar: "Calendar",
+  healthCalendar: "Health Calendar",
 };
 
 const HEADER_HEIGHT = 40;
@@ -55,6 +62,10 @@ export default function TrendsWidget({
   widget,
   metric,
   days,
+  whoopHistory,
+  weightByDate,
+  weightUnit,
+  bmiByDate,
   onViewTypeChange,
   onColorChange,
   onMove,
@@ -63,30 +74,32 @@ export default function TrendsWidget({
   onRemove,
 }: TrendsWidgetProps) {
   const isCalendar = widget.viewType === "calendar";
+  const isHealthCalendar = widget.viewType === "healthCalendar";
+  const needsCalendarRoom = isCalendar || isHealthCalendar;
   const isMobile = useIsMobile();
 
-  const minWidth = isCalendar
+  const minWidth = needsCalendarRoom
     ? isMobile
       ? MOBILE_MIN_CALENDAR_WIDTH
       : MIN_CALENDAR_WIDTH
     : isMobile
       ? MOBILE_MIN_WIDGET_WIDTH
       : MIN_WIDGET_WIDTH;
-  const minHeight = isCalendar
+  const minHeight = needsCalendarRoom
     ? isMobile
       ? MOBILE_MIN_CALENDAR_HEIGHT
       : MIN_CALENDAR_HEIGHT
     : isMobile
       ? MOBILE_MIN_WIDGET_HEIGHT
       : MIN_WIDGET_HEIGHT;
-  const defaultWidth = isCalendar
+  const defaultWidth = needsCalendarRoom
     ? isMobile
       ? MOBILE_DEFAULT_CALENDAR_WIDTH
       : DEFAULT_CALENDAR_WIDTH
     : isMobile
       ? MOBILE_DEFAULT_WIDGET_WIDTH
       : DEFAULT_WIDGET_WIDTH;
-  const defaultHeight = isCalendar
+  const defaultHeight = needsCalendarRoom
     ? isMobile
       ? MOBILE_DEFAULT_CALENDAR_HEIGHT
       : DEFAULT_CALENDAR_HEIGHT
@@ -94,10 +107,10 @@ export default function TrendsWidget({
       ? MOBILE_DEFAULT_WIDGET_HEIGHT
       : DEFAULT_WIDGET_HEIGHT;
   // A stat widget already sized for desktop shows visually compressed on
-  // mobile (the saved width/height itself is untouched) - calendar is
-  // exempt since it needs more room than the cap to stay legible.
-  const capWidth = isMobile && !isCalendar ? MOBILE_CAP_WIDTH : Infinity;
-  const capHeight = isMobile && !isCalendar ? MOBILE_CAP_HEIGHT : Infinity;
+  // mobile (the saved width/height itself is untouched) - either calendar
+  // is exempt since it needs more room than the cap to stay legible.
+  const capWidth = isMobile && !needsCalendarRoom ? MOBILE_CAP_WIDTH : Infinity;
+  const capHeight = isMobile && !needsCalendarRoom ? MOBILE_CAP_HEIGHT : Infinity;
 
   const { rect, handleDragPointerDown, handleResizePointerDown, applyResize } = useCanvasItem({
     initial: {
@@ -114,16 +127,16 @@ export default function TrendsWidget({
     onDraggingChange: onResizingChange,
   });
 
-  // Switching view type to Calendar mid-session needs more room than a
-  // stat widget's default - bump up (and persist) if the current size is
+  // Switching view type to either calendar mid-session needs more room than
+  // a stat widget's default - bump up (and persist) if the current size is
   // below the calendar minimum, matching what a freshly-added calendar
   // widget would get.
   useEffect(() => {
-    if (isCalendar && (rect.width < minWidth || rect.height < minHeight)) {
+    if (needsCalendarRoom && (rect.width < minWidth || rect.height < minHeight)) {
       applyResize(Math.max(rect.width, defaultWidth), Math.max(rect.height, defaultHeight));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isCalendar]);
+  }, [needsCalendarRoom]);
 
   const [selected, setSelected] = useState(false);
   const widgetRef = useRef<HTMLDivElement>(null);
@@ -163,16 +176,18 @@ export default function TrendsWidget({
             onChange={(e) => onColorChange(e.target.value)}
             aria-label="Widget colour"
           />
-          <select
-            className={styles.select}
-            value={widget.viewType}
-            onChange={(e) => onViewTypeChange(e.target.value as TrendsViewType)}
-          >
-            <option value="day">Day</option>
-            <option value="week">Week</option>
-            <option value="month">Month</option>
-            <option value="calendar">Calendar</option>
-          </select>
+          {!isHealthCalendar && (
+            <select
+              className={styles.select}
+              value={widget.viewType}
+              onChange={(e) => onViewTypeChange(e.target.value as TrendsViewType)}
+            >
+              <option value="day">Day</option>
+              <option value="week">Week</option>
+              <option value="month">Month</option>
+              <option value="calendar">Calendar</option>
+            </select>
+          )}
           <button type="button" className={styles.iconButton} onClick={onRemove} aria-label="Remove widget">
             ×
           </button>
@@ -182,6 +197,14 @@ export default function TrendsWidget({
       <div className={styles.content}>
         {!metric ? (
           <p className={styles.empty}>Metric not available.</p>
+        ) : isHealthCalendar ? (
+          <HealthCalendar
+            whoopHistory={whoopHistory}
+            weightByDate={weightByDate}
+            weightUnit={weightUnit}
+            bmiByDate={bmiByDate}
+            height={contentHeight}
+          />
         ) : isCalendar ? (
           <CalendarView metric={metric} color={color} height={contentHeight} />
         ) : (

@@ -61,6 +61,13 @@
   overflow: hidden;
   padding: 2px;
   box-sizing: border-box;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.cell:hover {
+  border-color: var(--color-accent-2);
 }
 
 .dayNumber {
@@ -82,6 +89,12 @@
   width: 5px;
   height: 5px;
   border-radius: 50%;
+}
+
+.recoveryValue {
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .legend {

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { recoveryColor } from "../../utils/recoveryColor";
 import { bmiCategoryColor } from "../../utils/bmi";
-import type { WhoopDay } from "./useDashboardData";
+import HealthDayDetailModal, { type HealthCalendarDay } from "./HealthDayDetailModal";
 import styles from "./HealthCalendar.module.css";
 
 const WEEKDAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
@@ -31,7 +31,7 @@ function shiftMonth(monthKey: string, delta: number): string {
 }
 
 interface HealthCalendarProps {
-  whoopHistory: WhoopDay[];
+  whoopHistory: HealthCalendarDay[];
   weightByDate: Map<string, number>;
   weightUnit: string;
   bmiByDate: Map<string, number>;
@@ -40,6 +40,7 @@ interface HealthCalendarProps {
 
 export default function HealthCalendar({ whoopHistory, weightByDate, weightUnit, bmiByDate, height }: HealthCalendarProps) {
   const [monthKey, setMonthKey] = useState(() => today().slice(0, 7));
+  const [openDate, setOpenDate] = useState<string | null>(null);
   const [year, month] = monthKey.split("-").map(Number);
 
   const byDate = new Map(whoopHistory.map((d) => [d.date.slice(0, 10), d]));
@@ -55,7 +56,7 @@ export default function HealthCalendar({ whoopHistory, weightByDate, weightUnit,
   }
 
   const gridHeight = Math.max(
-    numRows * 34,
+    numRows * 38,
     height - HEADER_ROW_HEIGHT - WEEKDAY_ROW_HEIGHT - LEGEND_ROW_HEIGHT - GRID_GAP * 3,
   );
 
@@ -97,19 +98,33 @@ export default function HealthCalendar({ whoopHistory, weightByDate, weightUnit,
             });
           }
 
-          const title = dots.length > 0 ? [dateStr, ...dots.map((d) => d.label)].join(" · ") : dateStr;
+          const hasData = dots.length > 0;
+          const title = hasData ? [dateStr, ...dots.map((d) => d.label), "Click for details"].join(" · ") : dateStr;
 
           return (
-            <div key={dateStr} className={styles.cell} title={title}>
+            <button
+              key={dateStr}
+              type="button"
+              className={styles.cell}
+              title={title}
+              onClick={() => setOpenDate(dateStr)}
+            >
               <span className={styles.dayNumber}>{Number(dateStr.slice(8, 10))}</span>
-              {dots.length > 0 && (
-                <div className={styles.dots}>
-                  {dots.map((d, idx) => (
-                    <span key={idx} className={styles.dot} style={{ background: d.color }} />
-                  ))}
-                </div>
+              {hasData && (
+                <>
+                  <div className={styles.dots}>
+                    {dots.map((d, idx) => (
+                      <span key={idx} className={styles.dot} style={{ background: d.color }} />
+                    ))}
+                  </div>
+                  {day?.recovery && (
+                    <span className={styles.recoveryValue} style={{ color: recoveryColor(day.recovery.score) }}>
+                      {day.recovery.score}%
+                    </span>
+                  )}
+                </>
               )}
-            </div>
+            </button>
           );
         })}
       </div>
@@ -120,6 +135,17 @@ export default function HealthCalendar({ whoopHistory, weightByDate, weightUnit,
         <span><span className={styles.legendDot} style={{ background: HRV_COLOR }} />HRV</span>
         <span><span className={styles.legendDot} style={{ background: WEIGHT_FALLBACK_COLOR }} />Weight</span>
       </div>
+
+      {openDate && (
+        <HealthDayDetailModal
+          date={openDate}
+          day={byDate.get(openDate)}
+          weightVal={weightByDate.get(openDate) ?? null}
+          weightUnit={weightUnit}
+          bmi={bmiByDate.get(openDate) ?? null}
+          onClose={() => setOpenDate(null)}
+        />
+      )}
     </div>
   );
 }

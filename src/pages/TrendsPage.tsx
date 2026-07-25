@@ -3,6 +3,7 @@ import TrendsCatalog from "../components/trends/TrendsCatalog";
 import TrendsWidget from "../components/trends/TrendsWidget";
 import { useTrendsData, type TrendMetricDef } from "../components/trends/useTrendsData";
 import type { TrendsWidgetConfig, TrendsViewType } from "../components/trends/types";
+import { HEALTH_CALENDAR_ID } from "../components/dashboard/types";
 import { useAuthSession } from "../utils/useAuthSession";
 import SignInGate from "../components/shared/SignInGate";
 import TabNav from "../components/shared/TabNav";
@@ -105,7 +106,7 @@ function TrendsEditor() {
       id: nextId(),
       metric: metric.id,
       label: metric.label,
-      viewType: "day",
+      viewType: metric.id === HEALTH_CALENDAR_ID ? "healthCalendar" : "day",
       x: position.x,
       y: position.y,
     };
@@ -193,6 +194,10 @@ function TrendsEditor() {
                 widget={widget}
                 metric={metricById.get(widget.metric)}
                 days={data.days}
+                whoopHistory={data.whoopHistory}
+                weightByDate={data.weightByDate}
+                weightUnit={data.weightUnit}
+                bmiByDate={data.bmiByDate}
                 onViewTypeChange={(viewType) => handleViewTypeChange(widget.id, viewType)}
                 onColorChange={(color) => handleColorChange(widget.id, color)}
                 onMove={(x, y) => handleMove(widget.id, x, y)}

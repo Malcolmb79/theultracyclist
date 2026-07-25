@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { GOAL_METRIC_IDS, type Goals } from "./types";
+import { HEALTH_CALENDAR_ID } from "../dashboard/types";
 import { useUnits } from "../../context/UnitsContext";
 import { convertTrendMetric, convertValueUnit } from "../../utils/units";
 import { computeBmi } from "../../utils/bmi";
@@ -24,7 +25,14 @@ type WhoopDayRaw = {
   date: string;
   recovery: { score: number; hrvMs: number; restingHeartRate: number } | null;
   strain: { score: number; avgHeartRate: number; maxHeartRate: number; zone1to3Minutes: number; zone4to5Minutes: number } | null;
-  sleep: { performancePercent: number; totalSleepHours: number } | null;
+  sleep: {
+    performancePercent: number;
+    totalSleepHours: number;
+    consistencyPercent: number;
+    efficiencyPercent: number;
+    hoursNeeded: number;
+    respiratoryRate: number;
+  } | null;
 };
 
 type StravaRide = { distanceKm: number; movingTimeMinutes: number; startDate: string };
@@ -55,6 +63,13 @@ export type TrendsDataState =
       metrics: TrendMetricDef[];
       goals: Goals;
       saveGoals: (next: Goals) => Promise<void>;
+      // For the Health Calendar widget only - everything else here works off
+      // the getValue-per-metric shape above, but a multi-metric-per-day
+      // calendar needs the raw day objects and weight/BMI-by-date directly.
+      whoopHistory: WhoopDayRaw[];
+      weightByDate: Map<string, number>;
+      weightUnit: string;
+      bmiByDate: Map<string, number>;
     };
 
 export function useTrendsData(): TrendsDataState {
@@ -293,6 +308,27 @@ export function useTrendsData(): TrendsDataState {
           },
         );
 
+        // Health Calendar: one calendar with Strain/Recovery/Sleep/HRV/
+        // Weight per day, rather than the day/week/month aggregate every
+        // other metric uses - getValue is never actually called since
+        // TrendsWidget special-cases this id before reaching that logic.
+        metrics.push({
+          id: HEALTH_CALENDAR_ID,
+          source: "whoop",
+          label: "Health Calendar",
+          unit: "",
+          aggregation: "avg",
+          getValue: () => null,
+        });
+
+        const weightByDate = new Map<string, number>();
+        const bmiByDate = new Map<string, number>();
+        for (const date of days) {
+          const kg = weightKg(date);
+          if (kg != null) weightByDate.set(date, kg);
+          if (kg != null && heightCm) bmiByDate.set(date, computeBmi(kg, heightCm));
+        }
+
         const saveGoals = async (next: Goals) => {
           await fetch("/api/trends-goals", {
             method: "POST",
@@ -302,7 +338,18 @@ export function useTrendsData(): TrendsDataState {
           setReloadToken((t) => t + 1);
         };
 
-        setState({ status: "ready", days, isTrainingDay, metrics, goals, saveGoals });
+        setState({
+          status: "ready",
+          days,
+          isTrainingDay,
+          metrics,
+          goals,
+          saveGoals,
+          whoopHistory: whoopDays,
+          weightByDate,
+          weightUnit,
+          bmiByDate,
+        });
       })
       .catch(() => {
         if (!cancelled) {
@@ -313,6 +360,10 @@ export function useTrendsData(): TrendsDataState {
             metrics: [],
             goals: {},
             saveGoals: async () => {},
+            whoopHistory: [],
+            weightByDate: new Map(),
+            weightUnit: "kg",
+            bmiByDate: new Map(),
           });
         }
       });

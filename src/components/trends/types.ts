@@ -1,4 +1,4 @@
-export type TrendsViewType = "day" | "week" | "month" | "calendar";
+export type TrendsViewType = "day" | "week" | "month" | "calendar" | "healthCalendar";
 
 export type TrendsWidgetConfig = {
   id: string;

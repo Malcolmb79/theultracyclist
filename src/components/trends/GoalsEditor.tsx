@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Goals } from "./types";
+import { useUnits } from "../../context/UnitsContext";
+import { convertValueUnit } from "../../utils/units";
 import styles from "./GoalsEditor.module.css";
 
 interface GoalsEditorProps {
@@ -17,7 +19,12 @@ const FIELDS: { key: keyof Goals; label: string; unit: string }[] = [
   { key: "calorieGoalRestDay", label: "Calories - rest day", unit: "kcal" },
 ];
 
+// Only the weight goal has an imperial/metric split; the rest (h, g, kcal)
+// have no equivalent and are always stored/shown as-is.
+const CONVERTIBLE_KEYS = new Set<keyof Goals>(["weightKg"]);
+
 export default function GoalsEditor({ goals, onSave }: GoalsEditorProps) {
+  const { system } = useUnits();
   const [draft, setDraft] = useState<Goals>(goals);
   const [saving, setSaving] = useState(false);
 
@@ -36,22 +43,40 @@ export default function GoalsEditor({ goals, onSave }: GoalsEditorProps) {
     <div className={styles.editor}>
       <h3 className={styles.title}>Goals</h3>
       <p className={styles.hint}>Training days are detected automatically from Strava rides and Whoop activity.</p>
-      {FIELDS.map(({ key, label, unit }) => (
-        <label key={key} className={styles.field}>
-          <span className={styles.fieldLabel}>{label}</span>
-          <div className={styles.inputRow}>
-            <input
-              type="number"
-              className={styles.input}
-              value={draft[key] ?? ""}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, [key]: e.target.value === "" ? undefined : Number(e.target.value) }))
-              }
-            />
-            <span className={styles.unit}>{unit}</span>
-          </div>
-        </label>
-      ))}
+      {FIELDS.map(({ key, label, unit }) => {
+        const convertible = CONVERTIBLE_KEYS.has(key);
+        const displayUnit = convertible ? convertValueUnit(1, unit, system).unit : unit;
+        const stored = draft[key] as number | undefined;
+        const displayValue =
+          convertible && stored != null
+            ? Math.round(convertValueUnit(stored, unit, system).value * 10) / 10
+            : stored;
+
+        const handleChange = (inputValue: string) => {
+          if (inputValue === "") {
+            setDraft((d) => ({ ...d, [key]: undefined }));
+            return;
+          }
+          const entered = Number(inputValue);
+          const nextStored = convertible ? convertValueUnit(entered, displayUnit, "metric").value : entered;
+          setDraft((d) => ({ ...d, [key]: nextStored }));
+        };
+
+        return (
+          <label key={key} className={styles.field}>
+            <span className={styles.fieldLabel}>{label}</span>
+            <div className={styles.inputRow}>
+              <input
+                type="number"
+                className={styles.input}
+                value={displayValue ?? ""}
+                onChange={(e) => handleChange(e.target.value)}
+              />
+              <span className={styles.unit}>{displayUnit}</span>
+            </div>
+          </label>
+        );
+      })}
       <button type="button" className={styles.saveButton} onClick={handleSave} disabled={saving}>
         {saving ? "Saving…" : "Save goals"}
       </button>

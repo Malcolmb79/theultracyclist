@@ -120,6 +120,7 @@ function TrendsEditor() {
             { label: "Dashboard", href: "/dashboard" },
             { label: "Trends", href: "/dashboard/trends", active: true },
             { label: "Coaching", href: "/dashboard/coaching" },
+            { label: "Settings", href: "/dashboard/settings" },
           ]}
           trailing={
             <>

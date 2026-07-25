@@ -39,6 +39,7 @@ function CoachingView() {
             { label: "Dashboard", href: "/dashboard" },
             { label: "Trends", href: "/dashboard/trends" },
             { label: "Coaching", href: "/dashboard/coaching", active: true },
+            { label: "Settings", href: "/dashboard/settings" },
           ]}
           trailing={
             <a href="/api/auth-logout" className={styles.switchLink}>

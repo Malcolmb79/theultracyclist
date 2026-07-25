@@ -1,0 +1,87 @@
+.page {
+  min-height: 100vh;
+  padding: var(--space-4) var(--space-4) var(--space-5);
+}
+
+.loading {
+  color: var(--color-text-muted);
+  text-align: center;
+  margin-top: var(--space-6);
+}
+
+.topBar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: var(--color-bg);
+  margin: 0 calc(var(--space-4) * -1);
+  padding: 0 var(--space-4);
+}
+
+.switchLink {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  text-decoration: none;
+}
+
+.switchLink:hover {
+  border-color: var(--color-accent-2);
+  color: var(--color-text);
+}
+
+.content {
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.section {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+  margin-bottom: var(--space-3);
+}
+
+.sectionTitle {
+  font-weight: 700;
+  margin: 0 0 var(--space-1);
+}
+
+.sectionHint {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  margin: 0 0 var(--space-3);
+}
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.segmentButton {
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-muted);
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.segmentButton:not(:last-child) {
+  border-right: 1px solid var(--color-border);
+}
+
+.segmentButtonActive {
+  background: var(--color-accent);
+  color: var(--color-bg);
+}

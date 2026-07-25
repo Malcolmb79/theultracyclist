@@ -1,6 +1,8 @@
 import { useState } from "react";
 import type { CoachingSettings, TrainingPhase, WeeklyProgress } from "./types";
 import { PHASE_GUIDANCE } from "./types";
+import { useUnits } from "../../context/UnitsContext";
+import { convertValueUnit } from "../../utils/units";
 import styles from "./TrainingPlanCard.module.css";
 
 interface TrainingPlanCardProps {
@@ -25,8 +27,19 @@ function ProgressBar({ actual, target, unit }: { actual: number; target: number 
   );
 }
 
+function roundTo1(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
 export default function TrainingPlanCard({ settings, onSaveSettings, weeklyProgress }: TrainingPlanCardProps) {
-  const [distanceInput, setDistanceInput] = useState(settings.weeklyDistanceKm?.toString() ?? "");
+  const { system } = useUnits();
+  const distanceUnit = convertValueUnit(1, "km", system).unit;
+
+  const initialDistanceDisplay =
+    settings.weeklyDistanceKm != null
+      ? roundTo1(convertValueUnit(settings.weeklyDistanceKm, "km", system).value)
+      : undefined;
+  const [distanceInput, setDistanceInput] = useState(initialDistanceDisplay?.toString() ?? "");
   const [hoursInput, setHoursInput] = useState(settings.weeklyHours?.toString() ?? "");
   const [saving, setSaving] = useState(false);
 
@@ -39,15 +52,23 @@ export default function TrainingPlanCard({ settings, onSaveSettings, weeklyProgr
   const handleSaveTargets = async () => {
     setSaving(true);
     try {
+      const enteredDistance = distanceInput === "" ? undefined : Number(distanceInput);
       await onSaveSettings({
         ...settings,
-        weeklyDistanceKm: distanceInput === "" ? undefined : Number(distanceInput),
+        weeklyDistanceKm:
+          enteredDistance == null ? undefined : convertValueUnit(enteredDistance, distanceUnit, "metric").value,
         weeklyHours: hoursInput === "" ? undefined : Number(hoursInput),
       });
     } finally {
       setSaving(false);
     }
   };
+
+  const actualDistanceDisplay = roundTo1(convertValueUnit(weeklyProgress.distanceKm, "km", system).value);
+  const targetDistanceDisplay =
+    weeklyProgress.distanceTargetKm != null
+      ? roundTo1(convertValueUnit(weeklyProgress.distanceTargetKm, "km", system).value)
+      : null;
 
   return (
     <div className={styles.card}>
@@ -64,7 +85,7 @@ export default function TrainingPlanCard({ settings, onSaveSettings, weeklyProgr
 
       <div className={styles.week}>
         <span className={styles.subheading}>This week</span>
-        <ProgressBar actual={weeklyProgress.distanceKm} target={weeklyProgress.distanceTargetKm} unit="km" />
+        <ProgressBar actual={actualDistanceDisplay} target={targetDistanceDisplay} unit={distanceUnit} />
         <ProgressBar actual={weeklyProgress.hours} target={weeklyProgress.hoursTargetHours} unit="h" />
         <span className={styles.rideCount}>{weeklyProgress.rideCount} ride{weeklyProgress.rideCount === 1 ? "" : "s"} so far</span>
       </div>
@@ -79,7 +100,7 @@ export default function TrainingPlanCard({ settings, onSaveSettings, weeklyProgr
               className={styles.targetInput}
               value={distanceInput}
               onChange={(e) => setDistanceInput(e.target.value)}
-              placeholder="km"
+              placeholder={distanceUnit}
             />
           </label>
           <label className={styles.targetLabel}>

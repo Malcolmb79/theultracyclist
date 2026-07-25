@@ -1,5 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { GOAL_METRIC_IDS, type Goals } from "./types";
+import { useUnits } from "../../context/UnitsContext";
+import { convertTrendMetric } from "../../utils/units";
 
 export type TrendMetricDef = {
   id: string;
@@ -55,7 +57,8 @@ export type TrendsDataState =
     };
 
 export function useTrendsData(): TrendsDataState {
-  const [state, setState] = useState<TrendsDataState>({ status: "loading" });
+  const { system } = useUnits();
+  const [raw, setState] = useState<TrendsDataState>({ status: "loading" });
   const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
@@ -286,5 +289,8 @@ export function useTrendsData(): TrendsDataState {
     };
   }, [reloadToken]);
 
-  return state;
+  return useMemo<TrendsDataState>(() => {
+    if (raw.status !== "ready") return raw;
+    return { ...raw, metrics: raw.metrics.map((m) => convertTrendMetric(m, system)) };
+  }, [raw, system]);
 }

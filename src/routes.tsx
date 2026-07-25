@@ -11,6 +11,7 @@ import AboutPage from "./pages/AboutPage";
 import DashboardPage from "./pages/DashboardPage";
 import TrendsPage from "./pages/TrendsPage";
 import CoachingPage from "./pages/CoachingPage";
+import SettingsPage from "./pages/SettingsPage";
 import NotFoundPage from "./pages/NotFoundPage";
 
 export const router = createBrowserRouter([
@@ -18,6 +19,7 @@ export const router = createBrowserRouter([
   { path: "/dashboard", element: <DashboardPage /> },
   { path: "/dashboard/trends", element: <TrendsPage /> },
   { path: "/dashboard/coaching", element: <CoachingPage /> },
+  { path: "/dashboard/settings", element: <SettingsPage /> },
   {
     element: <Layout />,
     children: [

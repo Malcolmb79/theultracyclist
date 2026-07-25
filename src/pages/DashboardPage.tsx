@@ -190,6 +190,7 @@ function DashboardEditor() {
               { label: "Dashboard", href: "/dashboard", active: true },
               { label: "Trends", href: "/dashboard/trends" },
               { label: "Coaching", href: "/dashboard/coaching" },
+              { label: "Settings", href: "/dashboard/settings" },
             ]}
             trailing={
               <>

@@ -1,5 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { WHOOP_STRAIN_RECOVERY_COMBO_ID, WHOOP_RINGS_COMBO_ID } from "./types";
+import { useUnits } from "../../context/UnitsContext";
+import { convertMetricSeries } from "../../utils/units";
 
 export type SeriesPoint = { date: string; value: number };
 
@@ -65,8 +67,11 @@ export type DashboardDataState =
   | { status: "loading" }
   | { status: "ready"; metrics: MetricDef[]; whoopHistory: WhoopDay[] };
 
+type RawData = { metrics: MetricDef[]; whoopHistory: WhoopDay[] };
+
 export function useDashboardData(): DashboardDataState {
-  const [state, setState] = useState<DashboardDataState>({ status: "loading" });
+  const { system } = useUnits();
+  const [raw, setRaw] = useState<RawData | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -155,9 +160,9 @@ export function useDashboardData(): DashboardDataState {
         }
       }
 
-      setState({ status: "ready", metrics, whoopHistory });
+      setRaw({ metrics, whoopHistory });
     }).catch(() => {
-      if (!cancelled) setState({ status: "ready", metrics: [], whoopHistory: [] });
+      if (!cancelled) setRaw({ metrics: [], whoopHistory: [] });
     });
 
     return () => {
@@ -165,5 +170,12 @@ export function useDashboardData(): DashboardDataState {
     };
   }, []);
 
-  return state;
+  return useMemo<DashboardDataState>(() => {
+    if (!raw) return { status: "loading" };
+    return {
+      status: "ready",
+      metrics: raw.metrics.map((m) => convertMetricSeries(m, system)),
+      whoopHistory: raw.whoopHistory,
+    };
+  }, [raw, system]);
 }

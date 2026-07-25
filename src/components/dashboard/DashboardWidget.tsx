@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { formatDate } from "../../utils/formatDate";
 import { recoveryColor } from "../../utils/recoveryColor";
 import { useIsMobile } from "../../utils/useIsMobile";
+import { useMeasuredWidth } from "../../utils/useMeasuredWidth";
 import { useCanvasItem } from "../../utils/useCanvasItem";
 import DashboardStatTile from "./DashboardStatTile";
 import TrendChart, { TREND_CHART_LABEL_TOP_PAD, TREND_CHART_LABEL_BOTTOM_PAD } from "../recovery/TrendChart";
@@ -288,10 +289,7 @@ export default function DashboardWidget({
           ) : isRings ? (
             <RingsRow
               latest={whoopHistory[whoopHistory.length - 1]}
-              ringSize={Math.max(
-                60,
-                Math.min((rect.width - WIDGET_HORIZONTAL_CHROME - RINGS_ROW_GAP * 2) / 3, contentHeight - RING_LABEL_OVERHEAD),
-              )}
+              contentHeight={contentHeight}
               onOpenDetail={setOpenDetail}
             />
           ) : isBmi ? (
@@ -370,19 +368,30 @@ export default function DashboardWidget({
 
 function RingsRow({
   latest,
-  ringSize,
+  contentHeight,
   onOpenDetail,
 }: {
   latest: WhoopDay | undefined;
-  ringSize: number;
+  contentHeight: number;
   onOpenDetail: (kind: WhoopDetailKind) => void;
 }) {
+  // Measures the row's actual rendered width rather than back-computing it
+  // from the widget's outer size minus assumed padding/border/gap constants
+  // - that arithmetic drifted out of sync with the real CSS (missed the
+  // widget's 1px border) and clipped the rightmost ring at small sizes.
+  const [containerRef, measuredWidth] = useMeasuredWidth(MIN_RINGS_WIDTH);
+
   if (!latest || (!latest.sleep && !latest.recovery && !latest.strain)) {
     return <p className={styles.empty}>No data yet for this metric.</p>;
   }
 
+  const ringSize = Math.max(
+    60,
+    Math.min((measuredWidth - RINGS_ROW_GAP * 2) / 3, contentHeight - RING_LABEL_OVERHEAD),
+  );
+
   return (
-    <div className={styles.ringsRow}>
+    <div className={styles.ringsRow} ref={containerRef}>
       {latest.sleep && (
         <button type="button" className={styles.ringButton} onClick={() => onOpenDetail("sleep")}>
           <RingGauge

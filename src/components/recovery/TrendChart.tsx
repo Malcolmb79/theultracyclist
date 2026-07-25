@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useMeasuredWidth } from "../../utils/useMeasuredWidth";
 import styles from "./TrendChart.module.css";
 
 const FALLBACK_WIDTH = 300;
@@ -38,33 +38,8 @@ function shortDate(iso: string): { weekday: string; day: string } {
   };
 }
 
-// Measures the container's actual rendered width so the SVG's viewBox can
-// match it exactly (1:1 scale). Without this, a fixed internal viewBox width
-// stretched via CSS to fill a *different* rendered width distorts everything
-// inside non-uniformly, including text glyphs — a chart that's resized
-// wider or narrower than the fixed reference width visibly "stretches" its
-// point/date labels.
-function useMeasuredWidth() {
-  const ref = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(FALLBACK_WIDTH);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const observer = new ResizeObserver((entries) => {
-      const w = entries[0]?.contentRect.width;
-      if (w) setWidth(w);
-    });
-    observer.observe(el);
-    if (el.clientWidth) setWidth(el.clientWidth);
-    return () => observer.disconnect();
-  }, []);
-
-  return [ref, width] as const;
-}
-
 export default function TrendChart({ points, pointColor, pointLabel, showDates, height, color, showArea = true }: TrendChartProps) {
-  const [containerRef, viewWidth] = useMeasuredWidth();
+  const [containerRef, viewWidth] = useMeasuredWidth(FALLBACK_WIDTH);
 
   if (points.length < 2) {
     return <div ref={containerRef} />;

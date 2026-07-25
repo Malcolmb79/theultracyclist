@@ -1,21 +1,40 @@
 import { useEffect, useRef, useState } from "react";
-import type { NarrativeInput } from "./types";
+import type { CoachingSettings, NarrativeInput } from "./types";
 import styles from "./CoachChatCard.module.css";
 
 interface CoachChatCardProps {
   input: NarrativeInput;
+  settings: CoachingSettings;
+  onSaveSettings: (next: CoachingSettings) => Promise<void>;
 }
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
 type CardStatus = "loading" | "unconfigured" | "error" | "ready";
 
-export default function CoachChatCard({ input }: CoachChatCardProps) {
+export default function CoachChatCard({ input, settings, onSaveSettings }: CoachChatCardProps) {
   const [status, setStatus] = useState<CardStatus>("loading");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
+  const [rulesDraft, setRulesDraft] = useState(settings.customRules ?? "");
+  const [savingRules, setSavingRules] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setRulesDraft(settings.customRules ?? "");
+  }, [settings.customRules]);
+
+  const saveRules = async () => {
+    setSavingRules(true);
+    try {
+      await onSaveSettings({ ...settings, customRules: rulesDraft.trim() || undefined });
+      setRulesOpen(false);
+    } finally {
+      setSavingRules(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -82,7 +101,32 @@ export default function CoachChatCard({ input }: CoachChatCardProps) {
 
   return (
     <div className={styles.card}>
-      <span className={styles.eyebrow}>Coach's chat</span>
+      <div className={styles.headerRow}>
+        <span className={styles.eyebrow}>Coach's chat</span>
+        <button
+          type="button"
+          className={styles.rulesToggle}
+          onClick={() => setRulesOpen((open) => !open)}
+          aria-expanded={rulesOpen}
+        >
+          {rulesOpen ? "Hide rules" : "Coach rules"}
+        </button>
+      </div>
+
+      {rulesOpen && (
+        <div className={styles.rulesEditor}>
+          <textarea
+            className={styles.rulesTextarea}
+            value={rulesDraft}
+            onChange={(e) => setRulesDraft(e.target.value)}
+            placeholder="Standing instructions for the coach - dietary restrictions, injuries, tone preferences, anything it should always factor in…"
+            rows={4}
+          />
+          <button type="button" className={styles.rulesSave} onClick={saveRules} disabled={savingRules}>
+            {savingRules ? "Saving…" : "Save rules"}
+          </button>
+        </div>
+      )}
 
       {status === "loading" && <p className={styles.muted}>Generating…</p>}
       {status === "error" && <p className={styles.muted}>Couldn't reach the coach right now.</p>}

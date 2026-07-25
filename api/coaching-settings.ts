@@ -28,6 +28,11 @@ export type CoachingSettings = {
   phase?: "build" | "recovery" | "taper";
   layout?: Partial<Record<"readiness" | "chat" | "trainingPlan" | "powerZones", CoachingWidgetRect>>;
   widgets?: CatalogWidget[];
+  // Free-text standing instructions the athlete sets once (dietary
+  // restrictions, injuries, tone preferences, anything else) - folded into
+  // every coach prompt (see buildSystemPrompt in coaching-chat.ts and
+  // buildPrompt in coaching-narrative.ts) rather than needing to be repeated.
+  customRules?: string;
 };
 
 const KV_KEY = "COACHING_SETTINGS";

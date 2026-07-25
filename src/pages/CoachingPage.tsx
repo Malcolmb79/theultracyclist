@@ -219,7 +219,7 @@ function CoachingView() {
             onResize={(w, h) => handleResize("chat", w, h)}
             onResizingChange={setIsResizing}
           >
-            <CoachChatCard input={narrativeInputFrom(data)} />
+            <CoachChatCard input={narrativeInputFrom(data)} settings={data.settings} onSaveSettings={data.saveSettings} />
           </CoachingWidget>
 
           <CoachingWidget
@@ -274,5 +274,6 @@ function narrativeInputFrom(data: Extract<ReturnType<typeof useCoachingData>, { 
     weeklyDistanceKm: data.weeklyProgress.distanceKm,
     weeklyTargetKm: data.weeklyProgress.distanceTargetKm,
     phase: data.settings.phase ?? null,
+    customRules: data.settings.customRules ?? null,
   };
 }

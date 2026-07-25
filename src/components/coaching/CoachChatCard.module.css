@@ -8,12 +8,71 @@
   border: 1px solid var(--color-border);
 }
 
+.headerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
 .eyebrow {
   font-weight: 700;
   font-size: 0.75rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--color-text-muted);
+}
+
+.rulesToggle {
+  flex: none;
+  background: none;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  border-radius: var(--radius);
+  padding: 0.15rem var(--space-2);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.rulesToggle:hover {
+  color: var(--color-text);
+  border-color: var(--color-text-muted);
+}
+
+.rulesEditor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.rulesTextarea {
+  resize: vertical;
+  background: var(--color-bg-elevated-2);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3);
+  font-size: 0.85rem;
+  font-family: inherit;
+  line-height: 1.5;
+}
+
+.rulesSave {
+  align-self: flex-end;
+  background: var(--color-accent);
+  color: var(--color-bg);
+  border: none;
+  border-radius: var(--radius);
+  padding: 0.3rem var(--space-4);
+  font-weight: 700;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.rulesSave:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .messages {

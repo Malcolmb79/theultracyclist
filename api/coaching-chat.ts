@@ -21,6 +21,7 @@ type ChatContext = {
   weeklyDistanceKm: number | null;
   weeklyTargetKm: number | null;
   phase: "build" | "recovery" | "taper" | null;
+  customRules: string | null;
 };
 
 type TextBlock = { type: "text"; text: string };
@@ -152,6 +153,9 @@ function buildSystemPrompt(context: Partial<ChatContext>): string {
     "make your answer better than a general one, rather than guessing or saying you don't have the data. " +
     "Answer directly and practically. Keep replies conversational and concise - a few sentences unless they " +
     "ask for real detail. Do not use markdown formatting.\n\n" +
+    (context.customRules
+      ? `The athlete has set these standing rules - always follow them, even over generic best practice:\n${context.customRules}\n\n`
+      : "") +
     "Current snapshot:\n" +
     (lines.length ? lines.join("\n") : "No recent recovery/training data available.")
   );

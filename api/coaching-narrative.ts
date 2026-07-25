@@ -14,6 +14,7 @@ export type NarrativeInput = {
   weeklyDistanceKm: number | null;
   weeklyTargetKm: number | null;
   phase: "build" | "recovery" | "taper" | null;
+  customRules: string | null;
 };
 
 function today(): string {
@@ -45,6 +46,9 @@ function buildPrompt(input: NarrativeInput): string {
     "Based on the data below, write a 2-4 sentence coaching note: how they should approach today's training " +
     "given their recovery and recent load, referencing the specific numbers naturally. Be direct and " +
     "practical, not generic motivational filler. Do not use markdown formatting.\n\n" +
+    (input.customRules
+      ? `The athlete has set these standing rules - always follow them, even over generic best practice:\n${input.customRules}\n\n`
+      : "") +
     lines.join("\n")
   );
 }

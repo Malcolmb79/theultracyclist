@@ -18,6 +18,9 @@ export type CoachingSettings = {
   // rendering (DashboardWidget) as Dashboard/Trends use - separate from the
   // 4 fixed coaching cards above, which keep their own `layout` slot.
   widgets?: Widget[];
+  // Free-text standing instructions the athlete sets once, folded into
+  // every coach prompt server-side - see api/coaching-settings.ts.
+  customRules?: string;
 };
 
 export type ReadinessLevel = "hard" | "moderate" | "easy" | "rest";
@@ -69,6 +72,7 @@ export type NarrativeInput = {
   weeklyDistanceKm: number | null;
   weeklyTargetKm: number | null;
   phase: TrainingPhase | null;
+  customRules: string | null;
 };
 
 export const PHASE_GUIDANCE: Record<TrainingPhase, { label: string; description: string }> = {

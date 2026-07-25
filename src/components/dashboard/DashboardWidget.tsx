@@ -6,6 +6,7 @@ import { useCanvasItem } from "../../utils/useCanvasItem";
 import DashboardStatTile from "./DashboardStatTile";
 import TrendChart, { TREND_CHART_LABEL_TOP_PAD, TREND_CHART_LABEL_BOTTOM_PAD } from "../recovery/TrendChart";
 import RingGauge from "./RingGauge";
+import BmiChart from "./BmiChart";
 import WhoopDetailModal, { type WhoopDetailKind } from "./WhoopDetailModal";
 import type { MetricDef, WhoopDay } from "./useDashboardData";
 import {
@@ -103,6 +104,7 @@ export default function DashboardWidget({
 }: DashboardWidgetProps) {
   const isCombo = widget.metric === WHOOP_STRAIN_RECOVERY_COMBO_ID;
   const isRings = widget.metric === WHOOP_RINGS_COMBO_ID;
+  const isBmi = widget.metric === "health.bmi";
   const detailKind = DETAIL_KIND_BY_METRIC[widget.metric];
   const [openDetail, setOpenDetail] = useState<WhoopDetailKind | null>(null);
   const metric = isCombo || isRings ? undefined : metricById.get(widget.metric);
@@ -195,7 +197,7 @@ export default function DashboardWidget({
               onChange={(e) => onColorChange(e.target.value)}
               aria-label="Widget color"
             />
-            {!isCombo && !isRings && (
+            {!isCombo && !isRings && !isBmi && (
               <select
                 className={styles.select}
                 value={widget.viewType}
@@ -234,6 +236,11 @@ export default function DashboardWidget({
                 Math.min((rect.width - 48 - RINGS_ROW_GAP * 2) / 3, contentHeight - RING_LABEL_OVERHEAD),
               )}
               onOpenDetail={setOpenDetail}
+            />
+          ) : isBmi ? (
+            <BmiChart
+              bmi={metric?.series.length ? metric.series[metric.series.length - 1].value : null}
+              date={metric?.series.length ? metric.series[metric.series.length - 1].date : null}
             />
           ) : !metric || metric.series.length === 0 ? (
             <p className={styles.empty}>No data yet for this metric.</p>

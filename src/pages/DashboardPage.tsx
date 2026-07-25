@@ -96,6 +96,7 @@ function DashboardEditor({ password }: { password: string }) {
   const data = useDashboardData();
   const [widgets, setWidgets] = useState<Widget[] | null>(null);
   const [catalogOpen, setCatalogOpen] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -226,7 +227,7 @@ function DashboardEditor({ password }: { password: string }) {
             <p className={styles.emptyCanvas}>Open the menu to add data and build your dashboard.</p>
           ) : (
             <SortableContext items={widgets.map((w) => w.id)} strategy={rectSortingStrategy}>
-              <div className={styles.widgetGrid}>
+              <div className={`${styles.widgetGrid} ${isResizing ? styles.widgetGridSnap : ""}`}>
                 {widgets.map((widget) => (
                   <DashboardWidget
                     key={widget.id}
@@ -235,6 +236,7 @@ function DashboardEditor({ password }: { password: string }) {
                     onViewTypeChange={(viewType) => handleViewTypeChange(widget.id, viewType)}
                     onColorChange={(color) => handleColorChange(widget.id, color)}
                     onResize={(width, height) => handleResize(widget.id, width, height)}
+                    onResizingChange={setIsResizing}
                     onRemove={() => handleRemove(widget.id)}
                   />
                 ))}

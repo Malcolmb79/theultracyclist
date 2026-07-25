@@ -14,6 +14,7 @@ export const DEFAULT_WIDGET_HEIGHT = 240;
 export const MIN_WIDGET_WIDTH = 240;
 export const MIN_WIDGET_HEIGHT = 160;
 export const DEFAULT_WIDGET_COLOR = "#2ee6a6";
+export const WIDGET_GRID_SIZE = 20;
 
 export const CATALOG_DRAG_PREFIX = "catalog:";
 

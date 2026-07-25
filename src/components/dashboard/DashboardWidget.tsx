@@ -14,6 +14,7 @@ import {
   DEFAULT_WIDGET_COLOR,
   MIN_WIDGET_WIDTH,
   MIN_WIDGET_HEIGHT,
+  WIDGET_GRID_SIZE,
   type Widget,
 } from "./types";
 import styles from "./DashboardWidget.module.css";
@@ -24,7 +25,12 @@ interface DashboardWidgetProps {
   onViewTypeChange: (viewType: Widget["viewType"]) => void;
   onColorChange: (color: string) => void;
   onResize: (width: number, height: number) => void;
+  onResizingChange: (resizing: boolean) => void;
   onRemove: () => void;
+}
+
+function snapToGrid(value: number): number {
+  return Math.round(value / WIDGET_GRID_SIZE) * WIDGET_GRID_SIZE;
 }
 
 const HEADER_HEIGHT = 44;
@@ -72,6 +78,7 @@ export default function DashboardWidget({
   onViewTypeChange,
   onColorChange,
   onResize,
+  onResizingChange,
   onRemove,
 }: DashboardWidgetProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: widget.id });
@@ -117,6 +124,7 @@ export default function DashboardWidget({
     e.preventDefault();
 
     resizeStart.current = { pointerX: e.clientX, pointerY: e.clientY, width: size.width, height: size.height };
+    onResizingChange(true);
 
     const previousBodyOverflow = document.body.style.overflow;
     const previousBodyTouchAction = document.body.style.touchAction;
@@ -129,8 +137,8 @@ export default function DashboardWidget({
       const dx = moveEvent.clientX - resizeStart.current.pointerX;
       const dy = moveEvent.clientY - resizeStart.current.pointerY;
       const next = {
-        width: Math.max(MIN_WIDGET_WIDTH, resizeStart.current.width + dx),
-        height: Math.max(minHeight, resizeStart.current.height + dy),
+        width: Math.max(MIN_WIDGET_WIDTH, snapToGrid(resizeStart.current.width + dx)),
+        height: Math.max(minHeight, snapToGrid(resizeStart.current.height + dy)),
       };
       liveSize.current = next;
       setSize(next);
@@ -138,6 +146,7 @@ export default function DashboardWidget({
 
     const finish = () => {
       resizeStart.current = null;
+      onResizingChange(false);
       document.body.style.overflow = previousBodyOverflow;
       document.body.style.touchAction = previousBodyTouchAction;
       window.removeEventListener("pointermove", handleMove);

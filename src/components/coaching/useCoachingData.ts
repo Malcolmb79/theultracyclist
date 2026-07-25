@@ -37,6 +37,10 @@ export type CoachingDataState =
         restingHeartRate: number | null;
         sleepPerformance: number | null;
       }[];
+      // False when the underlying Whoop/Strava fetches didn't actually
+      // succeed (vs. succeeding with genuinely no data) - lets the coach
+      // chat card wait to speak rather than opening on an empty snapshot.
+      dataAvailable: boolean;
     };
 
 function startOfWeek(dateStr: string): string {
@@ -58,6 +62,10 @@ export function useCoachingData(): CoachingDataState {
     ]).then(([whoop, strava, settingsBody]) => {
       if (cancelled) return;
 
+      // Both fetches resolving null means they came back non-ok (outage,
+      // stale token, etc.), not "no data yet" - don't let the coach open on
+      // an empty snapshot in that case.
+      const dataAvailable = whoop != null && strava != null;
       const settings: CoachingSettings = settingsBody?.settings ?? {};
       const whoopDays = ((whoop?.history as WhoopDayRaw[] | undefined) ?? []).slice().reverse(); // oldest first
       const rides = (strava?.rides as StravaRide[] | undefined) ?? [];
@@ -111,7 +119,7 @@ export function useCoachingData(): CoachingDataState {
         setState((prev) => (prev.status === "ready" ? { ...prev, settings: next } : prev));
       };
 
-      setState({ status: "ready", readiness, settings, saveSettings, weeklyProgress, recentRides, recoveryHistory });
+      setState({ status: "ready", readiness, settings, saveSettings, weeklyProgress, recentRides, recoveryHistory, dataAvailable });
     }).catch(() => {
       if (!cancelled) {
         setState({
@@ -122,6 +130,7 @@ export function useCoachingData(): CoachingDataState {
           weeklyProgress: { distanceKm: 0, distanceTargetKm: null, hours: 0, hoursTargetHours: null, rideCount: 0 },
           recentRides: [],
           recoveryHistory: [],
+          dataAvailable: false,
         });
       }
     });

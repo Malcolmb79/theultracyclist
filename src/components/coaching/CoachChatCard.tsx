@@ -6,13 +6,14 @@ interface CoachChatCardProps {
   input: NarrativeInput;
   settings: CoachingSettings;
   onSaveSettings: (next: CoachingSettings) => Promise<void>;
+  dataAvailable: boolean;
 }
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
-type CardStatus = "loading" | "unconfigured" | "error" | "ready";
+type CardStatus = "waiting" | "loading" | "unconfigured" | "error" | "ready";
 
-export default function CoachChatCard({ input, settings, onSaveSettings }: CoachChatCardProps) {
+export default function CoachChatCard({ input, settings, onSaveSettings, dataAvailable }: CoachChatCardProps) {
   const [status, setStatus] = useState<CardStatus>("loading");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
@@ -37,6 +38,12 @@ export default function CoachChatCard({ input, settings, onSaveSettings }: Coach
   };
 
   useEffect(() => {
+    if (!dataAvailable) {
+      setStatus("waiting");
+      setMessages([]);
+      return;
+    }
+
     let cancelled = false;
     setStatus("loading");
     setMessages([]);
@@ -63,9 +70,9 @@ export default function CoachChatCard({ input, settings, onSaveSettings }: Coach
     return () => {
       cancelled = true;
     };
-    // Re-fetch only when the underlying stats actually change, not on every render.
+    // Re-fetch only when the underlying stats (or data availability) actually change, not on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(input)]);
+  }, [JSON.stringify(input), dataAvailable]);
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
@@ -128,6 +135,7 @@ export default function CoachChatCard({ input, settings, onSaveSettings }: Coach
         </div>
       )}
 
+      {status === "waiting" && <p className={styles.muted}>Waiting for today's Whoop/Strava data to load…</p>}
       {status === "loading" && <p className={styles.muted}>Generating…</p>}
       {status === "error" && <p className={styles.muted}>Couldn't reach the coach right now.</p>}
       {status === "unconfigured" && (

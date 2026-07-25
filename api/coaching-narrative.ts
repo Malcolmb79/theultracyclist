@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getSessionEmail } from "./_lib/session.js";
+import { irelandTimeContext } from "./_lib/timeContext.js";
 
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const MODEL = "claude-haiku-4-5-20251001";
@@ -37,7 +38,9 @@ function buildPrompt(input: NarrativeInput): string {
   return (
     "You are an experienced cycling coach writing a short daily note for an athlete preparing for an " +
     "unsupported ultra-distance record attempt (Ireland, north to south, roughly 570km solo, one continuous " +
-    "unsupported effort). Draw on real coaching substance: HRV- and RHR-informed readiness (a depressed HRV " +
+    "unsupported effort). " +
+    irelandTimeContext() +
+    " Draw on real coaching substance: HRV- and RHR-informed readiness (a depressed HRV " +
     "or elevated RHR relative to the athlete's own baseline signals accumulated fatigue earlier and more " +
     "reliably than recovery score alone), the balance between strain and recovery over the last few days, " +
     "sleep's role in adaptation, and where today sits in the athlete's current training phase (build, " +

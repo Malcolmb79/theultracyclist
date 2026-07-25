@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getSessionEmail } from "./_lib/session.js";
+import { irelandTimeContext } from "./_lib/timeContext.js";
 import { fetchWhoopHistory } from "./whoop-data.js";
 import { fetchStravaRides } from "./strava-activities.js";
 import { fetchHealthHistory } from "./health-data.js";
@@ -138,8 +139,9 @@ function buildSystemPrompt(context: Partial<ChatContext>): string {
 
   return (
     "You are an experienced cycling coach chatting with an athlete preparing for an unsupported ultra-distance " +
-    "record attempt (Ireland, north to south, roughly 570km solo, one continuous unsupported effort). Coach " +
-    "with real depth: periodized training load across build/recovery/taper phases; HRV- and RHR-informed " +
+    "record attempt (Ireland, north to south, roughly 570km solo, one continuous unsupported effort). " +
+    irelandTimeContext() +
+    " Coach with real depth: periodized training load across build/recovery/taper phases; HRV- and RHR-informed " +
     "readiness (a depressed HRV or elevated RHR relative to the athlete's own baseline signals accumulated " +
     "fatigue earlier and more reliably than recovery score alone); power-zone-based training (Z1-2 endurance, " +
     "Z3 tempo, Z4 threshold, Z5 VO2/anaerobic) - for an effort this long, time-in-zone and durability at low-Z " +

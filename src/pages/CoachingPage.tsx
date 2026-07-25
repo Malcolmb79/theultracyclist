@@ -219,7 +219,12 @@ function CoachingView() {
             onResize={(w, h) => handleResize("chat", w, h)}
             onResizingChange={setIsResizing}
           >
-            <CoachChatCard input={narrativeInputFrom(data)} settings={data.settings} onSaveSettings={data.saveSettings} />
+            <CoachChatCard
+              input={narrativeInputFrom(data)}
+              settings={data.settings}
+              onSaveSettings={data.saveSettings}
+              dataAvailable={data.dataAvailable}
+            />
           </CoachingWidget>
 
           <CoachingWidget

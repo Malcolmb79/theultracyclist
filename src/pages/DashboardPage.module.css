@@ -121,19 +121,20 @@
   border-radius: var(--radius);
 }
 
+/* position:relative so widgets (position:absolute, left/top from their own
+   x/y) place themselves relative to this canvas rather than the page.
+   Height is set inline from computeCanvasHeight() since absolutely
+   positioned children don't otherwise contribute to their parent's size. */
 .widgetGrid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  align-items: flex-start;
+  position: relative;
   border-radius: var(--radius);
   transition: background-color 0.15s ease;
 }
 
-/* Shown only while actively dragging a widget's resize handle, as a visual
-   cue that dimensions are snapping to a fixed grid rather than landing on
-   arbitrary pixel values. 20px spacing must match WIDGET_GRID_SIZE in
-   components/dashboard/types.ts. */
+/* Shown only while actively dragging a widget's move/resize handle, as a
+   visual cue that position/dimensions are snapping to a fixed grid rather
+   than landing on arbitrary pixel values. 20px spacing must match
+   WIDGET_GRID_SIZE in components/dashboard/types.ts. */
 .widgetGridSnap {
   background-image:
     repeating-linear-gradient(to right, var(--color-border) 0 1px, transparent 1px 20px),

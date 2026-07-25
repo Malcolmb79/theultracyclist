@@ -1,10 +1,17 @@
 export type TrainingPhase = "build" | "recovery" | "taper";
 
+export type CoachingWidgetId = "readiness" | "chat" | "trainingPlan" | "powerZones";
+
+export type CoachingWidgetRect = { x: number; y: number; width: number; height: number };
+
+export type CoachingLayout = Partial<Record<CoachingWidgetId, CoachingWidgetRect>>;
+
 export type CoachingSettings = {
   ftpWatts?: number;
   weeklyDistanceKm?: number;
   weeklyHours?: number;
   phase?: TrainingPhase;
+  layout?: CoachingLayout;
 };
 
 export type ReadinessLevel = "hard" | "moderate" | "easy" | "rest";

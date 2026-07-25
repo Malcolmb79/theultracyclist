@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { formatDate } from "../../utils/formatDate";
 import { recoveryColor } from "../../utils/recoveryColor";
 import { useIsMobile } from "../../utils/useIsMobile";
+import { useCanvasItem } from "../../utils/useCanvasItem";
 import DashboardStatTile from "./DashboardStatTile";
 import TrendChart, { TREND_CHART_LABEL_TOP_PAD, TREND_CHART_LABEL_BOTTOM_PAD } from "../recovery/TrendChart";
 import RingGauge from "./RingGauge";
@@ -34,6 +33,7 @@ interface DashboardWidgetProps {
   whoopHistory: WhoopDay[];
   onViewTypeChange: (viewType: Widget["viewType"]) => void;
   onColorChange: (color: string) => void;
+  onMove: (x: number, y: number) => void;
   onResize: (width: number, height: number) => void;
   onResizingChange: (resizing: boolean) => void;
   onRemove: () => void;
@@ -47,10 +47,6 @@ const DETAIL_KIND_BY_METRIC: Record<string, WhoopDetailKind> = {
   "whoop.recovery": "recovery",
   "whoop.sleepPerformance": "sleep",
 };
-
-function snapToGrid(value: number): number {
-  return Math.round(value / WIDGET_GRID_SIZE) * WIDGET_GRID_SIZE;
-}
 
 const HEADER_HEIGHT = 44;
 const CONTENT_PADDING = 32;
@@ -94,26 +90,17 @@ function ringPercent(metric: MetricDef, value: number): number {
   return Math.min(100, value);
 }
 
-function combineRefs<T>(...refs: (((node: T) => void) | { current: T | null } | null | undefined)[]) {
-  return (node: T) => {
-    for (const ref of refs) {
-      if (typeof ref === "function") ref(node);
-      else if (ref) (ref as { current: T | null }).current = node;
-    }
-  };
-}
-
 export default function DashboardWidget({
   widget,
   metricById,
   whoopHistory,
   onViewTypeChange,
   onColorChange,
+  onMove,
   onResize,
   onResizingChange,
   onRemove,
 }: DashboardWidgetProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: widget.id });
   const isCombo = widget.metric === WHOOP_STRAIN_RECOVERY_COMBO_ID;
   const isRings = widget.metric === WHOOP_RINGS_COMBO_ID;
   const detailKind = DETAIL_KIND_BY_METRIC[widget.metric];
@@ -137,12 +124,20 @@ export default function DashboardWidget({
   const capWidth = isMobile && !isRings ? MOBILE_CAP_WIDTH : Infinity;
   const capHeight = isMobile && !isCombo && !isRings ? MOBILE_CAP_HEIGHT : Infinity;
 
-  const [size, setSize] = useState({
-    width: Math.max(minWidth, Math.min(widget.width ?? defaultWidth, capWidth)),
-    height: Math.max(minHeight, Math.min(widget.height ?? defaultHeight, capHeight)),
+  const { rect, handleDragPointerDown, handleResizePointerDown } = useCanvasItem({
+    initial: {
+      x: widget.x ?? 0,
+      y: widget.y ?? 0,
+      width: Math.max(minWidth, Math.min(widget.width ?? defaultWidth, capWidth)),
+      height: Math.max(minHeight, Math.min(widget.height ?? defaultHeight, capHeight)),
+    },
+    minWidth,
+    minHeight,
+    gridSize: WIDGET_GRID_SIZE,
+    onMove,
+    onResize,
+    onDraggingChange: onResizingChange,
   });
-  const resizeStart = useRef<{ pointerX: number; pointerY: number; width: number; height: number } | null>(null);
-  const liveSize = useRef(size);
 
   // Drag handle and controls stay hidden until the widget is hovered
   // (desktop) or tapped (touch, where hover doesn't apply) — tapping
@@ -161,71 +156,22 @@ export default function DashboardWidget({
     return () => document.removeEventListener("pointerdown", handleOutside);
   }, [selected]);
 
-  // Resize dragging is handled via window-level listeners (rather than
-  // relying solely on the handle's own onPointerMove/onPointerUp + pointer
-  // capture) plus a body scroll lock for the duration of the drag. On iOS
-  // Safari, a vertical-heavy drag starting on a small element can still get
-  // interpreted as a page-scroll gesture even with touch-action: none on
-  // the handle itself; locking body scroll while the pointer is down
-  // guarantees the page can't steal the gesture regardless of exactly
-  // where the touch lands.
-  const handleResizePointerDown = (e: React.PointerEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-
-    resizeStart.current = { pointerX: e.clientX, pointerY: e.clientY, width: size.width, height: size.height };
-    onResizingChange(true);
-
-    const previousBodyOverflow = document.body.style.overflow;
-    const previousBodyTouchAction = document.body.style.touchAction;
-    document.body.style.overflow = "hidden";
-    document.body.style.touchAction = "none";
-
-    const handleMove = (moveEvent: PointerEvent) => {
-      if (!resizeStart.current) return;
-      moveEvent.preventDefault();
-      const dx = moveEvent.clientX - resizeStart.current.pointerX;
-      const dy = moveEvent.clientY - resizeStart.current.pointerY;
-      const next = {
-        width: Math.max(minWidth, snapToGrid(resizeStart.current.width + dx)),
-        height: Math.max(minHeight, snapToGrid(resizeStart.current.height + dy)),
-      };
-      liveSize.current = next;
-      setSize(next);
-    };
-
-    const finish = () => {
-      resizeStart.current = null;
-      onResizingChange(false);
-      document.body.style.overflow = previousBodyOverflow;
-      document.body.style.touchAction = previousBodyTouchAction;
-      window.removeEventListener("pointermove", handleMove);
-      window.removeEventListener("pointerup", finish);
-      window.removeEventListener("pointercancel", finish);
-      onResize(Math.round(liveSize.current.width), Math.round(liveSize.current.height));
-    };
-
-    window.addEventListener("pointermove", handleMove, { passive: false });
-    window.addEventListener("pointerup", finish);
-    window.addEventListener("pointercancel", finish);
+  const positionStyle = {
+    position: "absolute" as const,
+    left: rect.x,
+    top: rect.y,
+    width: rect.width,
+    height: rect.height,
   };
 
-  const dragStyle = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.4 : 1,
-    width: size.width,
-    height: size.height,
-  };
-
-  const contentHeight = Math.max(24, size.height - HEADER_HEIGHT - CONTENT_PADDING);
-  const ringSize = Math.max(60, Math.min(size.width, contentHeight) - 20);
+  const contentHeight = Math.max(24, rect.height - HEADER_HEIGHT - CONTENT_PADDING);
+  const ringSize = Math.max(60, Math.min(rect.width, contentHeight) - 20);
 
   return (
     <>
       <div
-        ref={combineRefs(setNodeRef, widgetRef)}
-        style={dragStyle}
+        ref={widgetRef}
+        style={positionStyle}
         className={styles.widget}
         data-selected={selected || undefined}
         onPointerDownCapture={() => setSelected(true)}
@@ -233,11 +179,10 @@ export default function DashboardWidget({
         <div className={styles.header}>
           <div
             className={styles.dragHandle}
-            {...attributes}
-            {...listeners}
+            onPointerDown={handleDragPointerDown}
             role="button"
             tabIndex={0}
-            aria-label="Drag to reorder"
+            aria-label="Drag to move"
           >
             ⠿
           </div>
@@ -286,7 +231,7 @@ export default function DashboardWidget({
               latest={whoopHistory[whoopHistory.length - 1]}
               ringSize={Math.max(
                 60,
-                Math.min((size.width - 48 - RINGS_ROW_GAP * 2) / 3, contentHeight - RING_LABEL_OVERHEAD),
+                Math.min((rect.width - 48 - RINGS_ROW_GAP * 2) / 3, contentHeight - RING_LABEL_OVERHEAD),
               )}
               onOpenDetail={setOpenDetail}
             />

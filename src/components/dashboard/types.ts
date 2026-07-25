@@ -4,6 +4,8 @@ export type Widget = {
   metric: string;
   label: string;
   viewType: "stat" | "chart" | "timeline" | "ring" | "combo" | "rings";
+  x?: number;
+  y?: number;
   width?: number;
   height?: number;
   color?: string;
@@ -32,8 +34,6 @@ export const MOBILE_CAP_HEIGHT = 200;
 
 export const DEFAULT_WIDGET_COLOR = "#2ee6a6";
 export const WIDGET_GRID_SIZE = 20;
-
-export const CATALOG_DRAG_PREFIX = "catalog:";
 
 // Special catalog entry: a preset combining whoop.strain + whoop.recovery
 // into one widget, rather than a single real metric series.

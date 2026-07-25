@@ -8,6 +8,8 @@ export type Widget = {
   metric: string;
   label: string;
   viewType: "stat" | "chart" | "timeline" | "ring" | "combo" | "rings";
+  x?: number;
+  y?: number;
   width?: number;
   height?: number;
   color?: string;

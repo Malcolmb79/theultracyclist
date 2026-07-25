@@ -6,6 +6,8 @@ export type TrendsWidgetConfig = {
   label: string;
   viewType: TrendsViewType;
   color?: string;
+  x?: number;
+  y?: number;
   width?: number;
   height?: number;
 };

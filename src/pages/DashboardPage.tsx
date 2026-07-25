@@ -1,18 +1,8 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import {
-  DndContext,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  useDroppable,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import { SortableContext, arrayMove, rectSortingStrategy } from "@dnd-kit/sortable";
+import { useEffect, useRef, useState } from "react";
 import DataCatalog from "../components/dashboard/DataCatalog";
 import DashboardWidget from "../components/dashboard/DashboardWidget";
 import { useDashboardData } from "../components/dashboard/useDashboardData";
 import {
-  CATALOG_DRAG_PREFIX,
   WHOOP_STRAIN_RECOVERY_COMBO_ID,
   WHOOP_RINGS_COMBO_ID,
   DEFAULT_WIDGET_WIDTH,
@@ -24,6 +14,7 @@ import { useAuthSession } from "../utils/useAuthSession";
 import SignInGate from "../components/shared/SignInGate";
 import TabNav from "../components/shared/TabNav";
 import PageHeader from "../components/shared/PageHeader";
+import { computeCanvasHeight } from "../utils/useCanvasItem";
 import styles from "./DashboardPage.module.css";
 
 function nextId(): string {
@@ -34,6 +25,14 @@ function defaultViewType(metric: MetricDef): Widget["viewType"] {
   if (metric.id === WHOOP_STRAIN_RECOVERY_COMBO_ID) return "combo";
   if (metric.id === WHOOP_RINGS_COMBO_ID) return "rings";
   return metric.statOnly ? "stat" : "chart";
+}
+
+// New widgets cascade below whatever's already on the canvas rather than
+// stacking at (0,0) on top of each other - left-aligned, just under the
+// lowest existing widget's bottom edge.
+function nextWidgetPosition(existing: Widget[]): { x: number; y: number } {
+  const bottom = existing.reduce((max, w) => Math.max(max, (w.y ?? 0) + (w.height ?? DEFAULT_WIDGET_HEIGHT)), 0);
+  return { x: 0, y: bottom > 0 ? bottom + 20 : 0 };
 }
 
 export default function DashboardPage() {
@@ -105,8 +104,6 @@ function DashboardEditor() {
     if (lastAttempt.current) persist(lastAttempt.current);
   };
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
-
   if (data.status === "loading" || widgets === null) {
     return (
       <div className={styles.page}>
@@ -118,12 +115,15 @@ function DashboardEditor() {
   const metricById = new Map(data.metrics.map((m) => [m.id, m]));
 
   const handleAdd = (metric: MetricDef) => {
+    const position = nextWidgetPosition(widgets);
     const widget: Widget = {
       id: nextId(),
       source: metric.source,
       metric: metric.id,
       label: metric.label,
       viewType: defaultViewType(metric),
+      x: position.x,
+      y: position.y,
       width: DEFAULT_WIDGET_WIDTH,
       height: DEFAULT_WIDGET_HEIGHT,
     };
@@ -139,132 +139,89 @@ function DashboardEditor() {
   const handleColorChange = (id: string, color: string) =>
     saveWidgets(widgets.map((w) => (w.id === id ? { ...w, color } : w)));
 
+  const handleMove = (id: string, x: number, y: number) =>
+    saveWidgets(widgets.map((w) => (w.id === id ? { ...w, x, y } : w)));
+
   const handleResize = (id: string, width: number, height: number) =>
     saveWidgets(widgets.map((w) => (w.id === id ? { ...w, width, height } : w)));
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over) return;
-
-    const activeId = String(active.id);
-
-    if (activeId.startsWith(CATALOG_DRAG_PREFIX)) {
-      const metricId = activeId.slice(CATALOG_DRAG_PREFIX.length);
-      const metric = metricById.get(metricId);
-      if (!metric) return;
-
-      const newWidget: Widget = {
-        id: nextId(),
-        source: metric.source,
-        metric: metric.id,
-        label: metric.label,
-        viewType: defaultViewType(metric),
-        width: DEFAULT_WIDGET_WIDTH,
-        height: DEFAULT_WIDGET_HEIGHT,
-      };
-
-      const overIndex = widgets.findIndex((w) => w.id === over.id);
-      const next = overIndex >= 0
-        ? [...widgets.slice(0, overIndex), newWidget, ...widgets.slice(overIndex)]
-        : [...widgets, newWidget];
-      saveWidgets(next);
-      setCatalogOpen(false);
-      return;
-    }
-
-    if (active.id !== over.id) {
-      const oldIndex = widgets.findIndex((w) => w.id === active.id);
-      const newIndex = widgets.findIndex((w) => w.id === over.id);
-      if (oldIndex >= 0 && newIndex >= 0) {
-        saveWidgets(arrayMove(widgets, oldIndex, newIndex));
-      }
-    }
-  };
-
-  return (
-    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-      <div className={styles.page}>
-        <div className={styles.topBar}>
-          <TabNav
-            items={[
-              { label: "Dashboard", href: "/dashboard", active: true },
-              { label: "Trends", href: "/dashboard/trends" },
-              { label: "Coaching", href: "/dashboard/coaching" },
-              { label: "Settings", href: "/dashboard/settings" },
-            ]}
-            trailing={
-              <>
-                <button
-                  type="button"
-                  className={styles.catalogToggle}
-                  onClick={() => setCatalogOpen((open) => !open)}
-                  aria-label={catalogOpen ? "Close data menu" : "Open data menu"}
-                  aria-expanded={catalogOpen}
-                >
-                  {catalogOpen ? "×" : "☰"}
-                </button>
-                {saveStatus === "error" ? (
-                  <button type="button" className={`${styles.saveStatus} ${styles.saveStatusError}`} onClick={retrySave}>
-                    Save failed — tap to retry
-                  </button>
-                ) : (
-                  saveStatus !== "idle" && (
-                    <span className={`${styles.saveStatus} ${saveStatus === "saved" ? styles.saveStatusSaved : ""}`}>
-                      {saveStatus === "saving" ? "Saving…" : "Saved"}
-                    </span>
-                  )
-                )}
-                <a href="/api/auth-logout" className={styles.switchLink}>
-                  Sign out
-                </a>
-              </>
-            }
-          />
-        </div>
-
-        <PageHeader title="Dashboard" subtitle="Drag, resize, and add widgets from your connected data sources." />
-
-        {catalogOpen && (
-          <div className={styles.catalogBackdrop} onClick={() => setCatalogOpen(false)} />
-        )}
-
-        <aside className={`${styles.catalogDrawer} ${catalogOpen ? styles.catalogDrawerOpen : ""}`}>
-          <DataCatalog metrics={data.metrics} onAdd={handleAdd} />
-        </aside>
-
-        <Canvas>
-          {widgets.length === 0 ? (
-            <p className={styles.emptyCanvas}>Open the menu to add data and build your dashboard.</p>
-          ) : (
-            <SortableContext items={widgets.map((w) => w.id)} strategy={rectSortingStrategy}>
-              <div className={`${styles.widgetGrid} ${isResizing ? styles.widgetGridSnap : ""}`}>
-                {widgets.map((widget) => (
-                  <DashboardWidget
-                    key={widget.id}
-                    widget={widget}
-                    metricById={metricById}
-                    whoopHistory={data.whoopHistory}
-                    onViewTypeChange={(viewType) => handleViewTypeChange(widget.id, viewType)}
-                    onColorChange={(color) => handleColorChange(widget.id, color)}
-                    onResize={(width, height) => handleResize(widget.id, width, height)}
-                    onResizingChange={setIsResizing}
-                    onRemove={() => handleRemove(widget.id)}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          )}
-        </Canvas>
-      </div>
-    </DndContext>
+  const canvasHeight = computeCanvasHeight(
+    widgets.map((w) => ({ y: w.y ?? 0, height: w.height ?? DEFAULT_WIDGET_HEIGHT })),
   );
-}
 
-function Canvas({ children }: { children: ReactNode }) {
-  const { setNodeRef } = useDroppable({ id: "canvas" });
   return (
-    <main ref={setNodeRef} className={styles.canvas}>
-      {children}
-    </main>
+    <div className={styles.page}>
+      <div className={styles.topBar}>
+        <TabNav
+          items={[
+            { label: "Dashboard", href: "/dashboard", active: true },
+            { label: "Trends", href: "/dashboard/trends" },
+            { label: "Coaching", href: "/dashboard/coaching" },
+            { label: "Settings", href: "/dashboard/settings" },
+          ]}
+          trailing={
+            <>
+              <button
+                type="button"
+                className={styles.catalogToggle}
+                onClick={() => setCatalogOpen((open) => !open)}
+                aria-label={catalogOpen ? "Close data menu" : "Open data menu"}
+                aria-expanded={catalogOpen}
+              >
+                {catalogOpen ? "×" : "☰"}
+              </button>
+              {saveStatus === "error" ? (
+                <button type="button" className={`${styles.saveStatus} ${styles.saveStatusError}`} onClick={retrySave}>
+                  Save failed — tap to retry
+                </button>
+              ) : (
+                saveStatus !== "idle" && (
+                  <span className={`${styles.saveStatus} ${saveStatus === "saved" ? styles.saveStatusSaved : ""}`}>
+                    {saveStatus === "saving" ? "Saving…" : "Saved"}
+                  </span>
+                )
+              )}
+              <a href="/api/auth-logout" className={styles.switchLink}>
+                Sign out
+              </a>
+            </>
+          }
+        />
+      </div>
+
+      <PageHeader title="Dashboard" subtitle="Drag, resize, and add widgets from your connected data sources." />
+
+      {catalogOpen && <div className={styles.catalogBackdrop} onClick={() => setCatalogOpen(false)} />}
+
+      <aside className={`${styles.catalogDrawer} ${catalogOpen ? styles.catalogDrawerOpen : ""}`}>
+        <DataCatalog metrics={data.metrics} onAdd={handleAdd} />
+      </aside>
+
+      <main className={styles.canvas}>
+        {widgets.length === 0 ? (
+          <p className={styles.emptyCanvas}>Open the menu to add data and build your dashboard.</p>
+        ) : (
+          <div
+            className={`${styles.widgetGrid} ${isResizing ? styles.widgetGridSnap : ""}`}
+            style={{ height: canvasHeight }}
+          >
+            {widgets.map((widget) => (
+              <DashboardWidget
+                key={widget.id}
+                widget={widget}
+                metricById={metricById}
+                whoopHistory={data.whoopHistory}
+                onViewTypeChange={(viewType) => handleViewTypeChange(widget.id, viewType)}
+                onColorChange={(color) => handleColorChange(widget.id, color)}
+                onMove={(x, y) => handleMove(widget.id, x, y)}
+                onResize={(width, height) => handleResize(widget.id, width, height)}
+                onResizingChange={setIsResizing}
+                onRemove={() => handleRemove(widget.id)}
+              />
+            ))}
+          </div>
+        )}
+      </main>
+    </div>
   );
 }

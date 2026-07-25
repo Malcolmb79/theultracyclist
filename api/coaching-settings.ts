@@ -2,11 +2,14 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { persistEnvVar, triggerDeployHook } from "./_lib/vercelEnvStore.js";
 import { getSessionEmail } from "./_lib/session.js";
 
+type CoachingWidgetRect = { x: number; y: number; width: number; height: number };
+
 export type CoachingSettings = {
   ftpWatts?: number;
   weeklyDistanceKm?: number;
   weeklyHours?: number;
   phase?: "build" | "recovery" | "taper";
+  layout?: Partial<Record<"readiness" | "chat" | "trainingPlan" | "powerZones", CoachingWidgetRect>>;
 };
 
 function readSettings(): CoachingSettings {

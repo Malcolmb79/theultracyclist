@@ -7,10 +7,19 @@ import { useAuthSession } from "../utils/useAuthSession";
 import SignInGate from "../components/shared/SignInGate";
 import TabNav from "../components/shared/TabNav";
 import PageHeader from "../components/shared/PageHeader";
+import { computeCanvasHeight } from "../utils/useCanvasItem";
+import { DEFAULT_WIDGET_HEIGHT } from "../components/trends/types";
 import styles from "./TrendsPage.module.css";
 
 function nextId(): string {
   return `t_${Date.now()}_${Math.round(Math.random() * 1e6)}`;
+}
+
+// New widgets cascade below whatever's already on the canvas rather than
+// stacking at (0,0) on top of each other.
+function nextWidgetPosition(existing: TrendsWidgetConfig[]): { x: number; y: number } {
+  const bottom = existing.reduce((max, w) => Math.max(max, (w.y ?? 0) + (w.height ?? DEFAULT_WIDGET_HEIGHT)), 0);
+  return { x: 0, y: bottom > 0 ? bottom + 20 : 0 };
 }
 
 export default function TrendsPage() {
@@ -91,11 +100,14 @@ function TrendsEditor() {
   const metricById = new Map(data.metrics.map((m) => [m.id, m]));
 
   const handleAdd = (metric: TrendMetricDef) => {
+    const position = nextWidgetPosition(widgets);
     const widget: TrendsWidgetConfig = {
       id: nextId(),
       metric: metric.id,
       label: metric.label,
       viewType: "day",
+      x: position.x,
+      y: position.y,
     };
     saveWidgets([...widgets, widget]);
     setCatalogOpen(false);
@@ -109,8 +121,15 @@ function TrendsEditor() {
   const handleColorChange = (id: string, color: string) =>
     saveWidgets(widgets.map((w) => (w.id === id ? { ...w, color } : w)));
 
+  const handleMove = (id: string, x: number, y: number) =>
+    saveWidgets(widgets.map((w) => (w.id === id ? { ...w, x, y } : w)));
+
   const handleResize = (id: string, width: number, height: number) =>
     saveWidgets(widgets.map((w) => (w.id === id ? { ...w, width, height } : w)));
+
+  const canvasHeight = computeCanvasHeight(
+    widgets.map((w) => ({ y: w.y ?? 0, height: w.height ?? DEFAULT_WIDGET_HEIGHT })),
+  );
 
   return (
     <div className={styles.page}>
@@ -164,7 +183,10 @@ function TrendsEditor() {
         {widgets.length === 0 ? (
           <p className={styles.emptyCanvas}>Open the menu to add data and build your trends dashboard.</p>
         ) : (
-          <div className={`${styles.widgetGrid} ${isResizing ? styles.widgetGridSnap : ""}`}>
+          <div
+            className={`${styles.widgetGrid} ${isResizing ? styles.widgetGridSnap : ""}`}
+            style={{ height: canvasHeight }}
+          >
             {widgets.map((widget) => (
               <TrendsWidget
                 key={widget.id}
@@ -173,6 +195,7 @@ function TrendsEditor() {
                 days={data.days}
                 onViewTypeChange={(viewType) => handleViewTypeChange(widget.id, viewType)}
                 onColorChange={(color) => handleColorChange(widget.id, color)}
+                onMove={(x, y) => handleMove(widget.id, x, y)}
                 onResize={(width, height) => handleResize(widget.id, width, height)}
                 onResizingChange={setIsResizing}
                 onRemove={() => handleRemove(widget.id)}

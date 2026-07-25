@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useCanvasItem } from "../../utils/useCanvasItem";
 import type { TrendMetricDef } from "./useTrendsData";
 import type { TrendsWidgetConfig, TrendsViewType } from "./types";
 import {
@@ -34,6 +35,7 @@ interface TrendsWidgetProps {
   days: string[];
   onViewTypeChange: (viewType: TrendsViewType) => void;
   onColorChange: (color: string) => void;
+  onMove: (x: number, y: number) => void;
   onResize: (width: number, height: number) => void;
   onResizingChange: (resizing: boolean) => void;
   onRemove: () => void;
@@ -49,16 +51,13 @@ const VIEW_LABEL: Record<TrendsViewType, string> = {
 const HEADER_HEIGHT = 40;
 const CONTENT_PADDING = 32;
 
-function snapToGrid(value: number): number {
-  return Math.round(value / WIDGET_GRID_SIZE) * WIDGET_GRID_SIZE;
-}
-
 export default function TrendsWidget({
   widget,
   metric,
   days,
   onViewTypeChange,
   onColorChange,
+  onMove,
   onResize,
   onResizingChange,
   onRemove,
@@ -100,23 +99,28 @@ export default function TrendsWidget({
   const capWidth = isMobile && !isCalendar ? MOBILE_CAP_WIDTH : Infinity;
   const capHeight = isMobile && !isCalendar ? MOBILE_CAP_HEIGHT : Infinity;
 
-  const [size, setSize] = useState({
-    width: Math.max(minWidth, Math.min(widget.width ?? defaultWidth, capWidth)),
-    height: Math.max(minHeight, Math.min(widget.height ?? defaultHeight, capHeight)),
+  const { rect, handleDragPointerDown, handleResizePointerDown, applyResize } = useCanvasItem({
+    initial: {
+      x: widget.x ?? 0,
+      y: widget.y ?? 0,
+      width: Math.max(minWidth, Math.min(widget.width ?? defaultWidth, capWidth)),
+      height: Math.max(minHeight, Math.min(widget.height ?? defaultHeight, capHeight)),
+    },
+    minWidth,
+    minHeight,
+    gridSize: WIDGET_GRID_SIZE,
+    onMove,
+    onResize,
+    onDraggingChange: onResizingChange,
   });
-  const resizeStart = useRef<{ pointerX: number; pointerY: number; width: number; height: number } | null>(null);
-  const liveSize = useRef(size);
 
   // Switching view type to Calendar mid-session needs more room than a
   // stat widget's default - bump up (and persist) if the current size is
   // below the calendar minimum, matching what a freshly-added calendar
   // widget would get.
   useEffect(() => {
-    if (isCalendar && (size.width < minWidth || size.height < minHeight)) {
-      const next = { width: Math.max(size.width, defaultWidth), height: Math.max(size.height, defaultHeight) };
-      liveSize.current = next;
-      setSize(next);
-      onResize(next.width, next.height);
+    if (isCalendar && (rect.width < minWidth || rect.height < minHeight)) {
+      applyResize(Math.max(rect.width, defaultWidth), Math.max(rect.height, defaultHeight));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCalendar]);
@@ -135,59 +139,21 @@ export default function TrendsWidget({
     return () => document.removeEventListener("pointerdown", handleOutside);
   }, [selected]);
 
-  const handleResizePointerDown = (e: React.PointerEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-
-    resizeStart.current = { pointerX: e.clientX, pointerY: e.clientY, width: size.width, height: size.height };
-    onResizingChange(true);
-
-    const previousBodyOverflow = document.body.style.overflow;
-    const previousBodyTouchAction = document.body.style.touchAction;
-    document.body.style.overflow = "hidden";
-    document.body.style.touchAction = "none";
-
-    const handleMove = (moveEvent: PointerEvent) => {
-      if (!resizeStart.current) return;
-      moveEvent.preventDefault();
-      const dx = moveEvent.clientX - resizeStart.current.pointerX;
-      const dy = moveEvent.clientY - resizeStart.current.pointerY;
-      const next = {
-        width: Math.max(minWidth, snapToGrid(resizeStart.current.width + dx)),
-        height: Math.max(minHeight, snapToGrid(resizeStart.current.height + dy)),
-      };
-      liveSize.current = next;
-      setSize(next);
-    };
-
-    const finish = () => {
-      resizeStart.current = null;
-      onResizingChange(false);
-      document.body.style.overflow = previousBodyOverflow;
-      document.body.style.touchAction = previousBodyTouchAction;
-      window.removeEventListener("pointermove", handleMove);
-      window.removeEventListener("pointerup", finish);
-      window.removeEventListener("pointercancel", finish);
-      onResize(Math.round(liveSize.current.width), Math.round(liveSize.current.height));
-    };
-
-    window.addEventListener("pointermove", handleMove, { passive: false });
-    window.addEventListener("pointerup", finish);
-    window.addEventListener("pointercancel", finish);
-  };
-
   const color = widget.color ?? DEFAULT_TRENDS_COLOR;
-  const contentHeight = Math.max(24, size.height - HEADER_HEIGHT - CONTENT_PADDING);
+  const contentHeight = Math.max(24, rect.height - HEADER_HEIGHT - CONTENT_PADDING);
 
   return (
     <div
       ref={widgetRef}
-      style={{ width: size.width, height: size.height }}
+      style={{ position: "absolute", left: rect.x, top: rect.y, width: rect.width, height: rect.height }}
       className={styles.widget}
       data-selected={selected || undefined}
       onPointerDownCapture={() => setSelected(true)}
     >
       <div className={styles.header}>
+        <div className={styles.dragHandle} onPointerDown={handleDragPointerDown} role="button" tabIndex={0} aria-label="Drag to move">
+          ⠿
+        </div>
         <span className={styles.label}>{widget.label}</span>
         <div className={styles.controls}>
           <input

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { GOAL_METRIC_IDS, type Goals } from "./types";
 import { useUnits } from "../../context/UnitsContext";
-import { convertTrendMetric } from "../../utils/units";
+import { convertTrendMetric, convertValueUnit } from "../../utils/units";
 import { computeBmi } from "../../utils/bmi";
 
 export type TrendMetricDef = {
@@ -188,6 +188,15 @@ export function useTrendsData(): TrendsDataState {
         // the exact Apple Health field name for a given nutrient can vary
         // by source app - falls back gracefully to "no data" if none match.
         const weightKey = findHealthKey(healthCatalog, [/weight|body_mass/i]);
+        // Apple Health may export weight in lb or kg depending on the
+        // athlete's device unit settings - both metrics below need real
+        // kilograms, so normalize using the catalog's own unit rather than
+        // assuming the raw stored number is already kg.
+        const weightUnit = healthCatalog.find((c) => c.name === weightKey)?.unit ?? "kg";
+        const weightKg = (date: string): number | null => {
+          const raw = weightKey ? healthHistory[date]?.[weightKey]?.value : null;
+          return raw == null ? null : convertValueUnit(raw, weightUnit, "metric").value;
+        };
         const proteinKey = findHealthKey(healthCatalog, [/^protein$/i]);
         const fatKey = findHealthKey(healthCatalog, [/^total_fat$/i, /fat/i]);
         const carbsKey = findHealthKey(healthCatalog, [/carbohydrate/i]);
@@ -209,8 +218,8 @@ export function useTrendsData(): TrendsDataState {
             aggregation: "avg",
             getValue: (date) => {
               if (!heightCm) return null;
-              const weightKg = healthHistory[date]?.[weightKey]?.value;
-              return weightKg == null ? null : computeBmi(weightKg, heightCm);
+              const kg = weightKg(date);
+              return kg == null ? null : computeBmi(kg, heightCm);
             },
           });
         }
@@ -224,7 +233,7 @@ export function useTrendsData(): TrendsDataState {
             aggregation: "avg",
             isGoal: true,
             goalDirection: "target",
-            getValue: (date) => (weightKey ? (healthHistory[date]?.[weightKey]?.value ?? null) : null),
+            getValue: (date) => weightKg(date),
             getGoal: () => goals.weightKg ?? null,
           },
           {

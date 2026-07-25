@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { WHOOP_STRAIN_RECOVERY_COMBO_ID, WHOOP_RINGS_COMBO_ID } from "./types";
 import { useUnits } from "../../context/UnitsContext";
-import { convertMetricSeries } from "../../utils/units";
+import { convertMetricSeries, convertValueUnit } from "../../utils/units";
 import { computeBmi, findWeightMetricName } from "../../utils/bmi";
 
 export type SeriesPoint = { date: string; value: number };
@@ -169,12 +169,19 @@ export function useDashboardData(): DashboardDataState {
         // entirely until height was already configured left it undiscoverable.
         const heightCm = settingsBody?.settings?.heightCm as number | undefined;
         const weightName = findWeightMetricName(catalog);
+        // Apple Health may export weight in lb or kg depending on the
+        // athlete's device unit settings - BMI math needs real kilograms
+        // regardless of that, so normalize using the catalog's own unit
+        // rather than assuming the raw stored number is already kg.
+        const weightUnit = catalog.find((c) => c.name === weightName)?.unit ?? "kg";
         if (weightName) {
           const bmiSeries: SeriesPoint[] = heightCm
             ? dates
                 .map((date) => {
-                  const weightKg = history[date][weightName]?.value;
-                  return weightKg == null ? null : { date, value: computeBmi(weightKg, heightCm) };
+                  const weightRaw = history[date][weightName]?.value;
+                  if (weightRaw == null) return null;
+                  const weightKg = convertValueUnit(weightRaw, weightUnit, "metric").value;
+                  return { date, value: computeBmi(weightKg, heightCm) };
                 })
                 .filter((p): p is SeriesPoint => p != null)
             : [];

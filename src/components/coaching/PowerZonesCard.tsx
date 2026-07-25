@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Link } from "react-router-dom";
 import type { CoachingSettings, RideZoneClassification } from "./types";
 import { computePowerZones } from "./powerZones";
 import { formatDate } from "../../utils/formatDate";
@@ -6,51 +6,22 @@ import styles from "./PowerZonesCard.module.css";
 
 interface PowerZonesCardProps {
   settings: CoachingSettings;
-  onSaveSettings: (next: CoachingSettings) => Promise<void>;
   recentRides: RideZoneClassification[];
 }
 
-export default function PowerZonesCard({ settings, onSaveSettings, recentRides }: PowerZonesCardProps) {
-  const [ftpInput, setFtpInput] = useState(settings.ftpWatts?.toString() ?? "");
-  const [saving, setSaving] = useState(false);
-
+export default function PowerZonesCard({ settings, recentRides }: PowerZonesCardProps) {
   const ftp = settings.ftpWatts ?? null;
   const zones = computePowerZones(ftp);
-
-  const handleSaveFtp = async () => {
-    setSaving(true);
-    try {
-      await onSaveSettings({ ...settings, ftpWatts: ftpInput === "" ? undefined : Number(ftpInput) });
-    } finally {
-      setSaving(false);
-    }
-  };
 
   return (
     <div className={styles.card}>
       <span className={styles.eyebrow}>Power zones</span>
 
-      <div className={styles.ftpRow}>
-        <label className={styles.ftpLabel}>
-          FTP
-          <input
-            type="number"
-            className={styles.ftpInput}
-            value={ftpInput}
-            onChange={(e) => setFtpInput(e.target.value)}
-            placeholder="watts"
-          />
-        </label>
-        <button type="button" className={styles.saveButton} onClick={handleSaveFtp} disabled={saving}>
-          {saving ? "Saving…" : "Save"}
-        </button>
-      </div>
-
       {ftp == null ? (
         <p className={styles.empty}>
-          Set your FTP to see your zones and have recent rides classified against them. There's no way to auto-detect
-          FTP from the data available here (that needs second-by-second power data, which isn't part of Strava's
-          summary API) - enter your own best estimate.
+          Set your FTP in <Link to="/dashboard/settings">Settings</Link> to see your zones and have recent rides
+          classified against them. There's no way to auto-detect FTP from the data available here (that needs
+          second-by-second power data, which isn't part of Strava's summary API) - enter your own best estimate.
         </p>
       ) : (
         <>

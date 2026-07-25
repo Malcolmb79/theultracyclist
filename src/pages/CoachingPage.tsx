@@ -141,7 +141,7 @@ function CoachingView() {
             onResize={(w, h) => handleResize("powerZones", w, h)}
             onResizingChange={setIsResizing}
           >
-            <PowerZonesCard settings={data.settings} onSaveSettings={data.saveSettings} recentRides={data.recentRides} />
+            <PowerZonesCard settings={data.settings} recentRides={data.recentRides} />
           </CoachingWidget>
         </main>
       )}

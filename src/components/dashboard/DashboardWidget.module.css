@@ -228,3 +228,18 @@
   color: var(--color-text-muted);
   margin-bottom: var(--space-1);
 }
+
+/* Compact mode: tighter padding/gaps/text so more widgets fit without
+   excess chrome eating into a phone's limited width. Actual widget
+   width/height compression happens in DashboardWidget.tsx via
+   useIsMobile(); this just trims the surrounding chrome to match. */
+@media (max-width: 640px) {
+  .widget {
+    padding: var(--space-2) var(--space-3);
+    gap: var(--space-1);
+  }
+
+  .label {
+    font-size: 0.85rem;
+  }
+}

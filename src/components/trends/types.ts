@@ -23,6 +23,22 @@ export const MIN_CALENDAR_WIDTH = 420;
 export const MIN_CALENDAR_HEIGHT = 420;
 export const WIDGET_GRID_SIZE = 20;
 
+// Mobile-scaled sizing, mirroring the main dashboard's approach: smaller
+// defaults/minimums for newly-added widgets, plus a cap that visually
+// compresses an already-desktop-sized saved widget on a phone screen
+// without touching the saved value itself.
+export const MOBILE_DEFAULT_WIDGET_WIDTH = 140;
+export const MOBILE_DEFAULT_WIDGET_HEIGHT = 120;
+export const MOBILE_MIN_WIDGET_WIDTH = 140;
+export const MOBILE_MIN_WIDGET_HEIGHT = 110;
+export const MOBILE_CAP_WIDTH = 170;
+export const MOBILE_CAP_HEIGHT = 150;
+
+export const MOBILE_DEFAULT_CALENDAR_WIDTH = 340;
+export const MOBILE_DEFAULT_CALENDAR_HEIGHT = 380;
+export const MOBILE_MIN_CALENDAR_WIDTH = 300;
+export const MOBILE_MIN_CALENDAR_HEIGHT = 320;
+
 export type Goals = {
   weightKg?: number;
   sleepHours?: number;

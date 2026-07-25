@@ -11,8 +11,19 @@ import {
   DEFAULT_CALENDAR_HEIGHT,
   MIN_CALENDAR_WIDTH,
   MIN_CALENDAR_HEIGHT,
+  MOBILE_DEFAULT_WIDGET_WIDTH,
+  MOBILE_DEFAULT_WIDGET_HEIGHT,
+  MOBILE_MIN_WIDGET_WIDTH,
+  MOBILE_MIN_WIDGET_HEIGHT,
+  MOBILE_CAP_WIDTH,
+  MOBILE_CAP_HEIGHT,
+  MOBILE_DEFAULT_CALENDAR_WIDTH,
+  MOBILE_DEFAULT_CALENDAR_HEIGHT,
+  MOBILE_MIN_CALENDAR_WIDTH,
+  MOBILE_MIN_CALENDAR_HEIGHT,
   WIDGET_GRID_SIZE,
 } from "./types";
+import { useIsMobile } from "../../utils/useIsMobile";
 import { aggregateValue, isGoalMet, today } from "./aggregate";
 import CalendarView from "./CalendarView";
 import styles from "./TrendsWidget.module.css";
@@ -53,14 +64,45 @@ export default function TrendsWidget({
   onRemove,
 }: TrendsWidgetProps) {
   const isCalendar = widget.viewType === "calendar";
-  const minWidth = isCalendar ? MIN_CALENDAR_WIDTH : MIN_WIDGET_WIDTH;
-  const minHeight = isCalendar ? MIN_CALENDAR_HEIGHT : MIN_WIDGET_HEIGHT;
-  const defaultWidth = isCalendar ? DEFAULT_CALENDAR_WIDTH : DEFAULT_WIDGET_WIDTH;
-  const defaultHeight = isCalendar ? DEFAULT_CALENDAR_HEIGHT : DEFAULT_WIDGET_HEIGHT;
+  const isMobile = useIsMobile();
+
+  const minWidth = isCalendar
+    ? isMobile
+      ? MOBILE_MIN_CALENDAR_WIDTH
+      : MIN_CALENDAR_WIDTH
+    : isMobile
+      ? MOBILE_MIN_WIDGET_WIDTH
+      : MIN_WIDGET_WIDTH;
+  const minHeight = isCalendar
+    ? isMobile
+      ? MOBILE_MIN_CALENDAR_HEIGHT
+      : MIN_CALENDAR_HEIGHT
+    : isMobile
+      ? MOBILE_MIN_WIDGET_HEIGHT
+      : MIN_WIDGET_HEIGHT;
+  const defaultWidth = isCalendar
+    ? isMobile
+      ? MOBILE_DEFAULT_CALENDAR_WIDTH
+      : DEFAULT_CALENDAR_WIDTH
+    : isMobile
+      ? MOBILE_DEFAULT_WIDGET_WIDTH
+      : DEFAULT_WIDGET_WIDTH;
+  const defaultHeight = isCalendar
+    ? isMobile
+      ? MOBILE_DEFAULT_CALENDAR_HEIGHT
+      : DEFAULT_CALENDAR_HEIGHT
+    : isMobile
+      ? MOBILE_DEFAULT_WIDGET_HEIGHT
+      : DEFAULT_WIDGET_HEIGHT;
+  // A stat widget already sized for desktop shows visually compressed on
+  // mobile (the saved width/height itself is untouched) - calendar is
+  // exempt since it needs more room than the cap to stay legible.
+  const capWidth = isMobile && !isCalendar ? MOBILE_CAP_WIDTH : Infinity;
+  const capHeight = isMobile && !isCalendar ? MOBILE_CAP_HEIGHT : Infinity;
 
   const [size, setSize] = useState({
-    width: Math.max(minWidth, widget.width ?? defaultWidth),
-    height: Math.max(minHeight, widget.height ?? defaultHeight),
+    width: Math.max(minWidth, Math.min(widget.width ?? defaultWidth, capWidth)),
+    height: Math.max(minHeight, Math.min(widget.height ?? defaultHeight, capHeight)),
   });
   const resizeStart = useRef<{ pointerX: number; pointerY: number; width: number; height: number } | null>(null);
   const liveSize = useRef(size);
@@ -70,8 +112,8 @@ export default function TrendsWidget({
   // below the calendar minimum, matching what a freshly-added calendar
   // widget would get.
   useEffect(() => {
-    if (isCalendar && (size.width < MIN_CALENDAR_WIDTH || size.height < MIN_CALENDAR_HEIGHT)) {
-      const next = { width: Math.max(size.width, DEFAULT_CALENDAR_WIDTH), height: Math.max(size.height, DEFAULT_CALENDAR_HEIGHT) };
+    if (isCalendar && (size.width < minWidth || size.height < minHeight)) {
+      const next = { width: Math.max(size.width, defaultWidth), height: Math.max(size.height, defaultHeight) };
       liveSize.current = next;
       setSize(next);
       onResize(next.width, next.height);

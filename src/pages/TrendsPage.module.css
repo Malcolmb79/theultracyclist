@@ -139,9 +139,20 @@
   background-position: -1px -1px;
 }
 
-@media (max-width: 500px) {
-  .widgetGrid > * {
-    width: 100% !important;
+/* Compact mode: widgets already shrink themselves (see useIsMobile in
+   TrendsWidget.tsx), this just tightens the surrounding chrome so more
+   fits on a phone screen without excess padding eating into it. */
+@media (max-width: 640px) {
+  .page {
+    padding: calc(var(--space-4) + 56px) var(--space-2) var(--space-3);
+  }
+
+  .widgetGrid {
+    gap: var(--space-2);
+  }
+
+  .catalogDrawer {
+    padding: calc(var(--space-3) + 56px) var(--space-2) var(--space-3);
   }
 }
 

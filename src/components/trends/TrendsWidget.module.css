@@ -147,3 +147,22 @@
 .resizeHandle:hover {
   color: var(--color-accent-2);
 }
+
+/* Compact mode: tighter padding/text so more widgets fit without excess
+   chrome eating into a phone's limited width. Actual widget width/height
+   compression happens in TrendsWidget.tsx via useIsMobile(); this just
+   trims the surrounding chrome and text to match. */
+@media (max-width: 640px) {
+  .widget {
+    padding: var(--space-2) var(--space-3);
+    gap: var(--space-1);
+  }
+
+  .label {
+    font-size: 0.8rem;
+  }
+
+  .statValue {
+    font-size: 1.5rem;
+  }
+}

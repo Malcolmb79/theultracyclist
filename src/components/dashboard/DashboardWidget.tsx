@@ -3,6 +3,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { formatDate } from "../../utils/formatDate";
 import { recoveryColor } from "../../utils/recoveryColor";
+import { useIsMobile } from "../../utils/useIsMobile";
 import StatTile from "../shared/StatTile";
 import TrendChart, { TREND_CHART_LABEL_TOP_PAD, TREND_CHART_LABEL_BOTTOM_PAD } from "../recovery/TrendChart";
 import RingGauge from "./RingGauge";
@@ -16,6 +17,12 @@ import {
   DEFAULT_WIDGET_COLOR,
   MIN_WIDGET_WIDTH,
   MIN_WIDGET_HEIGHT,
+  MOBILE_DEFAULT_WIDGET_WIDTH,
+  MOBILE_DEFAULT_WIDGET_HEIGHT,
+  MOBILE_MIN_WIDGET_WIDTH,
+  MOBILE_MIN_WIDGET_HEIGHT,
+  MOBILE_CAP_WIDTH,
+  MOBILE_CAP_HEIGHT,
   WIDGET_GRID_SIZE,
   type Widget,
 } from "./types";
@@ -112,13 +119,27 @@ export default function DashboardWidget({
   const detailKind = DETAIL_KIND_BY_METRIC[widget.metric];
   const [openDetail, setOpenDetail] = useState<WhoopDetailKind | null>(null);
   const metric = isCombo || isRings ? undefined : metricById.get(widget.metric);
+  const isMobile = useIsMobile();
 
-  const minHeight = isCombo ? MIN_COMBO_HEIGHT : isRings ? MIN_RINGS_HEIGHT : MIN_WIDGET_HEIGHT;
-  const minWidth = isRings ? MIN_RINGS_WIDTH : MIN_WIDGET_WIDTH;
+  const minHeight = isCombo
+    ? MIN_COMBO_HEIGHT
+    : isRings
+      ? MIN_RINGS_HEIGHT
+      : isMobile
+        ? MOBILE_MIN_WIDGET_HEIGHT
+        : MIN_WIDGET_HEIGHT;
+  const minWidth = isRings ? MIN_RINGS_WIDTH : isMobile ? MOBILE_MIN_WIDGET_WIDTH : MIN_WIDGET_WIDTH;
+  const defaultWidth = isMobile ? MOBILE_DEFAULT_WIDGET_WIDTH : DEFAULT_WIDGET_WIDTH;
+  const defaultHeight = isMobile ? MOBILE_DEFAULT_WIDGET_HEIGHT : DEFAULT_WIDGET_HEIGHT;
+  // A widget already sized for desktop shows visually compressed on mobile
+  // (the saved width/height itself is untouched) - combo/rings are exempt
+  // since they need more room than the cap to render their sub-content.
+  const capWidth = isMobile && !isRings ? MOBILE_CAP_WIDTH : Infinity;
+  const capHeight = isMobile && !isCombo && !isRings ? MOBILE_CAP_HEIGHT : Infinity;
 
   const [size, setSize] = useState({
-    width: Math.max(minWidth, widget.width ?? DEFAULT_WIDGET_WIDTH),
-    height: Math.max(minHeight, widget.height ?? DEFAULT_WIDGET_HEIGHT),
+    width: Math.max(minWidth, Math.min(widget.width ?? defaultWidth, capWidth)),
+    height: Math.max(minHeight, Math.min(widget.height ?? defaultHeight, capHeight)),
   });
   const resizeStart = useRef<{ pointerX: number; pointerY: number; width: number; height: number } | null>(null);
   const liveSize = useRef(size);

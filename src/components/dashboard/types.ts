@@ -13,6 +13,23 @@ export const DEFAULT_WIDGET_WIDTH = 340;
 export const DEFAULT_WIDGET_HEIGHT = 240;
 export const MIN_WIDGET_WIDTH = 240;
 export const MIN_WIDGET_HEIGHT = 160;
+
+// Smaller sizing used when useIsMobile() is true, so widgets default to
+// something that fits a phone screen without excessive scrolling, and can
+// wrap multiple-per-row instead of each one claiming the full width.
+export const MOBILE_DEFAULT_WIDGET_WIDTH = 160;
+export const MOBILE_DEFAULT_WIDGET_HEIGHT = 140;
+export const MOBILE_MIN_WIDGET_WIDTH = 140;
+export const MOBILE_MIN_WIDGET_HEIGHT = 110;
+// A widget already sized for desktop (e.g. a saved 340px-wide stat tile)
+// gets visually capped down to this on mobile rather than staying at its
+// desktop size - the saved value itself is untouched, so switching back to
+// a wider screen restores it. Only applies to plain stat/ring/chart/
+// timeline widgets; combo/rings need more room than this to render at all,
+// so they keep their own (larger) minimum uncapped.
+export const MOBILE_CAP_WIDTH = 220;
+export const MOBILE_CAP_HEIGHT = 200;
+
 export const DEFAULT_WIDGET_COLOR = "#2ee6a6";
 export const WIDGET_GRID_SIZE = 20;
 

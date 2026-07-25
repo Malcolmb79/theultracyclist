@@ -25,3 +25,18 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
+
+@media (max-width: 640px) {
+  .tile {
+    padding: var(--space-2);
+  }
+
+  .value {
+    font-size: clamp(1.4rem, 5vw, 2.75rem);
+  }
+
+  .label {
+    margin-top: var(--space-1);
+    font-size: 0.7rem;
+  }
+}

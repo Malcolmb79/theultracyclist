@@ -18,7 +18,7 @@ export default function RingGauge({ percent, color, centerValue, label, pixelSiz
   const offset = CIRCUMFERENCE * (1 - clamped / 100);
 
   return (
-    <div className={styles.wrap}>
+    <div className={styles.wrap} style={pixelSize ? { width: pixelSize } : undefined}>
       <svg
         viewBox={`0 0 ${SIZE} ${SIZE}`}
         className={styles.svg}

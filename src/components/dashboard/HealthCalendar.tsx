@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { recoveryColor } from "../../utils/recoveryColor";
 import { bmiCategoryColor, formatWeight } from "../../utils/bmi";
+import { irelandDateStr, irelandTodayDateStr } from "../../utils/irelandDate";
 import HealthDayDetailModal, { type HealthCalendarDay } from "./HealthDayDetailModal";
 import styles from "./HealthCalendar.module.css";
 
@@ -20,10 +21,6 @@ const WEEKDAY_ROW_HEIGHT = 16;
 const LEGEND_ROW_HEIGHT = 20;
 const GRID_GAP = 3;
 
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 function shiftMonth(monthKey: string, delta: number): string {
   const [year, month] = monthKey.split("-").map(Number);
   const d = new Date(Date.UTC(year, month - 1 + delta, 1));
@@ -39,11 +36,16 @@ interface HealthCalendarProps {
 }
 
 export default function HealthCalendar({ whoopHistory, weightByDate, weightUnit, bmiByDate, height }: HealthCalendarProps) {
-  const [monthKey, setMonthKey] = useState(() => today().slice(0, 7));
+  const [monthKey, setMonthKey] = useState(() => irelandTodayDateStr().slice(0, 7));
   const [openDate, setOpenDate] = useState<string | null>(null);
   const [year, month] = monthKey.split("-").map(Number);
 
-  const byDate = new Map(whoopHistory.map((d) => [d.date.slice(0, 10), d]));
+  // d.date is Whoop's cycle-start timestamp (full ISO, UTC) - a raw
+  // .slice(0, 10) reads the UTC calendar day, which is wrong for roughly
+  // the first hour of every Irish day during BST (Irish midnight is 23:00
+  // UTC the previous day), showing that cycle one day earlier than it
+  // actually falls on locally.
+  const byDate = new Map(whoopHistory.map((d) => [irelandDateStr(new Date(d.date)), d]));
 
   const firstWeekday = new Date(Date.UTC(year, month - 1, 1)).getUTCDay();
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();

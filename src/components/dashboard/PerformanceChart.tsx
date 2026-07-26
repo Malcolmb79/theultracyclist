@@ -39,13 +39,11 @@ function fmt(value: number | null): string {
 
 // CTL ("fitness") is colored by band rather than a single fixed color, so
 // the line itself shows where the athlete's fitness actually stands: red
-// below 30 (low), amber from 60 up to 90 (building well), green at 90+
-// (peak). 30-60 has no strong signal either way, so it stays neutral.
+// below 30 (low), amber from 30 to 60 (building), green at 60+ (strong).
 function ctlColorFor(ctl: number): string {
   if (ctl < 30) return "var(--color-accent)";
-  if (ctl >= 90) return "var(--color-accent-2)";
-  if (ctl >= 60) return "var(--color-amber)";
-  return "var(--color-text-muted)";
+  if (ctl < 60) return "var(--color-amber)";
+  return "var(--color-accent-2)";
 }
 
 // Standard "nice round number" tick step so the Y-axis reads 0/10/20/... or

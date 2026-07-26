@@ -94,7 +94,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
-    const body = (req.body ?? {}) as LiveTrackerConfig & { resetHistory?: boolean };
+    const body = (req.body ?? {}) as LiveTrackerConfig & { resetHistory?: boolean; seedHistory?: PositionPoint[] };
     const config: LiveTrackerConfig = {
       gpxUrl: body.gpxUrl,
       positionFeedUrl: body.positionFeedUrl,
@@ -103,6 +103,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
     await setJSON(CONFIG_KEY, config);
     if (body.resetHistory) await setJSON(HISTORY_KEY, []);
+    // Test/demo data (Settings' "Simulate a test run") - overwrites rather
+    // than merges, since it's meant to replace whatever's there with a
+    // fresh synthetic run, not blend with real device data.
+    if (body.seedHistory) await setJSON(HISTORY_KEY, body.seedHistory);
     res.status(200).json({ ok: true });
     return;
   }
@@ -129,7 +133,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const result: LiveTrackerPublicResult = {
-    configured: Boolean(config.gpxUrl && config.positionFeedUrl && config.targetSeconds),
+    // positionFeedUrl isn't required for the page to be worth showing - the
+    // page already handles position: null gracefully ("Waiting for
+    // position…"), and this also lets Settings' seeded test data render
+    // the full page before a real position feed exists.
+    configured: Boolean(config.gpxUrl && config.targetSeconds),
     gpxUrl: config.gpxUrl ?? null,
     targetSeconds: config.targetSeconds ?? null,
     startTime: config.startTime ?? null,

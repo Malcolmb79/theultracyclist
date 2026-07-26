@@ -5,6 +5,7 @@ import { useTheme, type ThemeMode } from "../context/ThemeContext";
 import { useDashboardTheme } from "../utils/useDashboardTheme";
 import { convertValueUnit, type UnitSystem } from "../utils/units";
 import { readImageFile } from "../utils/resizeImage";
+import { fetchGpxRoute } from "../utils/gpxRoute";
 import type { CoachingSettings } from "../components/coaching/types";
 import SignInGate from "../components/shared/SignInGate";
 import TabNav from "../components/shared/TabNav";
@@ -70,8 +71,8 @@ function SettingsEditor() {
   const [garminUrlInput, setGarminUrlInput] = useState("");
   const [gpxUrlInput, setGpxUrlInput] = useState("");
   const [positionFeedUrlInput, setPositionFeedUrlInput] = useState("");
-  const [targetHoursInput, setTargetHoursInput] = useState("");
-  const [targetMinutesInput, setTargetMinutesInput] = useState("");
+  const [targetHoursInput, setTargetHoursInput] = useState("17");
+  const [targetMinutesInput, setTargetMinutesInput] = useState("0");
   const [startTimeInput, setStartTimeInput] = useState("");
   const [liveTrackerStatus, setLiveTrackerStatus] = useState<string | null>(null);
   const [whoopStatus] = useState(whoopStatusFromQuery);
@@ -218,6 +219,62 @@ function SettingsEditor() {
         body: JSON.stringify(liveTrackerPayload({ resetHistory: true })),
       });
       setLiveTrackerStatus("Position history cleared - ready for a fresh start.");
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  // Generates a synthetic position history along the real configured route
+  // for testing the /live page before a real inReach device/feed exists -
+  // no positionFeedUrl needed, since this writes straight to the same
+  // position history the real feed would otherwise fill in. Paced slightly
+  // faster than the target so the page renders its "ahead of target" state.
+  const handleSimulateTestRun = async () => {
+    if (!gpxUrlInput.trim()) {
+      setLiveTrackerStatus("Add a route GPX URL first.");
+      return;
+    }
+    setSaving("liveTracker");
+    setLiveTrackerStatus(null);
+    try {
+      const route = await fetchGpxRoute(gpxUrlInput.trim());
+      const totalKm = route.length > 0 ? route[route.length - 1].distanceKm : 0;
+      if (totalKm === 0) throw new Error("empty route");
+
+      const targetSeconds = (Number(targetHoursInput) || 17) * 3600 + (Number(targetMinutesInput) || 0) * 60;
+      const requiredKmh = totalKm / (targetSeconds / 3600);
+      const simulatedKmh = requiredKmh * 1.08; // slightly quicker than target pace
+
+      const progressFraction = 0.4; // a mid-attempt snapshot, not finished and not just started
+      const targetKm = totalKm * progressFraction;
+      // Back-dated start time so "now" lines up with this much progress at
+      // the simulated pace - otherwise elapsed time (now - startTime)
+      // wouldn't match how far the simulated run has actually gone.
+      const startMs = Date.now() - (targetKm / simulatedKmh) * 3_600_000;
+
+      const points: { lat: number; lon: number; timestamp: number }[] = [];
+      let lastSampledKm = -Infinity;
+      for (const p of route) {
+        if (p.distanceKm > targetKm) break;
+        if (p.distanceKm - lastSampledKm < 3) continue;
+        points.push({ lat: p.lat, lon: p.lon, timestamp: startMs + (p.distanceKm / simulatedKmh) * 3_600_000 });
+        lastSampledKm = p.distanceKm;
+      }
+
+      await fetch("/api/live-tracker", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...liveTrackerPayload(),
+          targetSeconds,
+          startTime: new Date(startMs).toISOString(),
+          seedHistory: points,
+        }),
+      });
+      setStartTimeInput(toDatetimeLocalValue(new Date(startMs).toISOString()));
+      setLiveTrackerStatus(`Seeded a simulated run - ${points.length} points, ~${Math.round(progressFraction * 100)}% through, running ahead of target pace.`);
+    } catch {
+      setLiveTrackerStatus("Couldn't generate test data - make sure the route GPX URL is public and valid.");
     } finally {
       setSaving(null);
     }
@@ -563,6 +620,14 @@ function SettingsEditor() {
               disabled={saving === "liveTracker"}
             >
               {saving === "liveTracker" ? "Saving…" : "Save"}
+            </button>
+            <button
+              type="button"
+              className={styles.removeButton}
+              onClick={handleSimulateTestRun}
+              disabled={saving === "liveTracker"}
+            >
+              Simulate a test run
             </button>
             <button
               type="button"

@@ -47,6 +47,15 @@ function whoopStatusFromQuery(): "connected" | "failed" | null {
   return value === "connected" || value === "failed" ? value : null;
 }
 
+// <input type="datetime-local"> wants "YYYY-MM-DDTHH:mm" in the browser's
+// own local time, with no timezone suffix - converts a stored ISO string to
+// that shape (and back again on save via new Date(value).toISOString()).
+function toDatetimeLocalValue(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 function SettingsEditor() {
   const { system, setSystem } = useUnits();
   const { mode, setMode } = useTheme();
@@ -57,8 +66,14 @@ function SettingsEditor() {
   const [heightInput, setHeightInput] = useState("");
   const [distanceInput, setDistanceInput] = useState("");
   const [hoursInput, setHoursInput] = useState("");
-  const [saving, setSaving] = useState<"ftp" | "height" | "targets" | "garmin" | null>(null);
+  const [saving, setSaving] = useState<"ftp" | "height" | "targets" | "garmin" | "liveTracker" | null>(null);
   const [garminUrlInput, setGarminUrlInput] = useState("");
+  const [gpxUrlInput, setGpxUrlInput] = useState("");
+  const [positionFeedUrlInput, setPositionFeedUrlInput] = useState("");
+  const [targetHoursInput, setTargetHoursInput] = useState("");
+  const [targetMinutesInput, setTargetMinutesInput] = useState("");
+  const [startTimeInput, setStartTimeInput] = useState("");
+  const [liveTrackerStatus, setLiveTrackerStatus] = useState<string | null>(null);
   const [whoopStatus] = useState(whoopStatusFromQuery);
   const [pictureDataUrl, setPictureDataUrl] = useState<string | undefined>(undefined);
   const [pictureError, setPictureError] = useState<string | null>(null);
@@ -102,6 +117,31 @@ function SettingsEditor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/live-tracker")
+      .then((res) => res.json())
+      .then(
+        (body: {
+          gpxUrl: string | null;
+          positionFeedUrl?: string;
+          targetSeconds: number | null;
+          startTime: string | null;
+        }) => {
+          if (cancelled) return;
+          setGpxUrlInput(body.gpxUrl ?? "");
+          setPositionFeedUrlInput(body.positionFeedUrl ?? "");
+          setTargetHoursInput(body.targetSeconds != null ? Math.floor(body.targetSeconds / 3600).toString() : "");
+          setTargetMinutesInput(body.targetSeconds != null ? Math.floor((body.targetSeconds % 3600) / 60).toString() : "");
+          setStartTimeInput(body.startTime ? toDatetimeLocalValue(body.startTime) : "");
+        },
+      )
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const persist = async (next: CoachingSettings) => {
     await fetch("/api/coaching-settings", {
       method: "POST",
@@ -136,6 +176,48 @@ function SettingsEditor() {
     setSaving("garmin");
     try {
       await persist({ ...settings, garminLiveTrackUrl: garminUrlInput.trim() === "" ? undefined : garminUrlInput.trim() });
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const liveTrackerPayload = (extra?: { resetHistory: boolean }) => {
+    const hours = Number(targetHoursInput) || 0;
+    const minutes = Number(targetMinutesInput) || 0;
+    return {
+      gpxUrl: gpxUrlInput.trim() || undefined,
+      positionFeedUrl: positionFeedUrlInput.trim() || undefined,
+      targetSeconds: hours || minutes ? hours * 3600 + minutes * 60 : undefined,
+      startTime: startTimeInput ? new Date(startTimeInput).toISOString() : undefined,
+      ...extra,
+    };
+  };
+
+  const handleSaveLiveTracker = async () => {
+    setSaving("liveTracker");
+    setLiveTrackerStatus(null);
+    try {
+      await fetch("/api/live-tracker", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(liveTrackerPayload()),
+      });
+      setLiveTrackerStatus("Saved.");
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const handleResetLiveTrackerHistory = async () => {
+    setSaving("liveTracker");
+    setLiveTrackerStatus(null);
+    try {
+      await fetch("/api/live-tracker", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(liveTrackerPayload({ resetHistory: true })),
+      });
+      setLiveTrackerStatus("Position history cleared - ready for a fresh start.");
     } finally {
       setSaving(null);
     }
@@ -409,6 +491,88 @@ function SettingsEditor() {
           >
             {saving === "garmin" ? "Saving…" : "Save"}
           </button>
+        </div>
+
+        <div className={styles.section}>
+          <p className={styles.sectionTitle}>Live Tracker (public page)</p>
+          <p className={styles.sectionHint}>
+            Powers the public /live page followers watch during the attempt itself - separate from the Garmin
+            LiveTrack widget above. Set these once before the attempt starts.
+          </p>
+
+          <p className={styles.sectionHint} style={{ marginTop: "var(--space-2)" }}>
+            Route GPX URL (e.g. a Ride with GPS route&apos;s public .gpx export link)
+          </p>
+          <input
+            type="text"
+            className={styles.input}
+            value={gpxUrlInput}
+            onChange={(e) => setGpxUrlInput(e.target.value)}
+            placeholder="https://ridewithgps.com/routes/XXXXXXX.gpx"
+          />
+
+          <p className={styles.sectionHint} style={{ marginTop: "var(--space-2)" }}>
+            Garmin inReach MapShare KML feed URL (Explore/inReach account &rarr; Social &rarr; MapShare &rarr; Feeds)
+          </p>
+          <input
+            type="text"
+            className={styles.input}
+            value={positionFeedUrlInput}
+            onChange={(e) => setPositionFeedUrlInput(e.target.value)}
+            placeholder="https://share.garmin.com/Feed/Share/..."
+          />
+
+          <p className={styles.sectionHint} style={{ marginTop: "var(--space-2)" }}>
+            Target time
+          </p>
+          <div className={styles.inputRow}>
+            <input
+              type="number"
+              className={styles.input}
+              value={targetHoursInput}
+              onChange={(e) => setTargetHoursInput(e.target.value)}
+              placeholder="hours"
+            />
+            <span className={styles.inputUnit}>h</span>
+            <input
+              type="number"
+              className={styles.input}
+              value={targetMinutesInput}
+              onChange={(e) => setTargetMinutesInput(e.target.value)}
+              placeholder="minutes"
+            />
+            <span className={styles.inputUnit}>m</span>
+          </div>
+
+          <p className={styles.sectionHint} style={{ marginTop: "var(--space-2)" }}>
+            Attempt start time
+          </p>
+          <input
+            type="datetime-local"
+            className={styles.input}
+            value={startTimeInput}
+            onChange={(e) => setStartTimeInput(e.target.value)}
+          />
+
+          {liveTrackerStatus && <p className={styles.statusOk}>{liveTrackerStatus}</p>}
+          <div className={styles.pictureActions} style={{ marginTop: "var(--space-2)" }}>
+            <button
+              type="button"
+              className={styles.saveButton}
+              onClick={handleSaveLiveTracker}
+              disabled={saving === "liveTracker"}
+            >
+              {saving === "liveTracker" ? "Saving…" : "Save"}
+            </button>
+            <button
+              type="button"
+              className={styles.removeButton}
+              onClick={handleResetLiveTrackerHistory}
+              disabled={saving === "liveTracker"}
+            >
+              Reset position history
+            </button>
+          </div>
         </div>
       </div>
 

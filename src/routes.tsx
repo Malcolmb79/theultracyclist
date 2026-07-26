@@ -12,6 +12,7 @@ import DashboardPage from "./pages/DashboardPage";
 import TrendsPage from "./pages/TrendsPage";
 import CoachingPage from "./pages/CoachingPage";
 import SettingsPage from "./pages/SettingsPage";
+import LiveTrackerPage from "./pages/LiveTrackerPage";
 import NotFoundPage from "./pages/NotFoundPage";
 
 export const router = createBrowserRouter([
@@ -20,6 +21,10 @@ export const router = createBrowserRouter([
   { path: "/dashboard/trends", element: <TrendsPage /> },
   { path: "/dashboard/coaching", element: <CoachingPage /> },
   { path: "/dashboard/settings", element: <SettingsPage /> },
+  // Also standalone (own dark "mission control" look, no site nav/footer) -
+  // public and unauthenticated, unlike the /dashboard routes above, since
+  // it's meant to be shared with followers during the attempt itself.
+  { path: "/live", element: <LiveTrackerPage /> },
   {
     element: <Layout />,
     children: [

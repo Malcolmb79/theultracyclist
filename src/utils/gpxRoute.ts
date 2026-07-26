@@ -75,3 +75,33 @@ export function distanceCoveredKm(route: RoutePoint[], position: { lat: number; 
 export function totalDistanceKm(route: RoutePoint[]): number {
   return route.length > 0 ? route[route.length - 1].distanceKm : 0;
 }
+
+// Initial compass bearing (0-360, clockwise from true north) from a to b -
+// used below to find the route's direction of travel, and by the weather
+// widget's headwind/tailwind indicator.
+export function bearingDegrees(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
+  const lat1 = (a.lat * Math.PI) / 180;
+  const lat2 = (b.lat * Math.PI) / 180;
+  const dLon = ((b.lon - a.lon) * Math.PI) / 180;
+  const y = Math.sin(dLon) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
+
+// The route's own direction of travel at a given distance-covered point,
+// looked ahead ~1km so a short straight segment (or GPS jitter between two
+// adjacent points) doesn't produce a noisy bearing - used instead of a
+// bearing between the last two live position fixes, since MapShare pings
+// are infrequent and the route itself is far denser.
+export function courseBearingAtKm(route: RoutePoint[], km: number, lookAheadKm = 1): number | null {
+  if (route.length < 2) return null;
+  let startIdx = route.findIndex((p) => p.distanceKm >= km);
+  if (startIdx === -1) startIdx = route.length - 1;
+  if (startIdx === 0) startIdx = 1;
+  const start = route[startIdx - 1];
+  let endIdx = startIdx;
+  while (endIdx < route.length - 1 && route[endIdx].distanceKm - start.distanceKm < lookAheadKm) endIdx++;
+  const end = route[endIdx];
+  if (start.lat === end.lat && start.lon === end.lon) return null;
+  return bearingDegrees(start, end);
+}

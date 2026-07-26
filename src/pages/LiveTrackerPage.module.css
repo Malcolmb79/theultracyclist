@@ -71,39 +71,33 @@
   50% { opacity: 0.4; transform: scale(0.8); }
 }
 
-.statGrid {
+/* Drag/resize canvas for the widget layout - same shape as
+   CoachingPage.module.css's .canvas/.stackList/.canvasSnap, just themed to
+   this page's fixed dark palette instead of the light/dark CSS vars (this
+   page isn't theme-aware - see the top-of-file note). */
+.canvas {
+  position: relative;
+  min-width: 0;
   max-width: 1400px;
   margin: 0 auto;
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+}
+
+.stackList {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: wrap;
   gap: 12px;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
 }
 
-@media (max-width: 700px) {
-  .statGrid { grid-template-columns: repeat(2, 1fr); }
-}
-
-.statCard {
-  background: #13182a;
-  border: 1px solid #1e2538;
+.canvasSnap {
+  background-image:
+    repeating-linear-gradient(to right, #1e2538 0 1px, transparent 1px 20px),
+    repeating-linear-gradient(to bottom, #1e2538 0 1px, transparent 1px 20px);
+  background-position: -1px -1px;
   border-radius: 10px;
-  padding: 14px;
-}
-
-.statLabel {
-  font-size: 0.62rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: #6b7280;
-  margin: 0 0 8px;
-}
-
-.statValue {
-  font-family: var(--font-display);
-  font-size: 1.8rem;
-  color: #fff;
-  margin: 0;
 }
 
 .statUnit {
@@ -113,17 +107,56 @@
   margin-left: 3px;
 }
 
+.paceCard,
+.progressCard,
+.etaBox,
+.weatherCard {
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.paceCard {
+  background: #13182a;
+  border: 1px solid #1e2538;
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.paceGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.paceItem {
+  text-align: left;
+}
+
+.paceLabel {
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #6b7280;
+  margin: 0 0 6px;
+}
+
+.paceValue {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  color: #fff;
+  margin: 0;
+}
+
 .noTelemetryNote {
-  max-width: 1400px;
-  margin: 8px auto 0;
-  font-size: 0.72rem;
+  margin: 10px 0 0;
+  font-size: 0.68rem;
   color: #6b7280;
   font-style: italic;
 }
 
 .progressCard {
-  max-width: 1400px;
-  margin: 12px auto 0;
   background: #13182a;
   border: 1px solid #1e2538;
   border-radius: 10px;
@@ -192,30 +225,11 @@
   color: #fff;
 }
 
-.mainGrid {
-  max-width: 1400px;
-  margin: 12px auto 0;
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 12px;
-}
-
-@media (max-width: 900px) {
-  .mainGrid { grid-template-columns: 1fr; }
-}
-
 .mapWrap {
   position: relative;
   border-radius: 10px;
   overflow: hidden;
   border: 1px solid #1e2538;
-  min-height: 420px;
-}
-
-.sidePanel {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
 }
 
 .etaBox {
@@ -224,6 +238,9 @@
   border-radius: 10px;
   padding: 14px;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .etaLabel {
@@ -250,11 +267,40 @@
   border: 1px solid #1e2538;
   border-radius: 10px;
   padding: 14px;
-  flex: 1;
 }
 
 .weatherLine {
-  font-size: 0.95rem;
+  font-size: 1.4rem;
+  font-family: var(--font-display);
+  color: #fff;
+  margin: 4px 0 10px;
+}
+
+.windRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.windArrow {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  color: #60a5fa;
+  transition: transform 0.4s ease;
+}
+
+.windSpeed {
+  font-size: 1rem;
+  font-weight: 600;
   color: #fff;
   margin: 0;
+}
+
+.windClass {
+  font-size: 0.72rem;
+  color: #8b92a8;
+  margin: 2px 0 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }

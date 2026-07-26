@@ -1,0 +1,110 @@
+.widget {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.editable {
+  /* Same touch-selection fix applied to the dashboard/trends/coaching
+     widget canvases - a drag gesture on a touch device would otherwise also
+     trigger native text-selection UI. */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.stacked {
+  position: relative;
+  max-width: 100%;
+}
+
+.dragHandle {
+  position: absolute;
+  top: -12px;
+  left: 8px;
+  z-index: 2;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: #1e2538;
+  border: 1px solid #2a3350;
+  color: #8b92a8;
+  font-size: 0.9rem;
+  line-height: 1;
+  touch-action: none;
+  cursor: grab;
+}
+
+.dragHandle:active {
+  cursor: grabbing;
+}
+
+.controls {
+  position: absolute;
+  top: -12px;
+  right: 8px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.iconButton {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: #1e2538;
+  border: 1px solid #2a3350;
+  color: #e8ecf1;
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.iconButton:hover:not(:disabled) {
+  border-color: #60a5fa;
+}
+
+.iconButton:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.content {
+  flex: 1;
+  min-height: 0;
+}
+
+.content > * {
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.resizeHandle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 0 4px 4px 0;
+  color: #8b92a8;
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: nwse-resize;
+  touch-action: none;
+  overscroll-behavior: none;
+  z-index: 2;
+}
+
+.resizeHandle:hover {
+  color: #60a5fa;
+}

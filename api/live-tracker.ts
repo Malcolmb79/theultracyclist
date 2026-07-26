@@ -24,7 +24,16 @@ type LiveTrackerConfig = {
   // both are somehow set). See runSimulation below for how this turns into
   // an actually-advancing position over time.
   simulation?: { startedAtMs: number; kmh: number };
+  // Owner-set widget layout for the public page itself (drag/resize while
+  // signed in) - same shape/positions for every visitor, since this is
+  // Malcolm arranging how the public page looks, not a per-visitor
+  // preference. Public GET always returns it; only an authenticated POST
+  // can change it.
+  layout?: LiveTrackerLayout;
 };
+
+export type LiveTrackerRect = { x: number; y: number; width: number; height: number };
+export type LiveTrackerLayout = { order: string[]; rects: Record<string, LiveTrackerRect> };
 
 export type PositionPoint = { lat: number; lon: number; timestamp: number };
 type RouteInterpPoint = { lat: number; lon: number; distanceKm: number };
@@ -36,6 +45,11 @@ export type LiveTrackerPublicResult = {
   startTime: string | null;
   position: PositionPoint | null;
   history: PositionPoint[];
+  layout: LiveTrackerLayout | null;
+  // True when the request is authenticated - the /live page uses this to
+  // decide whether to render its widgets as draggable/resizable (only the
+  // owner can rearrange the public page) or as plain positioned cards.
+  isOwner: boolean;
   // Only present when the request is authenticated (Settings page editing
   // the config) - the public /live page never sees this, even though
   // MapShare URLs are meant to be shareable, out of caution.
@@ -236,13 +250,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
     const body = (req.body ?? {}) as LiveTrackerConfig & { resetHistory?: boolean };
-    const config: LiveTrackerConfig = {
-      gpxUrl: body.gpxUrl,
-      positionFeedUrl: body.positionFeedUrl,
-      targetSeconds: body.targetSeconds,
-      startTime: body.startTime,
-      simulation: body.simulation,
-    };
+    // Merge onto the existing stored config rather than replacing it
+    // wholesale - the /live page now POSTs layout-only updates on every
+    // drag/resize, and a full replace would silently wipe gpxUrl/
+    // positionFeedUrl/targetSeconds/startTime/simulation on every one of
+    // those. "field" in body distinguishes "not sent" from "explicitly
+    // cleared to undefined", same pattern as PATCH /api/transactions/:id.
+    const existing = (await getJSON<LiveTrackerConfig>(CONFIG_KEY)) ?? {};
+    const config: LiveTrackerConfig = { ...existing };
+    if ("gpxUrl" in body) config.gpxUrl = body.gpxUrl;
+    if ("positionFeedUrl" in body) config.positionFeedUrl = body.positionFeedUrl;
+    if ("targetSeconds" in body) config.targetSeconds = body.targetSeconds;
+    if ("startTime" in body) config.startTime = body.startTime;
+    if ("simulation" in body) config.simulation = body.simulation;
+    if ("layout" in body) config.layout = body.layout;
     await setJSON(CONFIG_KEY, config);
     if (body.resetHistory) {
       await setJSON(HISTORY_KEY, []);
@@ -297,6 +318,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     startTime: effectiveStartTime,
     position: history.length > 0 ? history[history.length - 1] : null,
     history,
+    layout: config.layout ?? null,
+    isOwner,
     ...(isOwner ? { positionFeedUrl: config.positionFeedUrl } : {}),
   };
   res.setHeader("Cache-Control", isOwner || config.simulation ? "private, no-store" : "public, s-maxage=15, stale-while-revalidate=30");

@@ -19,6 +19,7 @@ import TabNav from "../components/shared/TabNav";
 import PageHeader from "../components/shared/PageHeader";
 import { computeCanvasHeight } from "../utils/useCanvasItem";
 import { useDeviceCategory } from "../utils/useDeviceCategory";
+import { useDashboardTheme } from "../utils/useDashboardTheme";
 import styles from "./DashboardPage.module.css";
 
 function nextId(): string {
@@ -42,6 +43,7 @@ function nextWidgetPosition(existing: Widget[]): { x: number; y: number } {
 }
 
 export default function DashboardPage() {
+  useDashboardTheme();
   const auth = useAuthSession();
 
   if (auth.status === "loading") {

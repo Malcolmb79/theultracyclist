@@ -22,6 +22,7 @@ import type { MetricDef } from "../components/dashboard/useDashboardData";
 import { useAuthSession } from "../utils/useAuthSession";
 import { useIsMobile } from "../utils/useIsMobile";
 import { useDeviceCategory } from "../utils/useDeviceCategory";
+import { useDashboardTheme } from "../utils/useDashboardTheme";
 import { useRawSources } from "../utils/useRawSources";
 import { computeCanvasHeight } from "../utils/useCanvasItem";
 import SignInGate from "../components/shared/SignInGate";
@@ -72,6 +73,7 @@ function nextId(): string {
 }
 
 export default function CoachingPage() {
+  useDashboardTheme();
   const auth = useAuthSession();
 
   if (auth.status === "loading") {
@@ -91,7 +93,12 @@ export default function CoachingPage() {
 
 function CoachingView() {
   const device = useDeviceCategory();
-  const stacked = device === "mobile";
+  // Coaching's default layout hardcodes a 2-column arrangement (second
+  // column starts at x=360 - see DEFAULT_DESKTOP) that's wider than a
+  // tablet viewport, so unlike Dashboard/Trends (which cascade new widgets
+  // into a single column by default) tablet also needs the stacked
+  // full-width layout, not just phone.
+  const stacked = device !== "desktop";
   const raw = useRawSources(device);
   const data = useCoachingData(raw);
   const dashboardData = useDashboardData(raw);

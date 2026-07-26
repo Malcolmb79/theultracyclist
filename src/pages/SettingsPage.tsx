@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useAuthSession } from "../utils/useAuthSession";
 import { useUnits } from "../context/UnitsContext";
+import { useTheme, type ThemeMode } from "../context/ThemeContext";
+import { useDashboardTheme } from "../utils/useDashboardTheme";
 import { convertValueUnit, type UnitSystem } from "../utils/units";
 import type { CoachingSettings } from "../components/coaching/types";
 import SignInGate from "../components/shared/SignInGate";
@@ -8,7 +10,14 @@ import TabNav from "../components/shared/TabNav";
 import PageHeader from "../components/shared/PageHeader";
 import styles from "./SettingsPage.module.css";
 
+const THEME_OPTIONS: { value: ThemeMode; label: string }[] = [
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+  { value: "auto", label: "Auto (sunrise/sunset)" },
+];
+
 export default function SettingsPage() {
+  useDashboardTheme();
   const auth = useAuthSession();
 
   if (auth.status === "loading") {
@@ -37,6 +46,7 @@ function whoopStatusFromQuery(): "connected" | "failed" | null {
 
 function SettingsEditor() {
   const { system, setSystem } = useUnits();
+  const { mode, setMode } = useTheme();
   const distanceUnit = convertValueUnit(1, "km", system).unit;
 
   const [settings, setSettings] = useState<CoachingSettings | null>(null);
@@ -164,6 +174,29 @@ function SettingsEditor() {
                 onClick={() => setSystem(option)}
               >
                 {option === "metric" ? "Metric" : "Imperial"}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className={styles.section}>
+          <p className={styles.sectionTitle}>Appearance</p>
+          <p className={styles.sectionHint}>
+            Applies across Dashboard, Trends, Coaching, and Settings. Auto switches to light during the day and dark
+            at night, based on sunrise/sunset at your location (falls back to Ireland if location access isn't
+            available).
+          </p>
+          <div className={styles.segmented} role="radiogroup" aria-label="Theme">
+            {THEME_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                role="radio"
+                aria-checked={mode === option.value}
+                className={[styles.segmentButton, mode === option.value ? styles.segmentButtonActive : ""].join(" ")}
+                onClick={() => setMode(option.value)}
+              >
+                {option.label}
               </button>
             ))}
           </div>

@@ -11,6 +11,7 @@ import PageHeader from "../components/shared/PageHeader";
 import { computeCanvasHeight } from "../utils/useCanvasItem";
 import { DEFAULT_WIDGET_HEIGHT } from "../components/trends/types";
 import { useDeviceCategory } from "../utils/useDeviceCategory";
+import { useDashboardTheme } from "../utils/useDashboardTheme";
 import styles from "./TrendsPage.module.css";
 
 function nextId(): string {
@@ -25,6 +26,7 @@ function nextWidgetPosition(existing: TrendsWidgetConfig[]): { x: number; y: num
 }
 
 export default function TrendsPage() {
+  useDashboardTheme();
   const auth = useAuthSession();
 
   if (auth.status === "loading") {

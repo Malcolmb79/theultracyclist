@@ -137,7 +137,13 @@ function CoachingView() {
   const [isResizing, setIsResizing] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
 
-  const widgets: CoachingWidgetEntry[] = data.status === "ready" ? (data.settings.widgets ?? defaultWidgets(isMobile)) : [];
+  // "??" alone isn't enough here - a pre-migration save has widgets: [] (the
+  // 4 fixed cards used to live in a separate `layout` field, so the old
+  // `widgets` array is empty rather than absent), and an empty array isn't
+  // nullish, so "?? defaultWidgets()" would never fire and the page would
+  // render nothing at all.
+  const widgets: CoachingWidgetEntry[] =
+    data.status === "ready" ? (data.settings.widgets?.length ? data.settings.widgets : defaultWidgets(isMobile)) : [];
   const metricById = new Map((dashboardData.status === "ready" ? dashboardData.metrics : []).map((m) => [m.id, m]));
   const missingFixedCards = FIXED_CARD_ORDER.filter((kind) => !widgets.some((w) => w.kind === kind));
 

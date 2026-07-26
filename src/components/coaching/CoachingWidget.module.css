@@ -2,6 +2,15 @@
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+  /* Long-pressing to select a widget (see useLongPressSelect) would
+     otherwise also trigger the browser's native text-selection UI on touch
+     devices - the hold is long enough to register as a "select text"
+     gesture. -webkit-touch-callout also suppresses iOS's copy/lookup menu.
+     Restored on .content below, since these cards can hold genuinely
+     selectable text (e.g. AI Coach chat messages). */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 /* Phone/tablet flow layout - each widget keeps its own resized width but
@@ -83,6 +92,11 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+}
+
+.content {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 .content > * {

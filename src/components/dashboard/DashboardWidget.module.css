@@ -11,6 +11,13 @@
   transition: border-color 0.15s ease;
   overflow: hidden;
   box-sizing: border-box;
+  /* Long-pressing to select a widget (see useLongPressSelect) would
+     otherwise also trigger the browser's native text-selection UI on touch
+     devices - the hold is long enough to register as a "select text"
+     gesture. -webkit-touch-callout also suppresses iOS's copy/lookup menu. */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .widget:hover {
@@ -117,6 +124,8 @@
   border: 1px solid var(--color-accent-2);
   border-radius: var(--radius);
   padding: 0.1rem 0.35rem;
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 .dragHandle {

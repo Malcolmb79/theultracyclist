@@ -11,6 +11,13 @@
   box-sizing: border-box;
   overflow: hidden;
   transition: border-color 0.15s ease;
+  /* Long-pressing to select a widget (see useLongPressSelect) would
+     otherwise also trigger the browser's native text-selection UI on touch
+     devices - the hold is long enough to register as a "select text"
+     gesture. -webkit-touch-callout also suppresses iOS's copy/lookup menu. */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .widget:hover {

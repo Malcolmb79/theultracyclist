@@ -86,12 +86,11 @@ export default function HealthCalendar({ whoopHistory, weightByDate, weightUnit,
           const weightVal = weightByDate.get(dateStr);
           const bmi = bmiByDate.get(dateStr);
 
-          // Recovery/HRV/Sleep get their actual numbers shown directly
-          // (colored for at-a-glance reading) since those are the three the
-          // athlete wants visible without opening the day detail. Strain
-          // and weight stay as plain color dots - less critical day-to-day,
-          // and there's only so much a ~50px cell can show before it's
-          // unreadable clutter.
+          // Recovery/HRV/Sleep/Weight get their actual numbers shown
+          // directly (colored for at-a-glance reading) since those are the
+          // ones worth reading without opening the day detail. Strain stays
+          // as a plain color dot - there's only so much a ~50px cell can
+          // show before it's unreadable clutter.
           const values: { color: string; text: string; label: string }[] = [];
           if (day?.recovery) {
             values.push({ color: recoveryColor(day.recovery.score), text: `${day.recovery.score}%`, label: `Recovery ${day.recovery.score}%` });
@@ -102,15 +101,13 @@ export default function HealthCalendar({ whoopHistory, weightByDate, weightUnit,
           if (day?.sleep) {
             values.push({ color: SLEEP_COLOR, text: `${day.sleep.performancePercent}%`, label: `Sleep ${day.sleep.performancePercent}%` });
           }
+          if (weightVal != null) {
+            const weightColor = bmi != null ? bmiCategoryColor(bmi) : WEIGHT_FALLBACK_COLOR;
+            values.push({ color: weightColor, text: `${weightVal}${weightUnit}`, label: `Weight ${weightVal}${weightUnit}` });
+          }
 
           const dots: { color: string; label: string }[] = [];
           if (day?.strain) dots.push({ color: STRAIN_COLOR, label: `Strain ${day.strain.score.toFixed(1)}` });
-          if (weightVal != null) {
-            dots.push({
-              color: bmi != null ? bmiCategoryColor(bmi) : WEIGHT_FALLBACK_COLOR,
-              label: `Weight ${weightVal}${weightUnit}`,
-            });
-          }
 
           const hasData = values.length > 0 || dots.length > 0;
           const title = hasData

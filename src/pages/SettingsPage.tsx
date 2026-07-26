@@ -4,12 +4,13 @@ import { useUnits } from "../context/UnitsContext";
 import { useTheme, type ThemeMode } from "../context/ThemeContext";
 import { useDashboardTheme } from "../utils/useDashboardTheme";
 import { convertValueUnit, type UnitSystem } from "../utils/units";
-import { resizeImageToDataUrl } from "../utils/resizeImage";
+import { readImageFile } from "../utils/resizeImage";
 import type { CoachingSettings } from "../components/coaching/types";
 import SignInGate from "../components/shared/SignInGate";
 import TabNav from "../components/shared/TabNav";
 import PageHeader from "../components/shared/PageHeader";
 import ProfileMenu from "../components/shared/ProfileMenu";
+import ImageCropper from "../components/settings/ImageCropper";
 import styles from "./SettingsPage.module.css";
 
 const THEME_OPTIONS: { value: ThemeMode; label: string }[] = [
@@ -61,6 +62,7 @@ function SettingsEditor() {
   const [pictureDataUrl, setPictureDataUrl] = useState<string | undefined>(undefined);
   const [pictureError, setPictureError] = useState<string | null>(null);
   const [savingPicture, setSavingPicture] = useState(false);
+  const [cropperImage, setCropperImage] = useState<HTMLImageElement | null>(null);
 
   useEffect(() => {
     if (!whoopStatus) return;
@@ -147,10 +149,15 @@ function SettingsEditor() {
     if (!file) return;
     setPictureError(null);
     try {
-      setPictureDataUrl(await resizeImageToDataUrl(file));
+      setCropperImage(await readImageFile(file));
     } catch {
       setPictureError("Couldn't read that image - try a different file.");
     }
+  };
+
+  const handleCropConfirm = (dataUrl: string) => {
+    setPictureDataUrl(dataUrl);
+    setCropperImage(null);
   };
 
   const handleSavePicture = async () => {
@@ -368,6 +375,10 @@ function SettingsEditor() {
           </a>
         </div>
       </div>
+
+      {cropperImage && (
+        <ImageCropper image={cropperImage} onCancel={() => setCropperImage(null)} onConfirm={handleCropConfirm} />
+      )}
     </div>
   );
 }

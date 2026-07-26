@@ -47,6 +47,34 @@ const WIND_CLASS_LABEL: Record<WindClass, string> = {
   crosswind: "Crosswind",
 };
 
+const EARTH_CIRCUMFERENCE_M = 40_075_016.686;
+// How wide a reference bar the scale readout describes, in screen pixels -
+// same idea as a physical map's scale bar ("this many cm = this many km"),
+// just expressed as text instead of a drawn bar.
+const SCALE_BAR_PX = 100;
+
+// Standard Web Mercator ground resolution formula (256px tiles, so the
+// whole 360° wraps in 2^(zoom+8) px) - meters/pixel shrinks toward the
+// poles at a given zoom, hence the latitude term.
+function metersPerPixel(latDeg: number, zoomLevel: number): number {
+  return (EARTH_CIRCUMFERENCE_M * Math.cos((latDeg * Math.PI) / 180)) / 2 ** (zoomLevel + 8);
+}
+
+// Rounds down to a "nice" 1/2/5 x 10^n number, same convention Leaflet's
+// own scale control uses - a scale readout showing "37 km" is harder to
+// read at a glance than "20 km" or "50 km".
+function niceScaleKm(rawKm: number): number {
+  if (rawKm <= 0) return 0;
+  const pow10 = 10 ** Math.floor(Math.log10(rawKm));
+  const fraction = rawKm / pow10;
+  const nice = fraction >= 5 ? 5 : fraction >= 2 ? 2 : 1;
+  return nice * pow10;
+}
+
+function formatScaleKm(km: number): string {
+  return km < 1 ? `${Math.round(km * 1000)} m` : `${km} km`;
+}
+
 interface LiveTrackerMapProps {
   route: RoutePoint[];
   position: { lat: number; lon: number } | null;
@@ -74,8 +102,10 @@ export default function LiveTrackerMap({ route, position, coveredKm, totalKm, we
   const completedLineRef = useRef<Polyline | null>(null);
   const markerRef = useRef<CircleMarker | null>(null);
   const hasFitBoundsRef = useRef(false);
-  const [showProfile, setShowProfile] = useState(false);
+  const [showProfile, setShowProfile] = useState(true);
+  const [showWeather, setShowWeather] = useState(true);
   const [zoom, setZoom] = useState(INITIAL_ZOOM);
+  const [scaleKm, setScaleKm] = useState<number | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -100,10 +130,19 @@ export default function LiveTrackerMap({ route, position, coveredKm, totalKm, we
         fillColor: LIVE_COLOR,
         fillOpacity: 1,
       }).addTo(map);
-      // Keeps the scale slider in sync with zooming done any other way
-      // (scroll wheel, pinch, double-click, the map's own +/- control) -
-      // the slider isn't the only way to change zoom, just an additional one.
-      map.on("zoomend", () => setZoom(map.getZoom()));
+      // Keeps the slider and the km scale readout in sync with zooming/
+      // panning done any other way (scroll wheel, pinch, double-click, the
+      // map's own +/- control, dragging) - the slider isn't the only way
+      // to change zoom, and ground distance-per-pixel also depends on
+      // latitude (Web Mercator), so panning north/south needs a recompute
+      // even at a fixed zoom.
+      const updateScale = () => {
+        setZoom(map.getZoom());
+        const raw = (metersPerPixel(map.getCenter().lat, map.getZoom()) * SCALE_BAR_PX) / 1000;
+        setScaleKm(niceScaleKm(raw));
+      };
+      map.on("zoomend moveend", updateScale);
+      updateScale();
       mapRef.current = map;
     });
 
@@ -148,12 +187,20 @@ export default function LiveTrackerMap({ route, position, coveredKm, totalKm, we
   };
 
   // Slider drives the map, not the other way around, except for the
-  // zoomend listener above keeping it honest when zoom changes some other
-  // way - setZoom (not flyTo) so it's an immediate jump, matching how a
-  // slider is expected to feel rather than an animated fly.
+  // zoomend/moveend listener above keeping it honest when zoom changes some
+  // other way. Re-centers on the live dot (when we have one) rather than
+  // just zooming in place, so dragging the slider never leaves the dot
+  // drifting toward an edge or off-screen - organic zoom gestures (scroll/
+  // pinch/double-click) are left alone and zoom around wherever the user
+  // is actually looking, only the slider forces a recenter.
   const handleZoomChange = (next: number) => {
     setZoom(next);
-    mapRef.current?.setZoom(next);
+    if (!mapRef.current) return;
+    if (position) {
+      mapRef.current.setView([position.lat, position.lon], next);
+    } else {
+      mapRef.current.setZoom(next);
+    }
   };
 
   const courseBearing = route.length > 1 ? courseBearingAtKm(route, coveredKm) : null;
@@ -182,6 +229,7 @@ export default function LiveTrackerMap({ route, position, coveredKm, totalKm, we
         <span className={styles.zoomLabel} aria-hidden="true">
           +
         </span>
+        {scaleKm != null && <span className={styles.scaleValue}>{formatScaleKm(scaleKm)}</span>}
       </div>
 
       <div className={styles.controls}>
@@ -202,9 +250,17 @@ export default function LiveTrackerMap({ route, position, coveredKm, totalKm, we
         >
           Profile
         </button>
+        <button
+          type="button"
+          className={`${styles.controlButton} ${showWeather ? styles.controlButtonActive : ""}`}
+          onClick={() => setShowWeather((v) => !v)}
+          aria-pressed={showWeather}
+        >
+          Weather
+        </button>
       </div>
 
-      {weather && (
+      {showWeather && weather && (
         <div className={styles.weatherOverlay}>
           <p className={styles.weatherTemp}>{weather.temp}°C</p>
           <div className={styles.windRow}>

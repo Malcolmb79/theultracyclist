@@ -37,6 +37,17 @@ function fmt(value: number | null): string {
   return value == null ? "—" : Math.round(value).toString();
 }
 
+// CTL ("fitness") is colored by band rather than a single fixed color, so
+// the line itself shows where the athlete's fitness actually stands: red
+// below 30 (low), amber from 60 up to 90 (building well), green at 90+
+// (peak). 30-60 has no strong signal either way, so it stays neutral.
+function ctlColorFor(ctl: number): string {
+  if (ctl < 30) return "var(--color-accent)";
+  if (ctl >= 90) return "var(--color-accent-2)";
+  if (ctl >= 60) return "var(--color-amber)";
+  return "var(--color-text-muted)";
+}
+
 // Standard "nice round number" tick step so the Y-axis reads 0/10/20/... or
 // 0/25/50/... instead of awkward values like 0/17/34/51 - picks whichever
 // of 1/2/5 (times a power of 10) gives roughly `count` ticks across the range.
@@ -116,7 +127,7 @@ export default function PerformanceChart({ data, height }: PerformanceChartProps
   // overlap (common when form/fatigue converge).
   const endLabels = (
     [
-      { key: "ctl", value: latest.ctl, color: CTL_COLOR },
+      { key: "ctl", value: latest.ctl, color: ctlColorFor(latest.ctl) },
       { key: "atl", value: latest.atl, color: ATL_COLOR },
       { key: "tsb", value: latest.tsb, color: TSB_COLOR },
     ] as const
@@ -170,7 +181,21 @@ export default function PerformanceChart({ data, height }: PerformanceChartProps
         <path d={linePath((p) => p.tsbTarget)} className={styles.targetLine} style={{ stroke: TSB_COLOR }} />
         <path d={linePath((p) => p.atl)} className={styles.line} style={{ stroke: ATL_COLOR }} />
         <path d={linePath((p) => p.tsb)} className={styles.line} style={{ stroke: TSB_COLOR }} />
-        <path d={linePath((p) => p.ctl)} className={styles.line} style={{ stroke: CTL_COLOR }} />
+        {data.map((p, i) => {
+          if (i === 0) return null;
+          const prev = data[i - 1];
+          return (
+            <line
+              key={p.date}
+              x1={toX(i - 1)}
+              y1={toY(prev.ctl)}
+              x2={toX(i)}
+              y2={toY(p.ctl)}
+              className={styles.line}
+              stroke={ctlColorFor(p.ctl)}
+            />
+          );
+        })}
         {endLabels.map((l) => (
           <text
             key={l.key}

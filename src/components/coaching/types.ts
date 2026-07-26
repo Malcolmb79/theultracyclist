@@ -1,13 +1,12 @@
 export type TrainingPhase = "build" | "recovery" | "taper";
 
-// The 4 built-in cards (readiness/chat/trainingPlan/powerZones) render
-// fixed custom components rather than a metric series - "metric" is
-// everything added from the data catalog instead. A single flat list of
-// this shape (rather than the old split between a `layout` record for the
-// 4 fixed cards and a separate `widgets` array for metrics) is what lets
-// add/remove/resize/move/reorder work identically across every widget on
-// the Coaching page, matching Dashboard/Trends.
-export type FixedCardKind = "readiness" | "chat" | "trainingPlan" | "powerZones";
+// The built-in cards render fixed custom components rather than a metric
+// series - "metric" is everything added from the data catalog instead. A
+// single flat list of this shape (rather than the old split between a
+// `layout` record for the fixed cards and a separate `widgets` array for
+// metrics) is what lets add/remove/resize/move/reorder work identically
+// across every widget on the Coaching page, matching Dashboard/Trends.
+export type FixedCardKind = "readiness" | "chat" | "trainingPlan" | "powerZones" | "trainingCalendar";
 
 export type CoachingWidgetEntry = {
   id: string; // fixed cards use their own kind as the id (only one of each can exist); metrics get a generated id.
@@ -29,6 +28,7 @@ export const FIXED_CARD_LABELS: Record<FixedCardKind, string> = {
   chat: "AI Coach",
   trainingPlan: "Training Plan",
   powerZones: "Power Zones",
+  trainingCalendar: "Training Calendar",
 };
 
 export type CoachingSettings = {

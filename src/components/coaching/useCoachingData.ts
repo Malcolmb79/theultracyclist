@@ -3,6 +3,7 @@ import type { CoachingSettings, Readiness, RideZoneClassification, WeeklyProgres
 import { computeReadiness } from "./readiness";
 import { classifyPower } from "./powerZones";
 import type { RawSourcesState } from "../../utils/useRawSources";
+import { irelandDateStr, irelandTodayDateStr } from "../../utils/irelandDate";
 
 type WhoopDayRaw = {
   date: string;
@@ -47,25 +48,26 @@ export type CoachingDataState =
       // trained" instead of asking what's on the schedule after the fact.
       hasRiddenToday: boolean;
       todayDistanceKm: number | null;
+      // Whether recoveryHistory's latest entry is actually today's reading
+      // (Ireland-local) rather than a stale previous day's still showing
+      // because today's hasn't landed from Whoop yet (recovery/sleep are a
+      // once-daily morning reading - see DATA_SEMANTICS in
+      // api/_lib/coachContext.ts). Lets the readiness card show a waiting
+      // placeholder instead of quietly presenting yesterday's numbers as
+      // if they were today's.
+      readinessDataIsFresh: boolean;
     };
 
 // Monday-start week, not JS's default Sunday-start - matches how the
-// athlete actually tracks their training week.
+// athlete actually tracks their training week. Pure calendar-string
+// arithmetic (no timezone conversion needed here) - the caller is
+// responsible for passing in an already Ireland-correct date string.
 function startOfWeek(dateStr: string): string {
   const d = new Date(`${dateStr}T00:00:00Z`);
   const day = d.getUTCDay(); // 0 = Sunday .. 6 = Saturday
   const daysSinceMonday = day === 0 ? 6 : day - 1;
   d.setUTCDate(d.getUTCDate() - daysSinceMonday);
   return d.toISOString().slice(0, 10);
-}
-
-// Local (not UTC) calendar date, so "today" matches what it actually is for
-// whoever's looking at the browser clock, not the UTC day boundary.
-function localDateStr(d: Date): string {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
 }
 
 export function useCoachingData(raw: RawSourcesState): CoachingDataState {
@@ -84,7 +86,7 @@ export function useCoachingData(raw: RawSourcesState): CoachingDataState {
     const rides = strava?.rides ?? [];
 
       const recoveryHistory = whoopDays.map((d) => ({
-        date: d.date.slice(0, 10),
+        date: irelandDateStr(new Date(d.date)),
         recovery: d.recovery?.score ?? null,
         strain: d.strain?.score ?? null,
         hrvMs: d.recovery?.hrvMs ?? null,
@@ -101,9 +103,10 @@ export function useCoachingData(raw: RawSourcesState): CoachingDataState {
 
       const readiness = computeReadiness(latest?.recovery ?? null, recentAvgStrain != null ? Math.round(recentAvgStrain * 10) / 10 : null);
 
-      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayStr = irelandTodayDateStr();
+      const readinessDataIsFresh = latest?.date === todayStr;
       const weekStart = startOfWeek(todayStr);
-      const thisWeekRides = rides.filter((r) => r.startDate.slice(0, 10) >= weekStart);
+      const thisWeekRides = rides.filter((r) => irelandDateStr(new Date(r.startDate)) >= weekStart);
       const weeklyProgress: WeeklyProgress = {
         distanceKm: Math.round(thisWeekRides.reduce((sum, r) => sum + r.distanceKm, 0) * 10) / 10,
         distanceTargetKm: settings.weeklyDistanceKm ?? null,
@@ -112,8 +115,7 @@ export function useCoachingData(raw: RawSourcesState): CoachingDataState {
         rideCount: thisWeekRides.length,
       };
 
-      const todayLocalStr = localDateStr(new Date());
-      const todaysRides = rides.filter((r) => localDateStr(new Date(r.startDate)) === todayLocalStr);
+      const todaysRides = rides.filter((r) => irelandDateStr(new Date(r.startDate)) === todayStr);
       const hasRiddenToday = todaysRides.length > 0;
       const todayDistanceKm = hasRiddenToday
         ? Math.round(todaysRides.reduce((sum, r) => sum + r.distanceKm, 0) * 10) / 10
@@ -141,6 +143,7 @@ export function useCoachingData(raw: RawSourcesState): CoachingDataState {
       dataAvailable,
       hasRiddenToday,
       todayDistanceKm,
+      readinessDataIsFresh,
     };
   }, [raw]);
 }

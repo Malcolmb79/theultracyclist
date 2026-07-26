@@ -11,7 +11,7 @@ import { isDeviceCategory, mergeDeviceLayout, resolveDeviceLayout, type DeviceCa
 // === "metric") is what lets add/remove/resize/move/reorder work the same
 // way for every widget on the page, instead of the 4 fixed cards living in
 // a separate non-removable `layout` record.
-type FixedCardKind = "readiness" | "chat" | "trainingPlan" | "powerZones";
+type FixedCardKind = "readiness" | "chat" | "trainingPlan" | "powerZones" | "trainingCalendar";
 
 type CoachingWidgetEntry = {
   id: string;

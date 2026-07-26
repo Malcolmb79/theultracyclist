@@ -55,13 +55,22 @@ export async function computeChatContext(): Promise<Partial<ChatContext>> {
     ? Math.round(todaysRides.reduce((sum, r) => sum + r.distanceKm, 0) * 10) / 10
     : null;
 
+  // Recovery/HRV/RHR/sleep are a once-daily morning reading (see
+  // DATA_SEMANTICS in coachContext.ts) - if today's hasn't landed from
+  // Whoop yet, `latest` is still yesterday's. Passing those through anyway
+  // would have the coach cite a stale number as if it were today's, so
+  // they're left out entirely rather than mislabelled, matching the same
+  // fix on the browser side (useCoachingData.ts's readinessDataIsFresh).
+  // Strain is unaffected since it's live/continuous, not once-daily.
+  const latestIsFresh = latest ? irelandDateStr(new Date(latest.date)) === todayStr : false;
+
   return {
-    recoveryScore: latest?.recovery?.score ?? null,
-    hrvMs: latest?.recovery?.hrvMs ?? null,
-    restingHeartRate: latest?.recovery?.restingHeartRate ?? null,
+    recoveryScore: latestIsFresh ? (latest?.recovery?.score ?? null) : null,
+    hrvMs: latestIsFresh ? (latest?.recovery?.hrvMs ?? null) : null,
+    restingHeartRate: latestIsFresh ? (latest?.recovery?.restingHeartRate ?? null) : null,
     strainScore: latest?.strain?.score ?? null,
     recentAvgStrain,
-    sleepPerformance: latest?.sleep?.performancePercent ?? null,
+    sleepPerformance: latestIsFresh ? (latest?.sleep?.performancePercent ?? null) : null,
     weeklyDistanceKm,
     weeklyTargetKm: settings.weeklyDistanceKm ?? null,
     phase: settings.phase ?? null,

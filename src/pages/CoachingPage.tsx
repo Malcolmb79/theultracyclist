@@ -3,6 +3,7 @@ import ReadinessCard from "../components/coaching/ReadinessCard";
 import PowerZonesCard from "../components/coaching/PowerZonesCard";
 import TrainingPlanCard from "../components/coaching/TrainingPlanCard";
 import CoachChatCard from "../components/coaching/CoachChatCard";
+import TrainingCalendarCard from "../components/coaching/TrainingCalendarCard";
 import CoachingWidget from "../components/coaching/CoachingWidget";
 import { useCoachingData } from "../components/coaching/useCoachingData";
 import { FIXED_CARD_LABELS, type CoachingWidgetEntry, type FixedCardKind, type NarrativeInput } from "../components/coaching/types";
@@ -38,6 +39,7 @@ const MIN_SIZE: Record<FixedCardKind, { minWidth: number; minHeight: number }> =
   chat: { minWidth: 280, minHeight: 320 },
   trainingPlan: { minWidth: 260, minHeight: 240 },
   powerZones: { minWidth: 260, minHeight: 240 },
+  trainingCalendar: { minWidth: 260, minHeight: 240 },
 };
 
 const DEFAULT_DESKTOP: Record<FixedCardKind, Rect> = {
@@ -45,6 +47,7 @@ const DEFAULT_DESKTOP: Record<FixedCardKind, Rect> = {
   chat: { x: 360, y: 0, width: 380, height: 460 },
   trainingPlan: { x: 0, y: 280, width: 340, height: 380 },
   powerZones: { x: 360, y: 480, width: 380, height: 380 },
+  trainingCalendar: { x: 760, y: 0, width: 340, height: 460 },
 };
 
 const DEFAULT_MOBILE: Record<FixedCardKind, Rect> = {
@@ -52,9 +55,10 @@ const DEFAULT_MOBILE: Record<FixedCardKind, Rect> = {
   chat: { x: 0, y: 240, width: 320, height: 420 },
   trainingPlan: { x: 0, y: 680, width: 320, height: 380 },
   powerZones: { x: 0, y: 1080, width: 320, height: 380 },
+  trainingCalendar: { x: 0, y: 1480, width: 320, height: 380 },
 };
 
-const FIXED_CARD_ORDER: FixedCardKind[] = ["readiness", "chat", "trainingPlan", "powerZones"];
+const FIXED_CARD_ORDER: FixedCardKind[] = ["readiness", "chat", "trainingPlan", "powerZones", "trainingCalendar"];
 
 // New widgets (fixed cards re-added after removal, or metrics from the
 // catalog) cascade below whatever's already on the canvas rather than
@@ -297,7 +301,9 @@ function CoachingView() {
                 onRemove={() => handleRemove(entry.id)}
                 {...reorderProps}
               >
-                {data.status === "ready" && entry.kind === "readiness" && <ReadinessCard readiness={data.readiness} />}
+                {data.status === "ready" && entry.kind === "readiness" && (
+                  <ReadinessCard readiness={data.readiness} isFresh={data.readinessDataIsFresh} />
+                )}
                 {data.status === "ready" && entry.kind === "chat" && (
                   <CoachChatCard input={narrativeInputFrom(data)} settings={data.settings} onSaveSettings={data.saveSettings} dataAvailable={data.dataAvailable} />
                 )}
@@ -305,6 +311,7 @@ function CoachingView() {
                   <TrainingPlanCard settings={data.settings} onSaveSettings={data.saveSettings} weeklyProgress={data.weeklyProgress} />
                 )}
                 {data.status === "ready" && entry.kind === "powerZones" && <PowerZonesCard settings={data.settings} recentRides={data.recentRides} />}
+                {entry.kind === "trainingCalendar" && <TrainingCalendarCard />}
               </CoachingWidget>
             );
           })}
@@ -316,13 +323,20 @@ function CoachingView() {
 
 function narrativeInputFrom(data: Extract<ReturnType<typeof useCoachingData>, { status: "ready" }>): NarrativeInput {
   const latest = data.recoveryHistory.at(-1);
+  // Recovery/HRV/RHR/sleep are a once-daily morning reading (see
+  // DATA_SEMANTICS) - when today's hasn't landed yet, `latest` is still
+  // yesterday's. Passing those through anyway would have the coach cite a
+  // stale number as if it were today's (the same class of bug that made it
+  // fabricate a "last week" date range), so they're left out entirely
+  // rather than mislabelled - matching ReadinessCard's own waiting state.
+  // Strain is unaffected here since it's live/continuous, not once-daily.
   return {
-    recoveryScore: data.readiness.recoveryScore,
-    hrvMs: latest?.hrvMs ?? null,
-    restingHeartRate: latest?.restingHeartRate ?? null,
+    recoveryScore: data.readinessDataIsFresh ? data.readiness.recoveryScore : null,
+    hrvMs: data.readinessDataIsFresh ? (latest?.hrvMs ?? null) : null,
+    restingHeartRate: data.readinessDataIsFresh ? (latest?.restingHeartRate ?? null) : null,
     strainScore: latest?.strain ?? null,
     recentAvgStrain: data.readiness.recentAvgStrain,
-    sleepPerformance: latest?.sleepPerformance ?? null,
+    sleepPerformance: data.readinessDataIsFresh ? (latest?.sleepPerformance ?? null) : null,
     weeklyDistanceKm: data.weeklyProgress.distanceKm,
     weeklyTargetKm: data.weeklyProgress.distanceTargetKm,
     phase: data.settings.phase ?? null,

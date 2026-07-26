@@ -170,6 +170,20 @@ export default function PerformanceChart({ data, height }: PerformanceChartProps
           </text>
         ))}
         <line x1={LEFT_PAD} y1={zeroY} x2={plotRightEdge} y2={zeroY} className={styles.zeroLine} />
+        {data.map((p, i) => {
+          if (i === 0) return null;
+          const prev = data[i - 1];
+          const x1 = toX(i - 1);
+          const x2 = toX(i);
+          return (
+            <polygon
+              key={p.date}
+              points={`${x1},${toY(prev.ctl)} ${x2},${toY(p.ctl)} ${x2},${zeroY} ${x1},${zeroY}`}
+              fill={ctlColorFor(p.ctl)}
+              fillOpacity={0.22}
+            />
+          );
+        })}
         {data.map((p, i) =>
           p.tss > 0 ? (
             <circle key={p.date} cx={toX(i)} cy={toYTss(p.tss)} r={TSS_DOT_RADIUS} fill={TSS_COLOR} fillOpacity={0.7} />

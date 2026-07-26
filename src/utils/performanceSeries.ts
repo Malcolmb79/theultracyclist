@@ -4,6 +4,7 @@ import { getAtpWeekFor } from "./atpPlan";
 
 export type PerformancePoint = {
   date: string;
+  tss: number;
   ctl: number;
   atl: number;
   tsb: number;
@@ -57,6 +58,7 @@ export function computePerformanceSeries(
     const atpWeek = getAtpWeekFor(date);
     points.push({
       date,
+      tss: point.tss,
       ctl: point.ctl,
       atl: point.atl,
       tsb: point.tsb,

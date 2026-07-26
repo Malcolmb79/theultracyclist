@@ -6,18 +6,23 @@ const FALLBACK_WIDTH = 300;
 const DEFAULT_PLOT_HEIGHT = 160;
 const TOP_PAD = 10;
 const BOTTOM_PAD = 24;
-// Reserves room on the left for the Y-axis value labels, and on the right
-// for the CTL/ATL/TSB end-of-line value labels - the plot area itself sits
-// between these two margins instead of spanning the full width.
+// Reserves room on the left for the CTL/ATL/TSB Y-axis, in the middle-right
+// for their end-of-line value labels, and on the far right for the TSS/day
+// axis (its own scale - daily TSS runs far higher than CTL/ATL/TSB, so it
+// can't share their axis). The plot area sits between the left and the two
+// right margins instead of spanning the full width.
 const LEFT_PAD = 30;
 const RIGHT_PAD = 24;
+const RIGHT_AXIS_PAD = 26;
 // Minimum vertical gap enforced between the three end-of-line labels so they
 // don't overlap when two of CTL/ATL/TSB land close together.
 const MIN_LABEL_GAP = 9;
+const TSS_DOT_RADIUS = 1.5;
 
 const CTL_COLOR = "var(--color-accent-2)"; // fitness - green, matches the "on track" goal color elsewhere
 const ATL_COLOR = "var(--color-amber)"; // fatigue
 const TSB_COLOR = "#4B87F5"; // form - matches the blue used for "burned" elsewhere
+const TSS_COLOR = "#d6559e"; // daily training load - pink, matching the usual PMC convention
 
 interface PerformanceChartProps {
   data: PerformancePoint[];
@@ -76,11 +81,18 @@ export default function PerformanceChart({ data, height }: PerformanceChartProps
   const max = Math.max(0, ...allValues);
   const range = max - min || 1;
 
-  const plotWidth = Math.max(1, viewWidth - LEFT_PAD - RIGHT_PAD);
+  const plotWidth = Math.max(1, viewWidth - LEFT_PAD - RIGHT_PAD - RIGHT_AXIS_PAD);
+  const plotRightEdge = LEFT_PAD + plotWidth;
   const toX = (i: number) => LEFT_PAD + (i / (data.length - 1)) * plotWidth;
   const toY = (value: number) => TOP_PAD + plotHeight - ((value - min) / range) * plotHeight;
   const zeroY = toY(0);
   const yTicks = niceTicks(min, max);
+
+  // TSS/day gets its own right-side axis/scale - always floored at 0 (no
+  // negative training load), unlike CTL/ATL/TSB's shared left axis.
+  const tssMax = Math.max(0, ...data.map((p) => p.tss));
+  const toYTss = (value: number) => TOP_PAD + plotHeight - (value / (tssMax || 1)) * plotHeight;
+  const tssTicks = niceTicks(0, tssMax);
 
   const linePath = (pick: (p: PerformancePoint) => number | null): string => {
     let path = "";
@@ -129,13 +141,31 @@ export default function PerformanceChart({ data, height }: PerformanceChartProps
       >
         {yTicks.map((tick) => (
           <g key={tick}>
-            <line x1={LEFT_PAD} y1={toY(tick)} x2={viewWidth} y2={toY(tick)} className={styles.gridLine} />
+            <line x1={LEFT_PAD} y1={toY(tick)} x2={plotRightEdge} y2={toY(tick)} className={styles.gridLine} />
             <text x={LEFT_PAD - 4} y={toY(tick)} textAnchor="end" dominantBaseline="middle" className={styles.axisLabel}>
               {Math.round(tick)}
             </text>
           </g>
         ))}
-        <line x1={LEFT_PAD} y1={zeroY} x2={viewWidth} y2={zeroY} className={styles.zeroLine} />
+        {tssTicks.map((tick) => (
+          <text
+            key={tick}
+            x={viewWidth - 4}
+            y={toYTss(tick)}
+            textAnchor="end"
+            dominantBaseline="middle"
+            className={styles.axisLabel}
+            style={{ fill: TSS_COLOR }}
+          >
+            {Math.round(tick)}
+          </text>
+        ))}
+        <line x1={LEFT_PAD} y1={zeroY} x2={plotRightEdge} y2={zeroY} className={styles.zeroLine} />
+        {data.map((p, i) =>
+          p.tss > 0 ? (
+            <circle key={p.date} cx={toX(i)} cy={toYTss(p.tss)} r={TSS_DOT_RADIUS} fill={TSS_COLOR} fillOpacity={0.7} />
+          ) : null,
+        )}
         <path d={linePath((p) => p.ctlTarget)} className={styles.targetLine} style={{ stroke: CTL_COLOR }} />
         <path d={linePath((p) => p.tsbTarget)} className={styles.targetLine} style={{ stroke: TSB_COLOR }} />
         <path d={linePath((p) => p.atl)} className={styles.line} style={{ stroke: ATL_COLOR }} />
@@ -144,7 +174,7 @@ export default function PerformanceChart({ data, height }: PerformanceChartProps
         {endLabels.map((l) => (
           <text
             key={l.key}
-            x={viewWidth - RIGHT_PAD + 4}
+            x={plotRightEdge + 4}
             y={l.y}
             dominantBaseline="middle"
             className={styles.endLabel}
@@ -156,7 +186,7 @@ export default function PerformanceChart({ data, height }: PerformanceChartProps
         <text x={LEFT_PAD} y={viewHeight - 6} className={styles.dateLabel}>
           {shortDate(data[0].date)}
         </text>
-        <text x={viewWidth - 4} y={viewHeight - 6} textAnchor="end" className={styles.dateLabel}>
+        <text x={plotRightEdge} y={viewHeight - 6} textAnchor="end" className={styles.dateLabel}>
           {shortDate(latest.date)}
         </text>
       </svg>
@@ -172,6 +202,9 @@ export default function PerformanceChart({ data, height }: PerformanceChartProps
         <span className={styles.legendItem}>
           <i className={styles.swatch} style={{ background: TSB_COLOR }} /> TSB {fmt(latest.tsb)}
           {latest.tsbTarget != null && <span className={styles.target}> (target {fmt(latest.tsbTarget)})</span>}
+        </span>
+        <span className={styles.legendItem}>
+          <i className={styles.swatch} style={{ background: TSS_COLOR }} /> TSS/day {fmt(latest.tss)}
         </span>
       </div>
     </div>

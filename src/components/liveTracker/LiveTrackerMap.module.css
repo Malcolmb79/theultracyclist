@@ -1,6 +1,115 @@
+.wrap {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* The dark CartoDB basemap (see LiveTrackerMap.tsx) stays fixed regardless
+   of the page's light/dark theme, same as any map legend - only the
+   floating chrome on top of it (controls, weather, profile panel) follows
+   the shared theme variables. */
 .map {
   width: 100%;
   height: 100%;
   min-height: 320px;
   background: #0d1220;
+}
+
+.controls {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 500;
+  display: flex;
+  gap: var(--space-1);
+}
+
+.controlButton {
+  background: color-mix(in srgb, var(--color-bg-elevated) 90%, transparent);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  border-radius: var(--radius);
+  padding: 6px 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: blur(2px);
+}
+
+.controlButton:hover:not(:disabled) {
+  border-color: var(--color-accent);
+}
+
+.controlButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.controlButtonActive {
+  background: var(--color-accent-2);
+  color: var(--color-bg);
+  border-color: var(--color-accent-2);
+}
+
+.weatherOverlay {
+  position: absolute;
+  top: 54px;
+  right: 10px;
+  z-index: 500;
+  background: color-mix(in srgb, var(--color-bg-elevated) 90%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3);
+  backdrop-filter: blur(2px);
+  min-width: 130px;
+}
+
+.weatherTemp {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  color: var(--color-text);
+  margin: 0 0 var(--space-1);
+}
+
+.windRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.windArrow {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  color: var(--color-accent-2);
+  transition: transform 0.4s ease;
+}
+
+.windSpeed {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.windClass {
+  font-size: 0.62rem;
+  color: var(--color-text-muted);
+  margin: 1px 0 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.profilePanel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 500;
+  height: 110px;
+  background: color-mix(in srgb, var(--color-bg) 88%, transparent);
+  border-top: 1px solid var(--color-border);
+  padding: var(--space-2) var(--space-3);
+  box-sizing: border-box;
+  backdrop-filter: blur(2px);
 }

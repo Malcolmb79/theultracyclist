@@ -1,16 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import LiveTrackerMap from "../components/liveTracker/LiveTrackerMap";
 import LiveTrackerWidget from "../components/liveTracker/LiveTrackerWidget";
-import {
-  fetchRoute,
-  distanceCoveredKm,
-  totalDistanceKm,
-  haversineKm,
-  courseBearingAtKm,
-  type RoutePoint,
-} from "../utils/gpxRoute";
+import { fetchRoute, distanceCoveredKm, totalDistanceKm, haversineKm, type RoutePoint } from "../utils/gpxRoute";
 import { useDeviceCategory } from "../utils/useDeviceCategory";
 import { computeCanvasHeight } from "../utils/useCanvasItem";
+import { useDashboardTheme } from "../utils/useDashboardTheme";
 import styles from "./LiveTrackerPage.module.css";
 
 const POLL_INTERVAL_MS = 20_000;
@@ -21,7 +15,11 @@ const WEATHER_INTERVAL_MS = 60 * 60_000;
 
 type PositionPoint = { lat: number; lon: number; timestamp: number };
 type LiveTrackerRect = { x: number; y: number; width: number; height: number };
-type LiveWidgetId = "pace" | "progress" | "map" | "eta" | "weather";
+// "weather" isn't a widget of its own - it's overlaid directly on the map
+// (see LiveTrackerMap), which is also where the headwind/tailwind
+// computation now lives since that needs the route + covered distance the
+// map already has.
+type LiveWidgetId = "pace" | "progress" | "map" | "eta";
 type LiveTrackerLayout = { order: LiveWidgetId[]; rects: Record<LiveWidgetId, LiveTrackerRect> };
 
 // Mirrors api/live-tracker.ts's public response shape - duplicated per this
@@ -43,29 +41,38 @@ type WeatherState = { temp: number; windSpeed: number; windDirection: number; co
 const MIN_SIZE: Record<LiveWidgetId, { minWidth: number; minHeight: number }> = {
   pace: { minWidth: 280, minHeight: 130 },
   progress: { minWidth: 280, minHeight: 150 },
-  map: { minWidth: 280, minHeight: 320 },
+  // Taller minimum than before - the map now also carries the weather
+  // overlay and the optional elevation-profile panel, both of which need
+  // room without swallowing the whole map view.
+  map: { minWidth: 320, minHeight: 380 },
   eta: { minWidth: 200, minHeight: 130 },
-  weather: { minWidth: 240, minHeight: 220 },
 };
 
+const WIDGET_IDS: LiveWidgetId[] = ["pace", "progress", "map", "eta"];
+
 const DEFAULT_LAYOUT: LiveTrackerLayout = {
-  order: ["pace", "progress", "map", "eta", "weather"],
+  order: WIDGET_IDS,
   rects: {
     pace: { x: 0, y: 0, width: 900, height: 140 },
     progress: { x: 0, y: 160, width: 900, height: 160 },
-    map: { x: 0, y: 340, width: 620, height: 440 },
-    eta: { x: 640, y: 340, width: 260, height: 150 },
-    weather: { x: 640, y: 510, width: 260, height: 270 },
+    map: { x: 0, y: 340, width: 900, height: 500 },
+    eta: { x: 920, y: 340, width: 260, height: 150 },
   },
 };
 
 // Fills in defaults for any widget id missing from a saved layout (e.g. one
-// saved before a widget existed) rather than assuming the saved shape is
-// always complete.
+// saved before a widget existed, or - going the other way - drops an id
+// that no longer exists, like "weather" after it moved onto the map) rather
+// than assuming the saved shape is always complete or still current.
 function mergeLayout(saved: LiveTrackerLayout | null): LiveTrackerLayout {
   if (!saved) return DEFAULT_LAYOUT;
-  const order = DEFAULT_LAYOUT.order.every((id) => saved.order.includes(id)) ? saved.order : DEFAULT_LAYOUT.order;
-  return { order, rects: { ...DEFAULT_LAYOUT.rects, ...saved.rects } };
+  const validOrder = saved.order.filter((id) => (WIDGET_IDS as string[]).includes(id));
+  const missing = WIDGET_IDS.filter((id) => !validOrder.includes(id));
+  const rects = Object.fromEntries(WIDGET_IDS.map((id) => [id, saved.rects[id] ?? DEFAULT_LAYOUT.rects[id]])) as Record<
+    LiveWidgetId,
+    LiveTrackerRect
+  >;
+  return { order: [...validOrder, ...missing], rects };
 }
 
 function formatDuration(totalSeconds: number): string {
@@ -97,33 +104,6 @@ function currentPaceKmh(history: PositionPoint[]): number | null {
   return haversineKm(a, b) / hours;
 }
 
-function normalizeAngle(deg: number): number {
-  return ((deg % 360) + 360) % 360;
-}
-
-// Signed angular difference a-b, normalized to (-180, 180].
-function angleDiff(a: number, b: number): number {
-  return ((a - b + 540) % 360) - 180;
-}
-
-type WindClass = "headwind" | "tailwind" | "crosswind";
-
-// relativeFromAngle is the wind's "from" direction relative to the
-// cyclist's course (0 = wind coming from directly ahead, ±180 = from
-// directly behind) - see the wind card below for how it's computed.
-function windClassification(relativeFromAngle: number): WindClass {
-  const abs = Math.abs(relativeFromAngle);
-  if (abs <= 45) return "headwind";
-  if (abs >= 135) return "tailwind";
-  return "crosswind";
-}
-
-const WIND_CLASS_LABEL: Record<WindClass, string> = {
-  headwind: "Headwind",
-  tailwind: "Tailwind",
-  crosswind: "Crosswind",
-};
-
 // Public "dot-watching" page for the actual attempt, separate from the
 // Microsoft-gated /dashboard app - no sign-in required to view, meant to be
 // shared with followers. Position comes from the athlete's Garmin inReach
@@ -143,7 +123,14 @@ const WIND_CLASS_LABEL: Record<WindClass, string> = {
 // same session cookie the Microsoft-gated dashboard uses) - public
 // visitors get the same saved layout rendered read-only, since there's no
 // per-visitor preference to speak of here.
+//
+// Visually themed the same as Dashboard/Trends/Coaching (shared CSS
+// variables, same light/dark logic via useDashboardTheme) rather than its
+// original bespoke "mission control" palette - this is still a standalone
+// public page with none of the private dashboard's nav/auth chrome, just
+// matching look and feel.
 export default function LiveTrackerPage() {
+  useDashboardTheme();
   const [data, setData] = useState<ApiResult | null>(null);
   const [route, setRoute] = useState<RoutePoint[]>([]);
   const [routeError, setRouteError] = useState(false);
@@ -294,12 +281,6 @@ export default function LiveTrackerPage() {
   const projectedVsTarget =
     projectedFinishSeconds != null && data.targetSeconds != null ? data.targetSeconds - projectedFinishSeconds : null;
 
-  const courseBearing = data.position && route.length > 1 ? courseBearingAtKm(route, coveredKm) : null;
-  const windFrom = weather?.windDirection ?? null;
-  const relativeFromAngle = windFrom != null && courseBearing != null ? angleDiff(windFrom, courseBearing) : null;
-  const windClass = relativeFromAngle != null ? windClassification(relativeFromAngle) : null;
-  const arrowRotation = windFrom != null ? normalizeAngle(windFrom + 180 - (courseBearing ?? 0)) : 0;
-
   const effectiveLayout = layout ?? DEFAULT_LAYOUT;
   const canvasHeight = computeCanvasHeight(
     effectiveLayout.order.map((id) => ({ y: effectiveLayout.rects[id].y, height: effectiveLayout.rects[id].height })),
@@ -373,7 +354,7 @@ export default function LiveTrackerPage() {
     map: (
       <div className={styles.mapWrap}>
         {routeError && <p className={styles.empty}>Couldn&apos;t load the route GPX file.</p>}
-        <LiveTrackerMap route={route} position={data.position} coveredKm={coveredKm} />
+        <LiveTrackerMap route={route} position={data.position} coveredKm={coveredKm} totalKm={totalKm} weather={weather} />
       </div>
     ),
     eta: (
@@ -384,34 +365,6 @@ export default function LiveTrackerPage() {
           <p className={styles.etaVs}>
             {projectedVsTarget >= 0 ? `${formatDuration(projectedVsTarget)} under target` : `${formatDuration(-projectedVsTarget)} over target`}
           </p>
-        )}
-      </div>
-    ),
-    weather: (
-      <div className={styles.weatherCard}>
-        <p className={styles.cardTitle}>Weather at current position</p>
-        {weather ? (
-          <>
-            <p className={styles.weatherLine}>{weather.temp}°C</p>
-            <div className={styles.windRow}>
-              <svg
-                className={styles.windArrow}
-                style={{ transform: `rotate(${arrowRotation}deg)` }}
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                aria-hidden="true"
-              >
-                <path d="M12 2 L12 22 M12 2 L6 9 M12 2 L18 9" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              <div>
-                <p className={styles.windSpeed}>{weather.windSpeed} km/h</p>
-                <p className={styles.windClass}>{windClass ? WIND_CLASS_LABEL[windClass] : "Wind"}</p>
-              </div>
-            </div>
-          </>
-        ) : (
-          <p className={styles.empty}>—</p>
         )}
       </div>
     ),

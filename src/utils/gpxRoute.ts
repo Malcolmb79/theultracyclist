@@ -1,4 +1,6 @@
-export type RoutePoint = { lat: number; lon: number; distanceKm: number };
+// elevationM is optional - not every GPX file includes <ele>, though Ride
+// with GPS's .json export always does (its "e" field).
+export type RoutePoint = { lat: number; lon: number; distanceKm: number; elevationM?: number };
 
 export function haversineKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
   const R = 6371;
@@ -26,11 +28,11 @@ export async function fetchRoute(url: string): Promise<RoutePoint[]> {
 async function fetchRideWithGpsJsonRoute(url: string): Promise<RoutePoint[]> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Route request failed (${res.status})`);
-  const data = (await res.json()) as { track_points?: { x?: number; y?: number; d?: number }[] };
+  const data = (await res.json()) as { track_points?: { x?: number; y?: number; d?: number; e?: number }[] };
   const trackPoints = data.track_points ?? [];
   return trackPoints
-    .filter((p): p is { x: number; y: number; d?: number } => typeof p.x === "number" && typeof p.y === "number")
-    .map((p) => ({ lat: p.y, lon: p.x, distanceKm: (p.d ?? 0) / 1000 }));
+    .filter((p): p is { x: number; y: number; d?: number; e?: number } => typeof p.x === "number" && typeof p.y === "number")
+    .map((p) => ({ lat: p.y, lon: p.x, distanceKm: (p.d ?? 0) / 1000, elevationM: typeof p.e === "number" ? p.e : undefined }));
 }
 
 async function fetchGpxRoute(url: string): Promise<RoutePoint[]> {
@@ -49,7 +51,9 @@ async function fetchGpxRoute(url: string): Promise<RoutePoint[]> {
     if (points.length > 0) {
       cumulative += haversineKm(points[points.length - 1], { lat, lon });
     }
-    points.push({ lat, lon, distanceKm: cumulative });
+    const eleText = el.querySelector("ele")?.textContent;
+    const elevationM = eleText != null ? Number(eleText) : undefined;
+    points.push({ lat, lon, distanceKm: cumulative, elevationM: Number.isFinite(elevationM) ? elevationM : undefined });
   }
   return points;
 }

@@ -1,18 +1,19 @@
-/* Deliberately not theme-aware (like WeatherCard) - a fixed dark "mission
-   control" aesthetic for the public live-tracking page, independent of the
-   visitor's own light/dark preference. */
+/* Same shared CSS variables (and light/dark logic via useDashboardTheme) as
+   Dashboard/Trends/Coaching - see src/styles/variables.css. This page is
+   still a standalone public route with none of the private dashboard's
+   nav/auth chrome, just matching visual look and feel. */
 .page {
   min-height: 100vh;
-  background: #0a0e1a;
-  color: #e8ecf1;
+  background: var(--color-bg);
+  color: var(--color-text);
   font-family: var(--font-body);
-  padding: 16px;
+  padding: var(--space-4);
   box-sizing: border-box;
 }
 
 .loading,
 .empty {
-  color: #8b92a8;
+  color: var(--color-text-muted);
   font-size: 0.9rem;
 }
 
@@ -25,7 +26,7 @@
 .notConfigured h1 {
   font-family: var(--font-display);
   font-size: 2rem;
-  margin-bottom: 8px;
+  margin-bottom: var(--space-2);
 }
 
 .header {
@@ -33,9 +34,9 @@
   justify-content: space-between;
   align-items: flex-start;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
   max-width: 1400px;
-  margin: 0 auto 16px;
+  margin: 0 auto var(--space-4);
 }
 
 .title {
@@ -46,23 +47,23 @@
 
 .subtitle {
   font-size: 0.8rem;
-  color: #8b92a8;
+  color: var(--color-text-muted);
   margin-top: 2px;
 }
 
 .status {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   font-size: 0.85rem;
-  color: #8b92a8;
+  color: var(--color-text-muted);
 }
 
 .liveDot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #22c55e;
+  background: var(--color-accent-2);
   animation: pulse 2s infinite;
 }
 
@@ -72,9 +73,7 @@
 }
 
 /* Drag/resize canvas for the widget layout - same shape as
-   CoachingPage.module.css's .canvas/.stackList/.canvasSnap, just themed to
-   this page's fixed dark palette instead of the light/dark CSS vars (this
-   page isn't theme-aware - see the top-of-file note). */
+   CoachingPage.module.css's .canvas/.stackList/.canvasSnap. */
 .canvas {
   position: relative;
   min-width: 0;
@@ -86,7 +85,7 @@
   display: flex;
   flex-direction: column;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: var(--space-3);
   width: 100%;
   max-width: 1400px;
   margin: 0 auto;
@@ -94,39 +93,38 @@
 
 .canvasSnap {
   background-image:
-    repeating-linear-gradient(to right, #1e2538 0 1px, transparent 1px 20px),
-    repeating-linear-gradient(to bottom, #1e2538 0 1px, transparent 1px 20px);
+    repeating-linear-gradient(to right, var(--color-border) 0 1px, transparent 1px 20px),
+    repeating-linear-gradient(to bottom, var(--color-border) 0 1px, transparent 1px 20px);
   background-position: -1px -1px;
-  border-radius: 10px;
+  border-radius: var(--radius);
 }
 
 .statUnit {
   font-size: 0.75rem;
   font-weight: 500;
-  color: #6b7280;
+  color: var(--color-text-muted);
   margin-left: 3px;
 }
 
 .paceCard,
 .progressCard,
-.etaBox,
-.weatherCard {
+.etaBox {
   height: 100%;
   box-sizing: border-box;
 }
 
 .paceCard {
-  background: #13182a;
-  border: 1px solid #1e2538;
-  border-radius: 10px;
-  padding: 14px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-4);
 }
 
 .paceGrid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  margin-top: 6px;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
 }
 
 .paceItem {
@@ -138,38 +136,38 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: #6b7280;
-  margin: 0 0 6px;
+  color: var(--color-text-muted);
+  margin: 0 0 var(--space-1);
 }
 
 .paceValue {
   font-family: var(--font-display);
   font-size: 1.6rem;
-  color: #fff;
+  color: var(--color-text);
   margin: 0;
 }
 
 .noTelemetryNote {
-  margin: 10px 0 0;
+  margin: var(--space-2) 0 0;
   font-size: 0.68rem;
-  color: #6b7280;
+  color: var(--color-text-muted);
   font-style: italic;
 }
 
 .progressCard {
-  background: #13182a;
-  border: 1px solid #1e2538;
-  border-radius: 10px;
-  padding: 14px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-4);
 }
 
 .progressHeader {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: var(--space-2);
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-1);
 }
 
 .cardTitle {
@@ -177,30 +175,30 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: #6b7280;
+  color: var(--color-text-muted);
 }
 
 .recordBadge {
   font-size: 0.7rem;
-  padding: 2px 8px;
-  border-radius: 8px;
-  background: rgba(234, 179, 8, 0.1);
-  color: #eab308;
-  border: 1px solid rgba(234, 179, 8, 0.2);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--color-amber) 12%, transparent);
+  color: var(--color-amber);
+  border: 1px solid color-mix(in srgb, var(--color-amber) 30%, transparent);
   font-weight: 600;
 }
 
 .progressBarBg {
   height: 16px;
-  background: #1a2035;
-  border-radius: 8px;
+  background: var(--color-bg-elevated-2);
+  border-radius: var(--radius);
   overflow: hidden;
 }
 
 .progressBarFill {
   height: 100%;
-  border-radius: 8px;
-  background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899);
+  border-radius: var(--radius);
+  background: linear-gradient(90deg, var(--color-accent-2), var(--color-accent));
   transition: width 0.6s ease;
 }
 
@@ -209,34 +207,35 @@
   justify-content: space-between;
   font-size: 0.72rem;
   margin-top: 5px;
-  color: #8b92a8;
+  color: var(--color-text-muted);
 }
 
 .progressSummary {
   display: flex;
-  gap: 16px;
-  margin-top: 8px;
+  gap: var(--space-4);
+  margin-top: var(--space-2);
   font-size: 0.72rem;
-  color: #8b92a8;
+  color: var(--color-text-muted);
   flex-wrap: wrap;
 }
 
 .progressSummary strong {
-  color: #fff;
+  color: var(--color-text);
 }
 
 .mapWrap {
   position: relative;
-  border-radius: 10px;
+  border-radius: var(--radius);
   overflow: hidden;
-  border: 1px solid #1e2538;
+  border: 1px solid var(--color-border);
 }
 
 .etaBox {
-  background: linear-gradient(135deg, #1e3a5f 0%, #0f1525 100%);
-  border: 1px solid #2a4a7a;
-  border-radius: 10px;
-  padding: 14px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-accent-2);
+  border-radius: var(--radius);
+  padding: var(--space-4);
   text-align: center;
   display: flex;
   flex-direction: column;
@@ -245,62 +244,19 @@
 
 .etaLabel {
   font-size: 0.62rem;
-  color: #6b7280;
-  margin: 0 0 4px;
+  color: var(--color-text-muted);
+  margin: 0 0 var(--space-1);
 }
 
 .etaValue {
   font-family: var(--font-display);
   font-size: 1.6rem;
-  color: #60a5fa;
+  color: var(--color-accent-2);
   margin: 0;
 }
 
 .etaVs {
   font-size: 0.72rem;
-  color: #8b92a8;
-  margin: 4px 0 0;
-}
-
-.weatherCard {
-  background: #13182a;
-  border: 1px solid #1e2538;
-  border-radius: 10px;
-  padding: 14px;
-}
-
-.weatherLine {
-  font-size: 1.4rem;
-  font-family: var(--font-display);
-  color: #fff;
-  margin: 4px 0 10px;
-}
-
-.windRow {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.windArrow {
-  flex: none;
-  width: 30px;
-  height: 30px;
-  color: #60a5fa;
-  transition: transform 0.4s ease;
-}
-
-.windSpeed {
-  font-size: 1rem;
-  font-weight: 600;
-  color: #fff;
-  margin: 0;
-}
-
-.windClass {
-  font-size: 0.72rem;
-  color: #8b92a8;
-  margin: 2px 0 0;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+  margin: var(--space-1) 0 0;
 }

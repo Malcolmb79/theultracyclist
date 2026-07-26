@@ -25,17 +25,21 @@
   z-index: 2;
   width: 26px;
   height: 26px;
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
-  background: #1e2538;
-  border: 1px solid #2a3350;
-  color: #8b92a8;
+  border-radius: var(--radius);
+  background: var(--color-bg-elevated-2);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
   font-size: 0.9rem;
   line-height: 1;
   touch-action: none;
   cursor: grab;
+}
+
+.widget[data-selected] .dragHandle {
+  display: flex;
 }
 
 .dragHandle:active {
@@ -47,9 +51,13 @@
   top: -12px;
   right: 8px;
   z-index: 2;
-  display: flex;
+  display: none;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
+}
+
+.widget[data-selected] .controls {
+  display: flex;
 }
 
 .iconButton {
@@ -58,17 +66,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
-  background: #1e2538;
-  border: 1px solid #2a3350;
-  color: #e8ecf1;
+  border-radius: var(--radius);
+  background: var(--color-bg-elevated-2);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
   cursor: pointer;
   font-size: 0.85rem;
   line-height: 1;
 }
 
 .iconButton:hover:not(:disabled) {
-  border-color: #60a5fa;
+  border-color: var(--color-accent);
 }
 
 .iconButton:disabled {
@@ -92,11 +100,11 @@
   bottom: 0;
   width: 32px;
   height: 32px;
-  display: flex;
+  display: none;
   align-items: flex-end;
   justify-content: flex-end;
   padding: 0 4px 4px 0;
-  color: #8b92a8;
+  color: var(--color-text-muted);
   font-size: 0.9rem;
   line-height: 1;
   cursor: nwse-resize;
@@ -105,6 +113,10 @@
   z-index: 2;
 }
 
+.widget[data-selected] .resizeHandle {
+  display: flex;
+}
+
 .resizeHandle:hover {
-  color: #60a5fa;
+  color: var(--color-accent);
 }

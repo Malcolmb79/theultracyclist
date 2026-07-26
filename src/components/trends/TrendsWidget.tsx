@@ -62,8 +62,27 @@ const VIEW_LABEL: Record<TrendsViewType, string> = {
   healthCalendar: "Health Calendar",
 };
 
+// The selectable time ranges, shown as an always-visible pill row inside
+// the widget content instead of a header dropdown - "healthCalendar" isn't
+// included since that's a different fixed widget type entirely, not a view
+// of a real metric (see the isHealthCalendar guard around its usage below).
+const VIEW_PILL_TYPES: TrendsViewType[] = ["day", "week", "month", "calendar"];
+
+const VIEW_PILL_LABEL: Record<TrendsViewType, string> = {
+  day: "Daily",
+  week: "Mon-Sun",
+  month: "Monthly",
+  calendar: "Calendar",
+  healthCalendar: "Health Calendar",
+};
+
 const HEADER_HEIGHT = 40;
 const CONTENT_PADDING = 32;
+// Pill row height (padding + button + margin-bottom, see .viewSegmented in
+// the stylesheet) - shown for every view except healthCalendar, so
+// CalendarView's own height allowance needs to account for it or it'll be
+// told it has more room than .contentBody actually leaves it.
+const VIEW_SEGMENTED_HEIGHT = 38;
 
 export default function TrendsWidget({
   widget,
@@ -166,7 +185,10 @@ export default function TrendsWidget({
   }, [selected]);
 
   const color = widget.color ?? DEFAULT_TRENDS_COLOR;
-  const contentHeight = Math.max(24, rect.height - HEADER_HEIGHT - CONTENT_PADDING);
+  const contentHeight = Math.max(
+    24,
+    rect.height - HEADER_HEIGHT - CONTENT_PADDING - (isHealthCalendar ? 0 : VIEW_SEGMENTED_HEIGHT),
+  );
   const positionStyle = stacked
     ? { width: rect.width, height: rect.height }
     : { position: "absolute" as const, left: rect.x, top: rect.y, width: rect.width, height: rect.height };
@@ -216,18 +238,6 @@ export default function TrendsWidget({
             onChange={(e) => onColorChange(e.target.value)}
             aria-label="Widget colour"
           />
-          {!isHealthCalendar && (
-            <select
-              className={styles.select}
-              value={widget.viewType}
-              onChange={(e) => onViewTypeChange(e.target.value as TrendsViewType)}
-            >
-              <option value="day">Day</option>
-              <option value="week">Week</option>
-              <option value="month">Month</option>
-              <option value="calendar">Calendar</option>
-            </select>
-          )}
           <button
             type="button"
             className={styles.iconButton}
@@ -247,6 +257,23 @@ export default function TrendsWidget({
       </div>
 
       <div className={styles.content}>
+        {!isHealthCalendar && (
+          <div className={styles.viewSegmented} role="radiogroup" aria-label="Time range">
+            {VIEW_PILL_TYPES.map((vt) => (
+              <button
+                key={vt}
+                type="button"
+                role="radio"
+                aria-checked={widget.viewType === vt}
+                className={`${styles.viewSegmentButton} ${widget.viewType === vt ? styles.viewSegmentButtonActive : ""}`}
+                onClick={() => onViewTypeChange(vt)}
+              >
+                {VIEW_PILL_LABEL[vt]}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className={styles.contentBody}>
         {!metric ? (
           <p className={styles.empty}>Metric not available.</p>
         ) : isHealthCalendar ? (
@@ -288,6 +315,7 @@ export default function TrendsWidget({
             );
           })()
         )}
+        </div>
       </div>
 
       <div

@@ -89,13 +89,42 @@
   cursor: pointer;
 }
 
-.select {
-  background: var(--color-bg-elevated-2);
-  color: var(--color-text);
+/* Always-visible time-range switcher inside the widget content (replacing
+   the old header dropdown), matching the pill-row style of a typical
+   fitness-tracker widget: an outlined pill drawn around just the active
+   segment rather than a solid fill across the whole row. */
+.viewSegmented {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  padding: 3px;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  padding: 0.2rem 0.4rem;
-  font-size: 0.75rem;
+  border-radius: 999px;
+  margin-bottom: var(--space-2);
+}
+
+.viewSegmentButton {
+  flex: 1;
+  min-width: 0;
+  padding: 0.3rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--color-text-muted);
+  font-weight: 700;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.viewSegmentButtonActive {
+  border-color: var(--color-text);
+  color: var(--color-text);
 }
 
 .iconButton {
@@ -124,6 +153,16 @@
 }
 
 .content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* The actual metric/calendar rendering stays centered in whatever space is
+   left below the (top-anchored) view-range pill row above it. */
+.contentBody {
   flex: 1;
   min-height: 0;
   display: flex;
@@ -197,6 +236,11 @@
   .widget {
     padding: var(--space-2) var(--space-3);
     gap: var(--space-1);
+  }
+
+  .viewSegmentButton {
+    padding: 0.25rem 0.35rem;
+    font-size: 0.55rem;
   }
 
   .label {

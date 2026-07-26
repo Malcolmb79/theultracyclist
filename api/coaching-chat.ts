@@ -7,6 +7,8 @@ import { fetchStravaRides } from "./strava-activities.js";
 import { fetchHealthHistory } from "./health-data.js";
 import { fetchCoachingSettings } from "./coaching-settings.js";
 import { computeTss } from "./_lib/tss.js";
+import { computeFitnessSeries } from "./_lib/fitness.js";
+import { irelandTodayDateStr, irelandDateStr } from "./_lib/timeContext.js";
 
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const MODEL = "claude-haiku-4-5-20251001";
@@ -85,6 +87,24 @@ const TOOLS = [
     },
   },
   {
+    name: "get_fitness",
+    description:
+      "Get current CTL (fitness, 42-day training load average), ATL (fatigue, 7-day average), and TSB " +
+      "(form/freshness, CTL minus ATL - positive means fresh, very negative means high accumulated fatigue), " +
+      "plus their trend over the recent days requested. Computed from Strava TSS history against the " +
+      "athlete's FTP - null values mean not enough ride/power history yet. Use this for questions about " +
+      "fitness, fatigue, form, training load, or whether today is a good day to push hard vs back off.",
+    input_schema: {
+      type: "object",
+      properties: {
+        trendDays: {
+          type: "number",
+          description: "How many recent days of CTL/ATL/TSB trend to include alongside the current values. Defaults to 14 if omitted.",
+        },
+      },
+    },
+  },
+  {
     name: "get_health_metrics",
     description:
       "Fetch daily Apple Health history (whatever the athlete's export includes - e.g. body weight, resting " +
@@ -125,6 +145,31 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
         const days = typeof input.days === "number" ? input.days : undefined;
         const metric = typeof input.metric === "string" ? input.metric : undefined;
         return fetchHealthHistory(days, metric ? [metric] : undefined);
+      }
+      case "get_fitness": {
+        const trendDays = typeof input.trendDays === "number" ? input.trendDays : 14;
+        // A generous ride count (not the default 6) so CTL's 42-day window
+        // has real history behind it rather than ramping up from an
+        // artificially recent start.
+        const [rides, settings] = await Promise.all([fetchStravaRides(200), fetchCoachingSettings()]);
+
+        const dailyTssByDate = new Map<string, number>();
+        let earliest: string | null = null;
+        for (const r of rides) {
+          const date = irelandDateStr(new Date(r.startDate));
+          const tss = computeTss(r.weightedAvgWatts ?? r.avgWatts, r.movingTimeMinutes, settings.ftpWatts) ?? 0;
+          dailyTssByDate.set(date, (dailyTssByDate.get(date) ?? 0) + tss);
+          if (!earliest || date < earliest) earliest = date;
+        }
+
+        const today = irelandTodayDateStr();
+        if (!earliest) return { current: null, trend: [], note: "No ride history available yet." };
+
+        const series = computeFitnessSeries(dailyTssByDate, earliest, today);
+        const points = Array.from(series.values());
+        const current = points[points.length - 1] ?? null;
+        const trend = points.slice(-trendDays);
+        return { current, trend };
       }
       default:
         return { error: `Unknown tool: ${name}` };

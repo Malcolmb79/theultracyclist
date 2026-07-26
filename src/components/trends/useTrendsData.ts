@@ -5,6 +5,8 @@ import { useUnits } from "../../context/UnitsContext";
 import { convertTrendMetric, convertValueUnit } from "../../utils/units";
 import { computeBmi } from "../../utils/bmi";
 import { computeTss } from "../../utils/tss";
+import { computeFitnessSeries } from "../../utils/fitness";
+import { today } from "./aggregate";
 
 export type TrendMetricDef = {
   id: string;
@@ -89,7 +91,11 @@ export function useTrendsData(): TrendsDataState {
 
     Promise.all([
       fetch("/api/whoop-data").then((r) => (r.ok ? r.json() : null)),
-      fetch("/api/strava-activities").then((r) => (r.ok ? r.json() : null)),
+      // A generous count (not the default 6 "recent rides" list) so CTL's
+      // 42-day window has real history behind it rather than ramping up
+      // from an artificially recent start - see useTrendsData's CTL/ATL/TSB
+      // metrics below.
+      fetch("/api/strava-activities?count=200").then((r) => (r.ok ? r.json() : null)),
       fetch("/api/health-data").then((r) => (r.ok ? r.json() : null)),
       fetch("/api/trends-goals").then((r) => (r.ok ? r.json() : null)),
       fetch("/api/coaching-settings").then((r) => (r.ok ? r.json() : null)),
@@ -208,6 +214,53 @@ export function useTrendsData(): TrendsDataState {
             },
           },
         ];
+
+        // CTL/ATL/TSB (fitness/fatigue/form) - a running series computed
+        // once over the full ride history rather than per-metric-per-date,
+        // since each day's value depends on every prior day's (see
+        // computeFitnessSeries). "avg" aggregation since these are
+        // snapshot/level values, not additive like distance or TSS.
+        {
+          const ftpWatts = settingsBody?.settings?.ftpWatts as number | undefined;
+          const dailyTssByDate = new Map<string, number>();
+          let earliestRideDate: string | null = null;
+          for (const ride of rides) {
+            const date = ride.startDate.slice(0, 10);
+            const tss = computeTss(ride.weightedAvgWatts ?? ride.avgWatts, ride.movingTimeMinutes, ftpWatts) ?? 0;
+            dailyTssByDate.set(date, (dailyTssByDate.get(date) ?? 0) + tss);
+            if (!earliestRideDate || date < earliestRideDate) earliestRideDate = date;
+          }
+
+          if (earliestRideDate) {
+            const fitnessSeries = computeFitnessSeries(dailyTssByDate, earliestRideDate, today());
+            metrics.push(
+              {
+                id: "strava.ctl",
+                source: "strava",
+                label: "Fitness (CTL)",
+                unit: "",
+                aggregation: "avg",
+                getValue: (date) => fitnessSeries.get(date)?.ctl ?? null,
+              },
+              {
+                id: "strava.atl",
+                source: "strava",
+                label: "Fatigue (ATL)",
+                unit: "",
+                aggregation: "avg",
+                getValue: (date) => fitnessSeries.get(date)?.atl ?? null,
+              },
+              {
+                id: "strava.tsb",
+                source: "strava",
+                label: "Form (TSB)",
+                unit: "",
+                aggregation: "avg",
+                getValue: (date) => fitnessSeries.get(date)?.tsb ?? null,
+              },
+            );
+          }
+        }
 
         for (const entry of healthCatalog) {
           metrics.push({

@@ -220,7 +220,13 @@ export async function fetchStravaRides(count: number = RIDE_COUNT): Promise<Ride
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
-    const rides = await fetchStravaRides(RIDE_COUNT);
+    // Defaults to RIDE_COUNT (6, the "recent rides" list most callers want)
+    // - callers doing historical analysis over a real date range (CTL/ATL
+    // need weeks of daily TSS, not just the last few rides) pass a larger
+    // explicit count instead, e.g. ?count=200.
+    const requestedCount = Number(req.query.count);
+    const count = Number.isFinite(requestedCount) && requestedCount > 0 ? Math.floor(requestedCount) : RIDE_COUNT;
+    const rides = await fetchStravaRides(count);
 
     const accessToken = await getAccessToken();
     const authHeader = { Authorization: `Bearer ${accessToken}` };

@@ -5,6 +5,8 @@ import { ATHLETE_PROFILE, DATA_SEMANTICS, SEASON_PLAN, LANGUAGE_STYLE } from "./
 import { fetchWhoopHistory } from "./whoop-data.js";
 import { fetchStravaRides } from "./strava-activities.js";
 import { fetchHealthHistory } from "./health-data.js";
+import { fetchCoachingSettings } from "./coaching-settings.js";
+import { computeTss } from "./_lib/tss.js";
 
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const MODEL = "claude-haiku-4-5-20251001";
@@ -67,8 +69,9 @@ const TOOLS = [
     name: "get_rides",
     description:
       "Fetch the athlete's most recent Strava rides: distance, moving time, average/weighted power, heart " +
-      "rate, relative effort, and elevation profile. Use this for questions about specific rides, recent " +
-      "training volume, or power/pacing patterns.",
+      "rate, relative effort, elevation profile, and Training Stress Score (tss - null on a ride with no " +
+      "power data or if FTP isn't set). Use this for questions about specific rides, recent training volume, " +
+      "power/pacing patterns, or TSS - sum the tss field across rides in range for a weekly/period total.",
     input_schema: {
       type: "object",
       properties: {
@@ -112,7 +115,11 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
       }
       case "get_rides": {
         const count = typeof input.count === "number" ? input.count : undefined;
-        return await fetchStravaRides(count);
+        const [rides, settings] = await Promise.all([fetchStravaRides(count), fetchCoachingSettings()]);
+        return rides.map((r) => ({
+          ...r,
+          tss: computeTss(r.weightedAvgWatts ?? r.avgWatts, r.movingTimeMinutes, settings.ftpWatts),
+        }));
       }
       case "get_health_metrics": {
         const days = typeof input.days === "number" ? input.days : undefined;

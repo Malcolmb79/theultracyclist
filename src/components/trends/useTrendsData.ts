@@ -4,6 +4,7 @@ import { HEALTH_CALENDAR_ID } from "../dashboard/types";
 import { useUnits } from "../../context/UnitsContext";
 import { convertTrendMetric, convertValueUnit } from "../../utils/units";
 import { computeBmi } from "../../utils/bmi";
+import { computeTss } from "../../utils/tss";
 
 export type TrendMetricDef = {
   id: string;
@@ -35,7 +36,13 @@ type WhoopDayRaw = {
   } | null;
 };
 
-type StravaRide = { distanceKm: number; movingTimeMinutes: number; startDate: string };
+type StravaRide = {
+  distanceKm: number;
+  movingTimeMinutes: number;
+  startDate: string;
+  avgWatts: number | null;
+  weightedAvgWatts: number | null;
+};
 type HealthHistory = Record<string, Record<string, { value: number; unit: string }>>;
 type HealthCatalogEntry = { name: string; unit: string; days: number };
 
@@ -184,6 +191,20 @@ export function useTrendsData(): TrendsDataState {
             getValue: (date) => {
               const list = stravaByDate.get(date);
               return list ? Math.round(list.reduce((sum, r) => sum + r.movingTimeMinutes, 0)) : null;
+            },
+          },
+          {
+            id: "strava.tss",
+            source: "strava",
+            label: "TSS",
+            unit: "",
+            aggregation: "sum",
+            getValue: (date) => {
+              const list = stravaByDate.get(date);
+              if (!list) return null;
+              const ftpWatts = settingsBody?.settings?.ftpWatts as number | undefined;
+              const total = list.reduce((sum, r) => sum + (computeTss(r.weightedAvgWatts ?? r.avgWatts, r.movingTimeMinutes, ftpWatts) ?? 0), 0);
+              return Math.round(total * 10) / 10;
             },
           },
         ];

@@ -1,12 +1,23 @@
 .page {
   min-height: 100vh;
   padding: var(--space-5) var(--space-4);
-  max-width: 1200px;
-  margin: 0 auto;
 }
 
+/* position:sticky so the nav bar spans the full viewport width like
+   Dashboard/Trends's - .page itself is intentionally unconstrained (see
+   .canvas/.stackList below for the actual centering), so this negates
+   .page's own padding to bleed back out to full width, matching
+   DashboardPage.module.css's identical .topBar exactly. Coaching used to
+   center .page itself at a narrower 1200px instead of centering just the
+   canvas at 1400px like the other two pages, which made it visibly sit in
+   a narrower column than Dashboard/Trends on wide screens. */
 .topBar {
-  margin-bottom: 0;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: var(--color-bg);
+  margin: 0 calc(var(--space-4) * -1);
+  padding: 0 var(--space-4);
 }
 
 .switchLink {
@@ -132,9 +143,14 @@
 
 /* position:relative so the 4 coaching widgets (position:absolute, left/top
    from their own x/y) place themselves relative to this canvas. Height is
-   set inline from computeCanvasHeight(). */
+   set inline from computeCanvasHeight(). max-width+margin:auto centers the
+   canvas the same way Dashboard/Trends center theirs, rather than .page
+   itself being narrower - see the .topBar comment above. */
 .canvas {
   position: relative;
+  min-width: 0;
+  max-width: 1400px;
+  margin: 0 auto;
 }
 
 /* Shown only while actively dragging a widget's move/resize handle. 20px
@@ -147,6 +163,8 @@
   flex-wrap: wrap;
   gap: var(--space-3);
   width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
 }
 
 .canvasSnap {

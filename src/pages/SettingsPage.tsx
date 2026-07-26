@@ -71,7 +71,7 @@ function SettingsEditor() {
   const [garminUrlInput, setGarminUrlInput] = useState("");
   const [gpxUrlInput, setGpxUrlInput] = useState("");
   const [positionFeedUrlInput, setPositionFeedUrlInput] = useState("");
-  const [targetHoursInput, setTargetHoursInput] = useState("17");
+  const [targetHoursInput, setTargetHoursInput] = useState("18");
   const [targetMinutesInput, setTargetMinutesInput] = useState("0");
   const [startTimeInput, setStartTimeInput] = useState("");
   const [liveTrackerStatus, setLiveTrackerStatus] = useState<string | null>(null);
@@ -227,9 +227,10 @@ function SettingsEditor() {
   // Starts a live-advancing simulation for testing /live before a real
   // inReach device/feed exists - the server (api/live-tracker.ts) computes
   // an actually-moving position on every poll from this config, sped up
-  // 120x real time so a ~16h ride finishes in about 8 real minutes. Paced
-  // slightly faster than the target so the page renders its "ahead of
-  // target" state. "Reset position history" stops it.
+  // 120x real time so an ~18h ride finishes in about 9 real minutes. Paced
+  // at the target pace itself (not artificially faster) so the simulated
+  // run takes close to the full target duration, matching what a real
+  // ~18h attempt would look like. "Reset position history" stops it.
   const handleSimulateTestRun = async () => {
     if (!gpxUrlInput.trim()) {
       setLiveTrackerStatus("Add a route GPX URL first.");
@@ -242,9 +243,8 @@ function SettingsEditor() {
       const totalKm = route.length > 0 ? route[route.length - 1].distanceKm : 0;
       if (totalKm === 0) throw new Error("empty route");
 
-      const targetSeconds = (Number(targetHoursInput) || 17) * 3600 + (Number(targetMinutesInput) || 0) * 60;
-      const requiredKmh = totalKm / (targetSeconds / 3600);
-      const simulatedKmh = requiredKmh * 1.08; // slightly quicker than target pace
+      const targetSeconds = (Number(targetHoursInput) || 18) * 3600 + (Number(targetMinutesInput) || 0) * 60;
+      const simulatedKmh = totalKm / (targetSeconds / 3600);
 
       await fetch("/api/live-tracker", {
         method: "POST",

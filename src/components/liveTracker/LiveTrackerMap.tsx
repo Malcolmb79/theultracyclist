@@ -12,6 +12,12 @@ const LIVE_COLOR = "#ef4444";
 // needing to manually zoom back in after panning or zooming away - matches
 // roughly what "recenter" implies for a dot-watching page like this.
 const RESET_ZOOM = 12;
+const INITIAL_ZOOM = 7;
+// 3 (most of Ireland) to 18 (street-level) - the tile source's own maxZoom
+// is 19, but 18 is already past what's useful for a route this size, and
+// leaves one zoom level of headroom before tiles visibly blur.
+const MIN_ZOOM = 3;
+const MAX_ZOOM = 18;
 
 type WeatherState = { temp: number; windSpeed: number; windDirection: number; code: number } | null;
 type WindClass = "headwind" | "tailwind" | "crosswind";
@@ -69,6 +75,7 @@ export default function LiveTrackerMap({ route, position, coveredKm, totalKm, we
   const markerRef = useRef<CircleMarker | null>(null);
   const hasFitBoundsRef = useRef(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [zoom, setZoom] = useState(INITIAL_ZOOM);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -78,7 +85,7 @@ export default function LiveTrackerMap({ route, position, coveredKm, totalKm, we
 
     import("leaflet").then((L) => {
       if (cancelled || !containerRef.current || mapRef.current) return;
-      const map = L.map(containerRef.current).setView([53.4, -8], 7);
+      const map = L.map(containerRef.current, { minZoom: MIN_ZOOM, maxZoom: MAX_ZOOM }).setView([53.4, -8], INITIAL_ZOOM);
       L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
         attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
         subdomains: "abcd",
@@ -93,6 +100,10 @@ export default function LiveTrackerMap({ route, position, coveredKm, totalKm, we
         fillColor: LIVE_COLOR,
         fillOpacity: 1,
       }).addTo(map);
+      // Keeps the scale slider in sync with zooming done any other way
+      // (scroll wheel, pinch, double-click, the map's own +/- control) -
+      // the slider isn't the only way to change zoom, just an additional one.
+      map.on("zoomend", () => setZoom(map.getZoom()));
       mapRef.current = map;
     });
 
@@ -136,6 +147,15 @@ export default function LiveTrackerMap({ route, position, coveredKm, totalKm, we
     }
   };
 
+  // Slider drives the map, not the other way around, except for the
+  // zoomend listener above keeping it honest when zoom changes some other
+  // way - setZoom (not flyTo) so it's an immediate jump, matching how a
+  // slider is expected to feel rather than an animated fly.
+  const handleZoomChange = (next: number) => {
+    setZoom(next);
+    mapRef.current?.setZoom(next);
+  };
+
   const courseBearing = route.length > 1 ? courseBearingAtKm(route, coveredKm) : null;
   const windFrom = weather?.windDirection ?? null;
   const relativeFromAngle = windFrom != null && courseBearing != null ? angleDiff(windFrom, courseBearing) : null;
@@ -145,6 +165,24 @@ export default function LiveTrackerMap({ route, position, coveredKm, totalKm, we
   return (
     <div className={styles.wrap}>
       <div ref={containerRef} className={styles.map} />
+
+      <div className={styles.zoomSlider}>
+        <span className={styles.zoomLabel} aria-hidden="true">
+          −
+        </span>
+        <input
+          type="range"
+          min={MIN_ZOOM}
+          max={MAX_ZOOM}
+          step={1}
+          value={zoom}
+          onChange={(e) => handleZoomChange(Number(e.target.value))}
+          aria-label="Map zoom level"
+        />
+        <span className={styles.zoomLabel} aria-hidden="true">
+          +
+        </span>
+      </div>
 
       <div className={styles.controls}>
         <button

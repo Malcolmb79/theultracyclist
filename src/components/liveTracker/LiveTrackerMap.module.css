@@ -15,6 +15,36 @@
   background: #0d1220;
 }
 
+/* Centered at the top so it clears Leaflet's own zoom control (top-left)
+   and the reset/profile buttons + weather card (top-right). */
+.zoomSlider {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  background: color-mix(in srgb, var(--color-bg-elevated) 90%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 4px var(--space-2);
+  backdrop-filter: blur(2px);
+}
+
+.zoomSlider input[type="range"] {
+  width: 130px;
+  accent-color: var(--color-accent-2);
+}
+
+.zoomLabel {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  line-height: 1;
+  user-select: none;
+}
+
 .controls {
   position: absolute;
   top: 10px;

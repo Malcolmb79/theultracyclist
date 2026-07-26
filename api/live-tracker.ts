@@ -45,6 +45,16 @@ export type LiveTrackerPublicResult = {
   startTime: string | null;
   position: PositionPoint | null;
   history: PositionPoint[];
+  // Set only while a simulation is running. history[].timestamp is real
+  // wall-clock time (so "Updated Xs ago" reads correctly), but the
+  // simulation's actual distance-per-poll is sped up ~120x (see
+  // SIM_SPEEDUP) - a client computing pace as distance/time from two
+  // consecutive history points would get a speed inflated by that same
+  // ~120x. Reporting the simulation's real intended speed directly lets
+  // the client show the correct "current pace" during a test run instead
+  // of deriving a wildly wrong one from timestamps that don't carry the
+  // sped-up distance's true elapsed time.
+  simulatedKmh: number | null;
   layout: LiveTrackerLayout | null;
   // True when the request is authenticated - the /live page uses this to
   // decide whether to render its widgets as draggable/resizable (only the
@@ -318,6 +328,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     startTime: effectiveStartTime,
     position: history.length > 0 ? history[history.length - 1] : null,
     history,
+    simulatedKmh: config.simulation?.kmh ?? null,
     layout: config.layout ?? null,
     isOwner,
     ...(isOwner ? { positionFeedUrl: config.positionFeedUrl } : {}),

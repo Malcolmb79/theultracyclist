@@ -207,7 +207,18 @@ export default function LiveTrackerMap({ route, position, coveredKm, totalKm, we
   const windFrom = weather?.windDirection ?? null;
   const relativeFromAngle = windFrom != null && courseBearing != null ? angleDiff(windFrom, courseBearing) : null;
   const windClass = relativeFromAngle != null ? windClassification(relativeFromAngle) : null;
-  const arrowRotation = windFrom != null ? normalizeAngle(windFrom + 180 - (courseBearing ?? 0)) : 0;
+  // True compass direction the wind is blowing TO, not rotated relative to
+  // the cyclist's course - this map is fixed north-up (it never rotates to
+  // face the direction of travel), so an arrow drawn relative to course
+  // would only make visual sense on a heading-up map. Drawing it in true
+  // compass orientation instead means it can be read directly against the
+  // map itself (matches the route line's visible direction on screen) and
+  // cross-checked against any other wind-direction source. The headwind/
+  // tailwind/crosswind label above still does the course-relative
+  // classification - that's the part that's actually "relative to the
+  // direction the cyclist is travelling", the arrow is what makes it
+  // checkable.
+  const arrowRotation = windFrom != null ? normalizeAngle(windFrom + 180) : 0;
 
   return (
     <div className={styles.wrap}>

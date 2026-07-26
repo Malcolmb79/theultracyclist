@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import LiveTrackerMap from "../components/liveTracker/LiveTrackerMap";
 import LiveTrackerWidget from "../components/liveTracker/LiveTrackerWidget";
+import FundraiserProgress from "../components/fundraiser/FundraiserProgress";
 import { fetchRoute, distanceCoveredKm, totalDistanceKm, haversineKm, type RoutePoint } from "../utils/gpxRoute";
 import { useDeviceCategory } from "../utils/useDeviceCategory";
 import { computeCanvasHeight } from "../utils/useCanvasItem";
@@ -19,7 +20,7 @@ type LiveTrackerRect = { x: number; y: number; width: number; height: number };
 // (see LiveTrackerMap), which is also where the headwind/tailwind
 // computation now lives since that needs the route + covered distance the
 // map already has.
-type LiveWidgetId = "pace" | "progress" | "map" | "eta";
+type LiveWidgetId = "pace" | "progress" | "map" | "eta" | "donate";
 type LiveTrackerLayout = { order: LiveWidgetId[]; rects: Record<LiveWidgetId, LiveTrackerRect> };
 
 // Mirrors api/live-tracker.ts's public response shape - duplicated per this
@@ -32,6 +33,7 @@ type ApiResult = {
   startTime: string | null;
   position: PositionPoint | null;
   history: PositionPoint[];
+  simulatedKmh: number | null;
   layout: LiveTrackerLayout | null;
   isOwner: boolean;
 };
@@ -46,9 +48,15 @@ const MIN_SIZE: Record<LiveWidgetId, { minWidth: number; minHeight: number }> = 
   // room without swallowing the whole map view.
   map: { minWidth: 320, minHeight: 380 },
   eta: { minWidth: 200, minHeight: 130 },
+  // Reuses FundraiserProgress (the same donation view from /the-cause) -
+  // needs more room than the other side-panel cards for its stats grid and
+  // donor list, though .content's overflow-y:auto (see
+  // LiveTrackerWidget.module.css) covers whatever doesn't fit at the
+  // default size.
+  donate: { minWidth: 240, minHeight: 300 },
 };
 
-const WIDGET_IDS: LiveWidgetId[] = ["pace", "progress", "map", "eta"];
+const WIDGET_IDS: LiveWidgetId[] = ["pace", "progress", "map", "eta", "donate"];
 
 const DEFAULT_LAYOUT: LiveTrackerLayout = {
   order: WIDGET_IDS,
@@ -57,6 +65,7 @@ const DEFAULT_LAYOUT: LiveTrackerLayout = {
     progress: { x: 0, y: 160, width: 900, height: 160 },
     map: { x: 0, y: 340, width: 900, height: 500 },
     eta: { x: 920, y: 340, width: 260, height: 150 },
+    donate: { x: 920, y: 510, width: 260, height: 330 },
   },
 };
 
@@ -94,7 +103,12 @@ function relativeSeconds(timestampMs: number): string {
 // Current pace from the last two distinct position readings, rather than a
 // device-reported speed field (we don't have one - see the "no live
 // telemetry" note below) - a simple distance/time delta between the two
-// most recent points.
+// most recent points. Only valid for a real feed: history[].timestamp is
+// real wall-clock time, but api/live-tracker.ts's simulation advances
+// distance ~120x faster than that real time suggests, so this same math
+// would report a wildly inflated speed during a test run - see
+// data.simulatedKmh, which the caller uses instead whenever a simulation
+// is active.
 function currentPaceKmh(history: PositionPoint[]): number | null {
   if (history.length < 2) return null;
   const a = history[history.length - 2];
@@ -268,7 +282,7 @@ export default function LiveTrackerPage() {
   const remainingKm = Math.max(0, totalKm - coveredKm);
   const progressPct = totalKm > 0 ? Math.min(100, (coveredKm / totalKm) * 100) : 0;
   const elapsedSeconds = data.startTime ? (Date.now() - Date.parse(data.startTime)) / 1000 : null;
-  const currentPace = currentPaceKmh(data.history);
+  const currentPace = data.simulatedKmh ?? currentPaceKmh(data.history);
   const averagePace = elapsedSeconds && elapsedSeconds > 0 ? coveredKm / (elapsedSeconds / 3600) : null;
   const requiredPaceKmh = data.targetSeconds && totalKm > 0 ? totalKm / (data.targetSeconds / 3600) : null;
 
@@ -372,6 +386,9 @@ export default function LiveTrackerPage() {
         )}
       </div>
     ),
+    // Same component as /the-cause - followers watching the attempt can
+    // donate right from the page without navigating away.
+    donate: <FundraiserProgress />,
   };
 
   return (

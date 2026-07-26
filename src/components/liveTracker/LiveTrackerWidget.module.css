@@ -87,6 +87,10 @@
 .content {
   flex: 1;
   min-height: 0;
+  /* Some cards (e.g. the donation view, with its stats grid + expandable
+     donor list) can be taller than whatever height the widget is currently
+     sized to - same overflow handling as CoachingWidget's .content. */
+  overflow-y: auto;
 }
 
 .content > * {

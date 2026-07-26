@@ -31,6 +31,22 @@
   stroke-width: 1;
 }
 
+.gridLine {
+  stroke: var(--color-border);
+  stroke-width: 1;
+  stroke-opacity: 0.5;
+}
+
+.axisLabel {
+  font-size: 7px;
+  fill: var(--color-text-muted);
+}
+
+.endLabel {
+  font-size: 8px;
+  font-weight: 700;
+}
+
 .dateLabel {
   font-size: 7px;
   fill: var(--color-text-muted);

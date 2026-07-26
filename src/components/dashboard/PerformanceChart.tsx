@@ -6,6 +6,14 @@ const FALLBACK_WIDTH = 300;
 const DEFAULT_PLOT_HEIGHT = 160;
 const TOP_PAD = 10;
 const BOTTOM_PAD = 24;
+// Reserves room on the left for the Y-axis value labels, and on the right
+// for the CTL/ATL/TSB end-of-line value labels - the plot area itself sits
+// between these two margins instead of spanning the full width.
+const LEFT_PAD = 30;
+const RIGHT_PAD = 24;
+// Minimum vertical gap enforced between the three end-of-line labels so they
+// don't overlap when two of CTL/ATL/TSB land close together.
+const MIN_LABEL_GAP = 9;
 
 const CTL_COLOR = "var(--color-accent-2)"; // fitness - green, matches the "on track" goal color elsewhere
 const ATL_COLOR = "var(--color-amber)"; // fatigue
@@ -22,6 +30,22 @@ function shortDate(iso: string): string {
 
 function fmt(value: number | null): string {
   return value == null ? "—" : Math.round(value).toString();
+}
+
+// Standard "nice round number" tick step so the Y-axis reads 0/10/20/... or
+// 0/25/50/... instead of awkward values like 0/17/34/51 - picks whichever
+// of 1/2/5 (times a power of 10) gives roughly `count` ticks across the range.
+function niceTicks(min: number, max: number, count = 4): number[] {
+  if (max <= min) return [min];
+  const rawStep = (max - min) / count;
+  const magnitude = 10 ** Math.floor(Math.log10(rawStep));
+  const residual = rawStep / magnitude;
+  const niceResidual = residual >= 5 ? 10 : residual >= 2 ? 5 : residual >= 1 ? 2 : 1;
+  const step = niceResidual * magnitude;
+  const start = Math.ceil(min / step) * step;
+  const ticks: number[] = [];
+  for (let v = start; v <= max + step * 0.001; v += step) ticks.push(Math.round(v * 100) / 100);
+  return ticks;
 }
 
 // The season's Performance Management Chart (CTL fitness / ATL fatigue /
@@ -52,9 +76,11 @@ export default function PerformanceChart({ data, height }: PerformanceChartProps
   const max = Math.max(0, ...allValues);
   const range = max - min || 1;
 
-  const toX = (i: number) => (i / (data.length - 1)) * viewWidth;
+  const plotWidth = Math.max(1, viewWidth - LEFT_PAD - RIGHT_PAD);
+  const toX = (i: number) => LEFT_PAD + (i / (data.length - 1)) * plotWidth;
   const toY = (value: number) => TOP_PAD + plotHeight - ((value - min) / range) * plotHeight;
   const zeroY = toY(0);
+  const yTicks = niceTicks(min, max);
 
   const linePath = (pick: (p: PerformancePoint) => number | null): string => {
     let path = "";
@@ -73,6 +99,24 @@ export default function PerformanceChart({ data, height }: PerformanceChartProps
 
   const latest = data[data.length - 1];
 
+  // End-of-line value labels for CTL/ATL/TSB, nudged apart vertically when
+  // two of them land within MIN_LABEL_GAP of each other so the text doesn't
+  // overlap (common when form/fatigue converge).
+  const endLabels = (
+    [
+      { key: "ctl", value: latest.ctl, color: CTL_COLOR },
+      { key: "atl", value: latest.atl, color: ATL_COLOR },
+      { key: "tsb", value: latest.tsb, color: TSB_COLOR },
+    ] as const
+  )
+    .map((l) => ({ ...l, y: toY(l.value) }))
+    .sort((a, b) => a.y - b.y);
+  for (let i = 1; i < endLabels.length; i++) {
+    const prev = endLabels[i - 1];
+    const cur = endLabels[i];
+    if (cur.y - prev.y < MIN_LABEL_GAP) cur.y = prev.y + MIN_LABEL_GAP;
+  }
+
   return (
     <div ref={containerRef} className={styles.wrap}>
       <svg
@@ -83,13 +127,33 @@ export default function PerformanceChart({ data, height }: PerformanceChartProps
         aria-hidden="true"
         style={{ display: "block" }}
       >
-        <line x1={0} y1={zeroY} x2={viewWidth} y2={zeroY} className={styles.zeroLine} />
+        {yTicks.map((tick) => (
+          <g key={tick}>
+            <line x1={LEFT_PAD} y1={toY(tick)} x2={viewWidth} y2={toY(tick)} className={styles.gridLine} />
+            <text x={LEFT_PAD - 4} y={toY(tick)} textAnchor="end" dominantBaseline="middle" className={styles.axisLabel}>
+              {Math.round(tick)}
+            </text>
+          </g>
+        ))}
+        <line x1={LEFT_PAD} y1={zeroY} x2={viewWidth} y2={zeroY} className={styles.zeroLine} />
         <path d={linePath((p) => p.ctlTarget)} className={styles.targetLine} style={{ stroke: CTL_COLOR }} />
         <path d={linePath((p) => p.tsbTarget)} className={styles.targetLine} style={{ stroke: TSB_COLOR }} />
         <path d={linePath((p) => p.atl)} className={styles.line} style={{ stroke: ATL_COLOR }} />
         <path d={linePath((p) => p.tsb)} className={styles.line} style={{ stroke: TSB_COLOR }} />
         <path d={linePath((p) => p.ctl)} className={styles.line} style={{ stroke: CTL_COLOR }} />
-        <text x={4} y={viewHeight - 6} className={styles.dateLabel}>
+        {endLabels.map((l) => (
+          <text
+            key={l.key}
+            x={viewWidth - RIGHT_PAD + 4}
+            y={l.y}
+            dominantBaseline="middle"
+            className={styles.endLabel}
+            style={{ fill: l.color }}
+          >
+            {fmt(l.value)}
+          </text>
+        ))}
+        <text x={LEFT_PAD} y={viewHeight - 6} className={styles.dateLabel}>
           {shortDate(data[0].date)}
         </text>
         <text x={viewWidth - 4} y={viewHeight - 6} textAnchor="end" className={styles.dateLabel}>

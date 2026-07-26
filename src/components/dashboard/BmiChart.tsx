@@ -1,4 +1,5 @@
 import { BMI_BANDS, BMI_DOMAIN_MAX, BMI_DOMAIN_MIN, bmiCategory } from "../../utils/bmi";
+import { relativeDayLabel } from "../../utils/relativeDate";
 import styles from "./BmiChart.module.css";
 
 const TICKS = [18.5, 25, 30, 40];
@@ -66,7 +67,7 @@ export default function BmiChart({ bmi, date }: BmiChartProps) {
         </div>
       </div>
 
-      {date && <span className={styles.caption}>Last weighed {new Date(date).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>}
+      {date && <span className={styles.caption}>Last weighed {relativeDayLabel(date).toLowerCase()}</span>}
     </div>
   );
 }

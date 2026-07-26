@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { formatDate } from "../../utils/formatDate";
+import { relativeDayLabel } from "../../utils/relativeDate";
 import { recoveryColor } from "../../utils/recoveryColor";
 import { useIsMobile } from "../../utils/useIsMobile";
 import { useMeasuredWidth } from "../../utils/useMeasuredWidth";
@@ -471,7 +472,7 @@ export default function DashboardWidget({
           ) : widget.viewType === "stat" ? (
             <DashboardStatTile
               value={formatValue(metric.series[metric.series.length - 1].value, metric.unit)}
-              label={formatDate(metric.series[metric.series.length - 1].date)}
+              label={relativeDayLabel(metric.series[metric.series.length - 1].date)}
               valueColor={effectiveColor}
             />
           ) : widget.viewType === "ring" ? (
@@ -479,7 +480,7 @@ export default function DashboardWidget({
               percent={ringPercent(metric, metric.series[metric.series.length - 1].value)}
               color={ringColor(metric, metric.series[metric.series.length - 1].value, effectiveColor)}
               centerValue={formatValue(metric.series[metric.series.length - 1].value, metric.unit)}
-              label={formatDate(metric.series[metric.series.length - 1].date)}
+              label={relativeDayLabel(metric.series[metric.series.length - 1].date)}
               pixelSize={ringSize}
             />
           ) : widget.viewType === "chart" ? (

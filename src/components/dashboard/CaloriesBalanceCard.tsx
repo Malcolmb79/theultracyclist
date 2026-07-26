@@ -1,4 +1,4 @@
-import { formatDate } from "../../utils/formatDate";
+import { relativeDayLabel } from "../../utils/relativeDate";
 import styles from "./CaloriesBalanceCard.module.css";
 
 const CONSUMED_COLOR = "var(--color-amber)";
@@ -58,7 +58,7 @@ export default function CaloriesBalanceCard({ consumed, burned, date }: Calories
         </div>
       )}
 
-      {date && <span className={styles.caption}>{formatDate(date)}</span>}
+      {date && <span className={styles.caption}>{relativeDayLabel(date)}</span>}
     </div>
   );
 }

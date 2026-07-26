@@ -9,6 +9,7 @@ import { fetchCoachingSettings } from "./coaching-settings.js";
 import { computeTss } from "./_lib/tss.js";
 import { computeFitnessSeries } from "./_lib/fitness.js";
 import { irelandTodayDateStr, irelandDateStr } from "./_lib/timeContext.js";
+import { getAtpWeekFor } from "./_lib/atpPlan.js";
 import {
   listPlannedWorkouts,
   createPlannedWorkout,
@@ -99,8 +100,11 @@ const TOOLS = [
       "Get current CTL (fitness, 42-day training load average), ATL (fatigue, 7-day average), and TSB " +
       "(form/freshness, CTL minus ATL - positive means fresh, very negative means high accumulated fatigue), " +
       "plus their trend over the recent days requested. Computed from Strava TSS history against the " +
-      "athlete's FTP - null values mean not enough ride/power history yet. Use this for questions about " +
-      "fitness, fatigue, form, training load, or whether today is a good day to push hard vs back off.",
+      "athlete's FTP - null values mean not enough ride/power history yet. Also returns this week's target " +
+      "TSS/CTL/TSB from the athlete's real TrainingPeaks Annual Training Plan when available, so you can say " +
+      "whether they're ahead of, behind, or on track against the plan - not just report the raw numbers. Use " +
+      "this for questions about fitness, fatigue, form, training load, whether today is a good day to push " +
+      "hard vs back off, or whether they're on track for the season.",
     input_schema: {
       type: "object",
       properties: {
@@ -278,7 +282,8 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
         const points = Array.from(series.values());
         const current = points[points.length - 1] ?? null;
         const trend = points.slice(-trendDays);
-        return { current, trend };
+        const atpTarget = getAtpWeekFor(today);
+        return { current, trend, atpTarget };
       }
       case "get_workouts": {
         const from = typeof input.from === "string" ? input.from : undefined;
@@ -356,7 +361,10 @@ function buildSystemPrompt(context: Partial<ChatContext>): string {
     "You have tools to pull the athlete's actual historical data (Whoop recovery/strain/sleep, Strava rides, " +
     "Apple Health, current CTL/ATL/TSB fitness/fatigue/form) beyond the snapshot below - use them whenever a " +
     "specific number, trend, or past date would make your answer better than a general one, rather than " +
-    "guessing or saying you don't have the data. You can also schedule, edit, and cancel structured workouts " +
+    "guessing or saying you don't have the data. get_fitness also returns this week's target CTL/TSB from the " +
+    "athlete's real TrainingPeaks Annual Training Plan - when asked whether they're on track, ahead, or behind " +
+    "for the season, compare their actual current CTL/TSB against that target rather than judging the raw " +
+    "numbers in isolation. You can also schedule, edit, and cancel structured workouts " +
     "directly - when the athlete describes a session in words (e.g. \"give me 4x8min threshold for Tuesday\"), " +
     "build the interval structure yourself and create it rather than just describing what they should do; " +
     "check get_workouts first if you need to see what's already planned or find a workout's id to edit. " +

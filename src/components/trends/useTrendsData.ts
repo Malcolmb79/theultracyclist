@@ -6,6 +6,7 @@ import { convertTrendMetric, convertValueUnit } from "../../utils/units";
 import { computeBmi } from "../../utils/bmi";
 import { computeTss } from "../../utils/tss";
 import { computeFitnessSeries } from "../../utils/fitness";
+import { getAtpWeekFor } from "../../utils/atpPlan";
 import { today } from "./aggregate";
 
 export type TrendMetricDef = {
@@ -20,6 +21,10 @@ export type TrendMetricDef = {
   // "target": met when actual is within tolerance of goal (weight - a body
   //   composition target, not a minimum to clear).
   goalDirection?: "atLeast" | "target";
+  // Absolute +/- tolerance for a "target"-direction goal. Defaults to the
+  // weight tolerance (0.5) in aggregate.ts's isGoalMet if omitted - metrics
+  // on a different numeric scale (CTL/TSB) must set their own.
+  goalTolerance?: number;
   getValue: (date: string) => number | null;
   getGoal?: (date: string) => number | null;
 };
@@ -240,7 +245,14 @@ export function useTrendsData(): TrendsDataState {
                 label: "Fitness (CTL)",
                 unit: "",
                 aggregation: "avg",
+                isGoal: true,
+                goalDirection: "target",
+                // CTL runs 0-130+ over the season, so weight's 0.5 tolerance
+                // would flag "off track" for noise - a few points either
+                // side of the plan's target for the week is still on track.
+                goalTolerance: 5,
                 getValue: (date) => fitnessSeries.get(date)?.ctl ?? null,
+                getGoal: (date) => getAtpWeekFor(date)?.ctlTarget ?? null,
               },
               {
                 id: "strava.atl",
@@ -256,7 +268,14 @@ export function useTrendsData(): TrendsDataState {
                 label: "Form (TSB)",
                 unit: "",
                 aggregation: "avg",
+                isGoal: true,
+                goalDirection: "target",
+                // TSB swings much wider than CTL across the plan (e.g. a
+                // deep-build week near -30 vs a taper/race week near +60),
+                // so it needs a wider tolerance than CTL to mean "on track".
+                goalTolerance: 8,
                 getValue: (date) => fitnessSeries.get(date)?.tsb ?? null,
+                getGoal: (date) => getAtpWeekFor(date)?.tsbTarget ?? null,
               },
             );
           }

@@ -45,11 +45,14 @@ export function today(): string {
 }
 
 // Weight is a body-composition target, not a minimum to clear - "met" means
-// close to goal either direction, within this tolerance.
+// close to goal either direction, within this tolerance. Default for any
+// "target"-direction metric that doesn't set its own goalTolerance (CTL/TSB
+// operate on a much larger numeric scale than weight, so they set theirs
+// explicitly - see useTrendsData.ts).
 const WEIGHT_TOLERANCE_KG = 0.5;
 
 export function isGoalMet(metric: TrendMetricDef, value: number | null, goal: number | null): boolean | null {
   if (value == null || goal == null) return null;
-  if (metric.goalDirection === "target") return Math.abs(value - goal) <= WEIGHT_TOLERANCE_KG;
+  if (metric.goalDirection === "target") return Math.abs(value - goal) <= (metric.goalTolerance ?? WEIGHT_TOLERANCE_KG);
   return value >= goal;
 }

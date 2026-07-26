@@ -56,24 +56,6 @@ const DEFAULT_MOBILE: Record<FixedCardKind, Rect> = {
 
 const FIXED_CARD_ORDER: FixedCardKind[] = ["readiness", "chat", "trainingPlan", "powerZones"];
 
-// Normalizes whatever's actually stored into today's shape:
-//  - Entries saved before the unified widget list existed (the "kind"
-//    field didn't exist yet) were always metric widgets - the metric
-//    catalog is the only thing that used to be saved under `widgets`.
-//  - The 4 fixed cards used to live in a separate `layout` field that no
-//    longer exists at all, so on a pre-migration save none of them show up
-//    here - seed whichever are missing at their default position rather
-//    than assuming "present in this list" is the only way a fixed card
-//    can exist. This also covers a genuinely first-ever load (empty list).
-function normalizeWidgets(raw: CoachingWidgetEntry[], isMobile: boolean): CoachingWidgetEntry[] {
-  const normalized = raw.map((w) => (w.kind ? w : { ...w, kind: "metric" as const }));
-  const missingCards = FIXED_CARD_ORDER.filter((kind) => !normalized.some((w) => w.kind === kind));
-  if (missingCards.length === 0) return normalized;
-  const defaults = isMobile ? DEFAULT_MOBILE : DEFAULT_DESKTOP;
-  const seeded = missingCards.map((kind) => ({ id: kind, kind, label: FIXED_CARD_LABELS[kind], ...defaults[kind] }));
-  return [...seeded, ...normalized];
-}
-
 // New widgets (fixed cards re-added after removal, or metrics from the
 // catalog) cascade below whatever's already on the canvas rather than
 // stacking at (0,0).
@@ -148,7 +130,11 @@ function CoachingView() {
   const [isResizing, setIsResizing] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
 
-  const widgets: CoachingWidgetEntry[] = data.status === "ready" ? normalizeWidgets(data.settings.widgets ?? [], isMobile) : [];
+  // Trusts the server's list as-is (see api/coaching-settings.ts's one-time
+  // migration) rather than re-seeding missing fixed cards here on every
+  // render - that would make removing one impossible, since it'd get
+  // silently re-added on the very next render after the save round-trips.
+  const widgets: CoachingWidgetEntry[] = data.status === "ready" ? (data.settings.widgets ?? []) : [];
   const metricById = new Map((dashboardData.status === "ready" ? dashboardData.metrics : []).map((m) => [m.id, m]));
   const missingFixedCards = FIXED_CARD_ORDER.filter((kind) => !widgets.some((w) => w.kind === kind));
 

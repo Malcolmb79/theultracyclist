@@ -11,9 +11,11 @@ import { isDeviceCategory, mergeDeviceLayout, resolveDeviceLayout, type DeviceCa
 // === "metric") is what lets add/remove/resize/move/reorder work the same
 // way for every widget on the page, instead of the 4 fixed cards living in
 // a separate non-removable `layout` record.
+type FixedCardKind = "readiness" | "chat" | "trainingPlan" | "powerZones";
+
 type CoachingWidgetEntry = {
   id: string;
-  kind: "readiness" | "chat" | "trainingPlan" | "powerZones" | "metric";
+  kind: FixedCardKind | "metric";
   source?: "strava" | "whoop" | "health";
   metric?: string;
   viewType?: "stat" | "chart" | "timeline" | "ring" | "combo" | "rings" | "healthCalendar" | "caloriesBalance";
@@ -55,9 +57,62 @@ export type CoachingSettings = {
 type StoredSettings = Omit<CoachingSettings, "widgets"> & {
   widgetsByDevice?: Partial<Record<DeviceCategory, CoachingWidgetEntry[]>>;
   widgets?: CoachingWidgetEntry[];
+  // Set once a device's widget list has been normalized into today's shape
+  // (see migrateWidgets below) - after that, a fixed card missing from the
+  // list means the athlete removed it on purpose, and it must never be
+  // silently re-added again. Without this flag, resolving "is this fixed
+  // card missing because it was never migrated, or because someone just
+  // removed it?" from the array alone is ambiguous, and re-seeding on every
+  // read would make removing a fixed card impossible - it'd reappear on
+  // the very next fetch.
+  fixedCardsMigrated?: boolean;
 };
 
 const KV_KEY = "COACHING_SETTINGS";
+
+const FIXED_CARD_ORDER: FixedCardKind[] = ["readiness", "chat", "trainingPlan", "powerZones"];
+
+const FIXED_CARD_LABELS: Record<FixedCardKind, string> = {
+  readiness: "Today's Readiness",
+  chat: "AI Coach",
+  trainingPlan: "Training Plan",
+  powerZones: "Power Zones",
+};
+
+type Rect = { x: number; y: number; width: number; height: number };
+
+// Mirrors CoachingPage.tsx's DEFAULT_DESKTOP/DEFAULT_MOBILE - only used to
+// seed a device's very first migration (see migrateWidgets), so this only
+// needs to be roughly right, not kept in perfect lockstep with the client.
+const DEFAULT_DESKTOP: Record<FixedCardKind, Rect> = {
+  readiness: { x: 0, y: 0, width: 340, height: 260 },
+  chat: { x: 360, y: 0, width: 380, height: 460 },
+  trainingPlan: { x: 0, y: 280, width: 340, height: 380 },
+  powerZones: { x: 360, y: 480, width: 380, height: 380 },
+};
+
+const DEFAULT_MOBILE: Record<FixedCardKind, Rect> = {
+  readiness: { x: 0, y: 0, width: 320, height: 220 },
+  chat: { x: 0, y: 240, width: 320, height: 420 },
+  trainingPlan: { x: 0, y: 680, width: 320, height: 380 },
+  powerZones: { x: 0, y: 1080, width: 320, height: 380 },
+};
+
+// One-time normalization for a device's widget list: backfills "kind" on
+// entries saved before the unified list existed (they were always metric
+// widgets - the catalog is the only thing that used to be saved under
+// `widgets`), and seeds whichever of the 4 fixed cards are missing (their
+// old positions lived in a `layout` field that no longer exists at all, so
+// pre-migration data never has them in this list). Only ever called when
+// `fixedCardsMigrated` isn't set yet - see that field's comment for why.
+function migrateWidgets(raw: CoachingWidgetEntry[], device: DeviceCategory): CoachingWidgetEntry[] {
+  const normalized = raw.map((w) => (w.kind ? w : { ...w, kind: "metric" as const }));
+  const missing = FIXED_CARD_ORDER.filter((kind) => !normalized.some((w) => w.kind === kind));
+  if (missing.length === 0) return normalized;
+  const defaults = device === "mobile" ? DEFAULT_MOBILE : DEFAULT_DESKTOP;
+  const seeded = missing.map((kind) => ({ id: kind, kind, label: FIXED_CARD_LABELS[kind], ...defaults[kind] }));
+  return [...seeded, ...normalized];
+}
 
 // One-time migration fallback - see dashboard-layout.ts for why.
 function readLegacySettings(): StoredSettings {
@@ -120,6 +175,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       customRules: incoming.customRules,
       profilePictureDataUrl: incoming.profilePictureDataUrl,
       widgetsByDevice,
+      // A save from today's client always sends an already-migrated list
+      // (or a deliberately-emptied one) - either way, the array is now the
+      // source of truth and must never be auto-reseeded again.
+      fixedCardsMigrated: true,
     };
     await setJSON(KV_KEY, next);
     res.status(200).json({ ok: true });
@@ -127,7 +186,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const stored = (await getJSON<StoredSettings>(KV_KEY)) ?? readLegacySettings();
-  const widgets = resolveDeviceLayout<CoachingWidgetEntry>(stored.widgetsByDevice ?? stored.widgets ?? [], device);
+  let widgets = resolveDeviceLayout<CoachingWidgetEntry>(stored.widgetsByDevice ?? stored.widgets ?? [], device);
+  let fixedCardsMigrated = stored.fixedCardsMigrated ?? false;
+
+  if (!fixedCardsMigrated) {
+    widgets = migrateWidgets(widgets, device);
+    const widgetsByDevice = mergeDeviceLayout<CoachingWidgetEntry>(
+      stored.widgetsByDevice ?? stored.widgets ?? [],
+      device,
+      widgets,
+    );
+    fixedCardsMigrated = true;
+    await setJSON(KV_KEY, { ...stored, widgets: undefined, widgetsByDevice, fixedCardsMigrated });
+  }
+
   const settings: CoachingSettings = {
     ftpWatts: stored.ftpWatts,
     heightCm: stored.heightCm,

@@ -301,9 +301,7 @@ function CoachingView() {
                 onRemove={() => handleRemove(entry.id)}
                 {...reorderProps}
               >
-                {data.status === "ready" && entry.kind === "readiness" && (
-                  <ReadinessCard readiness={data.readiness} isFresh={data.readinessDataIsFresh} />
-                )}
+                {data.status === "ready" && entry.kind === "readiness" && <ReadinessCard readiness={data.readiness} />}
                 {data.status === "ready" && entry.kind === "chat" && (
                   <CoachChatCard input={narrativeInputFrom(data)} settings={data.settings} onSaveSettings={data.saveSettings} dataAvailable={data.dataAvailable} />
                 )}
@@ -327,8 +325,9 @@ function narrativeInputFrom(data: Extract<ReturnType<typeof useCoachingData>, { 
   // DATA_SEMANTICS) - when today's hasn't landed yet, `latest` is still
   // yesterday's. Passing those through anyway would have the coach cite a
   // stale number as if it were today's (the same class of bug that made it
-  // fabricate a "last week" date range), so they're left out entirely
-  // rather than mislabelled - matching ReadinessCard's own waiting state.
+  // fabricate a "last week" date range), so they're left out of the AI
+  // coach's own snapshot entirely rather than mislabelled - the Readiness
+  // widget itself just shows whatever the latest reading is, stale or not.
   // Strain is unaffected here since it's live/continuous, not once-daily.
   return {
     recoveryScore: data.readinessDataIsFresh ? data.readiness.recoveryScore : null,

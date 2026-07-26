@@ -55,12 +55,22 @@ const DEFAULT_MOBILE: Record<FixedCardKind, Rect> = {
 
 const FIXED_CARD_ORDER: FixedCardKind[] = ["readiness", "chat", "trainingPlan", "powerZones"];
 
-// First-ever load (no saved settings yet) starts with all 4 fixed cards
-// present at their default position, matching how the page always looked
-// before add/remove existed.
-function defaultWidgets(isMobile: boolean): CoachingWidgetEntry[] {
+// Normalizes whatever's actually stored into today's shape:
+//  - Entries saved before the unified widget list existed (the "kind"
+//    field didn't exist yet) were always metric widgets - the metric
+//    catalog is the only thing that used to be saved under `widgets`.
+//  - The 4 fixed cards used to live in a separate `layout` field that no
+//    longer exists at all, so on a pre-migration save none of them show up
+//    here - seed whichever are missing at their default position rather
+//    than assuming "present in this list" is the only way a fixed card
+//    can exist. This also covers a genuinely first-ever load (empty list).
+function normalizeWidgets(raw: CoachingWidgetEntry[], isMobile: boolean): CoachingWidgetEntry[] {
+  const normalized = raw.map((w) => (w.kind ? w : { ...w, kind: "metric" as const }));
+  const missingCards = FIXED_CARD_ORDER.filter((kind) => !normalized.some((w) => w.kind === kind));
+  if (missingCards.length === 0) return normalized;
   const defaults = isMobile ? DEFAULT_MOBILE : DEFAULT_DESKTOP;
-  return FIXED_CARD_ORDER.map((kind) => ({ id: kind, kind, label: FIXED_CARD_LABELS[kind], ...defaults[kind] }));
+  const seeded = missingCards.map((kind) => ({ id: kind, kind, label: FIXED_CARD_LABELS[kind], ...defaults[kind] }));
+  return [...seeded, ...normalized];
 }
 
 // New widgets (fixed cards re-added after removal, or metrics from the
@@ -137,13 +147,7 @@ function CoachingView() {
   const [isResizing, setIsResizing] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
 
-  // "??" alone isn't enough here - a pre-migration save has widgets: [] (the
-  // 4 fixed cards used to live in a separate `layout` field, so the old
-  // `widgets` array is empty rather than absent), and an empty array isn't
-  // nullish, so "?? defaultWidgets()" would never fire and the page would
-  // render nothing at all.
-  const widgets: CoachingWidgetEntry[] =
-    data.status === "ready" ? (data.settings.widgets?.length ? data.settings.widgets : defaultWidgets(isMobile)) : [];
+  const widgets: CoachingWidgetEntry[] = data.status === "ready" ? normalizeWidgets(data.settings.widgets ?? [], isMobile) : [];
   const metricById = new Map((dashboardData.status === "ready" ? dashboardData.metrics : []).map((m) => [m.id, m]));
   const missingFixedCards = FIXED_CARD_ORDER.filter((kind) => !widgets.some((w) => w.kind === kind));
 

@@ -358,7 +358,11 @@ export default function LiveTrackerPage() {
       </div>
     ),
     eta: (
-      <div className={styles.etaBox}>
+      <div
+        className={`${styles.etaBox} ${
+          projectedVsTarget == null ? "" : projectedVsTarget >= 0 ? styles.etaAhead : styles.etaBehind
+        }`}
+      >
         <p className={styles.etaLabel}>Projected finish (current pace)</p>
         <p className={styles.etaValue}>{projectedFinishSeconds != null ? formatDuration(projectedFinishSeconds) : "—"}</p>
         {projectedVsTarget != null && (

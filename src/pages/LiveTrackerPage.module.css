@@ -233,13 +233,32 @@
 .etaBox {
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border);
-  border-left: 3px solid var(--color-accent-2);
+  border-left: 3px solid var(--color-text-muted);
   border-radius: var(--radius);
   padding: var(--space-4);
   text-align: center;
   display: flex;
   flex-direction: column;
   justify-content: center;
+}
+
+/* Projected finish vs. target - green/accent-2 ahead of target, red/accent
+   behind, same two tokens (and their light/dark swap) used everywhere else
+   on the page for good/bad states. */
+.etaAhead {
+  border-left-color: var(--color-accent-2);
+}
+
+.etaAhead .etaValue {
+  color: var(--color-accent-2);
+}
+
+.etaBehind {
+  border-left-color: var(--color-accent);
+}
+
+.etaBehind .etaValue {
+  color: var(--color-accent);
 }
 
 .etaLabel {
@@ -251,7 +270,7 @@
 .etaValue {
   font-family: var(--font-display);
   font-size: 1.6rem;
-  color: var(--color-accent-2);
+  color: var(--color-text);
   margin: 0;
 }
 

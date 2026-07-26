@@ -28,6 +28,7 @@ import { computeCanvasHeight } from "../utils/useCanvasItem";
 import SignInGate from "../components/shared/SignInGate";
 import TabNav from "../components/shared/TabNav";
 import PageHeader from "../components/shared/PageHeader";
+import ProfileMenu from "../components/shared/ProfileMenu";
 import styles from "./CoachingPage.module.css";
 
 type Rect = { x: number; y: number; width: number; height: number };
@@ -226,7 +227,6 @@ function CoachingView() {
             { label: "Dashboard", href: "/dashboard" },
             { label: "Trends", href: "/dashboard/trends" },
             { label: "Coaching", href: "/dashboard/coaching", active: true },
-            { label: "Settings", href: "/dashboard/settings" },
           ]}
           trailing={
             <>
@@ -239,9 +239,7 @@ function CoachingView() {
               >
                 {catalogOpen ? "×" : "☰"}
               </button>
-              <a href="/api/auth-logout" className={styles.switchLink}>
-                Sign out
-              </a>
+              <ProfileMenu />
             </>
           }
         />

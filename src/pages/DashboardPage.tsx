@@ -17,6 +17,7 @@ import { useAuthSession } from "../utils/useAuthSession";
 import SignInGate from "../components/shared/SignInGate";
 import TabNav from "../components/shared/TabNav";
 import PageHeader from "../components/shared/PageHeader";
+import ProfileMenu from "../components/shared/ProfileMenu";
 import { computeCanvasHeight } from "../utils/useCanvasItem";
 import { useDeviceCategory } from "../utils/useDeviceCategory";
 import { useDashboardTheme } from "../utils/useDashboardTheme";
@@ -184,7 +185,6 @@ function DashboardEditor() {
             { label: "Dashboard", href: "/dashboard", active: true },
             { label: "Trends", href: "/dashboard/trends" },
             { label: "Coaching", href: "/dashboard/coaching" },
-            { label: "Settings", href: "/dashboard/settings" },
           ]}
           trailing={
             <>
@@ -208,9 +208,7 @@ function DashboardEditor() {
                   </span>
                 )
               )}
-              <a href="/api/auth-logout" className={styles.switchLink}>
-                Sign out
-              </a>
+              <ProfileMenu />
             </>
           }
         />

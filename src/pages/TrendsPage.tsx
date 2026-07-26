@@ -8,6 +8,7 @@ import { useAuthSession } from "../utils/useAuthSession";
 import SignInGate from "../components/shared/SignInGate";
 import TabNav from "../components/shared/TabNav";
 import PageHeader from "../components/shared/PageHeader";
+import ProfileMenu from "../components/shared/ProfileMenu";
 import { computeCanvasHeight } from "../utils/useCanvasItem";
 import { DEFAULT_WIDGET_HEIGHT } from "../components/trends/types";
 import { useDeviceCategory } from "../utils/useDeviceCategory";
@@ -155,7 +156,6 @@ function TrendsEditor() {
             { label: "Dashboard", href: "/dashboard" },
             { label: "Trends", href: "/dashboard/trends", active: true },
             { label: "Coaching", href: "/dashboard/coaching" },
-            { label: "Settings", href: "/dashboard/settings" },
           ]}
           trailing={
             <>
@@ -179,9 +179,7 @@ function TrendsEditor() {
                   </span>
                 )
               )}
-              <a href="/api/auth-logout" className={styles.switchLink}>
-                Sign out
-              </a>
+              <ProfileMenu />
             </>
           }
         />

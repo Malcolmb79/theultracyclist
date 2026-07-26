@@ -8,6 +8,7 @@ import type { CoachingSettings } from "../components/coaching/types";
 import SignInGate from "../components/shared/SignInGate";
 import TabNav from "../components/shared/TabNav";
 import PageHeader from "../components/shared/PageHeader";
+import ProfileMenu from "../components/shared/ProfileMenu";
 import styles from "./SettingsPage.module.css";
 
 const THEME_OPTIONS: { value: ThemeMode; label: string }[] = [
@@ -145,13 +146,8 @@ function SettingsEditor() {
             { label: "Dashboard", href: "/dashboard" },
             { label: "Trends", href: "/dashboard/trends" },
             { label: "Coaching", href: "/dashboard/coaching" },
-            { label: "Settings", href: "/dashboard/settings", active: true },
           ]}
-          trailing={
-            <a href="/api/auth-logout" className={styles.switchLink}>
-              Sign out
-            </a>
-          }
+          trailing={<ProfileMenu />}
         />
       </div>
 

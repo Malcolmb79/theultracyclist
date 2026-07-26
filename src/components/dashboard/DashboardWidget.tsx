@@ -141,8 +141,12 @@ const MIN_PERFORMANCE_HEIGHT = 260;
 const MIN_PERFORMANCE_WIDTH = 360;
 const DEFAULT_PERFORMANCE_WIDTH = 440;
 const DEFAULT_PERFORMANCE_HEIGHT = 300;
-const MIN_WEATHER_HEIGHT = 200;
-const MIN_WEATHER_WIDTH = 220;
+// The redesigned card (hero icon, live clock, wind direction, 7-day
+// forecast strip) needs more room than a plain stat tile to stay legible.
+const MIN_WEATHER_HEIGHT = 260;
+const MIN_WEATHER_WIDTH = 300;
+const DEFAULT_WEATHER_WIDTH = 340;
+const DEFAULT_WEATHER_HEIGHT = 320;
 // A live map needs real room to be useful - similar floor/default to the
 // health calendar's generous sizing.
 const MIN_GARMIN_HEIGHT = 320;
@@ -289,18 +293,22 @@ export default function DashboardWidget({
       ? DEFAULT_PERFORMANCE_WIDTH
       : isGarminLiveTrack
         ? DEFAULT_GARMIN_WIDTH
-        : isMobile
-          ? MOBILE_DEFAULT_WIDGET_WIDTH
-          : DEFAULT_WIDGET_WIDTH;
+        : isWeather
+          ? DEFAULT_WEATHER_WIDTH
+          : isMobile
+            ? MOBILE_DEFAULT_WIDGET_WIDTH
+            : DEFAULT_WIDGET_WIDTH;
   const defaultHeight = isHealthCalendar
     ? DEFAULT_HEALTH_CALENDAR_HEIGHT
     : isPerformanceChart
       ? DEFAULT_PERFORMANCE_HEIGHT
       : isGarminLiveTrack
         ? DEFAULT_GARMIN_HEIGHT
-        : isMobile
-          ? MOBILE_DEFAULT_WIDGET_HEIGHT
-        : DEFAULT_WIDGET_HEIGHT;
+        : isWeather
+          ? DEFAULT_WEATHER_HEIGHT
+          : isMobile
+            ? MOBILE_DEFAULT_WIDGET_HEIGHT
+            : DEFAULT_WIDGET_HEIGHT;
   // A widget already sized for desktop shows visually compressed on mobile
   // (the saved width/height itself is untouched) - combo/rings/calendar are
   // exempt since they need more room than the cap to render their sub-content.
@@ -310,11 +318,18 @@ export default function DashboardWidget({
   // it back down on every reload and making the resize look like it never
   // saved.
   const capWidth =
-    isMobile && !stacked && !isRings && !isHealthCalendar && !isPerformanceChart && !isGarminLiveTrack
+    isMobile && !stacked && !isRings && !isHealthCalendar && !isPerformanceChart && !isGarminLiveTrack && !isWeather
       ? MOBILE_CAP_WIDTH
       : Infinity;
   const capHeight =
-    isMobile && !stacked && !isCombo && !isRings && !isHealthCalendar && !isPerformanceChart && !isGarminLiveTrack
+    isMobile &&
+    !stacked &&
+    !isCombo &&
+    !isRings &&
+    !isHealthCalendar &&
+    !isPerformanceChart &&
+    !isGarminLiveTrack &&
+    !isWeather
       ? MOBILE_CAP_HEIGHT
       : Infinity;
 

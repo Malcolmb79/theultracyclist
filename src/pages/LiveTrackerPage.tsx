@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import LiveTrackerMap from "../components/liveTracker/LiveTrackerMap";
-import { fetchGpxRoute, distanceCoveredKm, totalDistanceKm, haversineKm, type RoutePoint } from "../utils/gpxRoute";
+import { fetchRoute, distanceCoveredKm, totalDistanceKm, haversineKm, type RoutePoint } from "../utils/gpxRoute";
 import styles from "./LiveTrackerPage.module.css";
 
 const POLL_INTERVAL_MS = 20_000;
@@ -92,7 +92,7 @@ export default function LiveTrackerPage() {
     if (!data?.gpxUrl) return;
     let cancelled = false;
     setRouteError(false);
-    fetchGpxRoute(data.gpxUrl)
+    fetchRoute(data.gpxUrl)
       .then((r) => {
         if (!cancelled) setRoute(r);
       })

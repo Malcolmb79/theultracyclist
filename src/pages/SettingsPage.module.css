@@ -171,6 +171,14 @@
   font-size: 0.95rem;
 }
 
+/* For URLs and dates, which need more room than the 100px default (sized
+   for short numeric fields like FTP/height) - full width up to a cap so it
+   doesn't stretch edge-to-edge on a wide screen. */
+.inputWide {
+  width: 100%;
+  max-width: 420px;
+}
+
 .inputUnit {
   color: var(--color-text-muted);
   font-size: 0.85rem;

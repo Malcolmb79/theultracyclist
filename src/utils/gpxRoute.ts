@@ -10,11 +10,30 @@ export function haversineKm(a: { lat: number; lon: number }, b: { lat: number; l
   return R * 2 * Math.asin(Math.sqrt(h));
 }
 
-// Fetches and parses a public GPX file client-side (e.g. a Ride with GPS
-// route's public .gpx export URL - no API key needed for a public route).
-// Supports both <trk>/<trkpt> (tracks) and <rte>/<rtept> (routes), since
-// different tools export one or the other.
-export async function fetchGpxRoute(url: string): Promise<RoutePoint[]> {
+// Fetches and parses a route client-side, from either format:
+// - Ride with GPS's public .json route endpoint (https://ridewithgps.com/
+//   routes/{id}.json - just append .json to a public route's URL). This is
+//   what's actually used in practice: RWGPS's .gpx export requires being
+//   logged in even for a public route, but .json doesn't, and it comes with
+//   distance already computed by their routing engine (the "d" field, in
+//   meters), so no local haversine summation is needed.
+// - A plain public GPX file (<trk>/<trkpt> or <rte>/<rtept>), for any other
+//   route source.
+export async function fetchRoute(url: string): Promise<RoutePoint[]> {
+  return url.includes(".json") ? fetchRideWithGpsJsonRoute(url) : fetchGpxRoute(url);
+}
+
+async function fetchRideWithGpsJsonRoute(url: string): Promise<RoutePoint[]> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Route request failed (${res.status})`);
+  const data = (await res.json()) as { track_points?: { x?: number; y?: number; d?: number }[] };
+  const trackPoints = data.track_points ?? [];
+  return trackPoints
+    .filter((p): p is { x: number; y: number; d?: number } => typeof p.x === "number" && typeof p.y === "number")
+    .map((p) => ({ lat: p.y, lon: p.x, distanceKm: (p.d ?? 0) / 1000 }));
+}
+
+async function fetchGpxRoute(url: string): Promise<RoutePoint[]> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`GPX request failed (${res.status})`);
   const text = await res.text();

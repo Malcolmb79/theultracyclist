@@ -5,7 +5,7 @@ import { useTheme, type ThemeMode } from "../context/ThemeContext";
 import { useDashboardTheme } from "../utils/useDashboardTheme";
 import { convertValueUnit, type UnitSystem } from "../utils/units";
 import { readImageFile } from "../utils/resizeImage";
-import { fetchGpxRoute } from "../utils/gpxRoute";
+import { fetchRoute } from "../utils/gpxRoute";
 import type { CoachingSettings } from "../components/coaching/types";
 import SignInGate from "../components/shared/SignInGate";
 import TabNav from "../components/shared/TabNav";
@@ -237,7 +237,7 @@ function SettingsEditor() {
     setSaving("liveTracker");
     setLiveTrackerStatus(null);
     try {
-      const route = await fetchGpxRoute(gpxUrlInput.trim());
+      const route = await fetchRoute(gpxUrlInput.trim());
       const totalKm = route.length > 0 ? route[route.length - 1].distanceKm : 0;
       if (totalKm === 0) throw new Error("empty route");
 
@@ -535,7 +535,7 @@ function SettingsEditor() {
           </p>
           <input
             type="text"
-            className={styles.input}
+            className={`${styles.input} ${styles.inputWide}`}
             value={garminUrlInput}
             onChange={(e) => setGarminUrlInput(e.target.value)}
             placeholder="https://livetrack.garmin.com/session/..."
@@ -558,14 +558,16 @@ function SettingsEditor() {
           </p>
 
           <p className={styles.sectionHint} style={{ marginTop: "var(--space-2)" }}>
-            Route GPX URL (e.g. a Ride with GPS route&apos;s public .gpx export link)
+            Route URL - a Ride with GPS route&apos;s public .json link (make the route public first, then just
+            append .json to its normal URL - RWGPS&apos;s .gpx export needs login even for public routes, but .json
+            doesn&apos;t). Plain public GPX files also work.
           </p>
           <input
             type="text"
-            className={styles.input}
+            className={`${styles.input} ${styles.inputWide}`}
             value={gpxUrlInput}
             onChange={(e) => setGpxUrlInput(e.target.value)}
-            placeholder="https://ridewithgps.com/routes/XXXXXXX.gpx"
+            placeholder="https://ridewithgps.com/routes/XXXXXXX.json"
           />
 
           <p className={styles.sectionHint} style={{ marginTop: "var(--space-2)" }}>
@@ -573,7 +575,7 @@ function SettingsEditor() {
           </p>
           <input
             type="text"
-            className={styles.input}
+            className={`${styles.input} ${styles.inputWide}`}
             value={positionFeedUrlInput}
             onChange={(e) => setPositionFeedUrlInput(e.target.value)}
             placeholder="https://share.garmin.com/Feed/Share/..."
@@ -606,7 +608,7 @@ function SettingsEditor() {
           </p>
           <input
             type="datetime-local"
-            className={styles.input}
+            className={`${styles.input} ${styles.inputWide}`}
             value={startTimeInput}
             onChange={(e) => setStartTimeInput(e.target.value)}
           />

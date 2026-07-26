@@ -224,11 +224,12 @@ function SettingsEditor() {
     }
   };
 
-  // Generates a synthetic position history along the real configured route
-  // for testing the /live page before a real inReach device/feed exists -
-  // no positionFeedUrl needed, since this writes straight to the same
-  // position history the real feed would otherwise fill in. Paced slightly
-  // faster than the target so the page renders its "ahead of target" state.
+  // Starts a live-advancing simulation for testing /live before a real
+  // inReach device/feed exists - the server (api/live-tracker.ts) computes
+  // an actually-moving position on every poll from this config, sped up
+  // 120x real time so a ~16h ride finishes in about 8 real minutes. Paced
+  // slightly faster than the target so the page renders its "ahead of
+  // target" state. "Reset position history" stops it.
   const handleSimulateTestRun = async () => {
     if (!gpxUrlInput.trim()) {
       setLiveTrackerStatus("Add a route GPX URL first.");
@@ -245,36 +246,18 @@ function SettingsEditor() {
       const requiredKmh = totalKm / (targetSeconds / 3600);
       const simulatedKmh = requiredKmh * 1.08; // slightly quicker than target pace
 
-      const progressFraction = 0.4; // a mid-attempt snapshot, not finished and not just started
-      const targetKm = totalKm * progressFraction;
-      // Back-dated start time so "now" lines up with this much progress at
-      // the simulated pace - otherwise elapsed time (now - startTime)
-      // wouldn't match how far the simulated run has actually gone.
-      const startMs = Date.now() - (targetKm / simulatedKmh) * 3_600_000;
-
-      const points: { lat: number; lon: number; timestamp: number }[] = [];
-      let lastSampledKm = -Infinity;
-      for (const p of route) {
-        if (p.distanceKm > targetKm) break;
-        if (p.distanceKm - lastSampledKm < 3) continue;
-        points.push({ lat: p.lat, lon: p.lon, timestamp: startMs + (p.distanceKm / simulatedKmh) * 3_600_000 });
-        lastSampledKm = p.distanceKm;
-      }
-
       await fetch("/api/live-tracker", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...liveTrackerPayload(),
           targetSeconds,
-          startTime: new Date(startMs).toISOString(),
-          seedHistory: points,
+          simulation: { startedAtMs: Date.now(), kmh: simulatedKmh },
         }),
       });
-      setStartTimeInput(toDatetimeLocalValue(new Date(startMs).toISOString()));
-      setLiveTrackerStatus(`Seeded a simulated run - ${points.length} points, ~${Math.round(progressFraction * 100)}% through, running ahead of target pace.`);
+      setLiveTrackerStatus("Simulation running - open /live and watch it advance (sped up ~120x, finishes in a few minutes).");
     } catch {
-      setLiveTrackerStatus("Couldn't generate test data - make sure the route GPX URL is public and valid.");
+      setLiveTrackerStatus("Couldn't start the simulation - make sure the route URL is public and valid.");
     } finally {
       setSaving(null);
     }

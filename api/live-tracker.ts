@@ -4,9 +4,11 @@ import { getJSON, setJSON } from "./_lib/kvStore.js";
 import { getSessionEmail } from "./_lib/session.js";
 
 type LiveTrackerConfig = {
-  // Public GPX export of the planned route (e.g. a Ride with GPS route's
-  // public .gpx URL) - fetched directly by the browser, not proxied here,
-  // since it's a static public file with no auth needed.
+  // Public route URL - a Ride with GPS route's public .json endpoint
+  // (preferred - see fetchRoutePoints) or a plain public GPX file. Fetched
+  // both here (for the simulation below) and directly by the browser (for
+  // the real /live page's own distance-covered calc) - not proxied for the
+  // real path, since it's a static public resource with no auth needed.
   gpxUrl?: string;
   // Garmin inReach MapShare KML feed URL (Settings -> Social -> MapShare ->
   // Feeds on the inReach/Explore account) - official, documented, designed
@@ -16,9 +18,16 @@ type LiveTrackerConfig = {
   positionFeedUrl?: string;
   targetSeconds?: number;
   startTime?: string; // ISO
+  // Set by Settings' "Simulate a test run" - a stand-in for a real
+  // positionFeedUrl when testing before the actual inReach device/feed
+  // exists. Mutually exclusive with positionFeedUrl (simulation wins if
+  // both are somehow set). See runSimulation below for how this turns into
+  // an actually-advancing position over time.
+  simulation?: { startedAtMs: number; kmh: number };
 };
 
 export type PositionPoint = { lat: number; lon: number; timestamp: number };
+type RouteInterpPoint = { lat: number; lon: number; distanceKm: number };
 
 export type LiveTrackerPublicResult = {
   configured: boolean;
@@ -35,7 +44,13 @@ export type LiveTrackerPublicResult = {
 
 const CONFIG_KEY = "LIVE_TRACKER_CONFIG";
 const HISTORY_KEY = "LIVE_TRACKER_HISTORY";
+const ROUTE_CACHE_KEY = "LIVE_TRACKER_ROUTE_CACHE";
 const MAX_HISTORY_POINTS = 3000;
+const ROUTE_CACHE_TTL_MS = 10 * 60_000;
+// How much faster than real time the simulation runs - a ~16h ride at this
+// speedup finishes in a little over 8 real minutes, fast enough to
+// actually watch the dot move within a short testing session.
+const SIM_SPEEDUP = 120;
 
 // Recursively finds a "Placemark" key at any depth in the parsed KML tree,
 // rather than assuming one exact Document/Folder nesting - the feed hasn't
@@ -88,25 +103,154 @@ function mergeHistory(existing: PositionPoint[], fresh: PositionPoint[]): Positi
   return merged.slice(-MAX_HISTORY_POINTS);
 }
 
+// Recursively finds a "trkpt"/"rtept" key at any depth, mirroring
+// findPlacemarks' tolerance for whatever the exact GPX nesting turns out
+// to be - only used for the simulation's server-side route fetch; the real
+// page parses GPX client-side via DOMParser instead (see gpxRoute.ts).
+function findTrackPoints(node: unknown): unknown[] {
+  if (node == null || typeof node !== "object") return [];
+  const obj = node as Record<string, unknown>;
+  for (const key of ["trkpt", "rtept"]) {
+    if (key in obj) {
+      const pts = obj[key];
+      return Array.isArray(pts) ? pts : [pts];
+    }
+  }
+  for (const value of Object.values(obj)) {
+    const found = findTrackPoints(value);
+    if (found.length > 0) return found;
+  }
+  return [];
+}
+
+function haversineKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
+  const R = 6371;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLon = ((b.lon - a.lon) * Math.PI) / 180;
+  const lat1 = (a.lat * Math.PI) / 180;
+  const lat2 = (b.lat * Math.PI) / 180;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.asin(Math.sqrt(h));
+}
+
+// Same dual-format support as src/utils/gpxRoute.ts's client-side fetchRoute
+// (kept as a separate server-side copy per this project's api/src
+// decoupling convention) - only used for the simulation below, so the real
+// /live page's own client-side fetch (which the athlete's actual browser
+// visitors trigger) is unaffected by whatever happens here.
+async function fetchRoutePoints(url: string): Promise<RouteInterpPoint[]> {
+  if (url.includes(".json")) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Route request failed (${res.status})`);
+    const data = (await res.json()) as { track_points?: { x?: number; y?: number; d?: number }[] };
+    return (data.track_points ?? [])
+      .filter((p): p is { x: number; y: number; d?: number } => typeof p.x === "number" && typeof p.y === "number")
+      .map((p) => ({ lat: p.y, lon: p.x, distanceKm: (p.d ?? 0) / 1000 }));
+  }
+
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Route request failed (${res.status})`);
+  const xml = await res.text();
+  const parsed = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_" }).parse(xml) as unknown;
+
+  const points: RouteInterpPoint[] = [];
+  let cumulative = 0;
+  for (const raw of findTrackPoints(parsed)) {
+    const pt = raw as { "@_lat"?: string; "@_lon"?: string };
+    const lat = Number(pt["@_lat"]);
+    const lon = Number(pt["@_lon"]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+    if (points.length > 0) cumulative += haversineKm(points[points.length - 1], { lat, lon });
+    points.push({ lat, lon, distanceKm: cumulative });
+  }
+  return points;
+}
+
+async function fetchRoutePointsCached(url: string): Promise<RouteInterpPoint[]> {
+  const cached = await getJSON<{ url: string; points: RouteInterpPoint[]; fetchedAtMs: number }>(ROUTE_CACHE_KEY);
+  if (cached && cached.url === url && Date.now() - cached.fetchedAtMs < ROUTE_CACHE_TTL_MS) {
+    return cached.points;
+  }
+  const points = await fetchRoutePoints(url);
+  await setJSON(ROUTE_CACHE_KEY, { url, points, fetchedAtMs: Date.now() });
+  return points;
+}
+
+// Nearest-vertex distance -> lat/lon interpolation between the two
+// surrounding route points, close enough given a GPX/RWGPS track's points
+// are normally dense (every ~10-50m).
+function interpolatePosition(route: RouteInterpPoint[], targetKm: number): { lat: number; lon: number } | null {
+  if (route.length === 0) return null;
+  if (targetKm <= route[0].distanceKm) return { lat: route[0].lat, lon: route[0].lon };
+  const last = route[route.length - 1];
+  if (targetKm >= last.distanceKm) return { lat: last.lat, lon: last.lon };
+  for (let i = 1; i < route.length; i++) {
+    if (route[i].distanceKm >= targetKm) {
+      const a = route[i - 1];
+      const b = route[i];
+      const span = b.distanceKm - a.distanceKm || 1;
+      const t = (targetKm - a.distanceKm) / span;
+      return { lat: a.lat + (b.lat - a.lat) * t, lon: a.lon + (b.lon - a.lon) * t };
+    }
+  }
+  return { lat: last.lat, lon: last.lon };
+}
+
+// Turns a stored simulation config into a live-advancing position, exactly
+// as if it were coming from a real feed - called fresh on every GET poll
+// rather than pre-generating a fixed set of points, so the dot actually
+// keeps moving for as long as anyone has the /live page open.
+async function runSimulation(
+  config: LiveTrackerConfig,
+  history: PositionPoint[],
+): Promise<{ position: PositionPoint | null; history: PositionPoint[]; startTime: string | null }> {
+  if (!config.simulation || !config.gpxUrl) return { position: null, history, startTime: config.startTime ?? null };
+
+  const route = await fetchRoutePointsCached(config.gpxUrl);
+  const totalKm = route.length > 0 ? route[route.length - 1].distanceKm : 0;
+  if (totalKm === 0) return { position: null, history, startTime: config.startTime ?? null };
+
+  const nowMs = Date.now();
+  const realElapsedMs = nowMs - config.simulation.startedAtMs;
+  const virtualElapsedHours = (realElapsedMs / 3_600_000) * SIM_SPEEDUP;
+  const distanceKm = Math.min(totalKm, Math.max(0, virtualElapsedHours * config.simulation.kmh));
+  const latLon = interpolatePosition(route, distanceKm);
+  if (!latLon) return { position: null, history, startTime: config.startTime ?? null };
+
+  const point: PositionPoint = { ...latLon, timestamp: nowMs };
+  const nextHistory = mergeHistory(history, [point]);
+  await setJSON(HISTORY_KEY, nextHistory);
+
+  // Reported startTime is back-dated by the same virtual-elapsed amount, so
+  // the client's plain (now - startTime) elapsed-time math lines up with
+  // the sped-up simulation instead of showing real (much shorter) elapsed
+  // time against a full-distance position.
+  const reportedStartTime = new Date(nowMs - virtualElapsedHours * 3_600_000).toISOString();
+  return { position: point, history: nextHistory, startTime: reportedStartTime };
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === "POST") {
     if (!getSessionEmail(req)) {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
-    const body = (req.body ?? {}) as LiveTrackerConfig & { resetHistory?: boolean; seedHistory?: PositionPoint[] };
+    const body = (req.body ?? {}) as LiveTrackerConfig & { resetHistory?: boolean };
     const config: LiveTrackerConfig = {
       gpxUrl: body.gpxUrl,
       positionFeedUrl: body.positionFeedUrl,
       targetSeconds: body.targetSeconds,
       startTime: body.startTime,
+      simulation: body.simulation,
     };
     await setJSON(CONFIG_KEY, config);
-    if (body.resetHistory) await setJSON(HISTORY_KEY, []);
-    // Test/demo data (Settings' "Simulate a test run") - overwrites rather
-    // than merges, since it's meant to replace whatever's there with a
-    // fresh synthetic run, not blend with real device data.
-    if (body.seedHistory) await setJSON(HISTORY_KEY, body.seedHistory);
+    if (body.resetHistory) {
+      await setJSON(HISTORY_KEY, []);
+      // A reset should stop any simulation too, not just clear the map -
+      // otherwise the very next poll immediately regenerates a position
+      // from the simulation that's still running.
+      await setJSON(CONFIG_KEY, { ...config, simulation: undefined });
+    }
     res.status(200).json({ ok: true });
     return;
   }
@@ -118,8 +262,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const isOwner = Boolean(getSessionEmail(req));
   const config = (await getJSON<LiveTrackerConfig>(CONFIG_KEY)) ?? {};
   let history = (await getJSON<PositionPoint[]>(HISTORY_KEY)) ?? [];
+  let effectiveStartTime = config.startTime ?? null;
 
-  if (config.positionFeedUrl) {
+  if (config.simulation) {
+    try {
+      const sim = await runSimulation(config, history);
+      history = sim.history;
+      effectiveStartTime = sim.startTime;
+    } catch {
+      // Route temporarily unreachable - fall through and serve whatever
+      // history is already stored.
+    }
+  } else if (config.positionFeedUrl) {
     try {
       const fresh = await fetchLatestPositions(config.positionFeedUrl);
       if (fresh.length > 0) {
@@ -135,16 +289,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const result: LiveTrackerPublicResult = {
     // positionFeedUrl isn't required for the page to be worth showing - the
     // page already handles position: null gracefully ("Waiting for
-    // position…"), and this also lets Settings' seeded test data render
-    // the full page before a real position feed exists.
+    // position…"), and this also lets a simulation run before a real
+    // position feed exists.
     configured: Boolean(config.gpxUrl && config.targetSeconds),
     gpxUrl: config.gpxUrl ?? null,
     targetSeconds: config.targetSeconds ?? null,
-    startTime: config.startTime ?? null,
+    startTime: effectiveStartTime,
     position: history.length > 0 ? history[history.length - 1] : null,
     history,
     ...(isOwner ? { positionFeedUrl: config.positionFeedUrl } : {}),
   };
-  res.setHeader("Cache-Control", isOwner ? "private, no-store" : "public, s-maxage=15, stale-while-revalidate=30");
+  res.setHeader("Cache-Control", isOwner || config.simulation ? "private, no-store" : "public, s-maxage=15, stale-while-revalidate=30");
   res.status(200).json(result);
 }

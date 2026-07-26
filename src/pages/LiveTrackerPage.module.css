@@ -39,6 +39,17 @@
   margin: 0 auto var(--space-4);
 }
 
+.hiddenNotice {
+  max-width: 1400px;
+  margin: 0 auto var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  background: color-mix(in srgb, var(--color-amber) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-amber) 30%, transparent);
+  border-radius: var(--radius);
+  color: var(--color-amber);
+  font-size: 0.8rem;
+}
+
 .titleRow {
   display: flex;
   align-items: center;

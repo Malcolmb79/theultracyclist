@@ -34,6 +34,7 @@ type ApiResult = {
   position: PositionPoint | null;
   history: PositionPoint[];
   simulatedKmh: number | null;
+  visible: boolean;
   layout: LiveTrackerLayout | null;
   isOwner: boolean;
 };
@@ -410,6 +411,13 @@ export default function LiveTrackerPage() {
           {data.position ? `Updated ${relativeSeconds(data.position.timestamp)}` : "Waiting for position…"}
         </div>
       </div>
+
+      {data.isOwner && !data.visible && (
+        <p className={styles.hiddenNotice}>
+          This page is hidden from visitors right now - only you can see it. Turn it back on from Settings whenever
+          you&apos;re ready.
+        </p>
+      )}
 
       <main
         className={stacked ? styles.stackList : `${styles.canvas} ${isResizing ? styles.canvasSnap : ""}`}

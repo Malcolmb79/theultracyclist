@@ -74,6 +74,7 @@ function SettingsEditor() {
   const [targetHoursInput, setTargetHoursInput] = useState("18");
   const [targetMinutesInput, setTargetMinutesInput] = useState("0");
   const [startTimeInput, setStartTimeInput] = useState("");
+  const [showLivePageInput, setShowLivePageInput] = useState(true);
   const [liveTrackerStatus, setLiveTrackerStatus] = useState<string | null>(null);
   const [whoopStatus] = useState(whoopStatusFromQuery);
   const [pictureDataUrl, setPictureDataUrl] = useState<string | undefined>(undefined);
@@ -128,6 +129,7 @@ function SettingsEditor() {
           positionFeedUrl?: string;
           targetSeconds: number | null;
           startTime: string | null;
+          visible?: boolean;
         }) => {
           if (cancelled) return;
           setGpxUrlInput(body.gpxUrl ?? "");
@@ -135,6 +137,7 @@ function SettingsEditor() {
           setTargetHoursInput(body.targetSeconds != null ? Math.floor(body.targetSeconds / 3600).toString() : "");
           setTargetMinutesInput(body.targetSeconds != null ? Math.floor((body.targetSeconds % 3600) / 60).toString() : "");
           setStartTimeInput(body.startTime ? toDatetimeLocalValue(body.startTime) : "");
+          setShowLivePageInput(body.visible ?? true);
         },
       )
       .catch(() => {});
@@ -190,6 +193,7 @@ function SettingsEditor() {
       positionFeedUrl: positionFeedUrlInput.trim() || undefined,
       targetSeconds: hours || minutes ? hours * 3600 + minutes * 60 : undefined,
       startTime: startTimeInput ? new Date(startTimeInput).toISOString() : undefined,
+      visible: showLivePageInput,
       ...extra,
     };
   };
@@ -538,6 +542,20 @@ function SettingsEditor() {
           <p className={styles.sectionHint}>
             Powers the public /live page followers watch during the attempt itself - separate from the Garmin
             LiveTrack widget above. Set these once before the attempt starts.
+          </p>
+
+          <label className={styles.checkboxRow}>
+            <input
+              type="checkbox"
+              checked={showLivePageInput}
+              onChange={(e) => setShowLivePageInput(e.target.checked)}
+            />
+            Show live page to visitors
+          </label>
+          <p className={styles.sectionHint}>
+            Turn off to hide /live from everyone but you - your route, target, and feed stay saved, so you can turn
+            it back on later without re-entering anything. You can still preview the real page yourself while it&apos;s
+            hidden.
           </p>
 
           <p className={styles.sectionHint} style={{ marginTop: "var(--space-2)" }}>

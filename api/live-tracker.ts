@@ -30,6 +30,14 @@ type LiveTrackerConfig = {
   // preference. Public GET always returns it; only an authenticated POST
   // can change it.
   layout?: LiveTrackerLayout;
+  // Settings' "Show live page to visitors" toggle - lets the owner hide
+  // the public page (e.g. before the attempt starts, or once it's over)
+  // without losing gpxUrl/targetSeconds/etc, unlike clearing those fields
+  // outright. undefined behaves as true (visible), so configs saved before
+  // this field existed keep working unchanged. Only affects non-owner
+  // requests - the owner can still see/preview the real page while it's
+  // hidden from everyone else.
+  visible?: boolean;
 };
 
 export type LiveTrackerRect = { x: number; y: number; width: number; height: number };
@@ -55,6 +63,9 @@ export type LiveTrackerPublicResult = {
   // of deriving a wildly wrong one from timestamps that don't carry the
   // sped-up distance's true elapsed time.
   simulatedKmh: number | null;
+  // Resolved (undefined -> true) - lets Settings show the current toggle
+  // state without needing to special-case "never set" vs "explicitly on".
+  visible: boolean;
   layout: LiveTrackerLayout | null;
   // True when the request is authenticated - the /live page uses this to
   // decide whether to render its widgets as draggable/resizable (only the
@@ -274,6 +285,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if ("startTime" in body) config.startTime = body.startTime;
     if ("simulation" in body) config.simulation = body.simulation;
     if ("layout" in body) config.layout = body.layout;
+    if ("visible" in body) config.visible = body.visible;
     await setJSON(CONFIG_KEY, config);
     if (body.resetHistory) {
       await setJSON(HISTORY_KEY, []);
@@ -317,18 +329,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
+  // undefined -> true (visible), so configs saved before this toggle
+  // existed are unaffected. Only gates the public view - the owner sees
+  // the real page regardless, so they can preview/test it while hidden.
+  const isVisible = config.visible !== false;
+
   const result: LiveTrackerPublicResult = {
     // positionFeedUrl isn't required for the page to be worth showing - the
     // page already handles position: null gracefully ("Waiting for
     // position…"), and this also lets a simulation run before a real
     // position feed exists.
-    configured: Boolean(config.gpxUrl && config.targetSeconds),
+    configured: Boolean(config.gpxUrl && config.targetSeconds && (isOwner || isVisible)),
     gpxUrl: config.gpxUrl ?? null,
     targetSeconds: config.targetSeconds ?? null,
     startTime: effectiveStartTime,
     position: history.length > 0 ? history[history.length - 1] : null,
     history,
     simulatedKmh: config.simulation?.kmh ?? null,
+    visible: isVisible,
     layout: config.layout ?? null,
     isOwner,
     ...(isOwner ? { positionFeedUrl: config.positionFeedUrl } : {}),

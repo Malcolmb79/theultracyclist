@@ -233,6 +233,7 @@ function DashboardEditor() {
                 widget={widget}
                 metricById={metricById}
                 whoopHistory={data.whoopHistory}
+                performanceSeries={data.performanceSeries}
                 stacked
                 canMoveUp={index > 0}
                 canMoveDown={index < widgets.length - 1}
@@ -258,6 +259,7 @@ function DashboardEditor() {
                 widget={widget}
                 metricById={metricById}
                 whoopHistory={data.whoopHistory}
+                performanceSeries={data.performanceSeries}
                 onViewTypeChange={(viewType) => handleViewTypeChange(widget.id, viewType)}
                 onColorChange={(color) => handleColorChange(widget.id, color)}
                 onLabelChange={(label) => handleLabelChange(widget.id, label)}

@@ -278,6 +278,7 @@ function CoachingView() {
                   widget={toWidget(entry)}
                   metricById={metricById}
                   whoopHistory={dashboardData.status === "ready" ? dashboardData.whoopHistory : []}
+                  performanceSeries={dashboardData.status === "ready" ? dashboardData.performanceSeries : []}
                   onViewTypeChange={(viewType) => handleViewTypeChange(entry.id, viewType)}
                   onColorChange={(color) => handleColorChange(entry.id, color)}
                   onLabelChange={(label) => handleLabelChange(entry.id, label)}

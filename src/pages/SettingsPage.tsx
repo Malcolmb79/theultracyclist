@@ -57,7 +57,8 @@ function SettingsEditor() {
   const [heightInput, setHeightInput] = useState("");
   const [distanceInput, setDistanceInput] = useState("");
   const [hoursInput, setHoursInput] = useState("");
-  const [saving, setSaving] = useState<"ftp" | "height" | "targets" | null>(null);
+  const [saving, setSaving] = useState<"ftp" | "height" | "targets" | "garmin" | null>(null);
+  const [garminUrlInput, setGarminUrlInput] = useState("");
   const [whoopStatus] = useState(whoopStatusFromQuery);
   const [pictureDataUrl, setPictureDataUrl] = useState<string | undefined>(undefined);
   const [pictureError, setPictureError] = useState<string | null>(null);
@@ -90,6 +91,7 @@ function SettingsEditor() {
         );
         setHoursInput(s.weeklyHours?.toString() ?? "");
         setPictureDataUrl(s.profilePictureDataUrl);
+        setGarminUrlInput(s.garminLiveTrackUrl ?? "");
       })
       .catch(() => {
         if (!cancelled) setSettings({});
@@ -124,6 +126,16 @@ function SettingsEditor() {
     setSaving("height");
     try {
       await persist({ ...settings, heightCm: heightInput === "" ? undefined : Number(heightInput) });
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const handleSaveGarminUrl = async () => {
+    if (!settings) return;
+    setSaving("garmin");
+    try {
+      await persist({ ...settings, garminLiveTrackUrl: garminUrlInput.trim() === "" ? undefined : garminUrlInput.trim() });
     } finally {
       setSaving(null);
     }
@@ -373,6 +385,30 @@ function SettingsEditor() {
           <a href="/api/whoop-authorize" className={styles.connectButton}>
             Reconnect Whoop
           </a>
+        </div>
+
+        <div className={styles.section}>
+          <p className={styles.sectionTitle}>Garmin LiveTrack</p>
+          <p className={styles.sectionHint}>
+            Garmin generates a new LiveTrack link every time you start one on your device - paste the current one
+            here before a ride to show live position on the Garmin LiveTrack widget. There's no way to detect this
+            automatically, so it needs updating each time.
+          </p>
+          <input
+            type="text"
+            className={styles.input}
+            value={garminUrlInput}
+            onChange={(e) => setGarminUrlInput(e.target.value)}
+            placeholder="https://livetrack.garmin.com/session/..."
+          />
+          <button
+            type="button"
+            className={styles.saveButton}
+            onClick={handleSaveGarminUrl}
+            disabled={saving === "garmin" || !settings}
+          >
+            {saving === "garmin" ? "Saving…" : "Save"}
+          </button>
         </div>
       </div>
 

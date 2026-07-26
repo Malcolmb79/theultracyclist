@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useCanvasItem } from "../../utils/useCanvasItem";
+import { useLongPressSelect } from "../../utils/useLongPressSelect";
 import styles from "./CoachingWidget.module.css";
 
 export const COACHING_WIDGET_GRID_SIZE = 20;
@@ -58,19 +59,7 @@ export default function CoachingWidget({
     onDraggingChange: onResizingChange,
   });
 
-  const [selected, setSelected] = useState(false);
-  const widgetRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!selected) return;
-    const handleOutside = (e: PointerEvent) => {
-      if (widgetRef.current && !widgetRef.current.contains(e.target as Node)) {
-        setSelected(false);
-      }
-    };
-    document.addEventListener("pointerdown", handleOutside);
-    return () => document.removeEventListener("pointerdown", handleOutside);
-  }, [selected]);
+  const { ref: widgetRef, selected, pressHandlers } = useLongPressSelect<HTMLDivElement>();
 
   const positionStyle = stacked
     ? { width: rect.width, height: rect.height }
@@ -82,7 +71,7 @@ export default function CoachingWidget({
       className={`${styles.widget} ${stacked ? styles.stacked : ""}`}
       style={positionStyle}
       data-selected={selected || undefined}
-      onPointerDownCapture={() => setSelected(true)}
+      {...pressHandlers}
     >
       {!stacked && (
         <div className={styles.dragHandle} onPointerDown={handleDragPointerDown} role="button" tabIndex={0} aria-label="Drag to move">

@@ -1,6 +1,6 @@
 export type Widget = {
   id: string;
-  source: "strava" | "whoop" | "health";
+  source: "strava" | "whoop" | "health" | "weather" | "garmin";
   metric: string;
   label: string;
   viewType: "stat" | "chart" | "timeline" | "ring" | "combo" | "rings" | "healthCalendar" | "caloriesBalance";
@@ -52,3 +52,18 @@ export const HEALTH_CALENDAR_ID = "whoop.healthCalendar";
 // energy for the day, side by side with the net difference - rather than
 // two separate single-metric widgets the athlete has to compare by eye.
 export const CALORIES_BALANCE_ID = "health.caloriesBalance";
+
+// Special catalog entry: the season's Performance Management Chart
+// (CTL/ATL/TSB, the standard Coggan fitness/fatigue/form trio) with the
+// athlete's real ATP plan targets for CTL/TSB overlaid, rather than a raw
+// per-metric series the way a normal catalog entry works.
+export const PERFORMANCE_CHART_ID = "strava.performanceChart";
+
+// Special catalog entry: current weather at the athlete's location (browser
+// geolocation + Open-Meteo, no per-metric series).
+export const WEATHER_ID = "weather.current";
+
+// Special catalog entry: live position + track for the athlete's currently
+// pasted Garmin LiveTrack session (see Settings and api/garmin-livetrack.ts) -
+// no per-metric series, always offered regardless of connected data sources.
+export const GARMIN_LIVETRACK_ID = "garmin.liveTrack";

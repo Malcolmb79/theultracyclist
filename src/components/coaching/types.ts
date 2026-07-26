@@ -12,7 +12,7 @@ export type CoachingWidgetEntry = {
   id: string; // fixed cards use their own kind as the id (only one of each can exist); metrics get a generated id.
   kind: FixedCardKind | "metric";
   // Only set when kind === "metric":
-  source?: "strava" | "whoop" | "health";
+  source?: "strava" | "whoop" | "health" | "weather" | "garmin";
   metric?: string;
   viewType?: "stat" | "chart" | "timeline" | "ring" | "combo" | "rings" | "healthCalendar" | "caloriesBalance";
   label: string;
@@ -47,6 +47,10 @@ export type CoachingSettings = {
   // A small square JPEG data URL, already resized client-side (see
   // src/utils/resizeImage.ts) before being saved - shown in ProfileMenu.
   profilePictureDataUrl?: string;
+  // Pasted manually before a ride/the attempt - Garmin generates a new
+  // LiveTrack session URL each time one is started, no persistent
+  // connection to store (see api/garmin-livetrack.ts).
+  garminLiveTrackUrl?: string;
 };
 
 export type ReadinessLevel = "hard" | "moderate" | "easy" | "rest";

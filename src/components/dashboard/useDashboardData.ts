@@ -1,15 +1,17 @@
 import { useMemo } from "react";
-import { WHOOP_STRAIN_RECOVERY_COMBO_ID, WHOOP_RINGS_COMBO_ID, HEALTH_CALENDAR_ID, CALORIES_BALANCE_ID } from "./types";
+import { WHOOP_STRAIN_RECOVERY_COMBO_ID, WHOOP_RINGS_COMBO_ID, HEALTH_CALENDAR_ID, CALORIES_BALANCE_ID, PERFORMANCE_CHART_ID, WEATHER_ID, GARMIN_LIVETRACK_ID } from "./types";
 import { useUnits } from "../../context/UnitsContext";
 import { convertMetricSeries, convertValueUnit } from "../../utils/units";
 import { computeBmi, findWeightMetricName } from "../../utils/bmi";
+import { computePerformanceSeries, type PerformancePoint } from "../../utils/performanceSeries";
+import { irelandTodayDateStr } from "../../utils/irelandDate";
 import type { RawSourcesState } from "../../utils/useRawSources";
 
 export type SeriesPoint = { date: string; value: number };
 
 export type MetricDef = {
   id: string;
-  source: "strava" | "whoop" | "health";
+  source: "strava" | "whoop" | "health" | "weather" | "garmin";
   label: string;
   unit: string;
   series: SeriesPoint[]; // chronological, oldest first
@@ -35,6 +37,7 @@ type StravaRide = {
   movingTimeMinutes: number;
   startDate: string;
   avgWatts: number | null;
+  weightedAvgWatts: number | null;
   avgHeartrate: number | null;
   relativeEffort: number | null;
   elevationProfile: { distanceKm: number; altitudeM: number }[];
@@ -67,7 +70,7 @@ function formatMetricName(name: string): string {
 
 export type DashboardDataState =
   | { status: "loading" }
-  | { status: "ready"; metrics: MetricDef[]; whoopHistory: WhoopDay[] };
+  | { status: "ready"; metrics: MetricDef[]; whoopHistory: WhoopDay[]; performanceSeries: PerformancePoint[] };
 
 export function useDashboardData(raw: RawSourcesState): DashboardDataState {
   const { system } = useUnits();
@@ -84,6 +87,12 @@ export function useDashboardData(raw: RawSourcesState): DashboardDataState {
 
     const metrics: MetricDef[] = [];
       let whoopHistory: WhoopDay[] = [];
+      let performanceSeries: PerformancePoint[] = [];
+
+      // Always offered, independent of any connected data source - it's a
+      // live location snapshot, not derived from Whoop/Strava/Health.
+      metrics.push({ id: WEATHER_ID, source: "weather", label: "Weather", unit: "", series: [], statOnly: true });
+      metrics.push({ id: GARMIN_LIVETRACK_ID, source: "garmin", label: "Garmin LiveTrack", unit: "", series: [], statOnly: true });
 
       if (whoop?.history) {
         const days = (whoop.history as WhoopDay[]).slice().reverse();
@@ -122,6 +131,11 @@ export function useDashboardData(raw: RawSourcesState): DashboardDataState {
           { id: "strava.relativeEffort", source: "strava", label: "Ride relative effort", unit: "", series: series((r) => r.relativeEffort) },
           { id: "strava.elevationGain", source: "strava", label: "Ride elevation gain", unit: "m", series: series((r) => (r.elevationProfile.length > 1 ? Math.round(elevationGain(r.elevationProfile)) : null)) },
         );
+
+        performanceSeries = computePerformanceSeries(rides, settings.ftpWatts as number | undefined, irelandTodayDateStr());
+        if (performanceSeries.length > 0) {
+          metrics.push({ id: PERFORMANCE_CHART_ID, source: "strava", label: "Performance Chart (vs Plan)", unit: "", series: [], statOnly: true });
+        }
 
         const weekly = strava.summary?.weekly as StravaPeriodSummary | undefined;
         const monthly = strava.summary?.monthly as StravaPeriodSummary | undefined;
@@ -200,6 +214,7 @@ export function useDashboardData(raw: RawSourcesState): DashboardDataState {
       status: "ready",
       metrics: metrics.map((m) => convertMetricSeries(m, system)),
       whoopHistory,
+      performanceSeries,
     };
   }, [raw, system]);
 }

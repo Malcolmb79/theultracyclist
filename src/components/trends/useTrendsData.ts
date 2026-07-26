@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { GOAL_METRIC_IDS, type Goals } from "./types";
-import { HEALTH_CALENDAR_ID } from "../dashboard/types";
+import { HEALTH_CALENDAR_ID, PERFORMANCE_CHART_ID } from "../dashboard/types";
 import { useUnits } from "../../context/UnitsContext";
 import { convertTrendMetric, convertValueUnit } from "../../utils/units";
 import { computeBmi } from "../../utils/bmi";
 import { computeTss } from "../../utils/tss";
 import { computeFitnessSeries } from "../../utils/fitness";
 import { getAtpWeekFor } from "../../utils/atpPlan";
+import { computePerformanceSeries, type PerformancePoint } from "../../utils/performanceSeries";
 import { today } from "./aggregate";
 
 export type TrendMetricDef = {
@@ -84,6 +85,7 @@ export type TrendsDataState =
       weightByDate: Map<string, number>;
       weightUnit: string;
       bmiByDate: Map<string, number>;
+      performanceSeries: PerformancePoint[];
     };
 
 export function useTrendsData(): TrendsDataState {
@@ -281,6 +283,23 @@ export function useTrendsData(): TrendsDataState {
           }
         }
 
+        const performanceSeries = computePerformanceSeries(rides, settingsBody?.settings?.ftpWatts as number | undefined, today());
+        if (performanceSeries.length > 0) {
+          // Performance Management Chart: a dedicated multi-line view
+          // (actual CTL/ATL/TSB plus dashed ATP targets), not the day/week/
+          // month aggregate every other metric uses - getValue is never
+          // actually called since TrendsWidget special-cases this id before
+          // reaching that logic, matching HEALTH_CALENDAR_ID's own stub.
+          metrics.push({
+            id: PERFORMANCE_CHART_ID,
+            source: "strava",
+            label: "Performance Chart (vs Plan)",
+            unit: "",
+            aggregation: "avg",
+            getValue: () => null,
+          });
+        }
+
         for (const entry of healthCatalog) {
           metrics.push({
             id: `health.${entry.name}`,
@@ -442,6 +461,7 @@ export function useTrendsData(): TrendsDataState {
           weightByDate,
           weightUnit,
           bmiByDate,
+          performanceSeries,
         });
       })
       .catch(() => {
@@ -457,6 +477,7 @@ export function useTrendsData(): TrendsDataState {
             weightByDate: new Map(),
             weightUnit: "kg",
             bmiByDate: new Map(),
+            performanceSeries: [],
           });
         }
       });

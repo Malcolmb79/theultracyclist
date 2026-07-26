@@ -46,6 +46,11 @@ export type CoachingSettings = {
   // enough to just live alongside the rest of this settings blob and this
   // app has no other use for a file storage integration.
   profilePictureDataUrl?: string;
+  // Pasted before a ride/the attempt itself, not auto-discovered - Garmin
+  // generates a new LiveTrack session URL each time one is started, and
+  // there's no documented API to look one up automatically (see
+  // api/garmin-livetrack.ts for the session/token this gets parsed into).
+  garminLiveTrackUrl?: string;
 };
 
 // KV shape: profile fields (ftpWatts, heightCm, ...) are shared across every
@@ -145,6 +150,7 @@ export async function fetchCoachingSettings(): Promise<CoachingSettings> {
     phase: stored.phase,
     customRules: stored.customRules,
     profilePictureDataUrl: stored.profilePictureDataUrl,
+    garminLiveTrackUrl: stored.garminLiveTrackUrl,
   };
 }
 
@@ -174,6 +180,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       phase: incoming.phase,
       customRules: incoming.customRules,
       profilePictureDataUrl: incoming.profilePictureDataUrl,
+      garminLiveTrackUrl: incoming.garminLiveTrackUrl,
       widgetsByDevice,
       // A save from today's client always sends an already-migrated list
       // (or a deliberately-emptied one) - either way, the array is now the
@@ -208,6 +215,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     phase: stored.phase,
     customRules: stored.customRules,
     profilePictureDataUrl: stored.profilePictureDataUrl,
+    garminLiveTrackUrl: stored.garminLiveTrackUrl,
     widgets,
   };
   res.status(200).json({ settings });

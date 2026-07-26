@@ -1,16 +1,21 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { formatDate } from "../../utils/formatDate";
 import { relativeDayLabel } from "../../utils/relativeDate";
 import { recoveryColor } from "../../utils/recoveryColor";
 import { useIsMobile } from "../../utils/useIsMobile";
 import { useMeasuredWidth } from "../../utils/useMeasuredWidth";
 import { useCanvasItem } from "../../utils/useCanvasItem";
+import { useLongPressSelect } from "../../utils/useLongPressSelect";
 import DashboardStatTile from "./DashboardStatTile";
 import TrendChart, { TREND_CHART_LABEL_TOP_PAD, TREND_CHART_LABEL_BOTTOM_PAD } from "../recovery/TrendChart";
 import RingGauge from "./RingGauge";
 import BmiChart from "./BmiChart";
 import HealthCalendar from "./HealthCalendar";
 import CaloriesBalanceCard from "./CaloriesBalanceCard";
+import PerformanceChart from "./PerformanceChart";
+import WeatherCard from "./WeatherCard";
+import GarminLiveTrackCard from "./GarminLiveTrackCard";
+import type { PerformancePoint } from "../../utils/performanceSeries";
 import { bmiCategoryColor, isWeightMetricId } from "../../utils/bmi";
 import { hrvReadinessColor } from "../../utils/hrvColor";
 import WhoopDetailModal, { type WhoopDetailKind } from "./WhoopDetailModal";
@@ -20,6 +25,9 @@ import {
   WHOOP_RINGS_COMBO_ID,
   HEALTH_CALENDAR_ID,
   CALORIES_BALANCE_ID,
+  PERFORMANCE_CHART_ID,
+  WEATHER_ID,
+  GARMIN_LIVETRACK_ID,
   DEFAULT_WIDGET_WIDTH,
   DEFAULT_WIDGET_HEIGHT,
   DEFAULT_WIDGET_COLOR,
@@ -40,6 +48,7 @@ interface DashboardWidgetProps {
   widget: Widget;
   metricById: Map<string, MetricDef>;
   whoopHistory: WhoopDay[];
+  performanceSeries: PerformancePoint[];
   onViewTypeChange: (viewType: Widget["viewType"]) => void;
   onColorChange: (color: string) => void;
   onLabelChange: (label: string) => void;
@@ -125,6 +134,21 @@ const DEFAULT_HEALTH_CALENDAR_HEIGHT = 480;
 // own (slightly taller) floor rather than clipping at MIN_BMI_HEIGHT.
 const MIN_CALORIES_HEIGHT = 240;
 const MIN_CALORIES_WIDTH = 220;
+// Performance chart needs real width for the 5-line PMC plot plus a
+// 3-line legend to stay readable, so it gets a wider floor/default than a
+// plain stat/chart widget.
+const MIN_PERFORMANCE_HEIGHT = 260;
+const MIN_PERFORMANCE_WIDTH = 360;
+const DEFAULT_PERFORMANCE_WIDTH = 440;
+const DEFAULT_PERFORMANCE_HEIGHT = 300;
+const MIN_WEATHER_HEIGHT = 200;
+const MIN_WEATHER_WIDTH = 220;
+// A live map needs real room to be useful - similar floor/default to the
+// health calendar's generous sizing.
+const MIN_GARMIN_HEIGHT = 320;
+const MIN_GARMIN_WIDTH = 340;
+const DEFAULT_GARMIN_WIDTH = 440;
+const DEFAULT_GARMIN_HEIGHT = 400;
 
 function formatValue(value: number, unit: string): string {
   const rounded = Number.isInteger(value) ? value : Math.round(value * 10) / 10;
@@ -152,6 +176,7 @@ export default function DashboardWidget({
   widget,
   metricById,
   whoopHistory,
+  performanceSeries,
   onViewTypeChange,
   onColorChange,
   onLabelChange,
@@ -169,9 +194,15 @@ export default function DashboardWidget({
   const isBmi = widget.metric === "health.bmi";
   const isHealthCalendar = widget.metric === HEALTH_CALENDAR_ID;
   const isCaloriesBalance = widget.metric === CALORIES_BALANCE_ID;
+  const isPerformanceChart = widget.metric === PERFORMANCE_CHART_ID;
+  const isWeather = widget.metric === WEATHER_ID;
+  const isGarminLiveTrack = widget.metric === GARMIN_LIVETRACK_ID;
   const detailKind = DETAIL_KIND_BY_METRIC[widget.metric];
   const [openDetail, setOpenDetail] = useState<WhoopDetailKind | null>(null);
-  const metric = isCombo || isRings || isHealthCalendar || isCaloriesBalance ? undefined : metricById.get(widget.metric);
+  const metric =
+    isCombo || isRings || isHealthCalendar || isCaloriesBalance || isPerformanceChart || isWeather || isGarminLiveTrack
+      ? undefined
+      : metricById.get(widget.metric);
   const isMobile = useIsMobile();
 
   // The weight widget's color is always health-semantic (matches the BMI
@@ -226,9 +257,15 @@ export default function DashboardWidget({
           ? MIN_HEALTH_CALENDAR_HEIGHT
           : isCaloriesBalance
             ? MIN_CALORIES_HEIGHT
-            : isMobile
-              ? MOBILE_MIN_WIDGET_HEIGHT
-              : MIN_WIDGET_HEIGHT;
+            : isPerformanceChart
+              ? MIN_PERFORMANCE_HEIGHT
+              : isWeather
+                ? MIN_WEATHER_HEIGHT
+                : isGarminLiveTrack
+                  ? MIN_GARMIN_HEIGHT
+                  : isMobile
+                    ? MOBILE_MIN_WIDGET_HEIGHT
+                    : MIN_WIDGET_HEIGHT;
   const minWidth = isRings
     ? MIN_RINGS_WIDTH
     : isBmi
@@ -237,19 +274,33 @@ export default function DashboardWidget({
         ? MIN_HEALTH_CALENDAR_WIDTH
         : isCaloriesBalance
           ? MIN_CALORIES_WIDTH
-          : isMobile
-            ? MOBILE_MIN_WIDGET_WIDTH
-            : MIN_WIDGET_WIDTH;
+          : isPerformanceChart
+            ? MIN_PERFORMANCE_WIDTH
+            : isWeather
+              ? MIN_WEATHER_WIDTH
+              : isGarminLiveTrack
+                ? MIN_GARMIN_WIDTH
+                : isMobile
+                  ? MOBILE_MIN_WIDGET_WIDTH
+                  : MIN_WIDGET_WIDTH;
   const defaultWidth = isHealthCalendar
     ? DEFAULT_HEALTH_CALENDAR_WIDTH
-    : isMobile
-      ? MOBILE_DEFAULT_WIDGET_WIDTH
-      : DEFAULT_WIDGET_WIDTH;
+    : isPerformanceChart
+      ? DEFAULT_PERFORMANCE_WIDTH
+      : isGarminLiveTrack
+        ? DEFAULT_GARMIN_WIDTH
+        : isMobile
+          ? MOBILE_DEFAULT_WIDGET_WIDTH
+          : DEFAULT_WIDGET_WIDTH;
   const defaultHeight = isHealthCalendar
     ? DEFAULT_HEALTH_CALENDAR_HEIGHT
-    : isMobile
-      ? MOBILE_DEFAULT_WIDGET_HEIGHT
-      : DEFAULT_WIDGET_HEIGHT;
+    : isPerformanceChart
+      ? DEFAULT_PERFORMANCE_HEIGHT
+      : isGarminLiveTrack
+        ? DEFAULT_GARMIN_HEIGHT
+        : isMobile
+          ? MOBILE_DEFAULT_WIDGET_HEIGHT
+        : DEFAULT_WIDGET_HEIGHT;
   // A widget already sized for desktop shows visually compressed on mobile
   // (the saved width/height itself is untouched) - combo/rings/calendar are
   // exempt since they need more room than the cap to render their sub-content.
@@ -258,8 +309,14 @@ export default function DashboardWidget({
   // this cap would do nothing but fight a deliberate resize - re-clamping
   // it back down on every reload and making the resize look like it never
   // saved.
-  const capWidth = isMobile && !stacked && !isRings && !isHealthCalendar ? MOBILE_CAP_WIDTH : Infinity;
-  const capHeight = isMobile && !stacked && !isCombo && !isRings && !isHealthCalendar ? MOBILE_CAP_HEIGHT : Infinity;
+  const capWidth =
+    isMobile && !stacked && !isRings && !isHealthCalendar && !isPerformanceChart && !isGarminLiveTrack
+      ? MOBILE_CAP_WIDTH
+      : Infinity;
+  const capHeight =
+    isMobile && !stacked && !isCombo && !isRings && !isHealthCalendar && !isPerformanceChart && !isGarminLiveTrack
+      ? MOBILE_CAP_HEIGHT
+      : Infinity;
 
   const { rect, handleDragPointerDown, handleResizePointerDown } = useCanvasItem({
     initial: {
@@ -276,22 +333,9 @@ export default function DashboardWidget({
     onDraggingChange: onResizingChange,
   });
 
-  // Drag handle and controls stay hidden until the widget is hovered
-  // (desktop) or tapped (touch, where hover doesn't apply) — tapping
-  // outside deselects again.
-  const [selected, setSelected] = useState(false);
-  const widgetRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!selected) return;
-    const handleOutside = (e: PointerEvent) => {
-      if (widgetRef.current && !widgetRef.current.contains(e.target as Node)) {
-        setSelected(false);
-      }
-    };
-    document.addEventListener("pointerdown", handleOutside);
-    return () => document.removeEventListener("pointerdown", handleOutside);
-  }, [selected]);
+  // Drag handle and controls stay hidden until the widget is held for 3
+  // seconds - tapping outside deselects again. See useLongPressSelect.
+  const { ref: widgetRef, selected, pressHandlers } = useLongPressSelect<HTMLDivElement>();
 
   const [editingLabel, setEditingLabel] = useState(false);
   const [labelDraft, setLabelDraft] = useState(widget.label);
@@ -338,7 +382,7 @@ export default function DashboardWidget({
         style={positionStyle}
         className={`${styles.widget} ${stacked ? styles.stacked : ""}`}
         data-selected={selected || undefined}
-        onPointerDownCapture={() => setSelected(true)}
+        {...pressHandlers}
       >
         <div className={styles.header}>
           {!stacked && (
@@ -402,7 +446,14 @@ export default function DashboardWidget({
               onChange={(e) => onColorChange(e.target.value)}
               aria-label="Widget colour"
             />
-            {!isCombo && !isRings && !isBmi && !isHealthCalendar && !isCaloriesBalance && (
+            {!isCombo &&
+              !isRings &&
+              !isBmi &&
+              !isHealthCalendar &&
+              !isCaloriesBalance &&
+              !isPerformanceChart &&
+              !isWeather &&
+              !isGarminLiveTrack && (
               <select
                 className={styles.select}
                 value={widget.viewType}
@@ -467,6 +518,12 @@ export default function DashboardWidget({
             />
           ) : isCaloriesBalance ? (
             <CaloriesBalanceCard consumed={consumedLatest} burned={burnedLatest} date={latestCaloriesDate} />
+          ) : isPerformanceChart ? (
+            <PerformanceChart data={performanceSeries} height={Math.max(80, contentHeight - 40)} />
+          ) : isWeather ? (
+            <WeatherCard />
+          ) : isGarminLiveTrack ? (
+            <GarminLiveTrackCard />
           ) : !metric || metric.series.length === 0 ? (
             <p className={styles.empty}>No data yet for this metric.</p>
           ) : widget.viewType === "stat" ? (

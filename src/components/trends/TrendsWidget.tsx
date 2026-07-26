@@ -1,9 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
 import { useCanvasItem } from "../../utils/useCanvasItem";
+import { useLongPressSelect } from "../../utils/useLongPressSelect";
 import type { TrendMetricDef } from "./useTrendsData";
 import type { TrendsWidgetConfig, TrendsViewType } from "./types";
 import HealthCalendar from "../dashboard/HealthCalendar";
 import type { HealthCalendarDay } from "../dashboard/HealthDayDetailModal";
+import PerformanceChart from "../dashboard/PerformanceChart";
+import type { PerformancePoint } from "../../utils/performanceSeries";
 import { isWeightMetricId, formatWeight } from "../../utils/bmi";
 import {
   DEFAULT_TRENDS_COLOR,
@@ -40,6 +43,7 @@ interface TrendsWidgetProps {
   weightByDate: Map<string, number>;
   weightUnit: string;
   bmiByDate: Map<string, number>;
+  performanceSeries: PerformancePoint[];
   onViewTypeChange: (viewType: TrendsViewType) => void;
   onColorChange: (color: string) => void;
   onMove: (x: number, y: number) => void;
@@ -60,6 +64,7 @@ const VIEW_LABEL: Record<TrendsViewType, string> = {
   month: "This month",
   calendar: "Calendar",
   healthCalendar: "Health Calendar",
+  performanceChart: "Performance Chart",
 };
 
 // The selectable time ranges, shown as an always-visible pill row inside
@@ -74,6 +79,7 @@ const VIEW_PILL_LABEL: Record<TrendsViewType, string> = {
   month: "Monthly",
   calendar: "Calendar",
   healthCalendar: "Health Calendar",
+  performanceChart: "Performance Chart",
 };
 
 const HEADER_HEIGHT = 40;
@@ -92,6 +98,7 @@ export default function TrendsWidget({
   weightByDate,
   weightUnit,
   bmiByDate,
+  performanceSeries,
   onViewTypeChange,
   onColorChange,
   onMove,
@@ -105,31 +112,36 @@ export default function TrendsWidget({
 }: TrendsWidgetProps) {
   const isCalendar = widget.viewType === "calendar";
   const isHealthCalendar = widget.viewType === "healthCalendar";
+  const isPerformanceChart = widget.viewType === "performanceChart";
   const needsCalendarRoom = isCalendar || isHealthCalendar;
+  // Performance chart's multi-line plot + legend needs similarly generous
+  // room to either calendar, so it reuses the same wider min/default sizing
+  // rather than a third set of size constants.
+  const needsWideRoom = needsCalendarRoom || isPerformanceChart;
   const isMobile = useIsMobile();
 
-  const minWidth = needsCalendarRoom
+  const minWidth = needsWideRoom
     ? isMobile
       ? MOBILE_MIN_CALENDAR_WIDTH
       : MIN_CALENDAR_WIDTH
     : isMobile
       ? MOBILE_MIN_WIDGET_WIDTH
       : MIN_WIDGET_WIDTH;
-  const minHeight = needsCalendarRoom
+  const minHeight = needsWideRoom
     ? isMobile
       ? MOBILE_MIN_CALENDAR_HEIGHT
       : MIN_CALENDAR_HEIGHT
     : isMobile
       ? MOBILE_MIN_WIDGET_HEIGHT
       : MIN_WIDGET_HEIGHT;
-  const defaultWidth = needsCalendarRoom
+  const defaultWidth = needsWideRoom
     ? isMobile
       ? MOBILE_DEFAULT_CALENDAR_WIDTH
       : DEFAULT_CALENDAR_WIDTH
     : isMobile
       ? MOBILE_DEFAULT_WIDGET_WIDTH
       : DEFAULT_WIDGET_WIDTH;
-  const defaultHeight = needsCalendarRoom
+  const defaultHeight = needsWideRoom
     ? isMobile
       ? MOBILE_DEFAULT_CALENDAR_HEIGHT
       : DEFAULT_CALENDAR_HEIGHT
@@ -141,8 +153,8 @@ export default function TrendsWidget({
   // is exempt since it needs more room than the cap to stay legible. Not
   // applied in stacked (flow) mode - see DashboardWidget.tsx's identical
   // reasoning for why that would just fight a deliberate resize.
-  const capWidth = isMobile && !stacked && !needsCalendarRoom ? MOBILE_CAP_WIDTH : Infinity;
-  const capHeight = isMobile && !stacked && !needsCalendarRoom ? MOBILE_CAP_HEIGHT : Infinity;
+  const capWidth = isMobile && !stacked && !needsWideRoom ? MOBILE_CAP_WIDTH : Infinity;
+  const capHeight = isMobile && !stacked && !needsWideRoom ? MOBILE_CAP_HEIGHT : Infinity;
 
   const { rect, handleDragPointerDown, handleResizePointerDown, applyResize } = useCanvasItem({
     initial: {
@@ -170,24 +182,12 @@ export default function TrendsWidget({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [needsCalendarRoom]);
 
-  const [selected, setSelected] = useState(false);
-  const widgetRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!selected) return;
-    const handleOutside = (e: PointerEvent) => {
-      if (widgetRef.current && !widgetRef.current.contains(e.target as Node)) {
-        setSelected(false);
-      }
-    };
-    document.addEventListener("pointerdown", handleOutside);
-    return () => document.removeEventListener("pointerdown", handleOutside);
-  }, [selected]);
+  const { ref: widgetRef, selected, pressHandlers } = useLongPressSelect<HTMLDivElement>();
 
   const color = widget.color ?? DEFAULT_TRENDS_COLOR;
   const contentHeight = Math.max(
     24,
-    rect.height - HEADER_HEIGHT - CONTENT_PADDING - (isHealthCalendar ? 0 : VIEW_SEGMENTED_HEIGHT),
+    rect.height - HEADER_HEIGHT - CONTENT_PADDING - (isHealthCalendar || isPerformanceChart ? 0 : VIEW_SEGMENTED_HEIGHT),
   );
   const positionStyle = stacked
     ? { width: rect.width, height: rect.height }
@@ -199,7 +199,7 @@ export default function TrendsWidget({
       style={positionStyle}
       className={`${styles.widget} ${stacked ? styles.stacked : ""}`}
       data-selected={selected || undefined}
-      onPointerDownCapture={() => setSelected(true)}
+      {...pressHandlers}
     >
       <div className={styles.header}>
         {!stacked && (
@@ -257,7 +257,7 @@ export default function TrendsWidget({
       </div>
 
       <div className={styles.content}>
-        {!isHealthCalendar && (
+        {!isHealthCalendar && !isPerformanceChart && (
           <div className={styles.viewSegmented} role="radiogroup" aria-label="Time range">
             {VIEW_PILL_TYPES.map((vt) => (
               <button
@@ -286,6 +286,8 @@ export default function TrendsWidget({
           />
         ) : isCalendar ? (
           <CalendarView metric={metric} color={color} height={contentHeight} />
+        ) : isPerformanceChart ? (
+          <PerformanceChart data={performanceSeries} height={Math.max(80, contentHeight - 40)} />
         ) : (
           (() => {
             const anchor = today();

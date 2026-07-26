@@ -1,0 +1,63 @@
+.wrap {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.empty {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.targetLine {
+  fill: none;
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+  stroke-opacity: 0.55;
+  stroke-linecap: round;
+}
+
+.zeroLine {
+  stroke: var(--color-border);
+  stroke-width: 1;
+}
+
+.dateLabel {
+  font-size: 7px;
+  fill: var(--color-text-muted);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  font-size: 0.75rem;
+  color: var(--color-text);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.target {
+  color: var(--color-text-muted);
+}

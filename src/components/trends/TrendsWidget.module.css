@@ -68,12 +68,10 @@
   flex: none;
 }
 
-.widget:hover .dragHandle,
 .widget[data-selected] .dragHandle {
   display: flex;
 }
 
-.widget:hover .controls,
 .widget[data-selected] .controls {
   display: flex;
 }
@@ -211,7 +209,7 @@
   bottom: 0;
   width: 32px;
   height: 32px;
-  display: flex;
+  display: none;
   align-items: flex-end;
   justify-content: flex-end;
   padding: 0 4px 4px 0;
@@ -222,6 +220,10 @@
   touch-action: none;
   overscroll-behavior: none;
   border-radius: var(--radius);
+}
+
+.widget[data-selected] .resizeHandle {
+  display: flex;
 }
 
 .resizeHandle:hover {

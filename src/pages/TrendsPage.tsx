@@ -3,7 +3,7 @@ import TrendsCatalog from "../components/trends/TrendsCatalog";
 import TrendsWidget from "../components/trends/TrendsWidget";
 import { useTrendsData, type TrendMetricDef } from "../components/trends/useTrendsData";
 import type { TrendsWidgetConfig, TrendsViewType } from "../components/trends/types";
-import { HEALTH_CALENDAR_ID } from "../components/dashboard/types";
+import { HEALTH_CALENDAR_ID, PERFORMANCE_CHART_ID } from "../components/dashboard/types";
 import { useAuthSession } from "../utils/useAuthSession";
 import SignInGate from "../components/shared/SignInGate";
 import TabNav from "../components/shared/TabNav";
@@ -113,7 +113,7 @@ function TrendsEditor() {
       id: nextId(),
       metric: metric.id,
       label: metric.label,
-      viewType: metric.id === HEALTH_CALENDAR_ID ? "healthCalendar" : "day",
+      viewType: metric.id === HEALTH_CALENDAR_ID ? "healthCalendar" : metric.id === PERFORMANCE_CHART_ID ? "performanceChart" : "day",
       x: position.x,
       y: position.y,
     };
@@ -208,6 +208,7 @@ function TrendsEditor() {
                 weightByDate={data.weightByDate}
                 weightUnit={data.weightUnit}
                 bmiByDate={data.bmiByDate}
+                performanceSeries={data.performanceSeries}
                 stacked
                 canMoveUp={index > 0}
                 canMoveDown={index < widgets.length - 1}
@@ -236,6 +237,7 @@ function TrendsEditor() {
                 weightByDate={data.weightByDate}
                 weightUnit={data.weightUnit}
                 bmiByDate={data.bmiByDate}
+                performanceSeries={data.performanceSeries}
                 onViewTypeChange={(viewType) => handleViewTypeChange(widget.id, viewType)}
                 onColorChange={(color) => handleColorChange(widget.id, color)}
                 onMove={(x, y) => handleMove(widget.id, x, y)}

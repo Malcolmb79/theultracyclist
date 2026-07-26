@@ -166,7 +166,7 @@ export default function TrendsWidget({
   const color = widget.color ?? DEFAULT_TRENDS_COLOR;
   const contentHeight = Math.max(24, rect.height - HEADER_HEIGHT - CONTENT_PADDING);
   const positionStyle = stacked
-    ? { height: rect.height }
+    ? { width: rect.width, height: rect.height }
     : { position: "absolute" as const, left: rect.x, top: rect.y, width: rect.width, height: rect.height };
 
   return (

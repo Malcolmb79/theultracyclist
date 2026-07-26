@@ -14,19 +14,23 @@ interface CoachingWidgetProps {
   onMove: (x: number, y: number) => void;
   onResize: (width: number, height: number) => void;
   onResizingChange: (resizing: boolean) => void;
+  onRemove: () => void;
   children: ReactNode;
-  // Phone layout: full-width in normal document flow instead of absolutely
-  // positioned at x/y - see DashboardWidget's identical prop. The 4 fixed
-  // coaching cards always render in the same order on phone, so unlike the
-  // catalog widgets there's no reorder control here.
+  // Phone/tablet layout: full-width in normal document flow instead of
+  // absolutely positioned at x/y - see DashboardWidget's identical prop.
   stacked?: boolean;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
+  onReorder?: (direction: "up" | "down") => void;
 }
 
-// A thin positioning shell around each fixed coaching card - unlike the
-// Dashboard/Trends widgets, these don't have a swappable metric or a
-// removable identity, just a free position and size. The card itself
-// supplies all its own visual chrome (background, border, padding); this
-// wrapper stays visually transparent and only adds the drag/resize handles.
+// A thin positioning shell around each coaching card - unlike the
+// Dashboard/Trends widgets, these don't have a swappable metric, just a
+// free position, size, and (now) a removable identity. The card itself
+// supplies all its own visual chrome (background, border, padding, its own
+// title); this wrapper stays visually transparent and only adds floating
+// drag/resize/remove/reorder controls above it, rather than a full header
+// bar that would duplicate the card's own title.
 export default function CoachingWidget({
   x,
   y,
@@ -37,8 +41,12 @@ export default function CoachingWidget({
   onMove,
   onResize,
   onResizingChange,
+  onRemove,
   children,
   stacked,
+  canMoveUp,
+  canMoveDown,
+  onReorder,
 }: CoachingWidgetProps) {
   const { rect, handleDragPointerDown, handleResizePointerDown } = useCanvasItem({
     initial: { x, y, width, height },
@@ -65,7 +73,7 @@ export default function CoachingWidget({
   }, [selected]);
 
   const positionStyle = stacked
-    ? { height: rect.height }
+    ? { width: rect.width, height: rect.height }
     : { position: "absolute" as const, left: rect.x, top: rect.y, width: rect.width, height: rect.height };
 
   return (
@@ -81,6 +89,21 @@ export default function CoachingWidget({
           ⠿
         </div>
       )}
+      <div className={styles.controls}>
+        {stacked && (
+          <>
+            <button type="button" className={styles.iconButton} onClick={() => onReorder?.("up")} disabled={!canMoveUp} aria-label="Move widget up">
+              ▲
+            </button>
+            <button type="button" className={styles.iconButton} onClick={() => onReorder?.("down")} disabled={!canMoveDown} aria-label="Move widget down">
+              ▼
+            </button>
+          </>
+        )}
+        <button type="button" className={styles.iconButton} onClick={onRemove} aria-label="Remove widget">
+          ×
+        </button>
+      </div>
       <div className={styles.content}>{children}</div>
       <div
         className={styles.resizeHandle}

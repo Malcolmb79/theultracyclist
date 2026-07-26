@@ -17,11 +17,13 @@
   border-color: var(--color-accent-2);
 }
 
-/* Phone stacked layout: normal document flow, full width, so nothing ever
-   sits to the right of the viewport requiring horizontal scroll. */
+/* Phone/tablet flow layout: normal document flow, wrapping left-to-right -
+   each widget keeps its own resized width so several narrow ones can sit
+   side by side, but max-width:100% clamps anything wider than the row so
+   it can never force horizontal scroll. */
 .stacked {
   position: relative;
-  width: 100%;
+  max-width: 100%;
 }
 
 .content {

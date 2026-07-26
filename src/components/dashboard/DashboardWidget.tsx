@@ -301,12 +301,14 @@ export default function DashboardWidget({
     setEditingLabel(false);
   };
 
-  // Stacked (phone) mode renders in normal document flow at 100% width (see
-  // .stacked in the stylesheet) - only height is meaningful, so x/y/width
-  // from the canvas rect are left unset rather than pinning the widget to a
-  // desktop-shaped position that would force horizontal scrolling.
+  // Stacked (phone/tablet) mode renders in normal document flow, wrapping
+  // left-to-right (see .stackList in DashboardPage.module.css) instead of
+  // absolute x/y - width/height still come from the resized rect so a
+  // narrowed widget can sit next to another one, but .stacked's
+  // max-width:100% (see the stylesheet) clamps it if it's wider than the
+  // row so it can never force horizontal scrolling.
   const positionStyle = stacked
-    ? { height: rect.height }
+    ? { width: rect.width, height: rect.height }
     : {
         position: "absolute" as const,
         left: rect.x,

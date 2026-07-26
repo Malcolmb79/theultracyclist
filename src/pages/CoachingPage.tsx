@@ -5,7 +5,7 @@ import TrainingPlanCard from "../components/coaching/TrainingPlanCard";
 import CoachChatCard from "../components/coaching/CoachChatCard";
 import CoachingWidget from "../components/coaching/CoachingWidget";
 import { useCoachingData } from "../components/coaching/useCoachingData";
-import type { CoachingWidgetId, CoachingWidgetRect, NarrativeInput } from "../components/coaching/types";
+import { FIXED_CARD_LABELS, type CoachingWidgetEntry, type FixedCardKind, type NarrativeInput } from "../components/coaching/types";
 import DataCatalog from "../components/dashboard/DataCatalog";
 import DashboardWidget from "../components/dashboard/DashboardWidget";
 import { useDashboardData } from "../components/dashboard/useDashboardData";
@@ -30,33 +30,44 @@ import TabNav from "../components/shared/TabNav";
 import PageHeader from "../components/shared/PageHeader";
 import styles from "./CoachingPage.module.css";
 
-const MIN_SIZE: Record<CoachingWidgetId, { minWidth: number; minHeight: number }> = {
+type Rect = { x: number; y: number; width: number; height: number };
+
+const MIN_SIZE: Record<FixedCardKind, { minWidth: number; minHeight: number }> = {
   readiness: { minWidth: 260, minHeight: 180 },
   chat: { minWidth: 280, minHeight: 320 },
   trainingPlan: { minWidth: 260, minHeight: 240 },
   powerZones: { minWidth: 260, minHeight: 240 },
 };
 
-const DEFAULT_DESKTOP: Record<CoachingWidgetId, CoachingWidgetRect> = {
+const DEFAULT_DESKTOP: Record<FixedCardKind, Rect> = {
   readiness: { x: 0, y: 0, width: 340, height: 260 },
   chat: { x: 360, y: 0, width: 380, height: 460 },
   trainingPlan: { x: 0, y: 280, width: 340, height: 380 },
   powerZones: { x: 360, y: 480, width: 380, height: 380 },
 };
 
-const DEFAULT_MOBILE: Record<CoachingWidgetId, CoachingWidgetRect> = {
+const DEFAULT_MOBILE: Record<FixedCardKind, Rect> = {
   readiness: { x: 0, y: 0, width: 320, height: 220 },
   chat: { x: 0, y: 240, width: 320, height: 420 },
   trainingPlan: { x: 0, y: 680, width: 320, height: 380 },
   powerZones: { x: 0, y: 1080, width: 320, height: 380 },
 };
 
-const WIDGET_IDS: CoachingWidgetId[] = ["readiness", "chat", "trainingPlan", "powerZones"];
+const FIXED_CARD_ORDER: FixedCardKind[] = ["readiness", "chat", "trainingPlan", "powerZones"];
 
-// Freely-added catalog widgets cascade below whatever's already on the
-// canvas (fixed cards included) rather than stacking at (0,0).
-function nextWidgetPosition(existingBottoms: number[]): { x: number; y: number } {
-  const bottom = existingBottoms.reduce((max, b) => Math.max(max, b), 0);
+// First-ever load (no saved settings yet) starts with all 4 fixed cards
+// present at their default position, matching how the page always looked
+// before add/remove existed.
+function defaultWidgets(isMobile: boolean): CoachingWidgetEntry[] {
+  const defaults = isMobile ? DEFAULT_MOBILE : DEFAULT_DESKTOP;
+  return FIXED_CARD_ORDER.map((kind) => ({ id: kind, kind, label: FIXED_CARD_LABELS[kind], ...defaults[kind] }));
+}
+
+// New widgets (fixed cards re-added after removal, or metrics from the
+// catalog) cascade below whatever's already on the canvas rather than
+// stacking at (0,0).
+function nextWidgetPosition(existing: CoachingWidgetEntry[]): { x: number; y: number } {
+  const bottom = existing.reduce((max, w) => Math.max(max, (w.y ?? 0) + (w.height ?? DEFAULT_WIDGET_HEIGHT)), 0);
   return { x: 0, y: bottom > 0 ? bottom + 20 : 0 };
 }
 
@@ -70,6 +81,26 @@ function defaultViewType(metric: MetricDef): Widget["viewType"] {
 
 function nextId(): string {
   return `cw_${Date.now()}_${Math.round(Math.random() * 1e6)}`;
+}
+
+// DashboardWidget only knows about the Dashboard/Trends Widget shape - a
+// "metric" kind entry carries exactly those fields, just wrapped in the
+// coaching page's own flat entry shape (see types.ts) so it can share one
+// array/one set of add/remove/resize/move/reorder handlers with the 4 fixed
+// cards.
+function toWidget(entry: CoachingWidgetEntry): Widget {
+  return {
+    id: entry.id,
+    source: entry.source ?? "whoop",
+    metric: entry.metric ?? "",
+    label: entry.label,
+    viewType: entry.viewType ?? "stat",
+    x: entry.x,
+    y: entry.y,
+    width: entry.width,
+    height: entry.height,
+    color: entry.color,
+  };
 }
 
 export default function CoachingPage() {
@@ -96,8 +127,8 @@ function CoachingView() {
   // Coaching's default layout hardcodes a 2-column arrangement (second
   // column starts at x=360 - see DEFAULT_DESKTOP) that's wider than a
   // tablet viewport, so unlike Dashboard/Trends (which cascade new widgets
-  // into a single column by default) tablet also needs the stacked
-  // full-width layout, not just phone.
+  // into a single column by default) tablet also needs the flow layout,
+  // not just phone.
   const stacked = device !== "desktop";
   const raw = useRawSources(device);
   const data = useCoachingData(raw);
@@ -106,39 +137,36 @@ function CoachingView() {
   const [isResizing, setIsResizing] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
 
-  const rectFor = (id: CoachingWidgetId): CoachingWidgetRect => {
-    const saved = data.status === "ready" ? data.settings.layout?.[id] : undefined;
-    return saved ?? (isMobile ? DEFAULT_MOBILE[id] : DEFAULT_DESKTOP[id]);
-  };
-
-  const handleMove = (id: CoachingWidgetId, x: number, y: number) => {
-    if (data.status !== "ready") return;
-    const current = rectFor(id);
-    data.saveSettings({ ...data.settings, layout: { ...data.settings.layout, [id]: { ...current, x, y } } });
-  };
-
-  const handleResize = (id: CoachingWidgetId, width: number, height: number) => {
-    if (data.status !== "ready") return;
-    const current = rectFor(id);
-    data.saveSettings({ ...data.settings, layout: { ...data.settings.layout, [id]: { ...current, width, height } } });
-  };
-
-  const catalogWidgets: Widget[] = data.status === "ready" ? (data.settings.widgets ?? []) : [];
+  const widgets: CoachingWidgetEntry[] = data.status === "ready" ? (data.settings.widgets ?? defaultWidgets(isMobile)) : [];
   const metricById = new Map((dashboardData.status === "ready" ? dashboardData.metrics : []).map((m) => [m.id, m]));
+  const missingFixedCards = FIXED_CARD_ORDER.filter((kind) => !widgets.some((w) => w.kind === kind));
 
-  const saveCatalogWidgets = (next: Widget[]) => {
+  const saveWidgets = (next: CoachingWidgetEntry[]) => {
     if (data.status !== "ready") return;
     data.saveSettings({ ...data.settings, widgets: next });
   };
 
+  const handleAddFixedCard = (kind: FixedCardKind) => {
+    const position = nextWidgetPosition(widgets);
+    const defaults = isMobile ? DEFAULT_MOBILE[kind] : DEFAULT_DESKTOP[kind];
+    const entry: CoachingWidgetEntry = {
+      id: kind,
+      kind,
+      label: FIXED_CARD_LABELS[kind],
+      x: position.x,
+      y: position.y,
+      width: defaults.width,
+      height: defaults.height,
+    };
+    saveWidgets([...widgets, entry]);
+    setCatalogOpen(false);
+  };
+
   const handleAddMetric = (metric: MetricDef) => {
-    const bottoms = [
-      ...WIDGET_IDS.map((id) => rectFor(id).y + rectFor(id).height),
-      ...catalogWidgets.map((w) => (w.y ?? 0) + (w.height ?? DEFAULT_WIDGET_HEIGHT)),
-    ];
-    const position = nextWidgetPosition(bottoms);
-    const widget: Widget = {
+    const position = nextWidgetPosition(widgets);
+    const entry: CoachingWidgetEntry = {
       id: nextId(),
+      kind: "metric",
       source: metric.source,
       metric: metric.id,
       label: metric.label,
@@ -148,45 +176,36 @@ function CoachingView() {
       width: DEFAULT_WIDGET_WIDTH,
       height: DEFAULT_WIDGET_HEIGHT,
     };
-    saveCatalogWidgets([...catalogWidgets, widget]);
+    saveWidgets([...widgets, entry]);
     setCatalogOpen(false);
   };
 
-  const handleRemoveMetric = (id: string) => saveCatalogWidgets(catalogWidgets.filter((w) => w.id !== id));
+  const handleRemove = (id: string) => saveWidgets(widgets.filter((w) => w.id !== id));
 
-  const handleMetricViewTypeChange = (id: string, viewType: Widget["viewType"]) =>
-    saveCatalogWidgets(catalogWidgets.map((w) => (w.id === id ? { ...w, viewType } : w)));
+  const handleViewTypeChange = (id: string, viewType: Widget["viewType"]) =>
+    saveWidgets(widgets.map((w) => (w.id === id ? { ...w, viewType } : w)));
 
-  const handleMetricColorChange = (id: string, color: string) =>
-    saveCatalogWidgets(catalogWidgets.map((w) => (w.id === id ? { ...w, color } : w)));
+  const handleColorChange = (id: string, color: string) => saveWidgets(widgets.map((w) => (w.id === id ? { ...w, color } : w)));
 
-  const handleMetricLabelChange = (id: string, label: string) =>
-    saveCatalogWidgets(catalogWidgets.map((w) => (w.id === id ? { ...w, label } : w)));
+  const handleLabelChange = (id: string, label: string) => saveWidgets(widgets.map((w) => (w.id === id ? { ...w, label } : w)));
 
-  const handleMetricMove = (id: string, x: number, y: number) =>
-    saveCatalogWidgets(catalogWidgets.map((w) => (w.id === id ? { ...w, x, y } : w)));
+  const handleMove = (id: string, x: number, y: number) => saveWidgets(widgets.map((w) => (w.id === id ? { ...w, x, y } : w)));
 
-  const handleMetricResize = (id: string, width: number, height: number) =>
-    saveCatalogWidgets(catalogWidgets.map((w) => (w.id === id ? { ...w, width, height } : w)));
+  const handleResize = (id: string, width: number, height: number) =>
+    saveWidgets(widgets.map((w) => (w.id === id ? { ...w, width, height } : w)));
 
-  const handleMetricReorder = (id: string, direction: "up" | "down") => {
-    const index = catalogWidgets.findIndex((w) => w.id === id);
+  const handleReorder = (id: string, direction: "up" | "down") => {
+    const index = widgets.findIndex((w) => w.id === id);
     const swapWith = direction === "up" ? index - 1 : index + 1;
-    if (index === -1 || swapWith < 0 || swapWith >= catalogWidgets.length) return;
-    const next = catalogWidgets.slice();
+    if (index === -1 || swapWith < 0 || swapWith >= widgets.length) return;
+    const next = widgets.slice();
     [next[index], next[swapWith]] = [next[swapWith], next[index]];
-    saveCatalogWidgets(next);
+    saveWidgets(next);
   };
 
   const canvasHeight =
     data.status === "ready"
-      ? computeCanvasHeight([
-          ...WIDGET_IDS.map((id) => rectFor(id)),
-          ...catalogWidgets.map((w) => ({
-            y: w.y ?? 0,
-            height: w.height ?? DEFAULT_WIDGET_HEIGHT,
-          })),
-        ])
+      ? computeCanvasHeight(widgets.map((w) => ({ y: w.y ?? 0, height: w.height ?? DEFAULT_WIDGET_HEIGHT })))
       : 400;
 
   return (
@@ -223,116 +242,78 @@ function CoachingView() {
       {catalogOpen && <div className={styles.catalogBackdrop} onClick={() => setCatalogOpen(false)} />}
 
       <aside className={`${styles.catalogDrawer} ${catalogOpen ? styles.catalogDrawerOpen : ""}`}>
+        {missingFixedCards.length > 0 && (
+          <div className={styles.fixedCardCatalog}>
+            <h2 className={styles.fixedCardCatalogTitle}>Coaching cards</h2>
+            <ul className={styles.fixedCardCatalogList}>
+              {missingFixedCards.map((kind) => (
+                <li key={kind} className={styles.fixedCardCatalogItem}>
+                  <span>{FIXED_CARD_LABELS[kind]}</span>
+                  <button type="button" className={styles.fixedCardCatalogAdd} onClick={() => handleAddFixedCard(kind)}>
+                    + Add
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <DataCatalog metrics={dashboardData.status === "ready" ? dashboardData.metrics : []} onAdd={handleAddMetric} />
       </aside>
 
       {data.status === "loading" ? (
         <p className={styles.loading}>Loading…</p>
-      ) : stacked ? (
-        <main className={styles.stackList}>
-          <CoachingWidget {...rectFor("readiness")} {...MIN_SIZE.readiness} stacked onMove={() => {}} onResize={(w, h) => handleResize("readiness", w, h)} onResizingChange={setIsResizing}>
-            <ReadinessCard readiness={data.readiness} />
-          </CoachingWidget>
-
-          <CoachingWidget {...rectFor("chat")} {...MIN_SIZE.chat} stacked onMove={() => {}} onResize={(w, h) => handleResize("chat", w, h)} onResizingChange={setIsResizing}>
-            <CoachChatCard
-              input={narrativeInputFrom(data)}
-              settings={data.settings}
-              onSaveSettings={data.saveSettings}
-              dataAvailable={data.dataAvailable}
-            />
-          </CoachingWidget>
-
-          <CoachingWidget {...rectFor("trainingPlan")} {...MIN_SIZE.trainingPlan} stacked onMove={() => {}} onResize={(w, h) => handleResize("trainingPlan", w, h)} onResizingChange={setIsResizing}>
-            <TrainingPlanCard settings={data.settings} onSaveSettings={data.saveSettings} weeklyProgress={data.weeklyProgress} />
-          </CoachingWidget>
-
-          <CoachingWidget {...rectFor("powerZones")} {...MIN_SIZE.powerZones} stacked onMove={() => {}} onResize={(w, h) => handleResize("powerZones", w, h)} onResizingChange={setIsResizing}>
-            <PowerZonesCard settings={data.settings} recentRides={data.recentRides} />
-          </CoachingWidget>
-
-          {catalogWidgets.map((widget, index) => (
-            <DashboardWidget
-              key={widget.id}
-              widget={widget}
-              metricById={metricById}
-              whoopHistory={dashboardData.status === "ready" ? dashboardData.whoopHistory : []}
-              stacked
-              canMoveUp={index > 0}
-              canMoveDown={index < catalogWidgets.length - 1}
-              onReorder={(direction) => handleMetricReorder(widget.id, direction)}
-              onViewTypeChange={(viewType) => handleMetricViewTypeChange(widget.id, viewType)}
-              onColorChange={(color) => handleMetricColorChange(widget.id, color)}
-              onLabelChange={(label) => handleMetricLabelChange(widget.id, label)}
-              onMove={(x, y) => handleMetricMove(widget.id, x, y)}
-              onResize={(width, height) => handleMetricResize(widget.id, width, height)}
-              onResizingChange={setIsResizing}
-              onRemove={() => handleRemoveMetric(widget.id)}
-            />
-          ))}
-        </main>
       ) : (
-        <main className={`${styles.canvas} ${isResizing ? styles.canvasSnap : ""}`} style={{ height: canvasHeight }}>
-          <CoachingWidget
-            {...rectFor("readiness")}
-            {...MIN_SIZE.readiness}
-            onMove={(x, y) => handleMove("readiness", x, y)}
-            onResize={(w, h) => handleResize("readiness", w, h)}
-            onResizingChange={setIsResizing}
-          >
-            <ReadinessCard readiness={data.readiness} />
-          </CoachingWidget>
+        <main
+          className={stacked ? styles.stackList : `${styles.canvas} ${isResizing ? styles.canvasSnap : ""}`}
+          style={stacked ? undefined : { height: canvasHeight }}
+        >
+          {widgets.map((entry, index) => {
+            const rect = { x: entry.x ?? 0, y: entry.y ?? 0, width: entry.width ?? DEFAULT_WIDGET_WIDTH, height: entry.height ?? DEFAULT_WIDGET_HEIGHT };
+            const reorderProps = stacked
+              ? { stacked: true as const, canMoveUp: index > 0, canMoveDown: index < widgets.length - 1, onReorder: (direction: "up" | "down") => handleReorder(entry.id, direction) }
+              : {};
 
-          <CoachingWidget
-            {...rectFor("chat")}
-            {...MIN_SIZE.chat}
-            onMove={(x, y) => handleMove("chat", x, y)}
-            onResize={(w, h) => handleResize("chat", w, h)}
-            onResizingChange={setIsResizing}
-          >
-            <CoachChatCard
-              input={narrativeInputFrom(data)}
-              settings={data.settings}
-              onSaveSettings={data.saveSettings}
-              dataAvailable={data.dataAvailable}
-            />
-          </CoachingWidget>
+            if (entry.kind === "metric") {
+              return (
+                <DashboardWidget
+                  key={entry.id}
+                  widget={toWidget(entry)}
+                  metricById={metricById}
+                  whoopHistory={dashboardData.status === "ready" ? dashboardData.whoopHistory : []}
+                  onViewTypeChange={(viewType) => handleViewTypeChange(entry.id, viewType)}
+                  onColorChange={(color) => handleColorChange(entry.id, color)}
+                  onLabelChange={(label) => handleLabelChange(entry.id, label)}
+                  onMove={(x, y) => handleMove(entry.id, x, y)}
+                  onResize={(width, height) => handleResize(entry.id, width, height)}
+                  onResizingChange={setIsResizing}
+                  onRemove={() => handleRemove(entry.id)}
+                  {...reorderProps}
+                />
+              );
+            }
 
-          <CoachingWidget
-            {...rectFor("trainingPlan")}
-            {...MIN_SIZE.trainingPlan}
-            onMove={(x, y) => handleMove("trainingPlan", x, y)}
-            onResize={(w, h) => handleResize("trainingPlan", w, h)}
-            onResizingChange={setIsResizing}
-          >
-            <TrainingPlanCard settings={data.settings} onSaveSettings={data.saveSettings} weeklyProgress={data.weeklyProgress} />
-          </CoachingWidget>
-
-          <CoachingWidget
-            {...rectFor("powerZones")}
-            {...MIN_SIZE.powerZones}
-            onMove={(x, y) => handleMove("powerZones", x, y)}
-            onResize={(w, h) => handleResize("powerZones", w, h)}
-            onResizingChange={setIsResizing}
-          >
-            <PowerZonesCard settings={data.settings} recentRides={data.recentRides} />
-          </CoachingWidget>
-
-          {catalogWidgets.map((widget) => (
-            <DashboardWidget
-              key={widget.id}
-              widget={widget}
-              metricById={metricById}
-              whoopHistory={dashboardData.status === "ready" ? dashboardData.whoopHistory : []}
-              onViewTypeChange={(viewType) => handleMetricViewTypeChange(widget.id, viewType)}
-              onColorChange={(color) => handleMetricColorChange(widget.id, color)}
-              onLabelChange={(label) => handleMetricLabelChange(widget.id, label)}
-              onMove={(x, y) => handleMetricMove(widget.id, x, y)}
-              onResize={(width, height) => handleMetricResize(widget.id, width, height)}
-              onResizingChange={setIsResizing}
-              onRemove={() => handleRemoveMetric(widget.id)}
-            />
-          ))}
+            return (
+              <CoachingWidget
+                key={entry.id}
+                {...rect}
+                {...MIN_SIZE[entry.kind]}
+                onMove={(x, y) => handleMove(entry.id, x, y)}
+                onResize={(width, height) => handleResize(entry.id, width, height)}
+                onResizingChange={setIsResizing}
+                onRemove={() => handleRemove(entry.id)}
+                {...reorderProps}
+              >
+                {data.status === "ready" && entry.kind === "readiness" && <ReadinessCard readiness={data.readiness} />}
+                {data.status === "ready" && entry.kind === "chat" && (
+                  <CoachChatCard input={narrativeInputFrom(data)} settings={data.settings} onSaveSettings={data.saveSettings} dataAvailable={data.dataAvailable} />
+                )}
+                {data.status === "ready" && entry.kind === "trainingPlan" && (
+                  <TrainingPlanCard settings={data.settings} onSaveSettings={data.saveSettings} weeklyProgress={data.weeklyProgress} />
+                )}
+                {data.status === "ready" && entry.kind === "powerZones" && <PowerZonesCard settings={data.settings} recentRides={data.recentRides} />}
+              </CoachingWidget>
+            );
+          })}
         </main>
       )}
     </div>

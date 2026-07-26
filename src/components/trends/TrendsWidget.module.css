@@ -17,10 +17,10 @@
   border-color: var(--color-accent-2);
 }
 
-/* Phone stacked layout - see DashboardWidget.module.css's .stacked. */
+/* Phone/tablet flow layout - see DashboardWidget.module.css's .stacked. */
 .stacked {
   position: relative;
-  width: 100%;
+  max-width: 100%;
 }
 
 .header {

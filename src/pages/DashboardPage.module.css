@@ -113,14 +113,16 @@
   margin: 0 auto;
 }
 
-/* Phone layout: a plain vertical flow instead of the free-form absolute
-   canvas - every widget is full width, so there's never anything to the
-   right of the viewport requiring horizontal scrolling. Reordering happens
-   via the up/down buttons DashboardWidget renders in stacked mode instead
-   of dragging. */
+/* Phone/tablet layout: a wrapping flow instead of the free-form absolute
+   canvas - each widget keeps its own resized width and wraps to a new row
+   once a row is full, so several narrowed widgets can sit side by side,
+   but nothing can ever sit past the right edge requiring horizontal
+   scrolling (DashboardWidget's .stacked clamps max-width to 100%).
+   Reordering happens via the up/down buttons DashboardWidget renders in
+   stacked mode instead of dragging. */
 .stackList {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: var(--space-3);
   width: 100%;
 }

@@ -4,10 +4,13 @@
   box-sizing: border-box;
 }
 
-/* Phone stacked layout - see DashboardWidget.module.css's .stacked. */
+/* Phone/tablet flow layout - each widget keeps its own resized width but
+   can never exceed the row (see DashboardWidget.module.css's .stacked) -
+   letting several narrow widgets sit side by side while a widget resized
+   wider than the screen still clamps down instead of overflowing it. */
 .stacked {
   position: relative;
-  width: 100%;
+  max-width: 100%;
 }
 
 .dragHandle {
@@ -37,6 +40,45 @@
 .widget:hover .dragHandle,
 .widget[data-selected] .dragHandle {
   display: flex;
+}
+
+.controls {
+  position: absolute;
+  top: -12px;
+  right: 8px;
+  z-index: 2;
+  display: none;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.widget:hover .controls,
+.widget[data-selected] .controls {
+  display: flex;
+}
+
+.iconButton {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius);
+  background: var(--color-bg-elevated-2);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.iconButton:hover:not(:disabled) {
+  border-color: var(--color-accent);
+}
+
+.iconButton:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 .content {

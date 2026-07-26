@@ -113,11 +113,11 @@
   margin: 0 auto;
 }
 
-/* Phone layout: plain vertical flow, full-width widgets - see
-   DashboardPage.module.css's .stackList for why. */
+/* Phone/tablet layout: wrapping flow - see DashboardPage.module.css's
+   .stackList for why. */
 .stackList {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: var(--space-3);
   width: 100%;
 }

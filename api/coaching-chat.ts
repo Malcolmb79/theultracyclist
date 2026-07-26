@@ -9,6 +9,13 @@ import { fetchCoachingSettings } from "./coaching-settings.js";
 import { computeTss } from "./_lib/tss.js";
 import { computeFitnessSeries } from "./_lib/fitness.js";
 import { irelandTodayDateStr, irelandDateStr } from "./_lib/timeContext.js";
+import {
+  listPlannedWorkouts,
+  createPlannedWorkout,
+  updatePlannedWorkout,
+  deletePlannedWorkout,
+  type PlannedWorkout,
+} from "./_lib/plannedWorkouts.js";
 
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const MODEL = "claude-haiku-4-5-20251001";
@@ -123,6 +130,108 @@ const TOOLS = [
       },
     },
   },
+  {
+    name: "get_workouts",
+    description:
+      "List the athlete's planned (structured) workouts in a date range - title, sport, planned duration/TSS/IF, " +
+      "and full interval structure. Use this to check what's already scheduled before creating or changing " +
+      "something, or when asked what's coming up.",
+    input_schema: {
+      type: "object",
+      properties: {
+        from: { type: "string", description: "Start date, YYYY-MM-DD. Omit for no lower bound." },
+        to: { type: "string", description: "End date, YYYY-MM-DD. Omit for no upper bound." },
+      },
+    },
+  },
+  {
+    name: "create_workout",
+    description:
+      "Schedule a new structured workout. Build interval structure naturally from what the athlete describes " +
+      "(e.g. \"4x8min threshold with 3min recovery, 10min warm-up and cool-down\") using percent-of-FTP " +
+      "intensity - duration/TSS/IF are auto-computed from the structure when primaryIntensityMetric is " +
+      "percentOfFtp, so don't set those yourself unless the athlete gives an explicit target. A plain " +
+      "non-interval session (e.g. \"90min endurance ride\") can omit steps entirely and just set durationMinutes.",
+    input_schema: {
+      type: "object",
+      required: ["date", "sport", "title"],
+      properties: {
+        date: {
+          type: "string",
+          description: "YYYY-MM-DD for an all-day plan, or YYYY-MM-DDTHH:MM:SS for a specific planned start time.",
+        },
+        sport: { type: "string", enum: ["Bike", "Run", "Strength", "Other"] },
+        title: { type: "string" },
+        description: { type: "string" },
+        primaryIntensityMetric: { type: "string", enum: ["percentOfFtp", "percentOfThresholdHr"] },
+        steps: {
+          type: "array",
+          description:
+            "Ordered list of steps and/or repeated blocks making up the session. Each item is either a plain " +
+            "step, or {type:'repetition', reps, steps:[...]} repeating a short block of steps that many times " +
+            "(e.g. 4x(8min work + 3min rest)).",
+          items: {
+            type: "object",
+            properties: {
+              type: { type: "string", enum: ["step", "repetition"] },
+              name: { type: "string" },
+              durationSeconds: { type: "number", description: "Required for a plain step." },
+              intensityMin: { type: "number", description: "Percent of FTP or threshold HR." },
+              intensityMax: { type: "number" },
+              intensityClass: { type: "string", enum: ["warmUp", "active", "rest", "coolDown"] },
+              reps: { type: "number", description: "Required when type is 'repetition'." },
+              steps: {
+                type: "array",
+                description: "Required when type is 'repetition' - the steps to repeat.",
+                items: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string" },
+                    durationSeconds: { type: "number" },
+                    intensityMin: { type: "number" },
+                    intensityMax: { type: "number" },
+                    intensityClass: { type: "string", enum: ["warmUp", "active", "rest", "coolDown"] },
+                  },
+                },
+              },
+            },
+          },
+        },
+        durationMinutes: { type: "number", description: "Only needed for a non-interval session with no steps, or to override the auto-computed value." },
+        tssPlanned: { type: "number", description: "Override only - normally auto-computed from steps." },
+      },
+    },
+  },
+  {
+    name: "update_workout",
+    description: "Change any field of an existing planned workout (reschedule, edit structure, rename, etc). Fetch it with get_workouts first if you need its id.",
+    input_schema: {
+      type: "object",
+      required: ["id"],
+      properties: {
+        id: { type: "string" },
+        date: { type: "string" },
+        sport: { type: "string", enum: ["Bike", "Run", "Strength", "Other"] },
+        title: { type: "string" },
+        description: { type: "string" },
+        primaryIntensityMetric: { type: "string", enum: ["percentOfFtp", "percentOfThresholdHr"] },
+        steps: { type: "array", description: "Same shape as create_workout's steps - replaces the entire structure." },
+        durationMinutes: { type: "number" },
+        tssPlanned: { type: "number" },
+      },
+    },
+  },
+  {
+    name: "delete_workout",
+    description: "Cancel/remove a planned workout.",
+    input_schema: {
+      type: "object",
+      required: ["id"],
+      properties: {
+        id: { type: "string" },
+      },
+    },
+  },
 ] as const;
 
 async function executeTool(name: string, input: Record<string, unknown>): Promise<unknown> {
@@ -170,6 +279,30 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
         const current = points[points.length - 1] ?? null;
         const trend = points.slice(-trendDays);
         return { current, trend };
+      }
+      case "get_workouts": {
+        const from = typeof input.from === "string" ? input.from : undefined;
+        const to = typeof input.to === "string" ? input.to : undefined;
+        return await listPlannedWorkouts(from, to);
+      }
+      case "create_workout": {
+        const { date, sport, title } = input;
+        if (typeof date !== "string" || typeof sport !== "string" || typeof title !== "string") {
+          return { error: "date, sport, and title are required strings" };
+        }
+        return await createPlannedWorkout(input as unknown as Omit<PlannedWorkout, "id" | "createdAt" | "updatedAt">);
+      }
+      case "update_workout": {
+        const { id, ...patch } = input;
+        if (typeof id !== "string") return { error: "id is required" };
+        const workout = await updatePlannedWorkout(id, patch as Partial<PlannedWorkout>);
+        return workout ?? { error: `No workout found with id ${id}` };
+      }
+      case "delete_workout": {
+        const { id } = input;
+        if (typeof id !== "string") return { error: "id is required" };
+        const ok = await deletePlannedWorkout(id);
+        return { ok };
       }
       default:
         return { error: `Unknown tool: ${name}` };
@@ -221,8 +354,12 @@ function buildSystemPrompt(context: Partial<ChatContext>): string {
     "mid-attempt bonk or overuse injury, taper design in the final one to two weeks, and managing cumulative " +
     "sleep deprivation and fatigue during the attempt itself, not just the training leading up to it.\n\n" +
     "You have tools to pull the athlete's actual historical data (Whoop recovery/strain/sleep, Strava rides, " +
-    "Apple Health) beyond the snapshot below - use them whenever a specific number, trend, or past date would " +
-    "make your answer better than a general one, rather than guessing or saying you don't have the data. " +
+    "Apple Health, current CTL/ATL/TSB fitness/fatigue/form) beyond the snapshot below - use them whenever a " +
+    "specific number, trend, or past date would make your answer better than a general one, rather than " +
+    "guessing or saying you don't have the data. You can also schedule, edit, and cancel structured workouts " +
+    "directly - when the athlete describes a session in words (e.g. \"give me 4x8min threshold for Tuesday\"), " +
+    "build the interval structure yourself and create it rather than just describing what they should do; " +
+    "check get_workouts first if you need to see what's already planned or find a workout's id to edit. " +
     "Check whether they've already ridden today (in the snapshot below) before asking what's on their " +
     "schedule or suggesting a session for today - if they've already trained, talk about recovery from that " +
     "ride and what's next instead. Answer directly and practically. Keep replies conversational and concise - " +

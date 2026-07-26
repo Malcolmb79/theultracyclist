@@ -46,6 +46,32 @@ export function irelandTodayDateStr(): string {
   return irelandDateStr(new Date());
 }
 
+// Monday-start week boundary, matching the athlete's training-week
+// convention (see ATHLETE_PROFILE in coachContext.ts) - same calc as
+// api/_lib/coachSnapshot.ts's local copy, duplicated rather than imported
+// since that file already imports FROM this one (avoids a circular need)
+// and this project keeps small date helpers local to each file that needs
+// them.
+function startOfWeek(dateStr: string): string {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  const day = d.getUTCDay(); // 0 = Sunday .. 6 = Saturday
+  const daysSinceMonday = day === 0 ? 6 : day - 1;
+  d.setUTCDate(d.getUTCDate() - daysSinceMonday);
+  return d.toISOString().slice(0, 10);
+}
+
+function addDays(dateStr: string, n: number): string {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+function formatLongDate(dateStr: string): string {
+  return new Intl.DateTimeFormat("en-GB", { timeZone: TIME_ZONE, day: "numeric", month: "long", year: "numeric" }).format(
+    new Date(`${dateStr}T12:00:00Z`),
+  );
+}
+
 export function irelandTimeContext(): string {
   const parts = new Intl.DateTimeFormat("en-IE", {
     timeZone: TIME_ZONE,
@@ -63,10 +89,21 @@ export function irelandTimeContext(): string {
   // calling Saturday "early in the week").
   const weekdayNum = WEEKDAY_ORDER.indexOf(weekday) + 1 || 1;
 
+  const todayStr = irelandTodayDateStr();
+  const thisWeekStart = startOfWeek(todayStr);
+  const thisWeekEnd = addDays(thisWeekStart, 6);
+  const lastWeekStart = addDays(thisWeekStart, -7);
+  const lastWeekEnd = addDays(thisWeekStart, -1);
+
   return (
-    `It's currently ${weekday} ${String(hour).padStart(2, "0")}:${minute} in Ireland (${timeOfDayLabel(hour)}). ` +
-    "Greet and phase your note for the actual time of day above - don't default to \"good morning\" unless it " +
-    `genuinely is morning there. This is day ${weekdayNum} of 7 in the current Monday-Sunday training week - ` +
-    `${daysLeftPhrase(weekdayNum)}.`
+    `Today's date is ${formatLongDate(todayStr)} (${weekday}), ${String(hour).padStart(2, "0")}:${minute} in ` +
+    `Ireland (${timeOfDayLabel(hour)}). Greet and phase your note for the actual time of day above - don't ` +
+    "default to \"good morning\" unless it genuinely is morning there. This is day " +
+    `${weekdayNum} of 7 in the current Monday-Sunday training week - ${daysLeftPhrase(weekdayNum)}. This week ` +
+    `runs ${formatLongDate(thisWeekStart)} to ${formatLongDate(thisWeekEnd)}; last week was ` +
+    `${formatLongDate(lastWeekStart)} to ${formatLongDate(lastWeekEnd)}. Always use these exact dates for any ` +
+    "\"this week\"/\"last week\" question or tool call date range - never guess or compute a date range " +
+    "yourself, and never state a ride, workout, or metric happened on a date without it actually being " +
+    "present at that date in the tool data you fetched."
   );
 }

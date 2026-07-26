@@ -23,6 +23,29 @@ function daysLeftPhrase(weekdayNum: number): string {
   return `${daysAfterToday} days are left after today, through Sunday`;
 }
 
+// Ireland-local calendar date (YYYY-MM-DD) for a given instant - used
+// wherever server-side code needs to bucket a UTC timestamp (a Strava ride,
+// "now") into the athlete's own day/week boundaries rather than the UTC
+// date, which can be off by an hour near midnight. formatToParts is used
+// instead of slicing an ISO string since the input Date's own UTC offset
+// says nothing about Ireland's.
+export function irelandDateStr(date: Date): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const year = parts.find((p) => p.type === "year")?.value ?? "1970";
+  const month = parts.find((p) => p.type === "month")?.value ?? "01";
+  const day = parts.find((p) => p.type === "day")?.value ?? "01";
+  return `${year}-${month}-${day}`;
+}
+
+export function irelandTodayDateStr(): string {
+  return irelandDateStr(new Date());
+}
+
 export function irelandTimeContext(): string {
   const parts = new Intl.DateTimeFormat("en-IE", {
     timeZone: TIME_ZONE,

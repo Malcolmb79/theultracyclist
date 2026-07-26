@@ -93,6 +93,22 @@ function mergeLayout(stored: StoredSettings, device: DeviceCategory, next: CardL
   return { [device]: next };
 }
 
+// The shared (non-device-scoped) profile fields only - reusable by anything
+// that needs the athlete's FTP/phase/weekly targets/standing rules without
+// a request/response pair to hang a `device` query param off of (see
+// api/_lib/coachSnapshot.ts, used by the WhatsApp webhook).
+export async function fetchCoachingSettings(): Promise<CoachingSettings> {
+  const stored = (await getJSON<StoredSettings>(KV_KEY)) ?? readLegacySettings();
+  return {
+    ftpWatts: stored.ftpWatts,
+    heightCm: stored.heightCm,
+    weeklyDistanceKm: stored.weeklyDistanceKm,
+    weeklyHours: stored.weeklyHours,
+    phase: stored.phase,
+    customRules: stored.customRules,
+  };
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!getSessionEmail(req)) {
     res.status(401).json({ error: "Unauthorized" });

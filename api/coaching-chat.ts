@@ -11,9 +11,9 @@ const MODEL = "claude-haiku-4-5-20251001";
 const MAX_HISTORY = 20;
 const MAX_TOOL_ROUNDS = 5; // bounds worst-case latency/cost of the tool-use loop below.
 
-type ChatMessage = { role: "user" | "assistant"; content: string };
+export type ChatMessage = { role: "user" | "assistant"; content: string };
 
-type ChatContext = {
+export type ChatContext = {
   recoveryScore: number | null;
   hrvMs: number | null;
   restingHeartRate: number | null;
@@ -183,6 +183,73 @@ function buildSystemPrompt(context: Partial<ChatContext>): string {
   );
 }
 
+// The tool-use loop + prompt, extracted so both the browser chat route below
+// and the WhatsApp webhook (api/whatsapp-webhook.ts, which has no browser to
+// compute a context snapshot or hold conversation state client-side) can
+// share the exact same coaching logic instead of two divergent copies.
+// Throws on an Anthropic API error; callers decide how to surface that.
+export async function generateCoachReply(messages: ChatMessage[], context: Partial<ChatContext>): Promise<string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not configured");
+
+  const anthropicMessages: AnthropicMessage[] = messages.map((m) => ({ role: m.role, content: m.content }));
+  const system = [
+    { type: "text" as const, text: buildSystemPrompt(context), cache_control: { type: "ephemeral" as const } },
+  ];
+
+  let finalText = "";
+
+  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    const response = await fetch(ANTHROPIC_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: 600,
+        system,
+        tools: TOOLS,
+        messages: anthropicMessages,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Anthropic API error: ${response.status}`);
+    }
+
+    const data = (await response.json()) as { content: ContentBlock[]; stop_reason: string };
+    const textSoFar = data.content.filter(isTextBlock).map((b) => b.text).join("\n");
+
+    if (data.stop_reason !== "tool_use") {
+      finalText = textSoFar;
+      break;
+    }
+
+    anthropicMessages.push({ role: "assistant", content: data.content });
+
+    const toolUses = data.content.filter(isToolUseBlock);
+    const toolResults: ToolResultBlock[] = await Promise.all(
+      toolUses.map(async (call) => ({
+        type: "tool_result" as const,
+        tool_use_id: call.id,
+        content: JSON.stringify(await executeTool(call.name, call.input)),
+      })),
+    );
+    anthropicMessages.push({ role: "user", content: toolResults });
+
+    // Ran out of rounds while the model still wanted another tool call -
+    // fall back to whatever text (if any) came with that last response.
+    if (round === MAX_TOOL_ROUNDS - 1) {
+      finalText = textSoFar;
+    }
+  }
+
+  return finalText || "I wasn't able to pull that together - try asking again.";
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
@@ -194,8 +261,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
+  if (!process.env.ANTHROPIC_API_KEY) {
     res.status(200).json({ configured: false });
     return;
   }
@@ -213,66 +279,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const messages: AnthropicMessage[] = inputMessages.map((m) => ({ role: m.role, content: m.content }));
-  const system = [
-    { type: "text" as const, text: buildSystemPrompt(body.context ?? {}), cache_control: { type: "ephemeral" as const } },
-  ];
-
   try {
-    let finalText = "";
-
-    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-      const response = await fetch(ANTHROPIC_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model: MODEL,
-          max_tokens: 600,
-          system,
-          tools: TOOLS,
-          messages,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Anthropic API error: ${response.status}`);
-      }
-
-      const data = (await response.json()) as { content: ContentBlock[]; stop_reason: string };
-      const textSoFar = data.content.filter(isTextBlock).map((b) => b.text).join("\n");
-
-      if (data.stop_reason !== "tool_use") {
-        finalText = textSoFar;
-        break;
-      }
-
-      messages.push({ role: "assistant", content: data.content });
-
-      const toolUses = data.content.filter(isToolUseBlock);
-      const toolResults: ToolResultBlock[] = await Promise.all(
-        toolUses.map(async (call) => ({
-          type: "tool_result" as const,
-          tool_use_id: call.id,
-          content: JSON.stringify(await executeTool(call.name, call.input)),
-        })),
-      );
-      messages.push({ role: "user", content: toolResults });
-
-      // Ran out of rounds while the model still wanted another tool call -
-      // fall back to whatever text (if any) came with that last response.
-      if (round === MAX_TOOL_ROUNDS - 1) {
-        finalText = textSoFar;
-      }
-    }
-
-    res.status(200).json({
-      configured: true,
-      reply: finalText || "I wasn't able to pull that together - try asking again.",
-    });
+    const reply = await generateCoachReply(inputMessages, body.context ?? {});
+    res.status(200).json({ configured: true, reply });
   } catch (error) {
     console.error(error);
     res.status(502).json({ error: "Unable to get a reply from the coach" });

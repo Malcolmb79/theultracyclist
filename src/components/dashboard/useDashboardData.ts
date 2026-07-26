@@ -134,7 +134,7 @@ export function useDashboardData(raw: RawSourcesState): DashboardDataState {
 
         performanceSeries = computePerformanceSeries(rides, settings.ftpWatts as number | undefined, irelandTodayDateStr());
         if (performanceSeries.length > 0) {
-          metrics.push({ id: PERFORMANCE_CHART_ID, source: "strava", label: "Performance Chart (vs Plan)", unit: "", series: [], statOnly: true });
+          metrics.push({ id: PERFORMANCE_CHART_ID, source: "strava", label: "ATP Progress / Performance Chart", unit: "", series: [], statOnly: true });
         }
 
         const weekly = strava.summary?.weekly as StravaPeriodSummary | undefined;

@@ -33,7 +33,11 @@ export function useRawSources(device: DeviceCategory): RawSourcesState {
 
     Promise.all([
       fetch("/api/whoop-data").then((r) => (r.ok ? r.json() : null)),
-      fetch("/api/strava-activities").then((r) => (r.ok ? r.json() : null)),
+      // A generous count (not the default 6 "recent rides" list) so the
+      // Performance Chart's CTL/ATL/TSB has real ride history behind it
+      // instead of ramping up from an artificially recent start - matches
+      // Trends' own useTrendsData.ts fetch for the same reason.
+      fetch("/api/strava-activities?count=200").then((r) => (r.ok ? r.json() : null)),
       fetch("/api/health-data").then((r) => (r.ok ? r.json() : null)),
       fetch(`/api/coaching-settings?device=${device}`).then((r) => (r.ok ? r.json() : null)),
     ])

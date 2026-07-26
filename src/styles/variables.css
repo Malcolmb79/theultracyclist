@@ -43,7 +43,12 @@ html[data-theme="light"] {
   --color-border: rgba(0, 0, 0, 0.1);
 
   --color-accent-2: #0f9d58;
-  --color-amber: #cc8400;
+  /* A prior, more conservative darkening (#b3760a, then #cc8400) still read
+     as brown rather than amber - orange hues at the lightness needed for
+     text contrast on a light background inherently look brown (that's
+     what "brown" perceptually is), so this trades some contrast for
+     actually looking amber, closer to the dark theme's own #ffb020. */
+  --color-amber: #f59e0b;
 
   color-scheme: light;
 }

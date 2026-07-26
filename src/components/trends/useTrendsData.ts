@@ -293,7 +293,7 @@ export function useTrendsData(): TrendsDataState {
           metrics.push({
             id: PERFORMANCE_CHART_ID,
             source: "strava",
-            label: "Performance Chart (vs Plan)",
+            label: "ATP Progress / Performance Chart",
             unit: "",
             aggregation: "avg",
             getValue: () => null,

@@ -24,7 +24,7 @@ type LiveTrackState =
   | { status: "notConfigured" }
   | { status: "invalidUrl" }
   | { status: "error"; message: string }
-  | { status: "ready"; sessionStatus: "InProgress" | "Expired" | "unknown"; sessionName: string | null; points: LiveTrackPoint[] };
+  | { status: "ready"; points: LiveTrackPoint[] };
 
 function relativeSeconds(timestampMs: number): string {
   const diffSec = Math.round((Date.now() - timestampMs) / 1000);
@@ -35,11 +35,12 @@ function relativeSeconds(timestampMs: number): string {
 }
 
 // Live position + track for the athlete's currently pasted Garmin LiveTrack
-// session (see Settings) - built against community-reverse-engineered,
-// undocumented Garmin endpoints (api/garmin-livetrack.ts), since Garmin has
-// no public LiveTrack API. Untested against a real active session as of
-// writing - the exact point/unit handling may need adjusting once there's
-// a live one to validate against.
+// session (see Settings) - built against Garmin's undocumented LiveTrack
+// endpoint (api/garmin-livetrack.ts), confirmed live against a real session
+// on 2026-07-26. That session had zero recorded points, so the individual
+// point field names are still a best-effort guess (extractPoint in the API
+// route tries several plausible spellings) - may need a small fix once
+// there's a session with real points to check against.
 //
 // Uses plain Leaflet rather than react-leaflet so the map instance persists
 // across polls (only its data updates), so panning/zooming while watching
@@ -140,11 +141,9 @@ export default function GarminLiveTrackCard() {
           ? "That LiveTrack URL doesn't look right - check it in Settings."
           : state.status === "error"
             ? state.message
-            : state.status === "ready" && state.sessionStatus === "Expired"
-              ? "This LiveTrack session has ended."
-              : state.status === "ready" && state.points.length === 0
-                ? "Session found, waiting for the first position update…"
-                : null;
+            : state.status === "ready" && state.points.length === 0
+              ? "No position data yet - this updates automatically once the session reports one."
+              : null;
 
   return (
     <div className={styles.wrap}>

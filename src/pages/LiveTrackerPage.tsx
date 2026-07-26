@@ -377,13 +377,16 @@ export default function LiveTrackerPage() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <div>
-          <h1 className={styles.title}>World Record Attempt — Live</h1>
-          {data.startTime && (
-            <p className={styles.subtitle}>
-              Started {new Date(data.startTime).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
-            </p>
-          )}
+        <div className={styles.titleRow}>
+          <img src="/logo.png" alt="" className={styles.logo} />
+          <div>
+            <h1 className={styles.title}>World Record Attempt — Live</h1>
+            {data.startTime && (
+              <p className={styles.subtitle}>
+                Started {new Date(data.startTime).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+              </p>
+            )}
+          </div>
         </div>
         <div className={styles.status}>
           <span className={styles.liveDot} />

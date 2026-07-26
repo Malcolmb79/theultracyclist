@@ -2,7 +2,11 @@
   position: sticky;
   top: 0;
   z-index: 10;
-  background: rgba(11, 14, 17, 0.9);
+  /* Was a hardcoded dark rgba() - fine back when the public site was
+     always dark, but now that Layout applies the same light/dark theme as
+     the dashboard (see useDashboardTheme), a fixed dark tint would stay
+     dark even in light mode. */
+  background: color-mix(in srgb, var(--color-bg) 90%, transparent);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--color-border);
 }
@@ -18,9 +22,22 @@
 
 .brand {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
   text-decoration: none;
   color: var(--color-text);
+}
+
+.logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.brandText {
+  display: flex;
+  flex-direction: column;
 }
 
 .brandName {

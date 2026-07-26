@@ -8,8 +8,11 @@ export default function Header() {
     <header className={styles.header}>
       <div className={["container", styles.inner].join(" ")}>
         <Link to="/" className={styles.brand}>
-          <span className={styles.brandName}>{site.name}</span>
-          <span className={styles.brandTag}>{site.athleteName}</span>
+          <img src="/logo.png" alt="" className={styles.logo} />
+          <span className={styles.brandText}>
+            <span className={styles.brandName}>{site.name}</span>
+            <span className={styles.brandTag}>{site.athleteName}</span>
+          </span>
         </Link>
         <NavBar />
       </div>

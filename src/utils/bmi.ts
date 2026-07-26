@@ -13,6 +13,16 @@ export function isWeightMetricId(metricId: string): boolean {
   return WEIGHT_NAME_PATTERN.test(metricId.replace(/^health\./, ""));
 }
 
+// Single formatting rule for every place weight is rendered as text (Health
+// Calendar cells/modal, Trends stat widgets, ...) - rounds to one decimal
+// place the same way DashboardWidget's formatValue already does for stat/
+// chart/ring widgets, so a raw unit-converted value like 73.62455 never
+// reaches the screen un-rounded regardless of which component renders it.
+export function formatWeight(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  return rounded.toLocaleString("en-GB", { maximumFractionDigits: 1 });
+}
+
 export function computeBmi(weightKg: number, heightCm: number): number {
   const heightM = heightCm / 100;
   return Math.round((weightKg / (heightM * heightM)) * 10) / 10;

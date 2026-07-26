@@ -46,6 +46,13 @@ interface DashboardWidgetProps {
   onResize: (width: number, height: number) => void;
   onResizingChange: (resizing: boolean) => void;
   onRemove: () => void;
+  // Phone layout: renders full-width in normal document flow instead of
+  // absolutely positioned at widget.x/y (see DashboardPage's `stacked`
+  // branch) - reordering happens via onReorder instead of dragging.
+  stacked?: boolean;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
+  onReorder?: (direction: "up" | "down") => void;
 }
 
 // Maps a widget's underlying metric id to the Whoop detail view it should
@@ -151,6 +158,10 @@ export default function DashboardWidget({
   onResize,
   onResizingChange,
   onRemove,
+  stacked,
+  canMoveUp,
+  canMoveDown,
+  onReorder,
 }: DashboardWidgetProps) {
   const isCombo = widget.metric === WHOOP_STRAIN_RECOVERY_COMBO_ID;
   const isRings = widget.metric === WHOOP_RINGS_COMBO_ID;
@@ -290,36 +301,49 @@ export default function DashboardWidget({
     setEditingLabel(false);
   };
 
-  const positionStyle = {
-    position: "absolute" as const,
-    left: rect.x,
-    top: rect.y,
-    width: rect.width,
-    height: rect.height,
-  };
+  // Stacked (phone) mode renders in normal document flow at 100% width (see
+  // .stacked in the stylesheet) - only height is meaningful, so x/y/width
+  // from the canvas rect are left unset rather than pinning the widget to a
+  // desktop-shaped position that would force horizontal scrolling.
+  const positionStyle = stacked
+    ? { height: rect.height }
+    : {
+        position: "absolute" as const,
+        left: rect.x,
+        top: rect.y,
+        width: rect.width,
+        height: rect.height,
+      };
 
   const contentHeight = Math.max(24, rect.height - HEADER_HEIGHT - CONTENT_PADDING);
-  const ringSize = Math.max(60, Math.min(rect.width, contentHeight) - 20);
+  // Measures the content area's actual rendered width rather than trusting
+  // rect.width - in stacked mode the widget renders at 100% width via CSS
+  // regardless of the stored rect.width, so a single ring's size needs the
+  // real DOM width to avoid clipping or being sized for the wrong screen.
+  const [contentRef, measuredContentWidth] = useMeasuredWidth(minWidth);
+  const ringSize = Math.max(60, Math.min(measuredContentWidth, contentHeight) - 20);
 
   return (
     <>
       <div
         ref={widgetRef}
         style={positionStyle}
-        className={styles.widget}
+        className={`${styles.widget} ${stacked ? styles.stacked : ""}`}
         data-selected={selected || undefined}
         onPointerDownCapture={() => setSelected(true)}
       >
         <div className={styles.header}>
-          <div
-            className={styles.dragHandle}
-            onPointerDown={handleDragPointerDown}
-            role="button"
-            tabIndex={0}
-            aria-label="Drag to move"
-          >
-            ⠿
-          </div>
+          {!stacked && (
+            <div
+              className={styles.dragHandle}
+              onPointerDown={handleDragPointerDown}
+              role="button"
+              tabIndex={0}
+              aria-label="Drag to move"
+            >
+              ⠿
+            </div>
+          )}
           {editingLabel ? (
             <input
               className={styles.labelInput}
@@ -341,6 +365,28 @@ export default function DashboardWidget({
             </span>
           )}
           <div className={styles.controls}>
+            {stacked && (
+              <>
+                <button
+                  type="button"
+                  className={styles.iconButton}
+                  onClick={() => onReorder?.("up")}
+                  disabled={!canMoveUp}
+                  aria-label="Move widget up"
+                >
+                  ▲
+                </button>
+                <button
+                  type="button"
+                  className={styles.iconButton}
+                  onClick={() => onReorder?.("down")}
+                  disabled={!canMoveDown}
+                  aria-label="Move widget down"
+                >
+                  ▼
+                </button>
+              </>
+            )}
             <input
               type="color"
               className={styles.colorInput}
@@ -367,6 +413,7 @@ export default function DashboardWidget({
         </div>
 
         <div
+          ref={contentRef}
           className={`${styles.content} ${detailKind ? styles.clickable : ""}`}
           onClick={detailKind ? () => setOpenDetail(detailKind) : undefined}
           role={detailKind ? "button" : undefined}

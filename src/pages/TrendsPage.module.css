@@ -113,6 +113,15 @@
   margin: 0 auto;
 }
 
+/* Phone layout: plain vertical flow, full-width widgets - see
+   DashboardPage.module.css's .stackList for why. */
+.stackList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+}
+
 .emptyCanvas {
   color: var(--color-text-muted);
   padding: var(--space-5);

@@ -89,6 +89,15 @@
 /* Shown only while actively dragging a widget's move/resize handle. 20px
    spacing must match COACHING_WIDGET_GRID_SIZE in
    components/coaching/CoachingWidget.tsx. */
+/* Phone layout: plain vertical flow, full-width cards - see
+   DashboardPage.module.css's .stackList for why. */
+.stackList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+}
+
 .canvasSnap {
   background-image:
     repeating-linear-gradient(to right, var(--color-border) 0 1px, transparent 1px 20px),

@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { recoveryColor } from "../../utils/recoveryColor";
-import { bmiCategory } from "../../utils/bmi";
+import { bmiCategory, formatWeight } from "../../utils/bmi";
 import { formatDate } from "../../utils/formatDate";
 import styles from "./WhoopDetailModal.module.css";
 
@@ -105,7 +105,7 @@ export default function HealthDayDetailModal({ date, day, weightVal, weightUnit,
               {day?.sleep && <Row label="Sleep consistency" value={`${day.sleep.consistencyPercent}%`} />}
               {day?.sleep && <Row label="Sleep efficiency" value={`${day.sleep.efficiencyPercent}%`} />}
               {day?.sleep && <Row label="Respiratory rate" value={`${day.sleep.respiratoryRate.toFixed(1)} rpm`} />}
-              {weightVal != null && <Row label="Weight" value={`${weightVal}${weightUnit}`} />}
+              {weightVal != null && <Row label="Weight" value={`${formatWeight(weightVal)}${weightUnit}`} />}
               {bmi != null && <Row label="BMI" value={`${bmi.toFixed(1)} - ${bmiCategory(bmi).label}`} />}
             </ul>
           )}

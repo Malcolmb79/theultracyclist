@@ -17,6 +17,13 @@
   border-color: var(--color-accent-2);
 }
 
+/* Phone stacked layout: normal document flow, full width, so nothing ever
+   sits to the right of the viewport requiring horizontal scroll. */
+.stacked {
+  position: relative;
+  width: 100%;
+}
+
 .content {
   flex: 1;
   min-height: 0;

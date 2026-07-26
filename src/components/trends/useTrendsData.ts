@@ -375,6 +375,20 @@ export function useTrendsData(): TrendsDataState {
 
   return useMemo<TrendsDataState>(() => {
     if (raw.status !== "ready") return raw;
-    return { ...raw, metrics: raw.metrics.map((m) => convertTrendMetric(m, system)) };
+    // weightByDate is always stored in canonical kg (see weightKg() above) -
+    // convert to the athlete's display preference here, same as every other
+    // metric via convertTrendMetric, so the Health Calendar's weight/unit
+    // label always match rather than showing kg values under a stale
+    // source-catalog unit label.
+    const weightByDate = new Map(
+      Array.from(raw.weightByDate.entries()).map(([date, kg]) => [date, convertValueUnit(kg, "kg", system).value]),
+    );
+    const weightUnit = convertValueUnit(1, "kg", system).unit;
+    return {
+      ...raw,
+      metrics: raw.metrics.map((m) => convertTrendMetric(m, system)),
+      weightByDate,
+      weightUnit,
+    };
   }, [raw, system]);
 }

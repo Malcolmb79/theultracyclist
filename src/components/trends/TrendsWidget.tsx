@@ -4,6 +4,7 @@ import type { TrendMetricDef } from "./useTrendsData";
 import type { TrendsWidgetConfig, TrendsViewType } from "./types";
 import HealthCalendar from "../dashboard/HealthCalendar";
 import type { HealthCalendarDay } from "../dashboard/HealthDayDetailModal";
+import { isWeightMetricId, formatWeight } from "../../utils/bmi";
 import {
   DEFAULT_TRENDS_COLOR,
   DEFAULT_WIDGET_WIDTH,
@@ -45,6 +46,12 @@ interface TrendsWidgetProps {
   onResize: (width: number, height: number) => void;
   onResizingChange: (resizing: boolean) => void;
   onRemove: () => void;
+  // Phone layout: full-width in normal document flow instead of absolutely
+  // positioned at widget.x/y - see DashboardWidget's identical prop.
+  stacked?: boolean;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
+  onReorder?: (direction: "up" | "down") => void;
 }
 
 const VIEW_LABEL: Record<TrendsViewType, string> = {
@@ -72,6 +79,10 @@ export default function TrendsWidget({
   onResize,
   onResizingChange,
   onRemove,
+  stacked,
+  canMoveUp,
+  canMoveDown,
+  onReorder,
 }: TrendsWidgetProps) {
   const isCalendar = widget.viewType === "calendar";
   const isHealthCalendar = widget.viewType === "healthCalendar";
@@ -154,21 +165,48 @@ export default function TrendsWidget({
 
   const color = widget.color ?? DEFAULT_TRENDS_COLOR;
   const contentHeight = Math.max(24, rect.height - HEADER_HEIGHT - CONTENT_PADDING);
+  const positionStyle = stacked
+    ? { height: rect.height }
+    : { position: "absolute" as const, left: rect.x, top: rect.y, width: rect.width, height: rect.height };
 
   return (
     <div
       ref={widgetRef}
-      style={{ position: "absolute", left: rect.x, top: rect.y, width: rect.width, height: rect.height }}
-      className={styles.widget}
+      style={positionStyle}
+      className={`${styles.widget} ${stacked ? styles.stacked : ""}`}
       data-selected={selected || undefined}
       onPointerDownCapture={() => setSelected(true)}
     >
       <div className={styles.header}>
-        <div className={styles.dragHandle} onPointerDown={handleDragPointerDown} role="button" tabIndex={0} aria-label="Drag to move">
-          ⠿
-        </div>
+        {!stacked && (
+          <div className={styles.dragHandle} onPointerDown={handleDragPointerDown} role="button" tabIndex={0} aria-label="Drag to move">
+            ⠿
+          </div>
+        )}
         <span className={styles.label}>{widget.label}</span>
         <div className={styles.controls}>
+          {stacked && (
+            <>
+              <button
+                type="button"
+                className={styles.iconButton}
+                onClick={() => onReorder?.("up")}
+                disabled={!canMoveUp}
+                aria-label="Move widget up"
+              >
+                ▲
+              </button>
+              <button
+                type="button"
+                className={styles.iconButton}
+                onClick={() => onReorder?.("down")}
+                disabled={!canMoveDown}
+                aria-label="Move widget down"
+              >
+                ▼
+              </button>
+            </>
+          )}
           <input
             type="color"
             className={styles.colorInput}
@@ -220,14 +258,16 @@ export default function TrendsWidget({
                   ? "var(--color-amber)"
                   : color
               : color;
+            const isWeight = isWeightMetricId(metric.id);
+            const formatStatValue = (v: number) => (isWeight ? formatWeight(v) : v);
 
             return (
               <div className={styles.stat}>
                 <div className={styles.statValue} style={{ color: valueColor }}>
-                  {value != null ? `${value}${metric.unit}` : "—"}
+                  {value != null ? `${formatStatValue(value)}${metric.unit}` : "—"}
                 </div>
                 {metric.isGoal && goal != null && (
-                  <div className={styles.statGoal}>Goal: {goal}{metric.unit}</div>
+                  <div className={styles.statGoal}>Goal: {formatStatValue(goal)}{metric.unit}</div>
                 )}
                 <div className={styles.statLabel}>{VIEW_LABEL[widget.viewType]}</div>
               </div>

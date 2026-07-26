@@ -10,6 +10,7 @@ import TabNav from "../components/shared/TabNav";
 import PageHeader from "../components/shared/PageHeader";
 import { computeCanvasHeight } from "../utils/useCanvasItem";
 import { DEFAULT_WIDGET_HEIGHT } from "../components/trends/types";
+import { useDeviceCategory } from "../utils/useDeviceCategory";
 import styles from "./TrendsPage.module.css";
 
 function nextId(): string {
@@ -45,6 +46,8 @@ type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 function TrendsEditor() {
   const data = useTrendsData();
+  const device = useDeviceCategory();
+  const stacked = device === "mobile";
   const [widgets, setWidgets] = useState<TrendsWidgetConfig[] | null>(null);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
@@ -53,7 +56,8 @@ function TrendsEditor() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/trends-layout")
+    setWidgets(null);
+    fetch(`/api/trends-layout?device=${device}`)
       .then((res) => res.json())
       .then((body: { widgets: TrendsWidgetConfig[] }) => {
         if (!cancelled) setWidgets(body.widgets ?? []);
@@ -64,7 +68,7 @@ function TrendsEditor() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [device]);
 
   const persist = (next: TrendsWidgetConfig[]) => {
     lastAttempt.current = next;
@@ -72,7 +76,7 @@ function TrendsEditor() {
     fetch("/api/trends-layout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ widgets: next }),
+      body: JSON.stringify({ widgets: next, device }),
     })
       .then((res) => {
         if (!res.ok) throw new Error(`Save failed: ${res.status}`);
@@ -127,6 +131,15 @@ function TrendsEditor() {
 
   const handleResize = (id: string, width: number, height: number) =>
     saveWidgets(widgets.map((w) => (w.id === id ? { ...w, width, height } : w)));
+
+  const handleReorder = (id: string, direction: "up" | "down") => {
+    const index = widgets.findIndex((w) => w.id === id);
+    const swapWith = direction === "up" ? index - 1 : index + 1;
+    if (index === -1 || swapWith < 0 || swapWith >= widgets.length) return;
+    const next = widgets.slice();
+    [next[index], next[swapWith]] = [next[swapWith], next[index]];
+    saveWidgets(next);
+  };
 
   const canvasHeight = computeCanvasHeight(
     widgets.map((w) => ({ y: w.y ?? 0, height: w.height ?? DEFAULT_WIDGET_HEIGHT })),
@@ -183,6 +196,31 @@ function TrendsEditor() {
       <main className={styles.canvas}>
         {widgets.length === 0 ? (
           <p className={styles.emptyCanvas}>Open the menu to add data and build your trends dashboard.</p>
+        ) : stacked ? (
+          <div className={styles.stackList}>
+            {widgets.map((widget, index) => (
+              <TrendsWidget
+                key={widget.id}
+                widget={widget}
+                metric={metricById.get(widget.metric)}
+                days={data.days}
+                whoopHistory={data.whoopHistory}
+                weightByDate={data.weightByDate}
+                weightUnit={data.weightUnit}
+                bmiByDate={data.bmiByDate}
+                stacked
+                canMoveUp={index > 0}
+                canMoveDown={index < widgets.length - 1}
+                onReorder={(direction) => handleReorder(widget.id, direction)}
+                onViewTypeChange={(viewType) => handleViewTypeChange(widget.id, viewType)}
+                onColorChange={(color) => handleColorChange(widget.id, color)}
+                onMove={(x, y) => handleMove(widget.id, x, y)}
+                onResize={(width, height) => handleResize(widget.id, width, height)}
+                onResizingChange={setIsResizing}
+                onRemove={() => handleRemove(widget.id)}
+              />
+            ))}
+          </div>
         ) : (
           <div
             className={`${styles.widgetGrid} ${isResizing ? styles.widgetGridSnap : ""}`}

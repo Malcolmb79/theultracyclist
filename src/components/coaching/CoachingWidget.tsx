@@ -15,6 +15,11 @@ interface CoachingWidgetProps {
   onResize: (width: number, height: number) => void;
   onResizingChange: (resizing: boolean) => void;
   children: ReactNode;
+  // Phone layout: full-width in normal document flow instead of absolutely
+  // positioned at x/y - see DashboardWidget's identical prop. The 4 fixed
+  // coaching cards always render in the same order on phone, so unlike the
+  // catalog widgets there's no reorder control here.
+  stacked?: boolean;
 }
 
 // A thin positioning shell around each fixed coaching card - unlike the
@@ -33,6 +38,7 @@ export default function CoachingWidget({
   onResize,
   onResizingChange,
   children,
+  stacked,
 }: CoachingWidgetProps) {
   const { rect, handleDragPointerDown, handleResizePointerDown } = useCanvasItem({
     initial: { x, y, width, height },
@@ -58,17 +64,23 @@ export default function CoachingWidget({
     return () => document.removeEventListener("pointerdown", handleOutside);
   }, [selected]);
 
+  const positionStyle = stacked
+    ? { height: rect.height }
+    : { position: "absolute" as const, left: rect.x, top: rect.y, width: rect.width, height: rect.height };
+
   return (
     <div
       ref={widgetRef}
-      className={styles.widget}
-      style={{ position: "absolute", left: rect.x, top: rect.y, width: rect.width, height: rect.height }}
+      className={`${styles.widget} ${stacked ? styles.stacked : ""}`}
+      style={positionStyle}
       data-selected={selected || undefined}
       onPointerDownCapture={() => setSelected(true)}
     >
-      <div className={styles.dragHandle} onPointerDown={handleDragPointerDown} role="button" tabIndex={0} aria-label="Drag to move">
-        ⠿
-      </div>
+      {!stacked && (
+        <div className={styles.dragHandle} onPointerDown={handleDragPointerDown} role="button" tabIndex={0} aria-label="Drag to move">
+          ⠿
+        </div>
+      )}
       <div className={styles.content}>{children}</div>
       <div
         className={styles.resizeHandle}

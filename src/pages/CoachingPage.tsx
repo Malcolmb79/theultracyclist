@@ -21,6 +21,7 @@ import {
 import type { MetricDef } from "../components/dashboard/useDashboardData";
 import { useAuthSession } from "../utils/useAuthSession";
 import { useIsMobile } from "../utils/useIsMobile";
+import { useDeviceCategory } from "../utils/useDeviceCategory";
 import { useRawSources } from "../utils/useRawSources";
 import { computeCanvasHeight } from "../utils/useCanvasItem";
 import SignInGate from "../components/shared/SignInGate";
@@ -89,7 +90,9 @@ export default function CoachingPage() {
 }
 
 function CoachingView() {
-  const raw = useRawSources();
+  const device = useDeviceCategory();
+  const stacked = device === "mobile";
+  const raw = useRawSources(device);
   const data = useCoachingData(raw);
   const dashboardData = useDashboardData(raw);
   const isMobile = useIsMobile();
@@ -159,6 +162,15 @@ function CoachingView() {
   const handleMetricResize = (id: string, width: number, height: number) =>
     saveCatalogWidgets(catalogWidgets.map((w) => (w.id === id ? { ...w, width, height } : w)));
 
+  const handleMetricReorder = (id: string, direction: "up" | "down") => {
+    const index = catalogWidgets.findIndex((w) => w.id === id);
+    const swapWith = direction === "up" ? index - 1 : index + 1;
+    if (index === -1 || swapWith < 0 || swapWith >= catalogWidgets.length) return;
+    const next = catalogWidgets.slice();
+    [next[index], next[swapWith]] = [next[swapWith], next[index]];
+    saveCatalogWidgets(next);
+  };
+
   const canvasHeight =
     data.status === "ready"
       ? computeCanvasHeight([
@@ -209,6 +221,49 @@ function CoachingView() {
 
       {data.status === "loading" ? (
         <p className={styles.loading}>Loading…</p>
+      ) : stacked ? (
+        <main className={styles.stackList}>
+          <CoachingWidget {...rectFor("readiness")} {...MIN_SIZE.readiness} stacked onMove={() => {}} onResize={(w, h) => handleResize("readiness", w, h)} onResizingChange={setIsResizing}>
+            <ReadinessCard readiness={data.readiness} />
+          </CoachingWidget>
+
+          <CoachingWidget {...rectFor("chat")} {...MIN_SIZE.chat} stacked onMove={() => {}} onResize={(w, h) => handleResize("chat", w, h)} onResizingChange={setIsResizing}>
+            <CoachChatCard
+              input={narrativeInputFrom(data)}
+              settings={data.settings}
+              onSaveSettings={data.saveSettings}
+              dataAvailable={data.dataAvailable}
+            />
+          </CoachingWidget>
+
+          <CoachingWidget {...rectFor("trainingPlan")} {...MIN_SIZE.trainingPlan} stacked onMove={() => {}} onResize={(w, h) => handleResize("trainingPlan", w, h)} onResizingChange={setIsResizing}>
+            <TrainingPlanCard settings={data.settings} onSaveSettings={data.saveSettings} weeklyProgress={data.weeklyProgress} />
+          </CoachingWidget>
+
+          <CoachingWidget {...rectFor("powerZones")} {...MIN_SIZE.powerZones} stacked onMove={() => {}} onResize={(w, h) => handleResize("powerZones", w, h)} onResizingChange={setIsResizing}>
+            <PowerZonesCard settings={data.settings} recentRides={data.recentRides} />
+          </CoachingWidget>
+
+          {catalogWidgets.map((widget, index) => (
+            <DashboardWidget
+              key={widget.id}
+              widget={widget}
+              metricById={metricById}
+              whoopHistory={dashboardData.status === "ready" ? dashboardData.whoopHistory : []}
+              stacked
+              canMoveUp={index > 0}
+              canMoveDown={index < catalogWidgets.length - 1}
+              onReorder={(direction) => handleMetricReorder(widget.id, direction)}
+              onViewTypeChange={(viewType) => handleMetricViewTypeChange(widget.id, viewType)}
+              onColorChange={(color) => handleMetricColorChange(widget.id, color)}
+              onLabelChange={(label) => handleMetricLabelChange(widget.id, label)}
+              onMove={(x, y) => handleMetricMove(widget.id, x, y)}
+              onResize={(width, height) => handleMetricResize(widget.id, width, height)}
+              onResizingChange={setIsResizing}
+              onRemove={() => handleRemoveMetric(widget.id)}
+            />
+          ))}
+        </main>
       ) : (
         <main className={`${styles.canvas} ${isResizing ? styles.canvasSnap : ""}`} style={{ height: canvasHeight }}>
           <CoachingWidget

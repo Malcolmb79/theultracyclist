@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { recoveryColor } from "../../utils/recoveryColor";
-import { bmiCategoryColor } from "../../utils/bmi";
+import { bmiCategoryColor, formatWeight } from "../../utils/bmi";
 import HealthDayDetailModal, { type HealthCalendarDay } from "./HealthDayDetailModal";
 import styles from "./HealthCalendar.module.css";
 
@@ -103,7 +103,8 @@ export default function HealthCalendar({ whoopHistory, weightByDate, weightUnit,
           }
           if (weightVal != null) {
             const weightColor = bmi != null ? bmiCategoryColor(bmi) : WEIGHT_FALLBACK_COLOR;
-            values.push({ color: weightColor, text: `${weightVal}${weightUnit}`, label: `Weight ${weightVal}${weightUnit}` });
+            const weightText = `${formatWeight(weightVal)}${weightUnit}`;
+            values.push({ color: weightColor, text: weightText, label: `Weight ${weightText}` });
           }
 
           const dots: { color: string; label: string }[] = [];

@@ -63,7 +63,7 @@ export const PERFORMANCE_CHART_ID = "strava.performanceChart";
 // geolocation + Open-Meteo, no per-metric series).
 export const WEATHER_ID = "weather.current";
 
-// Special catalog entry: live position + track for the athlete's currently
-// pasted Garmin LiveTrack session (see Settings and api/garmin-livetrack.ts) -
+// Special catalog entry: the athlete's currently pasted Garmin LiveTrack
+// session, embedded directly (see GarminLiveTrackCard.tsx and Settings) -
 // no per-metric series, always offered regardless of connected data sources.
 export const GARMIN_LIVETRACK_ID = "garmin.liveTrack";

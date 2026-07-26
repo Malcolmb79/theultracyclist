@@ -48,8 +48,11 @@ export type CoachingSettings = {
   profilePictureDataUrl?: string;
   // Pasted before a ride/the attempt itself, not auto-discovered - Garmin
   // generates a new LiveTrack session URL each time one is started, and
-  // there's no documented API to look one up automatically (see
-  // api/garmin-livetrack.ts for the session/token this gets parsed into).
+  // there's no documented API to look one up automatically. Embedded
+  // directly as an iframe src client-side (src/components/dashboard/
+  // GarminLiveTrackCard.tsx) rather than fetched through this API - Garmin's
+  // internal LiveTrack data endpoint sits behind CSRF protection a
+  // stateless server request can't satisfy.
   garminLiveTrackUrl?: string;
 };
 

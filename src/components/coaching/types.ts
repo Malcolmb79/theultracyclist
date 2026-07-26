@@ -49,7 +49,9 @@ export type CoachingSettings = {
   profilePictureDataUrl?: string;
   // Pasted manually before a ride/the attempt - Garmin generates a new
   // LiveTrack session URL each time one is started, no persistent
-  // connection to store (see api/garmin-livetrack.ts).
+  // connection to store. Embedded directly as an iframe src by
+  // GarminLiveTrackCard.tsx rather than parsed/fetched server-side - see
+  // that component for why.
   garminLiveTrackUrl?: string;
 };
 

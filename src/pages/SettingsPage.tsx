@@ -4,6 +4,7 @@ import { useUnits } from "../context/UnitsContext";
 import { useTheme, type ThemeMode } from "../context/ThemeContext";
 import { useDashboardTheme } from "../utils/useDashboardTheme";
 import { convertValueUnit, type UnitSystem } from "../utils/units";
+import { resizeImageToDataUrl } from "../utils/resizeImage";
 import type { CoachingSettings } from "../components/coaching/types";
 import SignInGate from "../components/shared/SignInGate";
 import TabNav from "../components/shared/TabNav";
@@ -57,6 +58,9 @@ function SettingsEditor() {
   const [hoursInput, setHoursInput] = useState("");
   const [saving, setSaving] = useState<"ftp" | "height" | "targets" | null>(null);
   const [whoopStatus] = useState(whoopStatusFromQuery);
+  const [pictureDataUrl, setPictureDataUrl] = useState<string | undefined>(undefined);
+  const [pictureError, setPictureError] = useState<string | null>(null);
+  const [savingPicture, setSavingPicture] = useState(false);
 
   useEffect(() => {
     if (!whoopStatus) return;
@@ -83,6 +87,7 @@ function SettingsEditor() {
             : "",
         );
         setHoursInput(s.weeklyHours?.toString() ?? "");
+        setPictureDataUrl(s.profilePictureDataUrl);
       })
       .catch(() => {
         if (!cancelled) setSettings({});
@@ -135,6 +140,37 @@ function SettingsEditor() {
       });
     } finally {
       setSaving(null);
+    }
+  };
+
+  const handlePictureFile = async (file: File | undefined) => {
+    if (!file) return;
+    setPictureError(null);
+    try {
+      setPictureDataUrl(await resizeImageToDataUrl(file));
+    } catch {
+      setPictureError("Couldn't read that image - try a different file.");
+    }
+  };
+
+  const handleSavePicture = async () => {
+    if (!settings) return;
+    setSavingPicture(true);
+    try {
+      await persist({ ...settings, profilePictureDataUrl: pictureDataUrl });
+    } finally {
+      setSavingPicture(false);
+    }
+  };
+
+  const handleRemovePicture = async () => {
+    if (!settings) return;
+    setSavingPicture(true);
+    try {
+      setPictureDataUrl(undefined);
+      await persist({ ...settings, profilePictureDataUrl: undefined });
+    } finally {
+      setSavingPicture(false);
     }
   };
 
@@ -196,6 +232,43 @@ function SettingsEditor() {
               </button>
             ))}
           </div>
+        </div>
+
+        <div className={styles.section}>
+          <p className={styles.sectionTitle}>Profile picture</p>
+          <p className={styles.sectionHint}>Shown in the profile menu at the top of every page.</p>
+          <div className={styles.pictureRow}>
+            {pictureDataUrl ? (
+              <img src={pictureDataUrl} alt="" className={styles.picturePreview} />
+            ) : (
+              <div className={styles.picturePlaceholder} aria-hidden="true" />
+            )}
+            <div className={styles.pictureActions}>
+              <label className={styles.uploadButton}>
+                Choose photo
+                <input
+                  type="file"
+                  accept="image/*"
+                  className={styles.hiddenFileInput}
+                  onChange={(e) => handlePictureFile(e.target.files?.[0])}
+                />
+              </label>
+              {pictureDataUrl && (
+                <button type="button" className={styles.removeButton} onClick={handleRemovePicture} disabled={savingPicture}>
+                  Remove
+                </button>
+              )}
+            </div>
+          </div>
+          {pictureError && <p className={styles.statusFail}>{pictureError}</p>}
+          <button
+            type="button"
+            className={styles.saveButton}
+            onClick={handleSavePicture}
+            disabled={savingPicture || !settings || pictureDataUrl === settings?.profilePictureDataUrl}
+          >
+            {savingPicture ? "Saving…" : "Save"}
+          </button>
         </div>
 
         <div className={styles.section}>

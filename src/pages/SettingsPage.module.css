@@ -86,6 +86,74 @@
   color: var(--color-bg);
 }
 
+.pictureRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.picturePreview,
+.picturePlaceholder {
+  flex: none;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--color-bg-elevated-2);
+  border: 1px solid var(--color-border);
+}
+
+.pictureActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.uploadButton {
+  display: inline-flex;
+  align-items: center;
+  background: var(--color-bg-elevated-2);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.uploadButton:hover {
+  border-color: var(--color-accent-2);
+}
+
+.hiddenFileInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+}
+
+.removeButton {
+  background: none;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.removeButton:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  color: var(--color-text);
+}
+
+.removeButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .inputRow {
   display: flex;
   align-items: center;

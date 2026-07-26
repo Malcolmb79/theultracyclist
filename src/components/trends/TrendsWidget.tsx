@@ -119,9 +119,11 @@ export default function TrendsWidget({
       : DEFAULT_WIDGET_HEIGHT;
   // A stat widget already sized for desktop shows visually compressed on
   // mobile (the saved width/height itself is untouched) - either calendar
-  // is exempt since it needs more room than the cap to stay legible.
-  const capWidth = isMobile && !needsCalendarRoom ? MOBILE_CAP_WIDTH : Infinity;
-  const capHeight = isMobile && !needsCalendarRoom ? MOBILE_CAP_HEIGHT : Infinity;
+  // is exempt since it needs more room than the cap to stay legible. Not
+  // applied in stacked (flow) mode - see DashboardWidget.tsx's identical
+  // reasoning for why that would just fight a deliberate resize.
+  const capWidth = isMobile && !stacked && !needsCalendarRoom ? MOBILE_CAP_WIDTH : Infinity;
+  const capHeight = isMobile && !stacked && !needsCalendarRoom ? MOBILE_CAP_HEIGHT : Infinity;
 
   const { rect, handleDragPointerDown, handleResizePointerDown, applyResize } = useCanvasItem({
     initial: {
@@ -226,7 +228,19 @@ export default function TrendsWidget({
               <option value="calendar">Calendar</option>
             </select>
           )}
-          <button type="button" className={styles.iconButton} onClick={onRemove} aria-label="Remove widget">
+          <button
+            type="button"
+            className={styles.iconButton}
+            onClick={(e) => {
+              // Blur before removing - on iOS Safari, removing the still-
+              // focused button from the DOM makes focus fall back to
+              // <body>, which scrolls the whole page to the top instead of
+              // leaving the scroll position where it was.
+              e.currentTarget.blur();
+              onRemove();
+            }}
+            aria-label="Remove widget"
+          >
             ×
           </button>
         </div>

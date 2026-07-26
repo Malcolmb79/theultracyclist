@@ -38,6 +38,12 @@ export type CoachingSettings = {
   // every coach prompt (see buildSystemPrompt in coaching-chat.ts and
   // buildPrompt in coaching-narrative.ts) rather than needing to be repeated.
   customRules?: string;
+  // A small (~160px) square JPEG the athlete uploaded, already resized and
+  // encoded client-side (see src/utils/resizeImage.ts) - stored directly as
+  // a data URL rather than in separate file storage, since it's small
+  // enough to just live alongside the rest of this settings blob and this
+  // app has no other use for a file storage integration.
+  profilePictureDataUrl?: string;
 };
 
 // KV shape: profile fields (ftpWatts, heightCm, ...) are shared across every
@@ -83,6 +89,7 @@ export async function fetchCoachingSettings(): Promise<CoachingSettings> {
     weeklyHours: stored.weeklyHours,
     phase: stored.phase,
     customRules: stored.customRules,
+    profilePictureDataUrl: stored.profilePictureDataUrl,
   };
 }
 
@@ -111,6 +118,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       weeklyHours: incoming.weeklyHours,
       phase: incoming.phase,
       customRules: incoming.customRules,
+      profilePictureDataUrl: incoming.profilePictureDataUrl,
       widgetsByDevice,
     };
     await setJSON(KV_KEY, next);
@@ -127,6 +135,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     weeklyHours: stored.weeklyHours,
     phase: stored.phase,
     customRules: stored.customRules,
+    profilePictureDataUrl: stored.profilePictureDataUrl,
     widgets,
   };
   res.status(200).json({ settings });

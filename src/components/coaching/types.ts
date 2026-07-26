@@ -44,6 +44,9 @@ export type CoachingSettings = {
   // Free-text standing instructions the athlete sets once, folded into
   // every coach prompt server-side - see api/coaching-settings.ts.
   customRules?: string;
+  // A small square JPEG data URL, already resized client-side (see
+  // src/utils/resizeImage.ts) before being saved - shown in ProfileMenu.
+  profilePictureDataUrl?: string;
 };
 
 export type ReadinessLevel = "hard" | "moderate" | "easy" | "rest";

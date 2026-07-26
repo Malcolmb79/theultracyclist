@@ -4,10 +4,28 @@ import styles from "./ProfileMenu.module.css";
 // Replaces the old standalone "Settings" tab + inline "Sign out" link with
 // a single profile icon holding both - one less item competing for space
 // in the main tab row, and a familiar "account menu" pattern instead of an
-// exposed sign-out link sitting next to the page tabs.
+// exposed sign-out link sitting next to the page tabs. Fetches its own
+// picture independently of whatever data each page already loads (some
+// pages, like Settings, don't otherwise fetch coaching-settings at all),
+// matching how this project keeps components decoupled from page-specific
+// data-loading rather than threading a prop through every caller.
 export default function ProfileMenu() {
   const [open, setOpen] = useState(false);
+  const [pictureUrl, setPictureUrl] = useState<string | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/coaching-settings")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body: { settings?: { profilePictureDataUrl?: string } } | null) => {
+        if (!cancelled) setPictureUrl(body?.settings?.profilePictureDataUrl ?? null);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -28,7 +46,7 @@ export default function ProfileMenu() {
         aria-expanded={open}
         aria-haspopup="menu"
       >
-        <ProfileIcon />
+        {pictureUrl ? <img src={pictureUrl} alt="" className={styles.pictureIcon} /> : <ProfileIcon />}
       </button>
       {open && (
         <div className={styles.menu} role="menu">

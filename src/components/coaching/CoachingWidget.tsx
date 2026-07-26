@@ -100,7 +100,19 @@ export default function CoachingWidget({
             </button>
           </>
         )}
-        <button type="button" className={styles.iconButton} onClick={onRemove} aria-label="Remove widget">
+        <button
+          type="button"
+          className={styles.iconButton}
+          onClick={(e) => {
+            // Blur before removing - on iOS Safari, removing the still-
+            // focused button from the DOM makes focus fall back to <body>,
+            // which scrolls the whole page to the top instead of leaving
+            // the scroll position where it was.
+            e.currentTarget.blur();
+            onRemove();
+          }}
+          aria-label="Remove widget"
+        >
           ×
         </button>
       </div>

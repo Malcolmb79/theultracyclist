@@ -252,8 +252,13 @@ export default function DashboardWidget({
   // A widget already sized for desktop shows visually compressed on mobile
   // (the saved width/height itself is untouched) - combo/rings/calendar are
   // exempt since they need more room than the cap to render their sub-content.
-  const capWidth = isMobile && !isRings && !isHealthCalendar ? MOBILE_CAP_WIDTH : Infinity;
-  const capHeight = isMobile && !isCombo && !isRings && !isHealthCalendar ? MOBILE_CAP_HEIGHT : Infinity;
+  // Not applied in stacked (flow) mode at all: that layout already clamps
+  // real overflow via max-width:100% (see .stacked in the stylesheet), so
+  // this cap would do nothing but fight a deliberate resize - re-clamping
+  // it back down on every reload and making the resize look like it never
+  // saved.
+  const capWidth = isMobile && !stacked && !isRings && !isHealthCalendar ? MOBILE_CAP_WIDTH : Infinity;
+  const capHeight = isMobile && !stacked && !isCombo && !isRings && !isHealthCalendar ? MOBILE_CAP_HEIGHT : Infinity;
 
   const { rect, handleDragPointerDown, handleResizePointerDown } = useCanvasItem({
     initial: {
@@ -408,7 +413,19 @@ export default function DashboardWidget({
                 <option value="timeline">Timeline</option>
               </select>
             )}
-            <button type="button" className={styles.iconButton} onClick={onRemove} aria-label="Remove widget">
+            <button
+              type="button"
+              className={styles.iconButton}
+              onClick={(e) => {
+                // Blur before removing - on iOS Safari, removing the still-
+                // focused button from the DOM makes focus fall back to
+                // <body>, which scrolls the whole page to the top instead
+                // of leaving the scroll position where it was.
+                e.currentTarget.blur();
+                onRemove();
+              }}
+              aria-label="Remove widget"
+            >
               ×
             </button>
           </div>

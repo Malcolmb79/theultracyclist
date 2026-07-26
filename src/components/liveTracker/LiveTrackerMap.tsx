@@ -48,10 +48,6 @@ const WIND_CLASS_LABEL: Record<WindClass, string> = {
 };
 
 const EARTH_CIRCUMFERENCE_M = 40_075_016.686;
-// How wide a reference bar the scale readout describes, in screen pixels -
-// same idea as a physical map's scale bar ("this many cm = this many km"),
-// just expressed as text instead of a drawn bar.
-const SCALE_BAR_PX = 100;
 
 // Standard Web Mercator ground resolution formula (256px tiles, so the
 // whole 360° wraps in 2^(zoom+8) px) - meters/pixel shrinks toward the
@@ -60,15 +56,14 @@ function metersPerPixel(latDeg: number, zoomLevel: number): number {
   return (EARTH_CIRCUMFERENCE_M * Math.cos((latDeg * Math.PI) / 180)) / 2 ** (zoomLevel + 8);
 }
 
-// Rounds down to a "nice" 1/2/5 x 10^n number, same convention Leaflet's
-// own scale control uses - a scale readout showing "37 km" is harder to
-// read at a glance than "20 km" or "50 km".
-function niceScaleKm(rawKm: number): number {
-  if (rawKm <= 0) return 0;
-  const pow10 = 10 ** Math.floor(Math.log10(rawKm));
-  const fraction = rawKm / pow10;
-  const nice = fraction >= 5 ? 5 : fraction >= 2 ? 2 : 1;
-  return nice * pow10;
+// Readable rounding that still tracks the real number reasonably closely
+// (unlike snapping to a fixed 1/2/5 x 10^n scale-bar convention, which at
+// this route's zoomed-out starting scale would round ~650km down to
+// 500km) - whole km under 100, nearest 5 under 1000, nearest 50 beyond.
+function roundKm(km: number): number {
+  if (km < 100) return Math.round(km);
+  if (km < 1000) return Math.round(km / 5) * 5;
+  return Math.round(km / 50) * 50;
 }
 
 function formatScaleKm(km: number): string {
@@ -131,17 +126,21 @@ export default function LiveTrackerMap({ route, position, coveredKm, totalKm, we
         fillOpacity: 1,
       }).addTo(map);
       // Keeps the slider and the km scale readout in sync with zooming/
-      // panning done any other way (scroll wheel, pinch, double-click, the
-      // map's own +/- control, dragging) - the slider isn't the only way
-      // to change zoom, and ground distance-per-pixel also depends on
-      // latitude (Web Mercator), so panning north/south needs a recompute
-      // even at a fixed zoom.
+      // panning/resizing done any other way (scroll wheel, pinch, double-
+      // click, the map's own +/- control, dragging, the widget itself being
+      // resized) - the slider isn't the only way to change zoom, and ground
+      // distance-per-pixel also depends on latitude (Web Mercator) and the
+      // container's actual pixel width, so panning or resizing needs a
+      // recompute even at a fixed zoom. The readout is the full visible map
+      // width in km (not a fixed-length scale-bar reference), so at the
+      // route's full-length starting view it reads close to the route's
+      // own ~600km span rather than some arbitrary smaller number.
       const updateScale = () => {
         setZoom(map.getZoom());
-        const raw = (metersPerPixel(map.getCenter().lat, map.getZoom()) * SCALE_BAR_PX) / 1000;
-        setScaleKm(niceScaleKm(raw));
+        const raw = (metersPerPixel(map.getCenter().lat, map.getZoom()) * map.getSize().x) / 1000;
+        setScaleKm(roundKm(raw));
       };
-      map.on("zoomend moveend", updateScale);
+      map.on("zoomend moveend resize", updateScale);
       updateScale();
       mapRef.current = map;
     });
@@ -194,12 +193,13 @@ export default function LiveTrackerMap({ route, position, coveredKm, totalKm, we
   // pinch/double-click) are left alone and zoom around wherever the user
   // is actually looking, only the slider forces a recenter.
   const handleZoomChange = (next: number) => {
-    setZoom(next);
+    const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, next));
+    setZoom(clamped);
     if (!mapRef.current) return;
     if (position) {
-      mapRef.current.setView([position.lat, position.lon], next);
+      mapRef.current.setView([position.lat, position.lon], clamped);
     } else {
-      mapRef.current.setZoom(next);
+      mapRef.current.setZoom(clamped);
     }
   };
 
@@ -214,9 +214,15 @@ export default function LiveTrackerMap({ route, position, coveredKm, totalKm, we
       <div ref={containerRef} className={styles.map} />
 
       <div className={styles.zoomSlider}>
-        <span className={styles.zoomLabel} aria-hidden="true">
+        <button
+          type="button"
+          className={styles.zoomStepButton}
+          onClick={() => handleZoomChange(zoom - 1)}
+          disabled={zoom <= MIN_ZOOM}
+          aria-label="Zoom out"
+        >
           −
-        </span>
+        </button>
         <input
           type="range"
           min={MIN_ZOOM}
@@ -226,9 +232,15 @@ export default function LiveTrackerMap({ route, position, coveredKm, totalKm, we
           onChange={(e) => handleZoomChange(Number(e.target.value))}
           aria-label="Map zoom level"
         />
-        <span className={styles.zoomLabel} aria-hidden="true">
+        <button
+          type="button"
+          className={styles.zoomStepButton}
+          onClick={() => handleZoomChange(zoom + 1)}
+          disabled={zoom >= MAX_ZOOM}
+          aria-label="Zoom in"
+        >
           +
-        </span>
+        </button>
         {scaleKm != null && <span className={styles.scaleValue}>{formatScaleKm(scaleKm)}</span>}
       </div>
 

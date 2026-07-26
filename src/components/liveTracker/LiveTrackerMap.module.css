@@ -48,11 +48,31 @@
   margin-left: 2px;
 }
 
-.zoomLabel {
+.zoomStepButton {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: none;
+  border: 1px solid var(--color-border);
   color: var(--color-text-muted);
   font-size: 0.85rem;
   line-height: 1;
-  user-select: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.zoomStepButton:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  color: var(--color-text);
+}
+
+.zoomStepButton:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 .controls {

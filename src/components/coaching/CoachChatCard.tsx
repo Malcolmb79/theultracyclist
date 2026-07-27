@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { CoachingSettings, NarrativeInput } from "./types";
+import { CHECKIN_TEMPLATE } from "./checkinTemplate";
 import styles from "./CoachChatCard.module.css";
 
 interface CoachChatCardProps {
@@ -86,6 +87,14 @@ export default function CoachChatCard({ input, settings, onSaveSettings, dataAva
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
   }, [messages, sending]);
 
+  // Drops the fixed check-in template straight into the thread, same as
+  // texting "checkin" to the WhatsApp coach - a local message, not an API
+  // call, so it's guaranteed to be the exact template rather than
+  // something the AI reproduces from memory (which could drift over time).
+  const insertCheckinTemplate = () => {
+    setMessages((prev) => [...prev, { role: "assistant", content: CHECKIN_TEMPLATE }]);
+  };
+
   const send = () => {
     const text = draft.trim();
     if (!text || sending) return;
@@ -118,14 +127,21 @@ export default function CoachChatCard({ input, settings, onSaveSettings, dataAva
     <div className={styles.card}>
       <div className={styles.headerRow}>
         <span className={styles.eyebrow}>My AI Coach</span>
-        <button
-          type="button"
-          className={styles.rulesToggle}
-          onClick={() => setRulesOpen((open) => !open)}
-          aria-expanded={rulesOpen}
-        >
-          {rulesOpen ? "Hide rules" : "Coach rules"}
-        </button>
+        <div className={styles.headerActions}>
+          {status === "ready" && (
+            <button type="button" className={styles.rulesToggle} onClick={insertCheckinTemplate}>
+              Check-in template
+            </button>
+          )}
+          <button
+            type="button"
+            className={styles.rulesToggle}
+            onClick={() => setRulesOpen((open) => !open)}
+            aria-expanded={rulesOpen}
+          >
+            {rulesOpen ? "Hide rules" : "Coach rules"}
+          </button>
+        </div>
       </div>
 
       {rulesOpen && (

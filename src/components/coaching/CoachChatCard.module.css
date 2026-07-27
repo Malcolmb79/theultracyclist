@@ -17,6 +17,12 @@
   gap: var(--space-2);
 }
 
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .eyebrow {
   font-weight: 700;
   font-size: 0.75rem;
@@ -93,6 +99,10 @@
   font-size: 0.9rem;
   line-height: 1.6;
   margin: 0;
+  /* Preserves the check-in template's line breaks (see
+     insertCheckinTemplate) - harmless for normal prose replies, which
+     don't rely on literal whitespace either way. */
+  white-space: pre-wrap;
 }
 
 .userMessage {

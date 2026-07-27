@@ -1,11 +1,13 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { persistEnvVar, triggerDeployHook } from "./_lib/vercelEnvStore.js";
+import { getJSON, setJSON } from "./_lib/kvStore.js";
 
 // Active retention cap - the POST handler below trims stored history to the
 // most recent MAX_DAYS on every ingest, permanently discarding older days.
 // Raised from 90 to keep a full year available to the coach; the JSON is
 // small so storage cost isn't a concern.
 const MAX_DAYS = 365;
+
+const KV_KEY = "APPLE_HEALTH_HISTORY";
 
 // Units that represent a cumulative daily total get summed across same-day
 // samples (steps, calories, minutes, grams of a nutrient); anything else
@@ -27,7 +29,18 @@ type HealthAutoExportPayload = {
   };
 };
 
-function readHistory(): History {
+// One-time migration fallback: this key used to live in a Vercel project
+// env var, only visible to the running server after a full redeploy (see
+// the git history for _lib/vercelEnvStore.ts) - since Apple Health syncs
+// happen far more often than "low write frequency" assumed when every
+// other route was migrated off this same mechanism, a sync could easily
+// land while a previous sync's redeploy was still in flight, silently
+// clobbering it (each write replaced the whole env var, and process.env is
+// a build-time snapshot, so nothing was ever lost more visibly than "the
+// dashboard just doesn't show it"). Until the first post-migration write
+// lands in Redis, fall back to whatever's still in the env var so nothing
+// synced before the cutover disappears.
+function readLegacyHistory(): History {
   try {
     const raw = process.env.APPLE_HEALTH_HISTORY;
     if (!raw) return {};
@@ -38,11 +51,15 @@ function readHistory(): History {
   }
 }
 
+async function readHistory(): Promise<History> {
+  return (await getJSON<History>(KV_KEY)) ?? readLegacyHistory();
+}
+
 // In-process accessor for the tool-calling coach: same stored history the
 // GET route reads, filtered to a day window and optionally to specific
 // metric names.
-export function fetchHealthHistory(days: number = MAX_DAYS, metricNames?: string[]): History {
-  const history = readHistory();
+export async function fetchHealthHistory(days: number = MAX_DAYS, metricNames?: string[]): Promise<History> {
+  const history = await readHistory();
   const cutoff = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
 
   const filtered: History = {};
@@ -75,7 +92,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const payload = req.body as HealthAutoExportPayload;
     const metrics = payload.data?.metrics ?? [];
-    const history = readHistory();
+    const history = await readHistory();
 
     for (const metric of metrics) {
       const isSum = SUM_UNITS.has(metric.units);
@@ -103,14 +120,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const trimmed: History = {};
     for (const date of trimmedDates) trimmed[date] = history[date];
 
-    await persistEnvVar("APPLE_HEALTH_HISTORY", JSON.stringify(trimmed));
-    await triggerDeployHook();
+    await setJSON(KV_KEY, trimmed);
 
     res.status(200).json({ ok: true, days: trimmedDates.length });
     return;
   }
 
-  const history = readHistory();
+  const history = await readHistory();
 
   const catalogMap = new Map<string, { unit: string; days: number }>();
   for (const day of Object.values(history)) {
@@ -124,6 +140,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .map(([name, info]) => ({ name, unit: info.unit, days: info.days }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  res.setHeader("Cache-Control", "public, s-maxage=1800, stale-while-revalidate=3600");
+  // Was cached at Vercel's edge for 30 minutes (stale-while-revalidate up
+  // to an hour) - harmless back when writes needed a full redeploy to ever
+  // change anyway, but now that writes are instant (see readHistory
+  // above), a long public cache just reintroduces the same "synced but not
+  // showing up" staleness from a different layer. KV reads are already
+  // fast, so there's nothing worth caching here.
   res.status(200).json({ history, catalog });
 }

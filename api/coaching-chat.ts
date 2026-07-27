@@ -257,7 +257,7 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
       case "get_health_metrics": {
         const days = typeof input.days === "number" ? input.days : undefined;
         const metric = typeof input.metric === "string" ? input.metric : undefined;
-        return fetchHealthHistory(days, metric ? [metric] : undefined);
+        return await fetchHealthHistory(days, metric ? [metric] : undefined);
       }
       case "get_fitness": {
         const trendDays = typeof input.trendDays === "number" ? input.trendDays : 14;

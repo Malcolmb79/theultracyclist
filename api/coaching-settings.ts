@@ -54,6 +54,13 @@ export type CoachingSettings = {
   // internal LiveTrack data endpoint sits behind CSRF protection a
   // stateless server request can't satisfy.
   garminLiveTrackUrl?: string;
+  // Drives the Calories Balance widget's live "estimated" burn fallback for
+  // today - see the client-side CoachingSettings type (src/components/
+  // coaching/types.ts) for the full explanation. Passed through as-is;
+  // this route has no logic of its own around these three fields.
+  caloriesBurnWakeTime?: string;
+  caloriesBurnTarget?: number;
+  caloriesBurnTargetTime?: string;
 };
 
 // KV shape: profile fields (ftpWatts, heightCm, ...) are shared across every
@@ -154,6 +161,9 @@ export async function fetchCoachingSettings(): Promise<CoachingSettings> {
     customRules: stored.customRules,
     profilePictureDataUrl: stored.profilePictureDataUrl,
     garminLiveTrackUrl: stored.garminLiveTrackUrl,
+    caloriesBurnWakeTime: stored.caloriesBurnWakeTime,
+    caloriesBurnTarget: stored.caloriesBurnTarget,
+    caloriesBurnTargetTime: stored.caloriesBurnTargetTime,
   };
 }
 
@@ -184,6 +194,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       customRules: incoming.customRules,
       profilePictureDataUrl: incoming.profilePictureDataUrl,
       garminLiveTrackUrl: incoming.garminLiveTrackUrl,
+      caloriesBurnWakeTime: incoming.caloriesBurnWakeTime,
+      caloriesBurnTarget: incoming.caloriesBurnTarget,
+      caloriesBurnTargetTime: incoming.caloriesBurnTargetTime,
       widgetsByDevice,
       // A save from today's client always sends an already-migrated list
       // (or a deliberately-emptied one) - either way, the array is now the
@@ -219,6 +232,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     customRules: stored.customRules,
     profilePictureDataUrl: stored.profilePictureDataUrl,
     garminLiveTrackUrl: stored.garminLiveTrackUrl,
+    caloriesBurnWakeTime: stored.caloriesBurnWakeTime,
+    caloriesBurnTarget: stored.caloriesBurnTarget,
+    caloriesBurnTargetTime: stored.caloriesBurnTargetTime,
     widgets,
   };
   res.status(200).json({ settings });

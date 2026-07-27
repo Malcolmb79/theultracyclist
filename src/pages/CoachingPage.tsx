@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import ReadinessCard from "../components/coaching/ReadinessCard";
 import PowerZonesCard from "../components/coaching/PowerZonesCard";
 import TrainingPlanCard from "../components/coaching/TrainingPlanCard";
@@ -25,11 +25,13 @@ import { useIsMobile } from "../utils/useIsMobile";
 import { useDeviceCategory } from "../utils/useDeviceCategory";
 import { useDashboardTheme } from "../utils/useDashboardTheme";
 import { useRawSources } from "../utils/useRawSources";
+import { usePullToRefresh } from "../utils/usePullToRefresh";
 import { computeCanvasHeight } from "../utils/useCanvasItem";
 import SignInGate from "../components/shared/SignInGate";
 import TabNav from "../components/shared/TabNav";
 import PageHeader from "../components/shared/PageHeader";
 import ProfileMenu from "../components/shared/ProfileMenu";
+import PullToRefreshIndicator from "../components/shared/PullToRefreshIndicator";
 import styles from "./CoachingPage.module.css";
 
 type Rect = { x: number; y: number; width: number; height: number };
@@ -133,6 +135,18 @@ function CoachingView() {
   const isMobile = useIsMobile();
   const [isResizing, setIsResizing] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
+  // Drag-down-to-refresh (mobile) - re-fetches Whoop/Strava/Apple
+  // Health/settings in the background without unmounting the cards
+  // currently on screen (see useRawSources' refetch).
+  const handlePullRefresh = useCallback(async () => {
+    if (raw.status === "ready") await raw.refetch();
+  }, [raw]);
+  const pull = usePullToRefresh(handlePullRefresh);
+  const caloriesBurnSettings = {
+    wakeTime: data.status === "ready" ? data.settings.caloriesBurnWakeTime : undefined,
+    targetKcal: data.status === "ready" ? data.settings.caloriesBurnTarget : undefined,
+    targetTime: data.status === "ready" ? data.settings.caloriesBurnTargetTime : undefined,
+  };
 
   // Trusts the server's list as-is (see api/coaching-settings.ts's one-time
   // migration) rather than re-seeding missing fixed cards here on every
@@ -211,6 +225,7 @@ function CoachingView() {
 
   return (
     <div className={styles.page}>
+      <PullToRefreshIndicator pullDistance={pull.pullDistance} refreshing={pull.refreshing} triggerDistance={pull.triggerDistance} />
       <div className={styles.topBar}>
         <TabNav
           items={[
@@ -279,6 +294,7 @@ function CoachingView() {
                   metricById={metricById}
                   whoopHistory={dashboardData.status === "ready" ? dashboardData.whoopHistory : []}
                   performanceSeries={dashboardData.status === "ready" ? dashboardData.performanceSeries : []}
+                  caloriesBurnSettings={caloriesBurnSettings}
                   onViewTypeChange={(viewType) => handleViewTypeChange(entry.id, viewType)}
                   onColorChange={(color) => handleColorChange(entry.id, color)}
                   onLabelChange={(label) => handleLabelChange(entry.id, label)}

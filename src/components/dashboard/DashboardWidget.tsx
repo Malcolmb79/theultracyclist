@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { formatDate } from "../../utils/formatDate";
 import { relativeDayLabel } from "../../utils/relativeDate";
 import { recoveryColor } from "../../utils/recoveryColor";
+import { irelandTodayDateStr } from "../../utils/irelandDate";
+import { estimateCalorieBurnNow, DEFAULT_CALORIE_BURN_ESTIMATE } from "../../utils/estimateCalorieBurn";
 import { useIsMobile } from "../../utils/useIsMobile";
 import { useMeasuredWidth } from "../../utils/useMeasuredWidth";
 import { useCanvasItem } from "../../utils/useCanvasItem";
@@ -63,6 +65,11 @@ interface DashboardWidgetProps {
   canMoveUp?: boolean;
   canMoveDown?: boolean;
   onReorder?: (direction: "up" | "down") => void;
+  // Settings-driven config for the Calories Balance widget's live
+  // "estimated" burn fallback - see estimateCalorieBurn.ts. Optional since
+  // most widget types never read it; falls back to
+  // DEFAULT_CALORIE_BURN_ESTIMATE per-field when unset.
+  caloriesBurnSettings?: { wakeTime?: string; targetKcal?: number; targetTime?: string };
 }
 
 // Maps a widget's underlying metric id to the Whoop detail view it should
@@ -192,12 +199,24 @@ export default function DashboardWidget({
   canMoveUp,
   canMoveDown,
   onReorder,
+  caloriesBurnSettings,
 }: DashboardWidgetProps) {
   const isCombo = widget.metric === WHOOP_STRAIN_RECOVERY_COMBO_ID;
   const isRings = widget.metric === WHOOP_RINGS_COMBO_ID;
   const isBmi = widget.metric === "health.bmi";
   const isHealthCalendar = widget.metric === HEALTH_CALENDAR_ID;
   const isCaloriesBalance = widget.metric === CALORIES_BALANCE_ID;
+
+  // Ticks every minute so the estimated-burn fallback below visibly climbs
+  // through the day while the page is left open, same pattern as
+  // WeatherCard's own live clock - only actually running for the one
+  // widget type that needs it.
+  const [estimateNow, setEstimateNow] = useState(() => new Date());
+  useEffect(() => {
+    if (!isCaloriesBalance) return;
+    const interval = setInterval(() => setEstimateNow(new Date()), 60_000);
+    return () => clearInterval(interval);
+  }, [isCaloriesBalance]);
   const isPerformanceChart = widget.metric === PERFORMANCE_CHART_ID;
   const isWeather = widget.metric === WEATHER_ID;
   const isGarminLiveTrack = widget.metric === GARMIN_LIVETRACK_ID;
@@ -246,10 +265,29 @@ export default function DashboardWidget({
   const caloriesDates = [...consumedByDate.keys(), ...activeByDate.keys(), ...basalByDate.keys()].sort();
   const latestCaloriesDate = caloriesDates.at(-1) ?? null;
   const consumedLatest = latestCaloriesDate ? consumedByDate.get(latestCaloriesDate) ?? null : null;
-  const burnedLatest =
+  const realBurnedLatest =
     latestCaloriesDate && (activeByDate.has(latestCaloriesDate) || basalByDate.has(latestCaloriesDate))
       ? (activeByDate.get(latestCaloriesDate) ?? 0) + (basalByDate.get(latestCaloriesDate) ?? 0)
       : null;
+  // Falls back to a live estimate (see estimateCalorieBurn.ts) only when
+  // there's no real Active/Basal Energy reading for TODAY specifically -
+  // any real number, even a partial same-day one, always wins over the
+  // estimate. Never applies to past days, which either have a real number
+  // or genuinely have none.
+  const hasRealBurnToday = latestCaloriesDate === irelandTodayDateStr() && realBurnedLatest != null;
+  const estimatedBurnedToday = !hasRealBurnToday
+    ? estimateCalorieBurnNow(
+        {
+          wakeTime: caloriesBurnSettings?.wakeTime ?? DEFAULT_CALORIE_BURN_ESTIMATE.wakeTime,
+          targetTime: caloriesBurnSettings?.targetTime ?? DEFAULT_CALORIE_BURN_ESTIMATE.targetTime,
+          dailyTargetKcal: caloriesBurnSettings?.targetKcal ?? DEFAULT_CALORIE_BURN_ESTIMATE.dailyTargetKcal,
+        },
+        estimateNow,
+      )
+    : null;
+  const burnedLatest = hasRealBurnToday ? realBurnedLatest : (estimatedBurnedToday ?? realBurnedLatest);
+  const isBurnedEstimated = !hasRealBurnToday && estimatedBurnedToday != null;
+  const caloriesDisplayDate = isBurnedEstimated ? irelandTodayDateStr() : latestCaloriesDate;
 
   const minHeight = isCombo
     ? MIN_COMBO_HEIGHT
@@ -532,7 +570,12 @@ export default function DashboardWidget({
               height={contentHeight}
             />
           ) : isCaloriesBalance ? (
-            <CaloriesBalanceCard consumed={consumedLatest} burned={burnedLatest} date={latestCaloriesDate} />
+            <CaloriesBalanceCard
+              consumed={consumedLatest}
+              burned={burnedLatest}
+              date={caloriesDisplayDate}
+              burnedEstimated={isBurnedEstimated}
+            />
           ) : isPerformanceChart ? (
             <PerformanceChart data={performanceSeries} height={Math.max(80, contentHeight - 40)} />
           ) : isWeather ? (

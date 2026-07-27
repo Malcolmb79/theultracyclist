@@ -53,6 +53,15 @@ export type CoachingSettings = {
   // GarminLiveTrackCard.tsx rather than parsed/fetched server-side - see
   // that component for why.
   garminLiveTrackUrl?: string;
+  // Drives the Calories Balance widget's live "estimated" burn fallback for
+  // today (src/utils/estimateCalorieBurn.ts) - a linear ramp from 0 kcal at
+  // wakeTime to caloriesBurnTarget by caloriesBurnTargetTime, used only when
+  // Apple Health hasn't synced a real Active/Basal Energy reading for today
+  // yet. All three default (07:00 / 1890 / 20:00) if unset - see
+  // DEFAULT_CALORIE_BURN_ESTIMATE.
+  caloriesBurnWakeTime?: string; // "HH:MM", 24h
+  caloriesBurnTarget?: number; // kcal, from the athlete's coach
+  caloriesBurnTargetTime?: string; // "HH:MM", 24h
 };
 
 export type ReadinessLevel = "hard" | "moderate" | "easy" | "rest";

@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import DataCatalog from "../components/dashboard/DataCatalog";
 import DashboardWidget from "../components/dashboard/DashboardWidget";
 import { useDashboardData } from "../components/dashboard/useDashboardData";
 import { useRawSources } from "../utils/useRawSources";
+import { usePullToRefresh } from "../utils/usePullToRefresh";
+import PullToRefreshIndicator from "../components/shared/PullToRefreshIndicator";
 import {
   WHOOP_STRAIN_RECOVERY_COMBO_ID,
   WHOOP_RINGS_COMBO_ID,
@@ -69,6 +71,19 @@ function DashboardEditor() {
   const raw = useRawSources(device);
   const data = useDashboardData(raw);
   const stacked = device === "mobile";
+  // Drag-down-to-refresh (mobile) - re-fetches Whoop/Strava/Apple
+  // Health/settings in the background without unmounting the widgets
+  // currently on screen (see useRawSources' refetch).
+  const handlePullRefresh = useCallback(async () => {
+    if (raw.status === "ready") await raw.refetch();
+  }, [raw]);
+  const pull = usePullToRefresh(handlePullRefresh);
+  const rawSettings = raw.status === "ready" ? raw.settings : {};
+  const caloriesBurnSettings = {
+    wakeTime: rawSettings.caloriesBurnWakeTime as string | undefined,
+    targetKcal: rawSettings.caloriesBurnTarget as number | undefined,
+    targetTime: rawSettings.caloriesBurnTargetTime as string | undefined,
+  };
   const [widgets, setWidgets] = useState<Widget[] | null>(null);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
@@ -179,6 +194,7 @@ function DashboardEditor() {
 
   return (
     <div className={styles.page}>
+      <PullToRefreshIndicator pullDistance={pull.pullDistance} refreshing={pull.refreshing} triggerDistance={pull.triggerDistance} />
       <div className={styles.topBar}>
         <TabNav
           items={[
@@ -234,6 +250,7 @@ function DashboardEditor() {
                 metricById={metricById}
                 whoopHistory={data.whoopHistory}
                 performanceSeries={data.performanceSeries}
+                caloriesBurnSettings={caloriesBurnSettings}
                 stacked
                 canMoveUp={index > 0}
                 canMoveDown={index < widgets.length - 1}
@@ -260,6 +277,7 @@ function DashboardEditor() {
                 metricById={metricById}
                 whoopHistory={data.whoopHistory}
                 performanceSeries={data.performanceSeries}
+                caloriesBurnSettings={caloriesBurnSettings}
                 onViewTypeChange={(viewType) => handleViewTypeChange(widget.id, viewType)}
                 onColorChange={(color) => handleColorChange(widget.id, color)}
                 onLabelChange={(label) => handleLabelChange(widget.id, label)}

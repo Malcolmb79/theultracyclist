@@ -6,6 +6,7 @@ import { useDashboardTheme } from "../utils/useDashboardTheme";
 import { convertValueUnit, type UnitSystem } from "../utils/units";
 import { readImageFile } from "../utils/resizeImage";
 import { fetchRoute } from "../utils/gpxRoute";
+import { DEFAULT_CALORIE_BURN_ESTIMATE } from "../utils/estimateCalorieBurn";
 import type { CoachingSettings } from "../components/coaching/types";
 import SignInGate from "../components/shared/SignInGate";
 import TabNav from "../components/shared/TabNav";
@@ -67,7 +68,14 @@ function SettingsEditor() {
   const [heightInput, setHeightInput] = useState("");
   const [distanceInput, setDistanceInput] = useState("");
   const [hoursInput, setHoursInput] = useState("");
-  const [saving, setSaving] = useState<"ftp" | "height" | "targets" | "garmin" | "liveTracker" | null>(null);
+  const [caloriesBurnWakeTimeInput, setCaloriesBurnWakeTimeInput] = useState(DEFAULT_CALORIE_BURN_ESTIMATE.wakeTime);
+  const [caloriesBurnTargetInput, setCaloriesBurnTargetInput] = useState(
+    DEFAULT_CALORIE_BURN_ESTIMATE.dailyTargetKcal.toString(),
+  );
+  const [caloriesBurnTargetTimeInput, setCaloriesBurnTargetTimeInput] = useState(DEFAULT_CALORIE_BURN_ESTIMATE.targetTime);
+  const [saving, setSaving] = useState<"ftp" | "height" | "targets" | "garmin" | "liveTracker" | "caloriesBurn" | null>(
+    null,
+  );
   const [garminUrlInput, setGarminUrlInput] = useState("");
   const [gpxUrlInput, setGpxUrlInput] = useState("");
   const [positionFeedUrlInput, setPositionFeedUrlInput] = useState("");
@@ -109,6 +117,9 @@ function SettingsEditor() {
         setHoursInput(s.weeklyHours?.toString() ?? "");
         setPictureDataUrl(s.profilePictureDataUrl);
         setGarminUrlInput(s.garminLiveTrackUrl ?? "");
+        setCaloriesBurnWakeTimeInput(s.caloriesBurnWakeTime ?? DEFAULT_CALORIE_BURN_ESTIMATE.wakeTime);
+        setCaloriesBurnTargetInput((s.caloriesBurnTarget ?? DEFAULT_CALORIE_BURN_ESTIMATE.dailyTargetKcal).toString());
+        setCaloriesBurnTargetTimeInput(s.caloriesBurnTargetTime ?? DEFAULT_CALORIE_BURN_ESTIMATE.targetTime);
       })
       .catch(() => {
         if (!cancelled) setSettings({});
@@ -180,6 +191,21 @@ function SettingsEditor() {
     setSaving("garmin");
     try {
       await persist({ ...settings, garminLiveTrackUrl: garminUrlInput.trim() === "" ? undefined : garminUrlInput.trim() });
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const handleSaveCaloriesBurnEstimate = async () => {
+    if (!settings) return;
+    setSaving("caloriesBurn");
+    try {
+      await persist({
+        ...settings,
+        caloriesBurnWakeTime: caloriesBurnWakeTimeInput || undefined,
+        caloriesBurnTarget: caloriesBurnTargetInput === "" ? undefined : Number(caloriesBurnTargetInput),
+        caloriesBurnTargetTime: caloriesBurnTargetTimeInput || undefined,
+      });
     } finally {
       setSaving(null);
     }
@@ -500,6 +526,57 @@ function SettingsEditor() {
             disabled={saving === "targets" || !settings}
           >
             {saving === "targets" ? "Saving…" : "Save"}
+          </button>
+        </div>
+
+        <div className={styles.section}>
+          <p className={styles.sectionTitle}>Estimated calorie burn</p>
+          <p className={styles.sectionHint}>
+            The Calories Balance widget shows this live estimate for today's "Burned" figure whenever Apple Health
+            hasn't synced a real Active/Basal Energy reading for today yet - a straight-line ramp from 0 at wake time
+            up to your coach's daily target by the time below, clearly labelled as an estimate. It's replaced by the
+            real synced number the moment Apple Health catches up.
+          </p>
+          <div className={styles.targetInputs}>
+            <label className={styles.targetLabel}>
+              Wake time
+              <input
+                type="time"
+                className={styles.input}
+                value={caloriesBurnWakeTimeInput}
+                onChange={(e) => setCaloriesBurnWakeTimeInput(e.target.value)}
+              />
+            </label>
+            <label className={styles.targetLabel}>
+              Daily target
+              <div className={styles.inputRow}>
+                <input
+                  type="number"
+                  className={styles.input}
+                  value={caloriesBurnTargetInput}
+                  onChange={(e) => setCaloriesBurnTargetInput(e.target.value)}
+                  placeholder="kcal"
+                />
+                <span className={styles.inputUnit}>kcal</span>
+              </div>
+            </label>
+            <label className={styles.targetLabel}>
+              Reached by
+              <input
+                type="time"
+                className={styles.input}
+                value={caloriesBurnTargetTimeInput}
+                onChange={(e) => setCaloriesBurnTargetTimeInput(e.target.value)}
+              />
+            </label>
+          </div>
+          <button
+            type="button"
+            className={styles.saveButton}
+            onClick={handleSaveCaloriesBurnEstimate}
+            disabled={saving === "caloriesBurn" || !settings}
+          >
+            {saving === "caloriesBurn" ? "Saving…" : "Save"}
           </button>
         </div>
 

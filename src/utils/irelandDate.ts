@@ -24,3 +24,19 @@ export function irelandDateStr(date: Date): string {
 export function irelandTodayDateStr(): string {
   return irelandDateStr(new Date());
 }
+
+// Minutes since local midnight in Ireland, e.g. 07:30 -> 450 - used by
+// anything that needs "how far through the day is it right now" in the
+// athlete's own timezone rather than the visiting device's (see
+// estimateCalorieBurn.ts).
+export function irelandMinutesSinceMidnight(date: Date): number {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: TIME_ZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+  return hour * 60 + minute;
+}

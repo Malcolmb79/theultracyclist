@@ -12,9 +12,14 @@ interface CaloriesBalanceCardProps {
   consumed: number | null;
   burned: number | null;
   date: string | null;
+  // True when `burned` is a live estimate (see estimateCalorieBurn.ts, set
+  // in Settings) rather than a real Apple Health Active/Basal Energy
+  // reading - only ever true for today, and only until a real reading for
+  // today actually arrives.
+  burnedEstimated?: boolean;
 }
 
-export default function CaloriesBalanceCard({ consumed, burned, date }: CaloriesBalanceCardProps) {
+export default function CaloriesBalanceCard({ consumed, burned, date, burnedEstimated }: CaloriesBalanceCardProps) {
   if (consumed == null && burned == null) {
     return (
       <p className={styles.empty}>
@@ -39,7 +44,7 @@ export default function CaloriesBalanceCard({ consumed, burned, date }: Calories
       </div>
 
       <div className={styles.row}>
-        <span className={styles.label}>Burned</span>
+        <span className={styles.label}>Burned{burnedEstimated && <span className={styles.estimatedTag}> (estimated)</span>}</span>
         <span className={styles.value} style={{ color: BURNED_COLOR }}>
           {burned != null ? formatKcal(burned) : "—"}
         </span>

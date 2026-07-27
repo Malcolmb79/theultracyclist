@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { CoachingSettings, NarrativeInput } from "./types";
-import { CHECKIN_TEMPLATE } from "./checkinTemplate";
+import { WEEKLY_CHECKIN_QUESTIONS, buildWeeklyCheckinMessage } from "./weeklyCheckin";
 import styles from "./CoachChatCard.module.css";
 
 interface CoachChatCardProps {
@@ -14,6 +14,12 @@ type ChatMessage = { role: "user" | "assistant"; content: string };
 
 type CardStatus = "waiting" | "loading" | "unconfigured" | "error" | "ready";
 
+// Walks through WEEKLY_CHECKIN_QUESTIONS one at a time ("asking"), then
+// shows the assembled result for a yes/no before actually sending
+// ("confirming") - a plain state machine local to this component, not
+// persisted, since a half-finished check-in isn't worth resuming later.
+type CheckinState = { phase: "asking"; step: number; answers: string[] } | { phase: "confirming"; answers: string[] };
+
 export default function CoachChatCard({ input, settings, onSaveSettings, dataAvailable }: CoachChatCardProps) {
   const [status, setStatus] = useState<CardStatus>("loading");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -22,6 +28,8 @@ export default function CoachChatCard({ input, settings, onSaveSettings, dataAva
   const [rulesOpen, setRulesOpen] = useState(false);
   const [rulesDraft, setRulesDraft] = useState(settings.customRules ?? "");
   const [savingRules, setSavingRules] = useState(false);
+  const [checkin, setCheckin] = useState<CheckinState | null>(null);
+  const [sendingCheckin, setSendingCheckin] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -87,21 +95,97 @@ export default function CoachChatCard({ input, settings, onSaveSettings, dataAva
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
   }, [messages, sending]);
 
-  // Drops the fixed check-in template straight into the thread, same as
-  // texting "checkin" to the WhatsApp coach - a local message, not an API
-  // call, so it's guaranteed to be the exact template rather than
-  // something the AI reproduces from memory (which could drift over time).
-  const insertCheckinTemplate = () => {
-    setMessages((prev) => [...prev, { role: "assistant", content: CHECKIN_TEMPLATE }]);
+  // Starts the question-by-question flow instead of dumping the whole
+  // template at once - each reply here is a local state transition, not an
+  // AI call, so the questions themselves can't drift or get reworded.
+  const startWeeklyCheckin = () => {
+    setCheckin({ phase: "asking", step: 0, answers: [] });
+    setMessages((prev) => [
+      ...prev,
+      { role: "assistant", content: `Let's do your weekly check-in.\n\n${WEEKLY_CHECKIN_QUESTIONS[0]}` },
+    ]);
+  };
+
+  const sendCheckinToWhatsApp = (finalMessage: string) => {
+    setSendingCheckin(true);
+    fetch("/api/send-checkin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: finalMessage }),
+    })
+      .then((res) => res.json())
+      .then((body: { sent: boolean; reason?: string }) => {
+        if (body.sent) {
+          setMessages((prev) => [
+            ...prev,
+            { role: "assistant", content: "Sent! Don't forget your front/side/rear photos too." },
+          ]);
+          return;
+        }
+        const why =
+          body.reason === "not_configured"
+            ? "I can't send WhatsApp messages yet - that needs setting up first."
+            : "Couldn't send that automatically.";
+        setMessages((prev) => [...prev, { role: "assistant", content: `${why} Here's the text to send yourself:\n\n${finalMessage}` }]);
+      })
+      .catch(() => {
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: `Couldn't send that automatically. Here's the text to send yourself:\n\n${finalMessage}` },
+        ]);
+      })
+      .finally(() => setSendingCheckin(false));
+  };
+
+  // Interprets a reply as either the answer to the current question, or -
+  // once every question's been asked - a yes/no on whether to actually
+  // send the assembled result.
+  const handleCheckinReply = (text: string) => {
+    setMessages((prev) => [...prev, { role: "user", content: text }]);
+
+    if (checkin?.phase === "asking") {
+      const nextAnswers = [...checkin.answers, text];
+      const nextStep = checkin.step + 1;
+      if (nextStep < WEEKLY_CHECKIN_QUESTIONS.length) {
+        setCheckin({ phase: "asking", step: nextStep, answers: nextAnswers });
+        setMessages((prev) => [...prev, { role: "assistant", content: WEEKLY_CHECKIN_QUESTIONS[nextStep] }]);
+      } else {
+        setCheckin({ phase: "confirming", answers: nextAnswers });
+        const finalMessage = buildWeeklyCheckinMessage(nextAnswers);
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: `Here's your completed check-in:\n\n${finalMessage}\n\nSend this to your coach via WhatsApp? (yes/no)` },
+        ]);
+      }
+      return;
+    }
+
+    if (checkin?.phase === "confirming") {
+      const finalMessage = buildWeeklyCheckinMessage(checkin.answers);
+      setCheckin(null);
+      if (/^y(es)?$/i.test(text.trim())) {
+        sendCheckinToWhatsApp(finalMessage);
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: 'No problem, cancelled - click "Weekly check-in" again whenever you\'re ready.' },
+        ]);
+      }
+    }
   };
 
   const send = () => {
     const text = draft.trim();
-    if (!text || sending) return;
+    if (!text || sending || sendingCheckin) return;
+    setDraft("");
+
+    if (checkin) {
+      handleCheckinReply(text);
+      return;
+    }
 
     const next = [...messages, { role: "user" as const, content: text }];
     setMessages(next);
-    setDraft("");
     setSending(true);
 
     fetch("/api/coaching-chat", {
@@ -129,8 +213,8 @@ export default function CoachChatCard({ input, settings, onSaveSettings, dataAva
         <span className={styles.eyebrow}>My AI Coach</span>
         <div className={styles.headerActions}>
           {status === "ready" && (
-            <button type="button" className={styles.rulesToggle} onClick={insertCheckinTemplate}>
-              Check-in template
+            <button type="button" className={styles.rulesToggle} onClick={startWeeklyCheckin} disabled={checkin != null}>
+              Weekly check-in
             </button>
           )}
           <button
@@ -178,6 +262,7 @@ export default function CoachChatCard({ input, settings, onSaveSettings, dataAva
               </p>
             ))}
             {sending && <p className={styles.muted}>Thinking…</p>}
+            {sendingCheckin && <p className={styles.muted}>Sending…</p>}
           </div>
           <form
             className={styles.composer}
@@ -190,10 +275,10 @@ export default function CoachChatCard({ input, settings, onSaveSettings, dataAva
               className={styles.input}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder="Ask the coach something…"
-              disabled={sending}
+              placeholder={checkin ? "Type your answer…" : "Ask the coach something…"}
+              disabled={sending || sendingCheckin}
             />
-            <button type="submit" className={styles.sendButton} disabled={sending || !draft.trim()}>
+            <button type="submit" className={styles.sendButton} disabled={sending || sendingCheckin || !draft.trim()}>
               Send
             </button>
           </form>

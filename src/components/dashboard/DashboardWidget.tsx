@@ -264,7 +264,6 @@ export default function DashboardWidget({
   const basalByDate = new Map((basalMetric?.series ?? []).map((p) => [p.date.slice(0, 10), p.value]));
   const caloriesDates = [...consumedByDate.keys(), ...activeByDate.keys(), ...basalByDate.keys()].sort();
   const latestCaloriesDate = caloriesDates.at(-1) ?? null;
-  const consumedLatest = latestCaloriesDate ? consumedByDate.get(latestCaloriesDate) ?? null : null;
   const realBurnedLatest =
     latestCaloriesDate && (activeByDate.has(latestCaloriesDate) || basalByDate.has(latestCaloriesDate))
       ? (activeByDate.get(latestCaloriesDate) ?? 0) + (basalByDate.get(latestCaloriesDate) ?? 0)
@@ -288,6 +287,12 @@ export default function DashboardWidget({
   const burnedLatest = hasRealBurnToday ? realBurnedLatest : (estimatedBurnedToday ?? realBurnedLatest);
   const isBurnedEstimated = !hasRealBurnToday && estimatedBurnedToday != null;
   const caloriesDisplayDate = isBurnedEstimated ? irelandTodayDateStr() : latestCaloriesDate;
+  // Consumed always tracks the date actually being displayed rather than
+  // whichever of the three metrics last happened to sync - otherwise a live
+  // burned estimate for today (see above) gets paired with yesterday's full
+  // dietary total under a "Today" label, e.g. "1,652 kcal consumed" against
+  // "36 kcal burned" at 7am, when nothing has been logged yet today.
+  const consumedLatest = caloriesDisplayDate ? consumedByDate.get(caloriesDisplayDate) ?? null : null;
 
   const minHeight = isCombo
     ? MIN_COMBO_HEIGHT

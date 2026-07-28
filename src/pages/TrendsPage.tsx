@@ -225,6 +225,7 @@ function TrendsEditor() {
                 days={data.days}
                 whoopHistory={data.whoopHistory}
                 weightByDate={data.weightByDate}
+                weightSeries={data.weightSeries}
                 weightUnit={data.weightUnit}
                 bmiByDate={data.bmiByDate}
                 performanceSeries={data.performanceSeries}
@@ -255,6 +256,7 @@ function TrendsEditor() {
                 days={data.days}
                 whoopHistory={data.whoopHistory}
                 weightByDate={data.weightByDate}
+                weightSeries={data.weightSeries}
                 weightUnit={data.weightUnit}
                 bmiByDate={data.bmiByDate}
                 performanceSeries={data.performanceSeries}

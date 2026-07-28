@@ -88,6 +88,14 @@ export type TrendsDataState =
       performanceSeries: PerformancePoint[];
       /** Goals that have a deadline, for the progress views. */
       datedGoals: Record<"weight" | "ftp" | "sleepWeekly", DatedGoal>;
+      /**
+       * Every Apple Health weight reading, in the unit the user reads in.
+       *
+       * Separate from weightByDate, which is kg for the calculations that need
+       * it (BMI). A chart drawn from one and labelled from the other is how a
+       * kg figure ends up with lb beside it.
+       */
+      weightSeries: { date: string; value: number }[];
     };
 
 export function useTrendsData(): TrendsDataState {
@@ -527,14 +535,23 @@ export function useTrendsData(): TrendsDataState {
 
         const currentFtp = (settingsBody?.settings?.ftpWatts as number | undefined) ?? null;
 
+        // Weight is held in kg throughout — the readings are converted on the
+        // way in from Apple Health, and the goal is stored in kg by the editor.
+        // Both are converted once here into whatever the user reads in, so the
+        // chart, the figures and the unit beside them cannot disagree. The
+        // previous label came from Apple Health's own unit while the numbers
+        // were already metric, which would have read as lb on a kg figure.
+        const inDisplayUnits = (kg: number | null) => (kg == null ? null : convertValueUnit(kg, "kg", system).value);
+        const displayWeightUnit = convertValueUnit(1, "kg", system).unit;
+
         const datedGoals = {
           weight: {
             label: "Weight",
-            unit: weightUnit,
-            current: lastRecorded(weightByDate),
-            target: goals.weightKg ?? null,
+            unit: displayWeightUnit,
+            current: inDisplayUnits(lastRecorded(weightByDate)),
+            target: inDisplayUnits(goals.weightKg ?? null),
             targetDate: goals.weightTargetDate,
-            start: firstRecorded(weightByDate),
+            start: inDisplayUnits(firstRecorded(weightByDate)),
             direction: "down",
           },
           ftp: {
@@ -577,6 +594,9 @@ export function useTrendsData(): TrendsDataState {
           bmiByDate,
           performanceSeries,
           datedGoals,
+          weightSeries: [...weightByDate.entries()]
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([date, kg]) => ({ date, value: convertValueUnit(kg, "kg", system).value })),
         });
       })
       .catch(() => {
@@ -596,6 +616,7 @@ export function useTrendsData(): TrendsDataState {
             // Everything unknown rather than zeroed: a goal view showing 0kg
             // against a target reads as a real reading, and a failed fetch is
             // not a measurement.
+            weightSeries: [],
             datedGoals: {
               weight: { label: "Weight", unit: "kg", current: null, target: null, start: null, direction: "down" },
               ftp: { label: "FTP", unit: "W", current: null, target: null, start: null, direction: "up" },

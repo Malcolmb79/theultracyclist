@@ -107,9 +107,16 @@
   transform: translateX(0);
 }
 
+/* Scales with the actual viewport instead of a fixed cap, so a wide desktop
+   monitor gets real extra room for widgets rather than a fixed-width column
+   with dead space on both sides - 2400px is just a ceiling against truly
+   ultrawide screens stretching the canvas absurdly far. Existing saved
+   widget positions/sizes don't automatically grow to fill the extra room
+   (they're free-form x/y/width/height, not a responsive grid) - this only
+   changes how much space is available to drag/resize into. */
 .canvas {
   min-width: 0;
-  max-width: 1400px;
+  max-width: min(95vw, 2400px);
   margin: 0 auto;
 }
 

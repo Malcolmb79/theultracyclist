@@ -43,6 +43,11 @@
   gap: 12px;
   flex: 1;
   min-height: 0;
+  /* Without this, content that doesn't fit this row's shrunk-to-fit box
+     (icon/temp/stat lines) spills past its own bottom edge instead of
+     clipping, landing on top of .forecastRow below - which renders at its
+     normal flow position, oblivious to anything overflowing into it. */
+  overflow: hidden;
 }
 
 .iconCol {

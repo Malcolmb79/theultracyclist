@@ -149,8 +149,11 @@ const MIN_PERFORMANCE_WIDTH = 360;
 const DEFAULT_PERFORMANCE_WIDTH = 440;
 const DEFAULT_PERFORMANCE_HEIGHT = 300;
 // The redesigned card (hero icon, live clock, wind direction, 7-day
-// forecast strip) needs more room than a plain stat tile to stay legible.
-const MIN_WEATHER_HEIGHT = 260;
+// forecast strip) needs more room than a plain stat tile to stay legible -
+// 260 let the widget shrink smaller than its own header+mainRow+forecastRow
+// actually need, which is what let mainRow's content spill onto the
+// forecast row below it (see WeatherCard.module.css's .mainRow overflow).
+const MIN_WEATHER_HEIGHT = 320;
 const MIN_WEATHER_WIDTH = 300;
 const DEFAULT_WEATHER_WIDTH = 340;
 const DEFAULT_WEATHER_HEIGHT = 320;

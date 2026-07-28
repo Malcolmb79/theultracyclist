@@ -262,18 +262,19 @@ export default function DashboardWidget({
   const consumedByDate = new Map((consumedMetric?.series ?? []).map((p) => [p.date.slice(0, 10), p.value]));
   const activeByDate = new Map((activeMetric?.series ?? []).map((p) => [p.date.slice(0, 10), p.value]));
   const basalByDate = new Map((basalMetric?.series ?? []).map((p) => [p.date.slice(0, 10), p.value]));
-  const caloriesDates = [...consumedByDate.keys(), ...activeByDate.keys(), ...basalByDate.keys()].sort();
-  const latestCaloriesDate = caloriesDates.at(-1) ?? null;
-  const realBurnedLatest =
-    latestCaloriesDate && (activeByDate.has(latestCaloriesDate) || basalByDate.has(latestCaloriesDate))
-      ? (activeByDate.get(latestCaloriesDate) ?? 0) + (basalByDate.get(latestCaloriesDate) ?? 0)
-      : null;
+  const today = irelandTodayDateStr();
   // Falls back to a live estimate (see estimateCalorieBurn.ts) only when
   // there's no real Active/Basal Energy reading for TODAY specifically -
   // any real number, even a partial same-day one, always wins over the
-  // estimate. Never applies to past days, which either have a real number
-  // or genuinely have none.
-  const hasRealBurnToday = latestCaloriesDate === irelandTodayDateStr() && realBurnedLatest != null;
+  // estimate. Checked directly against today's date in the burn metrics
+  // themselves, rather than via the latest date across all three metrics
+  // combined - Consumed often syncs on its own schedule, and its latest
+  // date briefly outrunning Active/Basal's (e.g. a meal logged before the
+  // day's workout syncs) used to make a real, already-synced burn total
+  // for today look absent and fall back to the estimate.
+  const realBurnedToday =
+    activeByDate.has(today) || basalByDate.has(today) ? (activeByDate.get(today) ?? 0) + (basalByDate.get(today) ?? 0) : null;
+  const hasRealBurnToday = realBurnedToday != null;
   const estimatedBurnedToday = !hasRealBurnToday
     ? estimateCalorieBurnNow(
         {
@@ -284,9 +285,19 @@ export default function DashboardWidget({
         estimateNow,
       )
     : null;
-  const burnedLatest = hasRealBurnToday ? realBurnedLatest : (estimatedBurnedToday ?? realBurnedLatest);
+  // Past-day fallback (no real burn today and no estimate settings resolve
+  // one) - the latest day that Active/Basal actually has a reading for,
+  // not blended with Consumed's own latest sync date for the same reason
+  // as above.
+  const burnDates = [...activeByDate.keys(), ...basalByDate.keys()].sort();
+  const latestBurnDate = burnDates.at(-1) ?? null;
+  const realBurnedLatest =
+    latestBurnDate && (activeByDate.has(latestBurnDate) || basalByDate.has(latestBurnDate))
+      ? (activeByDate.get(latestBurnDate) ?? 0) + (basalByDate.get(latestBurnDate) ?? 0)
+      : null;
+  const burnedLatest = hasRealBurnToday ? realBurnedToday : (estimatedBurnedToday ?? realBurnedLatest);
   const isBurnedEstimated = !hasRealBurnToday && estimatedBurnedToday != null;
-  const caloriesDisplayDate = isBurnedEstimated ? irelandTodayDateStr() : latestCaloriesDate;
+  const caloriesDisplayDate = hasRealBurnToday || isBurnedEstimated ? today : latestBurnDate;
   // Consumed always tracks the date actually being displayed rather than
   // whichever of the three metrics last happened to sync - otherwise a live
   // burned estimate for today (see above) gets paired with yesterday's full

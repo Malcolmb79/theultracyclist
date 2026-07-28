@@ -6,6 +6,8 @@ import type { TrendsWidgetConfig, TrendsViewType } from "./types";
 import HealthCalendar from "../dashboard/HealthCalendar";
 import type { HealthCalendarDay } from "../dashboard/HealthDayDetailModal";
 import PerformanceChart from "../dashboard/PerformanceChart";
+import GoalProgress from "./GoalProgress";
+import type { DatedGoal } from "./types";
 import type { PerformancePoint } from "../../utils/performanceSeries";
 import { isWeightMetricId, formatWeight } from "../../utils/bmi";
 import {
@@ -44,6 +46,8 @@ interface TrendsWidgetProps {
   weightUnit: string;
   bmiByDate: Map<string, number>;
   performanceSeries: PerformancePoint[];
+  /** Set when this widget shows a goal with a deadline rather than a metric. */
+  datedGoal?: DatedGoal;
   onViewTypeChange: (viewType: TrendsViewType) => void;
   onColorChange: (color: string) => void;
   onMove: (x: number, y: number) => void;
@@ -65,6 +69,7 @@ const VIEW_LABEL: Record<TrendsViewType, string> = {
   calendar: "Calendar",
   healthCalendar: "Health Calendar",
   performanceChart: "Performance Chart",
+  goalProgress: "Goal progress",
 };
 
 // The selectable time ranges, shown as an always-visible pill row inside
@@ -80,6 +85,7 @@ const VIEW_PILL_LABEL: Record<TrendsViewType, string> = {
   calendar: "Calendar",
   healthCalendar: "Health Calendar",
   performanceChart: "Performance Chart",
+  goalProgress: "Goal progress",
 };
 
 const HEADER_HEIGHT = 40;
@@ -99,6 +105,7 @@ export default function TrendsWidget({
   weightUnit,
   bmiByDate,
   performanceSeries,
+  datedGoal,
   onViewTypeChange,
   onColorChange,
   onMove,
@@ -113,6 +120,7 @@ export default function TrendsWidget({
   const isCalendar = widget.viewType === "calendar";
   const isHealthCalendar = widget.viewType === "healthCalendar";
   const isPerformanceChart = widget.viewType === "performanceChart";
+  const isGoalProgress = widget.viewType === "goalProgress";
   const needsCalendarRoom = isCalendar || isHealthCalendar;
   // Performance chart's multi-line plot + legend needs similarly generous
   // room to either calendar, so it reuses the same wider min/default sizing
@@ -187,7 +195,7 @@ export default function TrendsWidget({
   const color = widget.color ?? DEFAULT_TRENDS_COLOR;
   const contentHeight = Math.max(
     24,
-    rect.height - HEADER_HEIGHT - CONTENT_PADDING - (isHealthCalendar || isPerformanceChart ? 0 : VIEW_SEGMENTED_HEIGHT),
+    rect.height - HEADER_HEIGHT - CONTENT_PADDING - (isHealthCalendar || isPerformanceChart || isGoalProgress ? 0 : VIEW_SEGMENTED_HEIGHT),
   );
   const positionStyle = stacked
     ? { width: rect.width, height: rect.height }
@@ -288,6 +296,8 @@ export default function TrendsWidget({
           <CalendarView metric={metric} color={color} height={contentHeight} />
         ) : isPerformanceChart ? (
           <PerformanceChart data={performanceSeries} height={Math.max(80, contentHeight - 40)} />
+        ) : isGoalProgress && datedGoal ? (
+          <GoalProgress goal={datedGoal} todayIso={today()} />
         ) : (
           (() => {
             const anchor = today();

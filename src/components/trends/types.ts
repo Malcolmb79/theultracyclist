@@ -1,4 +1,14 @@
-export type TrendsViewType = "day" | "week" | "month" | "calendar" | "healthCalendar" | "performanceChart";
+export type TrendsViewType =
+  | "day"
+  | "week"
+  | "month"
+  | "calendar"
+  | "healthCalendar"
+  | "performanceChart"
+  // A goal with a deadline: how far there is to go and whether the pace gets
+  // there in time. The day/week/month views answer a different question —
+  // whether the target was met in a period — and cannot express a deadline.
+  | "goalProgress";
 
 export type TrendsWidgetConfig = {
   id: string;
@@ -43,7 +53,15 @@ export const MOBILE_MIN_CALENDAR_HEIGHT = 320;
 
 export type Goals = {
   weightKg?: number;
+  /** When the weight target is meant to be reached — ISO date. */
+  weightTargetDate?: string;
   sleepHours?: number;
+  /** Total hours of sleep aimed for across a week, as opposed to per night. */
+  sleepHoursPerWeek?: number;
+  /** Functional threshold power aimed for, in watts. */
+  ftpTargetWatts?: number;
+  /** When the FTP target is meant to be reached — ISO date. */
+  ftpTargetDate?: string;
   proteinG?: number;
   fatG?: number;
   carbsG?: number;
@@ -63,4 +81,26 @@ export const GOAL_METRIC_IDS = {
   fat: "goal.fat",
   carbs: "goal.carbs",
   calories: "goal.calories",
+  sleepWeekly: "goal.sleepWeekly",
+  ftp: "goal.ftp",
 } as const;
+
+/**
+ * A goal with a deadline, as the progress view needs it.
+ *
+ * The per-day goal metrics answer "did I hit it today". These answer "will I
+ * get there by then", which needs a start, a target and a date, and is a
+ * different question with a different shape.
+ */
+export type DatedGoal = {
+  label: string;
+  unit: string;
+  /** Where it stands now. */
+  current: number | null;
+  target: number | null;
+  targetDate?: string;
+  /** Value when the goal was first tracked, so progress has something to measure from. */
+  start: number | null;
+  /** Which way counts as progress. */
+  direction: "down" | "up";
+};

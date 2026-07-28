@@ -70,3 +70,16 @@
   opacity: 0.6;
   cursor: default;
 }
+
+/* Narrower than it would default to, so a goal and its date still sit on one
+   line at the width this editor is given. */
+.dateInput {
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 2px 4px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 4px);
+  background: var(--color-bg);
+  color: var(--color-text);
+  max-width: 9.5rem;
+}

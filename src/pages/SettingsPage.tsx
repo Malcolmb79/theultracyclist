@@ -10,6 +10,8 @@ import { DEFAULT_CALORIE_BURN_ESTIMATE } from "../utils/estimateCalorieBurn";
 import type { CoachingSettings } from "../components/coaching/types";
 import SignInGate from "../components/shared/SignInGate";
 import TabNav from "../components/shared/TabNav";
+import GoalsEditor from "../components/trends/GoalsEditor";
+import type { Goals } from "../components/trends/types";
 import PageHeader from "../components/shared/PageHeader";
 import ProfileMenu from "../components/shared/ProfileMenu";
 import ImageCropper from "../components/settings/ImageCropper";
@@ -59,6 +61,26 @@ function toDatetimeLocalValue(iso: string): string {
 }
 
 function SettingsEditor() {
+  // Goals live in their own KV record rather than in coaching settings, so
+  // they load and save independently of everything else on this page.
+  const [goals, setGoals] = useState<Goals>({});
+
+  useEffect(() => {
+    fetch("/api/trends-goals")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((body) => setGoals(body?.goals ?? {}))
+      .catch(() => setGoals({}));
+  }, []);
+
+  const handleSaveGoals = async (next: Goals) => {
+    await fetch("/api/trends-goals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(next),
+    });
+    setGoals(next);
+  };
+
   const { system, setSystem } = useUnits();
   const { mode, setMode } = useTheme();
   const distanceUnit = convertValueUnit(1, "km", system).unit;
@@ -440,6 +462,16 @@ function SettingsEditor() {
           >
             {savingPicture ? "Saving…" : "Save"}
           </button>
+        </div>
+
+        <div className={styles.section}>
+          <p className={styles.sectionTitle}>Goals</p>
+          <p className={styles.sectionHint}>
+            Targets, and when you mean to reach them. A goal with a date can be judged on whether it&apos;s on track;
+            one without can only be judged on whether it&apos;s been reached. Add these as widgets from the Trends
+            page.
+          </p>
+          <GoalsEditor goals={goals} onSave={handleSaveGoals} />
         </div>
 
         <div className={styles.section}>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { GOAL_METRIC_IDS, type Goals } from "./types";
+import { GOAL_METRIC_IDS, type DatedGoal, type Goals } from "./types";
 import { HEALTH_CALENDAR_ID, PERFORMANCE_CHART_ID } from "../dashboard/types";
 import { useUnits } from "../../context/UnitsContext";
 import { convertTrendMetric, convertValueUnit } from "../../utils/units";
@@ -86,6 +86,8 @@ export type TrendsDataState =
       weightUnit: string;
       bmiByDate: Map<string, number>;
       performanceSeries: PerformancePoint[];
+      /** Goals that have a deadline, for the progress views. */
+      datedGoals: Record<"weight" | "ftp" | "sleepWeekly", DatedGoal>;
     };
 
 export function useTrendsData(): TrendsDataState {
@@ -418,6 +420,36 @@ export function useTrendsData(): TrendsDataState {
             getValue: (date) => (calorieKey ? (healthHistory[date]?.[calorieKey]?.value ?? null) : null),
             getGoal: (date) => (isTrainingDay(date) ? (goals.calorieGoalTrainingDay ?? null) : (goals.calorieGoalRestDay ?? null)),
           },
+          {
+            // A weekly total rather than a nightly one: sleep is caught up on
+            // and lost across a week, and a night-by-night target marks a
+            // perfectly rested week as six failures and a success.
+            id: GOAL_METRIC_IDS.sleepWeekly,
+            source: "goal",
+            label: "Sleep vs weekly goal",
+            unit: "h",
+            aggregation: "sum",
+            isGoal: true,
+            goalDirection: "atLeast",
+            getValue: (date) => whoopByDate.get(date)?.sleep?.totalSleepHours ?? null,
+            // Spread across the week so a daily view still reads sensibly and
+            // a weekly view sums back to the real target.
+            getGoal: () => (goals.sleepHoursPerWeek != null ? goals.sleepHoursPerWeek / 7 : null),
+          },
+          {
+            // Flat across every day: FTP is a tested figure that holds until
+            // it is retested, not something measured daily. The value of this
+            // metric is the progress view, not the per-day comparison.
+            id: GOAL_METRIC_IDS.ftp,
+            source: "goal",
+            label: "FTP vs goal",
+            unit: "W",
+            aggregation: "avg",
+            isGoal: true,
+            goalDirection: "atLeast",
+            getValue: () => (settingsBody?.settings?.ftpWatts as number | undefined) ?? null,
+            getGoal: () => goals.ftpTargetWatts ?? null,
+          },
         );
 
         // Health Calendar: one calendar with Strain/Recovery/Sleep/HRV/
@@ -450,6 +482,72 @@ export function useTrendsData(): TrendsDataState {
           setReloadToken((t) => t + 1);
         };
 
+        /**
+         * Where a metric stood when it was first recorded, so progress has
+         * something to measure from. Without it a goal can only be reported
+         * as reached or not — 80kg against a 78kg target is halfway from 82
+         * and nowhere near from 79, and the two look identical otherwise.
+         */
+        const firstRecorded = (byDate: Map<string, number>): number | null => {
+          for (const date of days) {
+            const value = byDate.get(date);
+            if (value != null) return value;
+          }
+          return null;
+        };
+        const lastRecorded = (byDate: Map<string, number>): number | null => {
+          for (let i = days.length - 1; i >= 0; i--) {
+            const value = byDate.get(days[i]);
+            if (value != null) return value;
+          }
+          return null;
+        };
+
+        // Sleep over the last seven days that have a reading, against the
+        // weekly target.
+        const sleepByDate = new Map<string, number>();
+        for (const date of days) {
+          const hours = whoopByDate.get(date)?.sleep?.totalSleepHours;
+          if (hours != null) sleepByDate.set(date, hours);
+        }
+        const lastSevenNights = [...sleepByDate.keys()].slice(-7);
+        const weekSleep = lastSevenNights.reduce((sum, date) => sum + (sleepByDate.get(date) ?? 0), 0);
+
+        const currentFtp = (settingsBody?.settings?.ftpWatts as number | undefined) ?? null;
+
+        const datedGoals = {
+          weight: {
+            label: "Weight",
+            unit: weightUnit,
+            current: lastRecorded(weightByDate),
+            target: goals.weightKg ?? null,
+            targetDate: goals.weightTargetDate,
+            start: firstRecorded(weightByDate),
+            direction: "down",
+          },
+          ftp: {
+            label: "FTP",
+            unit: "W",
+            // The current figure is the one entered in Settings rather than
+            // anything derived from rides: FTP is a tested number, and
+            // inferring it from ride power would move the goalposts every
+            // time a hard effort was logged.
+            current: currentFtp,
+            target: goals.ftpTargetWatts ?? null,
+            targetDate: goals.ftpTargetDate,
+            start: currentFtp,
+            direction: "up",
+          },
+          sleepWeekly: {
+            label: "Sleep this week",
+            unit: "h",
+            current: lastSevenNights.length > 0 ? weekSleep : null,
+            target: goals.sleepHoursPerWeek ?? null,
+            start: 0,
+            direction: "up",
+          },
+        } satisfies Record<string, DatedGoal>;
+
         setState({
           status: "ready",
           days,
@@ -462,6 +560,7 @@ export function useTrendsData(): TrendsDataState {
           weightUnit,
           bmiByDate,
           performanceSeries,
+          datedGoals,
         });
       })
       .catch(() => {
@@ -478,6 +577,14 @@ export function useTrendsData(): TrendsDataState {
             weightUnit: "kg",
             bmiByDate: new Map(),
             performanceSeries: [],
+            // Everything unknown rather than zeroed: a goal view showing 0kg
+            // against a target reads as a real reading, and a failed fetch is
+            // not a measurement.
+            datedGoals: {
+              weight: { label: "Weight", unit: "kg", current: null, target: null, start: null, direction: "down" },
+              ftp: { label: "FTP", unit: "W", current: null, target: null, start: null, direction: "up" },
+              sleepWeekly: { label: "Sleep this week", unit: "h", current: null, target: null, start: null, direction: "up" },
+            },
           });
         }
       });

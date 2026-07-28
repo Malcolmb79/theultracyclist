@@ -4,7 +4,15 @@ import { getSessionEmail } from "./_lib/session.js";
 
 export type Goals = {
   weightKg?: number;
+  /** When the weight target is meant to be reached — ISO date. */
+  weightTargetDate?: string;
   sleepHours?: number;
+  /** Total hours of sleep aimed for across a week, as opposed to per night. */
+  sleepHoursPerWeek?: number;
+  /** Functional threshold power aimed for, in watts. */
+  ftpTargetWatts?: number;
+  /** When the FTP target is meant to be reached — ISO date. */
+  ftpTargetDate?: string;
   proteinG?: number;
   fatG?: number;
   carbsG?: number;

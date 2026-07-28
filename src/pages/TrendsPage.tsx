@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import TrendsCatalog from "../components/trends/TrendsCatalog";
 import TrendsWidget from "../components/trends/TrendsWidget";
 import { useTrendsData, type TrendMetricDef } from "../components/trends/useTrendsData";
-import type { TrendsWidgetConfig, TrendsViewType } from "../components/trends/types";
+import { GOAL_METRIC_IDS, type TrendsWidgetConfig, type TrendsViewType } from "../components/trends/types";
 import { HEALTH_CALENDAR_ID, PERFORMANCE_CHART_ID } from "../components/dashboard/types";
 import { useAuthSession } from "../utils/useAuthSession";
 import SignInGate from "../components/shared/SignInGate";
@@ -107,13 +107,32 @@ function TrendsEditor() {
 
   const metricById = new Map(data.metrics.map((m) => [m.id, m]));
 
+  // A goal-progress widget is identified by its metric id, so which of the
+  // three dated goals it shows is decided in one place rather than at every
+  // render site.
+  const datedGoalFor = (metricId: string) => {
+    if (metricId === GOAL_METRIC_IDS.weight) return data.datedGoals.weight;
+    if (metricId === GOAL_METRIC_IDS.ftp) return data.datedGoals.ftp;
+    if (metricId === GOAL_METRIC_IDS.sleepWeekly) return data.datedGoals.sleepWeekly;
+    return undefined;
+  };
+
   const handleAdd = (metric: TrendMetricDef) => {
     const position = nextWidgetPosition(widgets);
     const widget: TrendsWidgetConfig = {
       id: nextId(),
       metric: metric.id,
       label: metric.label,
-      viewType: metric.id === HEALTH_CALENDAR_ID ? "healthCalendar" : metric.id === PERFORMANCE_CHART_ID ? "performanceChart" : "day",
+      viewType:
+        metric.id === HEALTH_CALENDAR_ID
+          ? "healthCalendar"
+          : metric.id === PERFORMANCE_CHART_ID
+            ? "performanceChart"
+            : // Opens on the question the goal was set to answer; the daily
+              // and weekly views are still a pill away.
+              datedGoalFor(metric.id)
+              ? "goalProgress"
+              : "day",
       x: position.x,
       y: position.y,
     };
@@ -209,6 +228,7 @@ function TrendsEditor() {
                 weightUnit={data.weightUnit}
                 bmiByDate={data.bmiByDate}
                 performanceSeries={data.performanceSeries}
+                datedGoal={datedGoalFor(widget.metric)}
                 stacked
                 canMoveUp={index > 0}
                 canMoveDown={index < widgets.length - 1}
@@ -238,6 +258,7 @@ function TrendsEditor() {
                 weightUnit={data.weightUnit}
                 bmiByDate={data.bmiByDate}
                 performanceSeries={data.performanceSeries}
+                datedGoal={datedGoalFor(widget.metric)}
                 onViewTypeChange={(viewType) => handleViewTypeChange(widget.id, viewType)}
                 onColorChange={(color) => handleColorChange(widget.id, color)}
                 onMove={(x, y) => handleMove(widget.id, x, y)}

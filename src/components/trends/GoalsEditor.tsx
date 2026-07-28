@@ -15,8 +15,10 @@ const FIELDS: { key: keyof Goals; label: string; unit: string; dateKey?: keyof G
   // the progress views answer "will I get there" instead of "am I there yet".
   { key: "weightKg", label: "Weight target", unit: "kg", dateKey: "weightTargetDate" },
   { key: "ftpTargetWatts", label: "FTP target", unit: "W", dateKey: "ftpTargetDate" },
+  // One sleep target, per night. A weekly figure was offered alongside it and
+  // was the wrong shape for the question: what is wanted is the nightly target
+  // read over a week, not a separate weekly total to keep in step with it.
   { key: "sleepHours", label: "Sleep target — per night", unit: "h" },
-  { key: "sleepHoursPerWeek", label: "Sleep target — per week", unit: "h" },
   { key: "proteinG", label: "Protein target", unit: "g" },
   { key: "fatG", label: "Fat target", unit: "g" },
   { key: "carbsG", label: "Carb target", unit: "g" },

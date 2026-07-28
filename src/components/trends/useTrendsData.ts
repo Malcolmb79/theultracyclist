@@ -420,21 +420,31 @@ export function useTrendsData(): TrendsDataState {
             getValue: (date) => (calorieKey ? (healthHistory[date]?.[calorieKey]?.value ?? null) : null),
             getGoal: (date) => (isTrainingDay(date) ? (goals.calorieGoalTrainingDay ?? null) : (goals.calorieGoalRestDay ?? null)),
           },
+
           {
-            // A weekly total rather than a nightly one: sleep is caught up on
-            // and lost across a week, and a night-by-night target marks a
-            // perfectly rested week as six failures and a success.
+            /*
+             * The nightly target counted over a week: each night scores one if
+             * it cleared the target and nothing if it didn't, so the daily view
+             * is hit-or-miss and the weekly view is nights out of seven.
+             *
+             * A weekly hours total was tried first and is the wrong shape: it
+             * hides four short nights behind one long lie-in, and needs a
+             * second target kept in step with the nightly one.
+             */
             id: GOAL_METRIC_IDS.sleepWeekly,
             source: "goal",
-            label: "Sleep vs weekly goal",
-            unit: "h",
+            label: "Nights on sleep target",
+            unit: "",
             aggregation: "sum",
             isGoal: true,
             goalDirection: "atLeast",
-            getValue: (date) => whoopByDate.get(date)?.sleep?.totalSleepHours ?? null,
-            // Spread across the week so a daily view still reads sensibly and
-            // a weekly view sums back to the real target.
-            getGoal: () => (goals.sleepHoursPerWeek != null ? goals.sleepHoursPerWeek / 7 : null),
+            getValue: (date) => {
+              const hours = whoopByDate.get(date)?.sleep?.totalSleepHours;
+              if (hours == null || goals.sleepHours == null) return null;
+              return hours >= goals.sleepHours ? 1 : 0;
+            },
+            // One per night, so a week's worth sums to seven.
+            getGoal: () => (goals.sleepHours != null ? 1 : null),
           },
           {
             // Flat across every day: FTP is a tested figure that holds until
@@ -511,7 +521,9 @@ export function useTrendsData(): TrendsDataState {
           if (hours != null) sleepByDate.set(date, hours);
         }
         const lastSevenNights = [...sleepByDate.keys()].slice(-7);
-        const weekSleep = lastSevenNights.reduce((sum, date) => sum + (sleepByDate.get(date) ?? 0), 0);
+        const nightsOnTarget = lastSevenNights.filter(
+          (date) => goals.sleepHours != null && (sleepByDate.get(date) ?? 0) >= goals.sleepHours
+        ).length;
 
         const currentFtp = (settingsBody?.settings?.ftpWatts as number | undefined) ?? null;
 
@@ -538,11 +550,15 @@ export function useTrendsData(): TrendsDataState {
             start: currentFtp,
             direction: "up",
           },
+          // The nightly target read over a week: how many of the last seven
+          // nights cleared it. A weekly total was tried and is the wrong
+          // shape — it hides four short nights behind one long lie-in, and
+          // needs a second figure kept in step with the nightly one.
           sleepWeekly: {
-            label: "Sleep this week",
-            unit: "h",
-            current: lastSevenNights.length > 0 ? weekSleep : null,
-            target: goals.sleepHoursPerWeek ?? null,
+            label: "Nights on target",
+            unit: " of 7",
+            current: lastSevenNights.length > 0 ? nightsOnTarget : null,
+            target: goals.sleepHours != null ? 7 : null,
             start: 0,
             direction: "up",
           },

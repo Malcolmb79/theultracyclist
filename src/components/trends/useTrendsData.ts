@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { GOAL_METRIC_IDS, type DatedGoal, type Goals } from "./types";
+import { GOAL_METRIC_IDS, PROGRESS_PHOTOS_ID, type DatedGoal, type Goals } from "./types";
 import { HEALTH_CALENDAR_ID, PERFORMANCE_CHART_ID } from "../dashboard/types";
 import { useUnits } from "../../context/UnitsContext";
 import { convertTrendMetric, convertValueUnit } from "../../utils/units";
@@ -474,6 +474,18 @@ export function useTrendsData(): TrendsDataState {
         // Weight per day, rather than the day/week/month aggregate every
         // other metric uses - getValue is never actually called since
         // TrendsWidget special-cases this id before reaching that logic.
+        // Not a metric — it has no series and no time range. It is listed
+        // here because the catalogue is how anything gets onto the page, the
+        // same accommodation the health calendar already needed.
+        metrics.push({
+          id: PROGRESS_PHOTOS_ID,
+          source: "health",
+          label: "Progress photos",
+          unit: "",
+          aggregation: "avg",
+          getValue: () => null,
+        });
+
         metrics.push({
           id: HEALTH_CALENDAR_ID,
           source: "whoop",

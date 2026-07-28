@@ -1,0 +1,102 @@
+import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { getJSON, setJSON } from "./_lib/kvStore.js";
+import { getSessionEmail } from "./_lib/session.js";
+
+/**
+ * Progress photos: the standard three angles, taken on a date, kept so two
+ * dates can be put side by side.
+ *
+ * Stored as downscaled JPEG data URLs in the same KV the rest of this app
+ * uses, rather than in file storage. That is a deliberate limit rather than an
+ * oversight: it keeps the feature to one endpoint with no bucket, no signed
+ * URLs and no second place for data to live, at the cost of a cap on how many
+ * sessions can be kept. The client downscales before upload, so a session is
+ * a few hundred KB rather than the several MB a phone camera produces.
+ */
+
+export type PhotoAngle = "front" | "side" | "back";
+
+export type PhotoSession = {
+  /** ISO date the photos were taken. One session per date. */
+  date: string;
+  front?: string;
+  side?: string;
+  back?: string;
+  /** Weight at the time, if known when the session was saved. */
+  weightKg?: number;
+};
+
+const KV_KEY = "PROGRESS_PHOTOS";
+
+// Enough to see a year of monthly photos against each other while keeping the
+// stored blob to a size KV handles comfortably. Oldest go first.
+const MAX_SESSIONS = 24;
+
+// A downscaled session should be well under this; the check is here to reject
+// an un-resized upload rather than to size the feature.
+const MAX_IMAGE_CHARS = 900_000;
+
+const IMAGE_DATA_URL = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
+
+function validSession(input: unknown): PhotoSession | null {
+  if (!input || typeof input !== "object") return null;
+  const body = input as Record<string, unknown>;
+  if (typeof body.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(body.date)) return null;
+
+  const session: PhotoSession = { date: body.date };
+  for (const angle of ["front", "side", "back"] as const) {
+    const value = body[angle];
+    if (value == null) continue;
+    // Anything that isn't an image data URL is refused outright: these are
+    // written straight into an <img src> when they come back.
+    if (typeof value !== "string" || !IMAGE_DATA_URL.test(value) || value.length > MAX_IMAGE_CHARS) return null;
+    session[angle] = value;
+  }
+  if (typeof body.weightKg === "number" && Number.isFinite(body.weightKg)) session.weightKg = body.weightKg;
+
+  // A session with no photographs is not a session.
+  return session.front || session.side || session.back ? session : null;
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (!getSessionEmail(req)) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const stored = (await getJSON<PhotoSession[]>(KV_KEY)) ?? [];
+
+  if (req.method === "POST") {
+    const session = validSession(req.body);
+    if (!session) {
+      res.status(400).json({ error: "A session needs a date and at least one image." });
+      return;
+    }
+
+    // One session per date: re-uploading a day replaces it, so a retaken
+    // photo doesn't leave the original behind under the same heading.
+    const existing = stored.find((s) => s.date === session.date);
+    const merged = existing ? { ...existing, ...session } : session;
+    const next = [...stored.filter((s) => s.date !== session.date), merged]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(-MAX_SESSIONS);
+
+    await setJSON(KV_KEY, next);
+    res.status(200).json({ sessions: next });
+    return;
+  }
+
+  if (req.method === "DELETE") {
+    const date = typeof req.query.date === "string" ? req.query.date : null;
+    if (!date) {
+      res.status(400).json({ error: "date is required" });
+      return;
+    }
+    const next = stored.filter((s) => s.date !== date);
+    await setJSON(KV_KEY, next);
+    res.status(200).json({ sessions: next });
+    return;
+  }
+
+  res.status(200).json({ sessions: stored });
+}

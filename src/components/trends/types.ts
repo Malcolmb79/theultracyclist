@@ -8,7 +8,9 @@ export type TrendsViewType =
   // A goal with a deadline: how far there is to go and whether the pace gets
   // there in time. The day/week/month views answer a different question —
   // whether the target was met in a period — and cannot express a deadline.
-  | "goalProgress";
+  | "goalProgress"
+  // Photographs rather than a metric: no time range applies to it.
+  | "progressPhotos";
 
 export type TrendsWidgetConfig = {
   id: string;
@@ -82,6 +84,9 @@ export const GOAL_METRIC_IDS = {
   sleepWeekly: "goal.sleepWeekly",
   ftp: "goal.ftp",
 } as const;
+
+/** The progress photo widget, which has no underlying metric series. */
+export const PROGRESS_PHOTOS_ID = "progress.photos";
 
 /**
  * A goal with a deadline, as the progress view needs it.

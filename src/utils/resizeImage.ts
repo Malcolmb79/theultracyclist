@@ -36,3 +36,27 @@ export function cropImageToDataUrl(img: HTMLImageElement, crop: CropRect): strin
   ctx.drawImage(img, crop.x, crop.y, crop.size, crop.size, 0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
   return canvas.toDataURL("image/jpeg", JPEG_QUALITY);
 }
+
+// Progress photos are looked at rather than glanced at, so they keep far more
+// detail than a 160px avatar — but still nothing like a phone camera's output,
+// which would be several MB per angle and three angles per session.
+const PHOTO_MAX_EDGE = 900;
+const PHOTO_QUALITY = 0.72;
+
+/**
+ * Downscales a photo to a JPEG data URL, preserving its aspect ratio.
+ *
+ * Unlike the avatar path this doesn't crop: a progress photo compared against
+ * another has to be the same framing as the one beside it, and cropping each
+ * one separately is how two photos stop being comparable.
+ */
+export function photoToDataUrl(img: HTMLImageElement): string {
+  const scale = Math.min(1, PHOTO_MAX_EDGE / Math.max(img.naturalWidth, img.naturalHeight));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(img.naturalWidth * scale);
+  canvas.height = Math.round(img.naturalHeight * scale);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser");
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/jpeg", PHOTO_QUALITY);
+}

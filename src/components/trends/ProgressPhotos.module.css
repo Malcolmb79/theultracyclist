@@ -1,0 +1,149 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  align-self: stretch;
+  overflow-y: auto;
+}
+
+.uploadRow {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.dateLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
+
+.dateInput,
+.compareControls select {
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 3px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 4px);
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+/* A label styled as a button wrapping a hidden input: the native file input
+   can't be restyled, and three of them side by side is the whole control. */
+.uploadButton {
+  font-size: 0.78rem;
+  text-transform: capitalize;
+  padding: 5px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 4px);
+  cursor: pointer;
+  background: var(--color-bg-elevated);
+}
+
+.hiddenInput {
+  display: none;
+}
+
+.compareControls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.delta {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.angleRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.angleLabel {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
+/* Equal halves so the two photos are the same size whatever their source
+   resolution — a comparison where one side is larger reads as a change that
+   isn't there. */
+.pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.figure {
+  margin: 0;
+}
+
+.photo {
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-sm, 4px);
+  display: block;
+}
+
+.missing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 3 / 4;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-sm, 4px);
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+.caption {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  text-align: center;
+  padding-top: 2px;
+}
+
+.muted {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  margin: 0;
+}
+
+.error {
+  color: var(--color-bad, #ff6b6b);
+  font-size: 0.78rem;
+  margin: 0;
+}
+
+.manage {
+  font-size: 0.78rem;
+}
+
+.manageRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 3px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.removeButton {
+  font: inherit;
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 4px);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}

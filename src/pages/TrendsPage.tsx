@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import TrendsCatalog from "../components/trends/TrendsCatalog";
 import TrendsWidget from "../components/trends/TrendsWidget";
 import { useTrendsData, type TrendMetricDef } from "../components/trends/useTrendsData";
-import { GOAL_METRIC_IDS, type TrendsWidgetConfig, type TrendsViewType } from "../components/trends/types";
+import { GOAL_METRIC_IDS, PROGRESS_PHOTOS_ID, type TrendsWidgetConfig, type TrendsViewType } from "../components/trends/types";
 import { HEALTH_CALENDAR_ID, PERFORMANCE_CHART_ID } from "../components/dashboard/types";
 import { useAuthSession } from "../utils/useAuthSession";
 import SignInGate from "../components/shared/SignInGate";
@@ -124,8 +124,10 @@ function TrendsEditor() {
       metric: metric.id,
       label: metric.label,
       viewType:
-        metric.id === HEALTH_CALENDAR_ID
-          ? "healthCalendar"
+        metric.id === PROGRESS_PHOTOS_ID
+          ? "progressPhotos"
+          : metric.id === HEALTH_CALENDAR_ID
+            ? "healthCalendar"
           : metric.id === PERFORMANCE_CHART_ID
             ? "performanceChart"
             : // Opens on the question the goal was set to answer; the daily

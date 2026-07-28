@@ -7,7 +7,8 @@ import HealthCalendar from "../dashboard/HealthCalendar";
 import type { HealthCalendarDay } from "../dashboard/HealthDayDetailModal";
 import PerformanceChart from "../dashboard/PerformanceChart";
 import GoalProgress from "./GoalProgress";
-import type { DatedGoal } from "./types";
+import ProgressPhotos from "./ProgressPhotos";
+import { PROGRESS_PHOTOS_ID, type DatedGoal } from "./types";
 import type { PerformancePoint } from "../../utils/performanceSeries";
 import { isWeightMetricId, formatWeight } from "../../utils/bmi";
 import {
@@ -72,6 +73,7 @@ const VIEW_LABEL: Record<TrendsViewType, string> = {
   healthCalendar: "Health Calendar",
   performanceChart: "Performance Chart",
   goalProgress: "Goal progress",
+  progressPhotos: "Progress photos",
 };
 
 // The selectable time ranges, shown as an always-visible pill row inside
@@ -94,6 +96,7 @@ const VIEW_PILL_LABEL: Record<TrendsViewType, string> = {
   healthCalendar: "Health Calendar",
   performanceChart: "Performance Chart",
   goalProgress: "Goal",
+  progressPhotos: "Photos",
 };
 
 const HEADER_HEIGHT = 40;
@@ -130,6 +133,7 @@ export default function TrendsWidget({
   const isHealthCalendar = widget.viewType === "healthCalendar";
   const isPerformanceChart = widget.viewType === "performanceChart";
   const isGoalProgress = widget.viewType === "goalProgress";
+  const isProgressPhotos = widget.metric === PROGRESS_PHOTOS_ID;
   // Weight is the goal with a real history behind it: one reading per day the
   // scales were used, straight from Apple Health. FTP is a tested figure with
   // no series, and the sleep goal counts nights rather than tracking toward a
@@ -139,7 +143,7 @@ export default function TrendsWidget({
   // Performance chart's multi-line plot + legend needs similarly generous
   // room to either calendar, so it reuses the same wider min/default sizing
   // rather than a third set of size constants.
-  const needsWideRoom = needsCalendarRoom || isPerformanceChart;
+  const needsWideRoom = needsCalendarRoom || isPerformanceChart || isProgressPhotos;
   const isMobile = useIsMobile();
 
   const minWidth = needsWideRoom
@@ -209,7 +213,7 @@ export default function TrendsWidget({
   const color = widget.color ?? DEFAULT_TRENDS_COLOR;
   const contentHeight = Math.max(
     24,
-    rect.height - HEADER_HEIGHT - CONTENT_PADDING - (isHealthCalendar || isPerformanceChart ? 0 : VIEW_SEGMENTED_HEIGHT),
+    rect.height - HEADER_HEIGHT - CONTENT_PADDING - (isHealthCalendar || isPerformanceChart || isProgressPhotos ? 0 : VIEW_SEGMENTED_HEIGHT),
   );
   const positionStyle = stacked
     ? { width: rect.width, height: rect.height }
@@ -279,7 +283,7 @@ export default function TrendsWidget({
       </div>
 
       <div className={styles.content}>
-        {!isHealthCalendar && !isPerformanceChart && (
+        {!isHealthCalendar && !isPerformanceChart && !isProgressPhotos && (
           <div className={styles.viewSegmented} role="radiogroup" aria-label="Time range">
             {(datedGoal ? GOAL_PILL_TYPES : VIEW_PILL_TYPES).map((vt) => (
               <button
@@ -296,7 +300,9 @@ export default function TrendsWidget({
           </div>
         )}
         <div className={styles.contentBody}>
-        {!metric ? (
+        {isProgressPhotos ? (
+          <ProgressPhotos latestWeightKg={datedGoal?.current ?? null} weightUnitLabel={datedGoal?.unit} />
+        ) : !metric ? (
           <p className={styles.empty}>Metric not available.</p>
         ) : isHealthCalendar ? (
           <HealthCalendar

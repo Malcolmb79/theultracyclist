@@ -26,11 +26,32 @@ export function fitWidgetsToWidth<T extends FittableRect>(
   const scale = availableWidth / rightmostExtent;
   if (scale <= 1) return widgets;
 
+  // Widgets whose left edges are already within one grid cell of each other
+  // read as a single visual column, even though their x values aren't
+  // necessarily bit-for-bit equal (a widget dragged/resized independently
+  // can land a few px off from its neighbor). Scaling each widget's x in
+  // isolation stretches that small original offset by the same factor,
+  // then snapping each to the grid independently can round two
+  // once-adjacent widgets into different grid cells - turning an invisible
+  // few-pixel gap into a visibly uneven one. Grouping first and giving every
+  // member of a group the same new x keeps columns that lined up before
+  // still lining up after.
+  const xs = [...new Set(widgets.map((w) => w.x ?? 0))].sort((a, b) => a - b);
+  const scaledXFor = new Map<number, number>();
+  let groupOriginX = -Infinity;
+  let groupNewX = 0;
+  for (const x of xs) {
+    if (x - groupOriginX > gridSize) {
+      groupOriginX = x;
+      groupNewX = Math.round((x * scale) / gridSize) * gridSize;
+    }
+    scaledXFor.set(x, groupNewX);
+  }
+
   return widgets.map((w) => {
-    const x = w.x ?? 0;
     const width = w.width ?? 0;
     const newWidth = Math.max(minWidthFor(w), Math.round((width * scale) / gridSize) * gridSize);
-    const newX = Math.round((x * scale) / gridSize) * gridSize;
+    const newX = scaledXFor.get(w.x ?? 0)!;
     return { ...w, x: newX, width: newWidth };
   });
 }

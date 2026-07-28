@@ -78,6 +78,12 @@ const VIEW_LABEL: Record<TrendsViewType, string> = {
 // of a real metric (see the isHealthCalendar guard around its usage below).
 const VIEW_PILL_TYPES: TrendsViewType[] = ["day", "week", "month", "calendar"];
 
+// A goal-backed widget gets one more pill, first, because the progress view is
+// what its target was set for. Without it a widget saved before that view
+// existed keeps whichever range it had and has no way to reach it — which is
+// exactly what happened to the weight goal.
+const GOAL_PILL_TYPES: TrendsViewType[] = ["goalProgress", ...VIEW_PILL_TYPES];
+
 const VIEW_PILL_LABEL: Record<TrendsViewType, string> = {
   day: "Daily",
   week: "Mon-Sun",
@@ -85,7 +91,7 @@ const VIEW_PILL_LABEL: Record<TrendsViewType, string> = {
   calendar: "Calendar",
   healthCalendar: "Health Calendar",
   performanceChart: "Performance Chart",
-  goalProgress: "Goal progress",
+  goalProgress: "Goal",
 };
 
 const HEADER_HEIGHT = 40;
@@ -202,7 +208,7 @@ export default function TrendsWidget({
   const color = widget.color ?? DEFAULT_TRENDS_COLOR;
   const contentHeight = Math.max(
     24,
-    rect.height - HEADER_HEIGHT - CONTENT_PADDING - (isHealthCalendar || isPerformanceChart || isGoalProgress ? 0 : VIEW_SEGMENTED_HEIGHT),
+    rect.height - HEADER_HEIGHT - CONTENT_PADDING - (isHealthCalendar || isPerformanceChart ? 0 : VIEW_SEGMENTED_HEIGHT),
   );
   const positionStyle = stacked
     ? { width: rect.width, height: rect.height }
@@ -274,7 +280,7 @@ export default function TrendsWidget({
       <div className={styles.content}>
         {!isHealthCalendar && !isPerformanceChart && (
           <div className={styles.viewSegmented} role="radiogroup" aria-label="Time range">
-            {VIEW_PILL_TYPES.map((vt) => (
+            {(datedGoal ? GOAL_PILL_TYPES : VIEW_PILL_TYPES).map((vt) => (
               <button
                 key={vt}
                 type="button"

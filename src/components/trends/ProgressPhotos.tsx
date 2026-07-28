@@ -87,6 +87,11 @@ export default function ProgressPhotos({ latestWeightKg, weightUnitLabel }: { la
   if (sessions === null) return <p className={styles.muted}>Loading photos…</p>;
 
   const byDate = new Map(sessions.map((s) => [s.date, s]));
+  // Sessions are stored oldest first, so the baseline is the first of them.
+  // It is kept whatever else is trimmed, and labelled so that is visible
+  // rather than a rule the server applies silently.
+  const baselineDate = sessions[0]?.date;
+  const label = (iso: string) => (iso === baselineDate ? `${formatDate(iso)} · baseline` : formatDate(iso));
   const left = byDate.get(leftDate);
   const right = byDate.get(rightDate);
   const todaySession = byDate.get(uploadDate);
@@ -127,7 +132,7 @@ export default function ProgressPhotos({ latestWeightKg, weightUnitLabel }: { la
             <select value={leftDate} onChange={(e) => setLeftDate(e.target.value)} aria-label="Compare from">
               {sessions.map((s) => (
                 <option key={s.date} value={s.date}>
-                  {formatDate(s.date)}
+                  {label(s.date)}
                 </option>
               ))}
             </select>
@@ -135,7 +140,7 @@ export default function ProgressPhotos({ latestWeightKg, weightUnitLabel }: { la
             <select value={rightDate} onChange={(e) => setRightDate(e.target.value)} aria-label="Compare to">
               {sessions.map((s) => (
                 <option key={s.date} value={s.date}>
-                  {formatDate(s.date)}
+                  {label(s.date)}
                 </option>
               ))}
             </select>
@@ -161,11 +166,11 @@ export default function ProgressPhotos({ latestWeightKg, weightUnitLabel }: { la
                 <div className={styles.pair}>
                   <figure className={styles.figure}>
                     {before ? <img src={before} alt={`${angle}, ${formatDate(left!.date)}`} className={styles.photo} /> : <div className={styles.missing}>none</div>}
-                    <figcaption className={styles.caption}>{left ? formatDate(left.date) : ""}</figcaption>
+                    <figcaption className={styles.caption}>{left ? label(left.date) : ""}</figcaption>
                   </figure>
                   <figure className={styles.figure}>
                     {after ? <img src={after} alt={`${angle}, ${formatDate(right!.date)}`} className={styles.photo} /> : <div className={styles.missing}>none</div>}
-                    <figcaption className={styles.caption}>{right ? formatDate(right.date) : ""}</figcaption>
+                    <figcaption className={styles.caption}>{right ? label(right.date) : ""}</figcaption>
                   </figure>
                 </div>
               </div>
@@ -174,9 +179,13 @@ export default function ProgressPhotos({ latestWeightKg, weightUnitLabel }: { la
 
           <details className={styles.manage}>
             <summary className={styles.muted}>All sessions ({sessions.length})</summary>
+            <p className={styles.muted}>
+              The oldest is kept as your baseline and is never trimmed away — only the sessions after it are thinned
+              once there are more than 24. Removing it here is deliberate and can&apos;t be undone.
+            </p>
             {sessions.map((s) => (
               <div key={s.date} className={styles.manageRow}>
-                <span>{formatDate(s.date)}</span>
+                <span>{label(s.date)}</span>
                 <span className={styles.muted}>
                   {ANGLES.filter((a) => s[a]).join(", ") || "none"}
                   {s.weightKg != null ? ` · ${Math.round(s.weightKg * 10) / 10}kg` : ""}

@@ -29,8 +29,23 @@ export type PhotoSession = {
 const KV_KEY = "PROGRESS_PHOTOS";
 
 // Enough to see a year of monthly photos against each other while keeping the
-// stored blob to a size KV handles comfortably. Oldest go first.
+// stored blob to a size KV handles comfortably.
 const MAX_SESSIONS = 24;
+
+/**
+ * Trims to the cap without ever dropping the first session.
+ *
+ * The baseline is the one photograph the others are worth comparing against,
+ * and it is the first to go under a plain "keep the most recent" rule —
+ * quietly, at the moment the record finally gets long enough to be
+ * interesting. Everything after it is a step along the way and can be
+ * thinned; where you started cannot be retaken.
+ */
+function trimKeepingBaseline(sessions: PhotoSession[]): PhotoSession[] {
+  if (sessions.length <= MAX_SESSIONS) return sessions;
+  const [baseline, ...rest] = sessions;
+  return [baseline, ...rest.slice(-(MAX_SESSIONS - 1))];
+}
 
 // A downscaled session should be well under this; the check is here to reject
 // an un-resized upload rather than to size the feature.
@@ -77,9 +92,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // photo doesn't leave the original behind under the same heading.
     const existing = stored.find((s) => s.date === session.date);
     const merged = existing ? { ...existing, ...session } : session;
-    const next = [...stored.filter((s) => s.date !== session.date), merged]
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .slice(-MAX_SESSIONS);
+    const next = trimKeepingBaseline(
+      [...stored.filter((s) => s.date !== session.date), merged].sort((a, b) => a.date.localeCompare(b.date))
+    );
 
     await setJSON(KV_KEY, next);
     res.status(200).json({ sessions: next });

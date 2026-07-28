@@ -1,5 +1,6 @@
 import type { DatedGoal } from "./types";
 import GoalTrajectory, { type TrajectoryPoint } from "./GoalTrajectory";
+import { goalInsights } from "./goalInsights";
 import styles from "./GoalProgress.module.css";
 
 /**
@@ -54,17 +55,42 @@ export default function GoalProgress({
   // deadline and a starting point to have moved from.
   const requiredPerWeek = daysLeft != null && daysLeft > 0 ? (gap / daysLeft) * 7 : null;
 
+  const insights = goalInsights(series, target, unit, direction, todayIso);
+  const charted = series.length >= 2 && !!targetDate;
+
   return (
     <div className={styles.wrap}>
-      {/* The chart when there is a history and a deadline to plot it against;
-          the bar alone when there isn't, since a trajectory needs both ends. */}
-      {series.length >= 2 && targetDate ? (
-        <GoalTrajectory points={series} target={target} targetDate={targetDate} todayIso={todayIso} unit={unit} direction={direction} />
-      ) : (
-        <div className={styles.track}>
-          <div className={`${styles.fill} ${reached ? styles.fillDone : ""}`} style={{ width: `${done * 100}%` }} />
+      {/* Side by side where there is room: the chart answers "am I on track"
+          and the column beside it answers the questions that follow — how fast
+          this is moving and where that rate lands. Stacks on a narrow card. */}
+      <div className={charted ? styles.split : undefined}>
+        <div className={styles.chartCol}>
+          {charted ? (
+            <GoalTrajectory points={series} target={target} targetDate={targetDate} todayIso={todayIso} unit={unit} direction={direction} />
+          ) : (
+            <div className={styles.track}>
+              <div className={`${styles.fill} ${reached ? styles.fillDone : ""}`} style={{ width: `${done * 100}%` }} />
+            </div>
+          )}
         </div>
-      )}
+
+        {insights.length > 0 && (
+          <dl className={styles.insights}>
+            {insights.map((insight) => (
+              <div key={insight.label} className={styles.insightRow}>
+                <dt className={styles.insightLabel}>{insight.label}</dt>
+                <dd
+                  className={`${styles.insightValue} ${insight.tone === "good" ? styles.good : ""} ${
+                    insight.tone === "bad" ? styles.late : ""
+                  }`}
+                >
+                  {insight.value}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        )}
+      </div>
 
       <div className={styles.figures}>
         <div>

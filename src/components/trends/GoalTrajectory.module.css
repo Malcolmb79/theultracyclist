@@ -1,0 +1,14 @@
+.wrap {
+  width: 100%;
+}
+
+.verdict {
+  margin: var(--space-1) 0 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.detail {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}

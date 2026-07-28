@@ -1,4 +1,5 @@
 import type { DatedGoal } from "./types";
+import GoalTrajectory, { type TrajectoryPoint } from "./GoalTrajectory";
 import styles from "./GoalProgress.module.css";
 
 /**
@@ -19,7 +20,16 @@ function formatDate(iso: string): string {
   return new Date(`${iso}T00:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 }
 
-export default function GoalProgress({ goal, todayIso }: { goal: DatedGoal; todayIso: string }) {
+export default function GoalProgress({
+  goal,
+  todayIso,
+  series = [],
+}: {
+  goal: DatedGoal;
+  todayIso: string;
+  /** Readings over time, where the metric has a history to plot. */
+  series?: TrajectoryPoint[];
+}) {
   const { current, target, start, targetDate, unit, direction } = goal;
 
   if (current == null || target == null) {
@@ -46,6 +56,16 @@ export default function GoalProgress({ goal, todayIso }: { goal: DatedGoal; toda
 
   return (
     <div className={styles.wrap}>
+      {/* The chart when there is a history and a deadline to plot it against;
+          the bar alone when there isn't, since a trajectory needs both ends. */}
+      {series.length >= 2 && targetDate ? (
+        <GoalTrajectory points={series} target={target} targetDate={targetDate} todayIso={todayIso} unit={unit} direction={direction} />
+      ) : (
+        <div className={styles.track}>
+          <div className={`${styles.fill} ${reached ? styles.fillDone : ""}`} style={{ width: `${done * 100}%` }} />
+        </div>
+      )}
+
       <div className={styles.figures}>
         <div>
           <p className={styles.label}>Now</p>
@@ -61,10 +81,6 @@ export default function GoalProgress({ goal, todayIso }: { goal: DatedGoal; toda
             <span className={styles.unit}>{unit}</span>
           </p>
         </div>
-      </div>
-
-      <div className={styles.track}>
-        <div className={`${styles.fill} ${reached ? styles.fillDone : ""}`} style={{ width: `${done * 100}%` }} />
       </div>
 
       <p className={styles.status}>

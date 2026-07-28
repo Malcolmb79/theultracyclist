@@ -121,6 +121,13 @@ export default function TrendsWidget({
   const isHealthCalendar = widget.viewType === "healthCalendar";
   const isPerformanceChart = widget.viewType === "performanceChart";
   const isGoalProgress = widget.viewType === "goalProgress";
+  // Weight is the goal with a real history behind it: a reading per day the
+  // scales were used. FTP is a tested figure with no series, and the weekly
+  // sleep goal is a rolling total rather than a track toward a date — both
+  // fall back to the bar.
+  const goalSeries = isGoalProgress && isWeightMetricId(widget.metric)
+    ? [...weightByDate.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, value]) => ({ date, value }))
+    : [];
   const needsCalendarRoom = isCalendar || isHealthCalendar;
   // Performance chart's multi-line plot + legend needs similarly generous
   // room to either calendar, so it reuses the same wider min/default sizing
@@ -297,7 +304,7 @@ export default function TrendsWidget({
         ) : isPerformanceChart ? (
           <PerformanceChart data={performanceSeries} height={Math.max(80, contentHeight - 40)} />
         ) : isGoalProgress && datedGoal ? (
-          <GoalProgress goal={datedGoal} todayIso={today()} />
+          <GoalProgress goal={datedGoal} todayIso={today()} series={goalSeries} />
         ) : (
           (() => {
             const anchor = today();

@@ -165,14 +165,18 @@ function CoachingView() {
   };
 
   const handleAddFixedCard = (kind: FixedCardKind) => {
-    const position = nextWidgetPosition(widgets);
+    // Unlike handleAddMetric, this restores the card to its own designed
+    // column/row (DEFAULT_DESKTOP/DEFAULT_MOBILE) rather than cascading it
+    // below whatever's already on the canvas - nextWidgetPosition's x: 0
+    // was collapsing every re-added card into a single left-hand column
+    // instead of the intended multi-column desktop layout.
     const defaults = isMobile ? DEFAULT_MOBILE[kind] : DEFAULT_DESKTOP[kind];
     const entry: CoachingWidgetEntry = {
       id: kind,
       kind,
       label: FIXED_CARD_LABELS[kind],
-      x: position.x,
-      y: position.y,
+      x: defaults.x,
+      y: defaults.y,
       width: defaults.width,
       height: defaults.height,
     };

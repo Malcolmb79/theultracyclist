@@ -8,11 +8,14 @@ export interface FittableRect {
 // pairs with widening the canvas itself (see *.module.css's max-width),
 // since existing saved widget positions don't automatically grow to fill
 // newly available room on their own (they're free-form x/y/width/height,
-// not a responsive grid). Only ever stretches, never shrinks, and snaps to
-// the same grid each page's own drag/resize already uses, so the result
-// still lines up with that grid instead of landing at odd fractional
-// pixel positions. Heights are left untouched - this is about using more
-// horizontal space, not distorting chart proportions.
+// not a responsive grid). Never shrinks below the widgets' current extent
+// (scale is clamped to a 1x floor) - so re-running this after the canvas
+// hasn't grown further is still safe, and doubles as a pure column-
+// realignment pass (see the grouping step below) rather than a no-op.
+// Snaps to the same grid each page's own drag/resize already uses, so the
+// result still lines up with that grid instead of landing at odd
+// fractional pixel positions. Heights are left untouched - this is about
+// using more horizontal space, not distorting chart proportions.
 export function fitWidgetsToWidth<T extends FittableRect>(
   widgets: T[],
   availableWidth: number,
@@ -23,8 +26,7 @@ export function fitWidgetsToWidth<T extends FittableRect>(
   const rightmostExtent = Math.max(...widgets.map((w) => (w.x ?? 0) + (w.width ?? 0)));
   if (rightmostExtent <= 0) return widgets;
 
-  const scale = availableWidth / rightmostExtent;
-  if (scale <= 1) return widgets;
+  const scale = Math.max(1, availableWidth / rightmostExtent);
 
   // Widgets whose left edges are already within one grid cell of each other
   // read as a single visual column, even though their x values aren't

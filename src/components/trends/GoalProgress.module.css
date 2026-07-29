@@ -92,6 +92,13 @@
   color: var(--color-text-muted);
 }
 
+/* Why the target divides by a different weight than "now" does - without it
+   the target W/kg looks like arithmetic that doesn't check out. */
+.secondaryNote {
+  font-size: 0.7rem;
+  opacity: 0.8;
+}
+
 .track {
   height: 8px;
   border-radius: 999px;

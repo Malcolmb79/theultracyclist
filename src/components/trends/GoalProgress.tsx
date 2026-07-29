@@ -34,8 +34,8 @@ export default function GoalProgress({
   const { current, target, start, targetDate, unit, direction, secondary } = goal;
   // Two decimals: W/kg moves in hundredths, so one would round a 0.05
   // improvement away entirely.
-  const secondaryText = (value: number) =>
-    secondary ? `${(value / secondary.divisor).toFixed(2)} ${secondary.unit}` : "";
+  const secondaryText = (value: number, divisor: number) =>
+    secondary ? `${(value / divisor).toFixed(2)} ${secondary.unit}` : "";
 
   if (current == null || target == null) {
     return (
@@ -103,7 +103,7 @@ export default function GoalProgress({
             {Math.round(current * 10) / 10}
             <span className={styles.unit}>{unit}</span>
           </p>
-          {secondary && <p className={styles.secondary}>{secondaryText(current)}</p>}
+          {secondary && <p className={styles.secondary}>{secondaryText(current, secondary.currentDivisor)}</p>}
         </div>
         <div>
           <p className={styles.label}>Target</p>
@@ -111,7 +111,12 @@ export default function GoalProgress({
             {Math.round(target * 10) / 10}
             <span className={styles.unit}>{unit}</span>
           </p>
-          {secondary && <p className={styles.secondary}>{secondaryText(target)}</p>}
+          {secondary && (
+            <p className={styles.secondary}>
+              {secondaryText(target, secondary.targetDivisor)}
+              {secondary.targetNote && <span className={styles.secondaryNote}> {secondary.targetNote}</span>}
+            </p>
+          )}
         </div>
       </div>
 

@@ -584,6 +584,26 @@ export function useTrendsData(): TrendsDataState {
         const inDisplayUnits = (kg: number | null) => (kg == null ? null : convertValueUnit(kg, "kg", system).value);
         const displayWeightUnit = convertValueUnit(1, "kg", system).unit;
 
+        // See the ftp goal below - kept out of the object literal so the
+        // "no weight reading yet" and "no weight target set" cases stay
+        // readable rather than nesting two ternaries inside a property.
+        const latestWeightKg = lastRecorded(weightByDate);
+        const targetWeightKg = goals.weightKg ?? latestWeightKg;
+        const ftpSecondary =
+          latestWeightKg && targetWeightKg
+            ? {
+                unit: "W/kg",
+                currentDivisor: latestWeightKg,
+                targetDivisor: targetWeightKg,
+                // Only worth spelling out when the two differ - otherwise it
+                // just repeats today's weight back.
+                targetNote:
+                  targetWeightKg !== latestWeightKg
+                    ? `at ${Math.round((inDisplayUnits(targetWeightKg) as number) * 10) / 10}${displayWeightUnit}`
+                    : undefined,
+              }
+            : undefined;
+
         const datedGoals = {
           weight: {
             label: "Weight",
@@ -598,11 +618,15 @@ export function useTrendsData(): TrendsDataState {
             label: "FTP",
             unit: "W",
             // Power-to-weight beside the raw watts, since that is what
-            // actually decides how a climb goes. Always divided by the latest
-            // weight in real kilograms - not the display unit, or a W/lb
-            // figure would be labelled W/kg. Absent until there is a weight
-            // reading to divide by.
-            secondary: lastRecorded(weightByDate) ? { unit: "W/kg", divisor: lastRecorded(weightByDate) as number } : undefined,
+            // actually decides how a climb goes. Divided by real kilograms
+            // rather than the display unit, or a W/lb figure would end up
+            // labelled W/kg. Absent until there is a weight reading.
+            //
+            // "Now" uses today's weight; "target" uses the weight goal, so
+            // both goals report the same end state - the FTP the plan is
+            // aiming for, on the body the plan is aiming for. Falls back to
+            // today's weight when no weight target is set.
+            secondary: ftpSecondary,
             // The current figure is the one entered in Settings rather than
             // anything derived from rides: FTP is a tested number, and
             // inferring it from ride power would move the goalposts every

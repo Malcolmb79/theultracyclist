@@ -121,10 +121,18 @@ export type DatedGoal = {
    * An optional second reading of the same two figures, derived by dividing
    * them - FTP in W/kg beside FTP in watts.
    *
-   * Both figures use the same divisor deliberately, so the comparison
-   * isolates the thing the goal is about. Dividing the target by a *target*
-   * weight instead would fold two separate goals into one number, and the
-   * gap would move whenever either changed.
+   * The two divisors are separate on purpose: "now" divides by what the
+   * athlete weighs today, while "target" divides by the weight goal, so the
+   * target figure describes the intended end state rather than today's body
+   * at tomorrow's power. That does mean the W/kg gap spans both goals at
+   * once - reaching it needs the weight target as well as the power one,
+   * which is the point of aligning them.
    */
-  secondary?: { unit: string; divisor: number };
+  secondary?: {
+    unit: string;
+    currentDivisor: number;
+    targetDivisor: number;
+    /** Spells out the target divisor, e.g. "at 63kg", when it differs from today's. */
+    targetNote?: string;
+  };
 };

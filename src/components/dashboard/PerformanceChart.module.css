@@ -2,7 +2,6 @@
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
 }
 
 .empty {
@@ -52,10 +51,15 @@
   fill: var(--color-text-muted);
 }
 
+/* The space between plot and legend lives here as padding rather than as
+   .wrap's flex gap so that measuring the legend's border box (see
+   useMeasuredHeight) accounts for it - a gap sits outside the measured
+   element and would be lost from the plot-height budget. */
 .legend {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3);
+  gap: var(--space-2) var(--space-3);
+  padding-top: var(--space-2);
   font-size: 0.75rem;
   color: var(--color-text);
 }

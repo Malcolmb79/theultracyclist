@@ -1,9 +1,16 @@
 import { useMeasuredWidth } from "../../utils/useMeasuredWidth";
+import { useMeasuredHeight } from "../../utils/useMeasuredHeight";
 import type { PerformancePoint } from "../../utils/performanceSeries";
 import styles from "./PerformanceChart.module.css";
 
 const FALLBACK_WIDTH = 300;
 const DEFAULT_PLOT_HEIGHT = 160;
+// One legend row, used only until the real one is measured on mount.
+const FALLBACK_LEGEND_HEIGHT = 26;
+// The plot never shrinks below this, even if the legend wraps to several
+// rows in a short widget - past this point the chart stops being readable
+// and it's better to let the widget's own min-height do the work.
+const MIN_PLOT_HEIGHT = 80;
 const TOP_PAD = 10;
 const BOTTOM_PAD = 24;
 // Reserves room on the left for the CTL/ATL/TSB Y-axis, in the middle-right
@@ -26,7 +33,11 @@ const TSS_COLOR = "#d6559e"; // daily training load - pink, matching the usual P
 
 interface PerformanceChartProps {
   data: PerformancePoint[];
-  height?: number;
+  // Total height available to the whole card (plot plus legend), not the
+  // plot alone - the legend wraps to two or three rows at narrower widget
+  // widths, so how much is left for the plot can only be known here, after
+  // the legend has been measured.
+  availableHeight?: number;
 }
 
 function shortDate(iso: string): string {
@@ -68,8 +79,9 @@ function niceTicks(min: number, max: number, count = 4): number[] {
 // both "what's my current training load" (the classic PMC) and "am I on
 // track for the season" (the plan comparison), rather than two separate
 // charts competing for the same widget space.
-export default function PerformanceChart({ data, height }: PerformanceChartProps) {
+export default function PerformanceChart({ data, availableHeight }: PerformanceChartProps) {
   const [containerRef, viewWidth] = useMeasuredWidth(FALLBACK_WIDTH);
+  const [legendRef, legendHeight] = useMeasuredHeight(FALLBACK_LEGEND_HEIGHT);
 
   if (data.length < 2) {
     return (
@@ -79,7 +91,10 @@ export default function PerformanceChart({ data, height }: PerformanceChartProps
     );
   }
 
-  const plotHeight = height ?? DEFAULT_PLOT_HEIGHT;
+  const plotHeight =
+    availableHeight == null
+      ? DEFAULT_PLOT_HEIGHT
+      : Math.max(MIN_PLOT_HEIGHT, availableHeight - TOP_PAD - BOTTOM_PAD - legendHeight);
   const viewHeight = TOP_PAD + plotHeight + BOTTOM_PAD;
 
   const allValues = data.flatMap((p) => [p.ctl, p.atl, p.tsb, p.ctlTarget, p.tsbTarget].filter((v): v is number => v != null));
@@ -228,7 +243,7 @@ export default function PerformanceChart({ data, height }: PerformanceChartProps
         </text>
       </svg>
 
-      <div className={styles.legend}>
+      <div ref={legendRef} className={styles.legend}>
         <span className={styles.legendItem}>
           <i className={styles.swatch} style={{ background: CTL_COLOR }} /> CTL {fmt(latest.ctl)}
           {latest.ctlTarget != null && <span className={styles.target}> (target {fmt(latest.ctlTarget)})</span>}

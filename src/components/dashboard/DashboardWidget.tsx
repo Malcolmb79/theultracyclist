@@ -606,7 +606,7 @@ export default function DashboardWidget({
               burnedEstimated={isBurnedEstimated}
             />
           ) : isPerformanceChart ? (
-            <PerformanceChart data={performanceSeries} height={Math.max(80, contentHeight - 40)} />
+            <PerformanceChart data={performanceSeries} availableHeight={contentHeight} />
           ) : isWeather ? (
             <WeatherCard />
           ) : isGarminLiveTrack ? (

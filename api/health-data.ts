@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getJSON, setJSON } from "./_lib/kvStore.js";
+import { getSessionEmail } from "./_lib/session.js";
 import { irelandDateStr } from "./_lib/timeContext.js";
 
 // Active retention cap - the POST handler below trims stored history to the
@@ -127,6 +128,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await setJSON(KV_KEY, trimmed);
 
     res.status(200).json({ ok: true, days: trimmedDates.length });
+    return;
+  }
+
+  // Reads require a signed-in session. Unlike /api/strava-activities and
+  // /api/whoop-data - which are deliberately open because the public site's
+  // ride feed and recovery summary render from them - nothing outside the
+  // signed-in dashboard reads this one, and it carries a year of body
+  // weight, nutrition and body-composition history.
+  //
+  // The POST above keeps its own bearer-secret check instead: the iOS
+  // Health Auto Export shortcut pushing data has no session cookie.
+  if (!getSessionEmail(req)) {
+    res.status(401).json({ error: "Unauthorized" });
     return;
   }
 

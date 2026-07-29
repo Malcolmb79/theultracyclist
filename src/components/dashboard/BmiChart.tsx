@@ -1,4 +1,4 @@
-import { BMI_BANDS, BMI_DOMAIN_MAX, BMI_DOMAIN_MIN, bmiCategory } from "../../utils/bmi";
+import { BMI_BANDS, BMI_DOMAIN_MAX, BMI_DOMAIN_MIN, bmiCategory, formatWeight } from "../../utils/bmi";
 import { relativeDayLabel } from "../../utils/relativeDate";
 import styles from "./BmiChart.module.css";
 
@@ -22,9 +22,15 @@ const SEGMENTS = (() => {
 interface BmiChartProps {
   bmi: number | null;
   date: string | null;
+  // The weight reading this BMI was computed from, already display-unit
+  // converted by useDashboardData (so kg or lb depending on the athlete's
+  // unit setting) - hence the unit travels with it rather than being
+  // assumed here.
+  weight: number | null;
+  weightUnit: string;
 }
 
-export default function BmiChart({ bmi, date }: BmiChartProps) {
+export default function BmiChart({ bmi, date, weight, weightUnit }: BmiChartProps) {
   if (bmi == null) {
     return (
       <p className={styles.empty}>
@@ -35,6 +41,16 @@ export default function BmiChart({ bmi, date }: BmiChartProps) {
 
   const category = bmiCategory(bmi);
   const markerPercent = percentFor(bmi);
+  // Kept on the one caption line rather than added as a second row - the
+  // widget's floor height (MIN_BMI_HEIGHT in DashboardWidget) is sized for
+  // exactly these four rows, and an extra one clips against .content's
+  // overflow:hidden at small widget sizes.
+  const caption = [
+    date ? `Last weighed ${relativeDayLabel(date).toLowerCase()}` : null,
+    weight != null ? `${formatWeight(weight)} ${weightUnit}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <div className={styles.wrap}>
@@ -67,7 +83,7 @@ export default function BmiChart({ bmi, date }: BmiChartProps) {
         </div>
       </div>
 
-      {date && <span className={styles.caption}>Last weighed {relativeDayLabel(date).toLowerCase()}</span>}
+      {caption && <span className={styles.caption}>{caption}</span>}
     </div>
   );
 }

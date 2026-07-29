@@ -256,6 +256,14 @@ export default function DashboardWidget({
   const weightUnit = weightMetric?.unit ?? "kg";
   const bmiByDate = new Map((metricById.get("health.bmi")?.series ?? []).map((p) => [p.date.slice(0, 10), p.value]));
 
+  // For the BMI widget's caption: the weight reading its displayed BMI was
+  // actually computed from, looked up by that same date rather than taking
+  // the weight series' own last point - the two can diverge (a weight
+  // reading with no BMI beside it if height was set later), and showing a
+  // weight that doesn't produce the BMI above it reads as a bug.
+  const latestBmiDate = metricById.get("health.bmi")?.series.at(-1)?.date.slice(0, 10);
+  const latestBmiWeight = latestBmiDate ? weightByDate.get(latestBmiDate) ?? null : null;
+
   // For calories balance: "burned" is active energy plus basal/resting
   // energy when the export includes it (falls back to active-only if not).
   const allMetrics = Array.from(metricById.values());
@@ -579,6 +587,8 @@ export default function DashboardWidget({
             <BmiChart
               bmi={metric?.series.length ? metric.series[metric.series.length - 1].value : null}
               date={metric?.series.length ? metric.series[metric.series.length - 1].date : null}
+              weight={latestBmiWeight}
+              weightUnit={weightUnit}
             />
           ) : isHealthCalendar ? (
             <HealthCalendar

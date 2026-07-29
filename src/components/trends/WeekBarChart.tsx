@@ -9,6 +9,10 @@ const TOP_PAD = 14; // room for the value label above the tallest bar
 const BOTTOM_PAD = 14; // room for the weekday label below the baseline
 const BAR_GAP = 6;
 const MIN_BAR_HEIGHT = 3; // a real 0 still reads as a bar, not a missing day
+// Fractions of the week's own value range left below the lowest bar and
+// above the tallest, so neither sits flush against an edge.
+const BASELINE_PAD = 0.35;
+const TOP_HEADROOM = 0.1;
 
 function shortWeekday(iso: string): string {
   return new Date(`${iso}T00:00:00`).toLocaleDateString("en-GB", { weekday: "short" });
@@ -48,16 +52,35 @@ export default function WeekBarChart({ metric, dates, color, formatValue, height
   }
 
   const plotHeight = (height ?? DEFAULT_HEIGHT) - TOP_PAD - BOTTOM_PAD;
-  // 10% headroom above the tallest bar/goal so a value right at the top
-  // doesn't collide with its own label.
-  const maxScale = Math.max(...values, ...goals, 1) * 1.1;
+
+  // The scale spans the week's own range rather than always starting at
+  // zero. For a metric that never goes near zero - body weight sitting at
+  // 72.0/72.4/72.5/72.8kg - a zero baseline puts every bar within 1% of
+  // full height, so four different days render as four identical bars and
+  // the chart says nothing the labels didn't already. Anchoring to the
+  // data makes the bars show the day-to-day difference that's actually
+  // being compared.
+  //
+  // Zero is still the baseline whenever the week genuinely reaches it (a
+  // rest day's 0 calories, a night with no sleep logged): it falls out of
+  // taking the minimum, no special case needed. Each bar carries its own
+  // value label, so the number is never read off the bar height alone.
+  const scaleValues = [...values, ...goals];
+  const lo = Math.min(...scaleValues);
+  const hi = Math.max(...scaleValues);
+  const span = hi - lo;
+  // BASELINE_PAD keeps the shortest bar a readable stub rather than a
+  // sliver, TOP_HEADROOM keeps the tallest one clear of its own label.
+  const baseline = span > 0 ? Math.max(0, lo - span * BASELINE_PAD) : Math.max(0, lo - Math.abs(lo || 1) * 0.1);
+  const maxScale = span > 0 ? hi + span * TOP_HEADROOM : Math.max(hi * 1.1, 1);
+  const scaleRange = maxScale - baseline || 1;
 
   const n = points.length;
   const colWidth = viewWidth / n;
   const barWidth = Math.max(4, colWidth - BAR_GAP);
 
-  const toBarHeight = (value: number) => Math.max(MIN_BAR_HEIGHT, (value / maxScale) * plotHeight);
-  const toY = (value: number) => TOP_PAD + plotHeight - (value / maxScale) * plotHeight;
+  const toBarHeight = (value: number) => Math.max(MIN_BAR_HEIGHT, ((value - baseline) / scaleRange) * plotHeight);
+  const toY = (value: number) => TOP_PAD + plotHeight - ((value - baseline) / scaleRange) * plotHeight;
 
   // A dated goal can change mid-week (see types.ts's DatedGoal), so each
   // day's own goal value is looked up individually rather than assuming a

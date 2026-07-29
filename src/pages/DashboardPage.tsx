@@ -20,7 +20,7 @@ import SignInGate from "../components/shared/SignInGate";
 import TabNav from "../components/shared/TabNav";
 import PageHeader from "../components/shared/PageHeader";
 import ProfileMenu from "../components/shared/ProfileMenu";
-import { computeCanvasHeight } from "../utils/useCanvasItem";
+import { computeCanvasHeight, rescueOffCanvasX, usableCanvasWidth } from "../utils/useCanvasItem";
 import { useDeviceCategory } from "../utils/useDeviceCategory";
 import { useDashboardTheme } from "../utils/useDashboardTheme";
 import styles from "./DashboardPage.module.css";
@@ -274,7 +274,14 @@ function DashboardEditor() {
             {widgets.map((widget) => (
               <DashboardWidget
                 key={widget.id}
-                widget={widget}
+                // A saved x beyond the canvas leaves a widget unreachable -
+                // see rescueOffCanvasX. Only applied on this absolutely
+                // positioned canvas; the stacked branch above lays out in
+                // flow and ignores x entirely.
+                widget={{
+                  ...widget,
+                  x: rescueOffCanvasX(widget.x ?? 0, widget.width ?? DEFAULT_WIDGET_WIDTH, usableCanvasWidth()),
+                }}
                 metricById={metricById}
                 whoopHistory={data.whoopHistory}
                 performanceSeries={data.performanceSeries}

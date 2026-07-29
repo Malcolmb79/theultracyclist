@@ -147,3 +147,42 @@ export function computeCanvasHeight(rects: { y: number; height: number }[], minH
   const tallest = rects.reduce((max, r) => Math.max(max, r.y + r.height), 0);
   return Math.max(minHeight, tallest + padding);
 }
+
+// Every canvas is `max-width: min(95vw, 2400px)` in its page's stylesheet and
+// never scrolls horizontally (see .canvas in DashboardPage/TrendsPage/
+// CoachingPage.module.css). A widget saved beyond that width is therefore
+// unreachable: it can't be seen, can't be dragged back, and can't be re-added
+// - the catalog hides fixed cards that are already in the layout, so the only
+// way out was Fit to screen, which reshuffles everything.
+//
+// Positions saved on a much wider screen (or by an earlier layout pass) could
+// strand a card thousands of pixels out. The AI Coach card was found at
+// x=4560 on a 1389px-wide window, which is what prompted this.
+export const CANVAS_MAX_WIDTH = 2400;
+const CANVAS_VIEWPORT_FRACTION = 0.95;
+
+// How much of a widget has to remain on the canvas to count as reachable -
+// enough to grab its header and drag it back.
+const MIN_VISIBLE_WIDTH = 80;
+
+export function usableCanvasWidth(viewportWidth: number = window.innerWidth): number {
+  return Math.min(viewportWidth * CANVAS_VIEWPORT_FRACTION, CANVAS_MAX_WIDTH);
+}
+
+/**
+ * Pulls a widget back onto the canvas if it is effectively off it.
+ *
+ * Deliberately conservative: anything with a usable amount of itself already
+ * visible keeps its exact saved x, so a layout the athlete arranged on purpose
+ * is never quietly rearranged. Only genuinely stranded widgets move, and they
+ * move to the right-hand edge rather than to the origin, which keeps them
+ * clear of whatever is already at the left.
+ *
+ * The clamp is applied when rendering rather than written back to storage, so
+ * re-opening the same layout on a wide screen still shows the original
+ * arrangement instead of one flattened by the narrowest screen ever used.
+ */
+export function rescueOffCanvasX(x: number, width: number, availableWidth: number): number {
+  if (x + MIN_VISIBLE_WIDTH <= availableWidth) return x;
+  return Math.max(0, availableWidth - width);
+}

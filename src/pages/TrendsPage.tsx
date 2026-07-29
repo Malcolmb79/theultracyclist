@@ -11,8 +11,8 @@ import SignInGate from "../components/shared/SignInGate";
 import TabNav from "../components/shared/TabNav";
 import PageHeader from "../components/shared/PageHeader";
 import ProfileMenu from "../components/shared/ProfileMenu";
-import { computeCanvasHeight } from "../utils/useCanvasItem";
-import { DEFAULT_WIDGET_HEIGHT } from "../components/trends/types";
+import { computeCanvasHeight, rescueOffCanvasX, usableCanvasWidth } from "../utils/useCanvasItem";
+import { DEFAULT_WIDGET_HEIGHT, DEFAULT_WIDGET_WIDTH as DEFAULT_TRENDS_WIDGET_WIDTH } from "../components/trends/types";
 import { useDeviceCategory } from "../utils/useDeviceCategory";
 import { useDashboardTheme } from "../utils/useDashboardTheme";
 import styles from "./TrendsPage.module.css";
@@ -281,7 +281,14 @@ function TrendsEditor() {
             {widgets.map((widget) => (
               <TrendsWidget
                 key={widget.id}
-                widget={widget}
+                // A saved x beyond the canvas leaves a widget unreachable -
+                // see rescueOffCanvasX. Only applied on this absolutely
+                // positioned canvas; the stacked branch above lays out in
+                // flow and ignores x entirely.
+                widget={{
+                  ...widget,
+                  x: rescueOffCanvasX(widget.x ?? 0, widget.width ?? DEFAULT_TRENDS_WIDGET_WIDTH, usableCanvasWidth()),
+                }}
                 metric={metricById.get(widget.metric)}
                 days={data.days}
                 whoopHistory={data.whoopHistory}

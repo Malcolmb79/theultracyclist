@@ -28,7 +28,7 @@ import { useDeviceCategory } from "../utils/useDeviceCategory";
 import { useDashboardTheme } from "../utils/useDashboardTheme";
 import { useRawSources } from "../utils/useRawSources";
 import { usePullToRefresh } from "../utils/usePullToRefresh";
-import { computeCanvasHeight } from "../utils/useCanvasItem";
+import { computeCanvasHeight, rescueOffCanvasX, usableCanvasWidth } from "../utils/useCanvasItem";
 import { fitWidgetsToWidth } from "../utils/fitWidgetsToWidth";
 import SignInGate from "../components/shared/SignInGate";
 import TabNav from "../components/shared/TabNav";
@@ -308,7 +308,11 @@ function CoachingView() {
           style={stacked ? undefined : { height: canvasHeight }}
         >
           {widgets.map((entry, index) => {
-            const rect = { x: entry.x ?? 0, y: entry.y ?? 0, width: entry.width ?? DEFAULT_WIDGET_WIDTH, height: entry.height ?? DEFAULT_WIDGET_HEIGHT };
+            const width = entry.width ?? DEFAULT_WIDGET_WIDTH;
+            // Saved positions can sit beyond the canvas, which makes a widget
+            // unreachable - see rescueOffCanvasX.
+            const x = rescueOffCanvasX(entry.x ?? 0, width, usableCanvasWidth());
+            const rect = { x, y: entry.y ?? 0, width, height: entry.height ?? DEFAULT_WIDGET_HEIGHT };
             const reorderProps = stacked
               ? { stacked: true as const, canMoveUp: index > 0, canMoveDown: index < widgets.length - 1, onReorder: (direction: "up" | "down") => handleReorder(entry.id, direction) }
               : {};
@@ -317,7 +321,7 @@ function CoachingView() {
               return (
                 <DashboardWidget
                   key={entry.id}
-                  widget={toWidget(entry)}
+                  widget={{ ...toWidget(entry), x }}
                   metricById={metricById}
                   whoopHistory={dashboardData.status === "ready" ? dashboardData.whoopHistory : []}
                   performanceSeries={dashboardData.status === "ready" ? dashboardData.performanceSeries : []}

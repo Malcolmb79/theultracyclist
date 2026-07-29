@@ -1,0 +1,118 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+/* Lockout is the failure mode that matters here, so its warning is styled to
+   be read rather than skimmed past. */
+.warn {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-amber);
+  border-radius: var(--radius);
+  color: var(--color-amber);
+  font-size: 0.85rem;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-elevated-2);
+  border-radius: var(--radius);
+}
+
+.itemMain {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.itemLabel {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.itemMeta {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+.remove {
+  flex: none;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-accent);
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.remove:hover {
+  background: var(--color-bg-elevated);
+}
+
+.addRow {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.input {
+  flex: 1 1 140px;
+  min-width: 0;
+  background: var(--color-bg-elevated-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text);
+  padding: var(--space-2);
+  font-size: 0.9rem;
+}
+
+.addButton {
+  flex: none;
+  background: var(--color-accent-2);
+  color: #06251b;
+  border: none;
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.addButton:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.fail {
+  margin: 0;
+  color: var(--color-accent);
+  font-size: 0.85rem;
+}
+
+.ok {
+  margin: 0;
+  color: var(--color-accent-2);
+  font-size: 0.85rem;
+}

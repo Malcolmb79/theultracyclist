@@ -9,6 +9,7 @@ import { fetchRoute } from "../utils/gpxRoute";
 import { DEFAULT_CALORIE_BURN_ESTIMATE } from "../utils/estimateCalorieBurn";
 import type { CoachingSettings } from "../components/coaching/types";
 import SignInGate from "../components/shared/SignInGate";
+import PasskeysSection from "../components/settings/PasskeysSection";
 import TabNav from "../components/shared/TabNav";
 import GoalsEditor from "../components/trends/GoalsEditor";
 import type { Goals } from "../components/trends/types";
@@ -402,6 +403,15 @@ function SettingsEditor() {
               </button>
             ))}
           </div>
+        </div>
+
+        <div className={styles.section}>
+          <p className={styles.sectionTitle}>Passkeys</p>
+          <p className={styles.sectionHint}>
+            Sign in with Face ID, Touch ID, Windows Hello or a security key instead of a password. Register one per
+            device you want to sign in from — they only work on this domain, not on Vercel preview URLs.
+          </p>
+          <PasskeysSection />
         </div>
 
         <div className={styles.section}>

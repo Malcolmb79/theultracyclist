@@ -40,6 +40,23 @@
   background: #f2f2f2;
 }
 
+.signInButton:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+/* Microsoft sign-in is the fallback once a passkey exists, so it reads as the
+   quieter of the two rather than competing with it. */
+.secondaryButton {
+  background: transparent;
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.secondaryButton:hover {
+  background: var(--color-bg-elevated-2);
+}
+
 .gateError {
   color: var(--color-accent);
   font-size: 0.85rem;

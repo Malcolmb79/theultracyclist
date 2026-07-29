@@ -117,4 +117,14 @@ export type DatedGoal = {
   start: number | null;
   /** Which way counts as progress. */
   direction: "down" | "up";
+  /**
+   * An optional second reading of the same two figures, derived by dividing
+   * them - FTP in W/kg beside FTP in watts.
+   *
+   * Both figures use the same divisor deliberately, so the comparison
+   * isolates the thing the goal is about. Dividing the target by a *target*
+   * weight instead would fold two separate goals into one number, and the
+   * gap would move whenever either changed.
+   */
+  secondary?: { unit: string; divisor: number };
 };

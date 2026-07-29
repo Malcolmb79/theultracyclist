@@ -84,6 +84,14 @@
   color: var(--color-text-muted);
 }
 
+/* The derived reading (e.g. W/kg) sits under the measured one and stays
+   muted - it is the same figure seen another way, not a second measurement. */
+.secondary {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
 .track {
   height: 8px;
   border-radius: 999px;

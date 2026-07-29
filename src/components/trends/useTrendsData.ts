@@ -597,6 +597,12 @@ export function useTrendsData(): TrendsDataState {
           ftp: {
             label: "FTP",
             unit: "W",
+            // Power-to-weight beside the raw watts, since that is what
+            // actually decides how a climb goes. Always divided by the latest
+            // weight in real kilograms - not the display unit, or a W/lb
+            // figure would be labelled W/kg. Absent until there is a weight
+            // reading to divide by.
+            secondary: lastRecorded(weightByDate) ? { unit: "W/kg", divisor: lastRecorded(weightByDate) as number } : undefined,
             // The current figure is the one entered in Settings rather than
             // anything derived from rides: FTP is a tested number, and
             // inferring it from ride power would move the goalposts every

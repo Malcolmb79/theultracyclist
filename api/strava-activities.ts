@@ -132,7 +132,10 @@ export type Ride = {
 
 let cachedToken: { accessToken: string; expiresAt: number } | null = null;
 
-async function getAccessToken(): Promise<string> {
+// Exported so api/strava-photos.ts reuses this exact refresh path (and its
+// in-lambda token cache) instead of keeping a second copy of the credential
+// handling.
+export async function getAccessToken(): Promise<string> {
   if (cachedToken && cachedToken.expiresAt - 60 > Date.now() / 1000) {
     return cachedToken.accessToken;
   }

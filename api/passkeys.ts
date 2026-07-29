@@ -5,7 +5,7 @@ import {
   generateAuthenticationOptions,
   verifyAuthenticationResponse,
 } from "@simplewebauthn/server";
-import { SESSION_COOKIE_NAME, createSessionCookieValue, getSessionEmail, isAllowedEmail } from "./_lib/session.js";
+import { getSessionEmail, isAllowedEmail, sessionCookieHeader } from "./_lib/session.js";
 import {
   CLEAR_CHALLENGE_COOKIE,
   addCredential,
@@ -26,8 +26,6 @@ import {
  * from inside the dashboard after signing in the old way. That is what stops
  * anyone who reaches this endpoint from simply adding their own credential.
  */
-
-const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 
 type Action = "register-options" | "register-verify" | "auth-options" | "auth-verify" | "list" | "delete";
 
@@ -168,10 +166,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         await touchCredential(stored.id, verification.authenticationInfo.newCounter);
 
-        res.setHeader("Set-Cookie", [
-          `${SESSION_COOKIE_NAME}=${createSessionCookieValue(stored.email, sessionSecret)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_MAX_AGE_SECONDS}`,
-          CLEAR_CHALLENGE_COOKIE,
-        ]);
+        res.setHeader("Set-Cookie", [sessionCookieHeader(stored.email, sessionSecret), CLEAR_CHALLENGE_COOKIE]);
         res.status(200).json({ ok: true, email: stored.email });
         return;
       }

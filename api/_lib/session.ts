@@ -4,17 +4,49 @@ import type { VercelRequest } from "@vercel/node";
 export const SESSION_COOKIE_NAME = "dash_session";
 export const OAUTH_STATE_COOKIE_NAME = "oauth_state";
 export const WHOOP_OAUTH_STATE_COOKIE_NAME = "whoop_oauth_state";
-const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+/**
+ * How long a session stays valid once issued.
+ *
+ * Deliberately short. The dashboard is meant to ask for a passkey when it's
+ * opened, not to hand out a month of access in exchange for one Face ID.
+ * Paired with a cookie that carries no Max-Age (see the Set-Cookie headers in
+ * auth-callback.ts and passkeys.ts): that makes it a browser-session cookie,
+ * so closing the browser or the app ends it regardless of this value.
+ *
+ * Tunable via SESSION_TTL_MINUTES without a code change. The ceiling stops a
+ * stray value from quietly restoring the old month-long session.
+ */
+const DEFAULT_SESSION_TTL_MINUTES = 60;
+const MAX_SESSION_TTL_MINUTES = 24 * 60;
+
+function sessionTtlMs(): number {
+  const configured = Number(process.env.SESSION_TTL_MINUTES);
+  const minutes =
+    Number.isFinite(configured) && configured > 0
+      ? Math.min(configured, MAX_SESSION_TTL_MINUTES)
+      : DEFAULT_SESSION_TTL_MINUTES;
+  return minutes * 60 * 1000;
+}
 
 function sign(value: string, secret: string): string {
   return createHmac("sha256", secret).update(value).digest("base64url");
 }
 
 export function createSessionCookieValue(email: string, secret: string): string {
-  const payload = Buffer.from(JSON.stringify({ email, exp: Date.now() + SESSION_MAX_AGE_MS })).toString(
+  const payload = Buffer.from(JSON.stringify({ email, exp: Date.now() + sessionTtlMs() })).toString(
     "base64url",
   );
   return `${payload}.${sign(payload, secret)}`;
+}
+
+/**
+ * The session cookie, without Max-Age on purpose - see sessionTtlMs above.
+ * Shared so the OAuth callback and the passkey verify can't drift apart on
+ * cookie flags, which is exactly the kind of difference that turns into "it
+ * logs out on my phone but not my laptop".
+ */
+export function sessionCookieHeader(email: string, secret: string): string {
+  return `${SESSION_COOKIE_NAME}=${createSessionCookieValue(email, secret)}; Path=/; HttpOnly; Secure; SameSite=Lax`;
 }
 
 function verifySessionToken(token: string, secret: string): { email: string } | null {

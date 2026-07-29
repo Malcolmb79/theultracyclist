@@ -1,8 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import {
   OAUTH_STATE_COOKIE_NAME,
-  SESSION_COOKIE_NAME,
-  createSessionCookieValue,
+  sessionCookieHeader,
   decodeIdTokenClaims,
   isAllowedEmail,
   parseCookies,
@@ -14,6 +13,15 @@ function redirectTo(res: VercelResponse, path: string) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Passkey-only means passkey-only: hiding the button while this route still
+  // issued sessions left Microsoft OAuth as a second, unadvertised way in.
+  // Recovery is clearing PASSKEY_ONLY in Vercel and redeploying - see
+  // .env.example.
+  if (process.env.PASSKEY_ONLY === "true") {
+    redirectTo(res, "/dashboard?auth=passkey-only");
+    return;
+  }
+
   const clientId = process.env.AZURE_CLIENT_ID;
   const clientSecret = process.env.AZURE_CLIENT_SECRET;
   const redirectUri = process.env.AZURE_REDIRECT_URI;
@@ -59,9 +67,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const sessionToken = createSessionCookieValue(email, sessionSecret);
   res.setHeader("Set-Cookie", [
-    `${SESSION_COOKIE_NAME}=${sessionToken}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`,
+    sessionCookieHeader(email, sessionSecret),
     `${OAUTH_STATE_COOKIE_NAME}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`,
   ]);
   redirectTo(res, "/dashboard");

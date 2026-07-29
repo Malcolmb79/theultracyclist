@@ -3,6 +3,15 @@ import { randomBytes } from "node:crypto";
 import { OAUTH_STATE_COOKIE_NAME } from "./_lib/session.js";
 
 export default async function handler(_req: VercelRequest, res: VercelResponse) {
+  // Refused outright when passkeys are the only permitted login, so the OAuth
+  // flow can't be started just by visiting this URL. auth-callback.ts refuses
+  // too: blocking only the entry point would leave the callback usable on its
+  // own, which is the half-measure this replaces.
+  if (process.env.PASSKEY_ONLY === "true") {
+    res.status(403).send("Microsoft sign-in is disabled - this dashboard uses passkeys.");
+    return;
+  }
+
   const clientId = process.env.AZURE_CLIENT_ID;
   const redirectUri = process.env.AZURE_REDIRECT_URI;
 

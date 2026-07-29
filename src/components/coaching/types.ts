@@ -1,3 +1,5 @@
+import type { Widget } from "../dashboard/types";
+
 export type TrainingPhase = "build" | "recovery" | "taper";
 
 // The built-in cards render fixed custom components rather than a metric
@@ -14,7 +16,9 @@ export type CoachingWidgetEntry = {
   // Only set when kind === "metric":
   source?: "strava" | "whoop" | "health" | "weather" | "garmin";
   metric?: string;
-  viewType?: "stat" | "chart" | "timeline" | "ring" | "combo" | "rings" | "healthCalendar" | "caloriesBalance";
+  // Borrowed from the dashboard's own Widget rather than restated, so a new
+  // widget type added there can't silently fail to typecheck here.
+  viewType?: Widget["viewType"];
   label: string;
   x?: number;
   y?: number;

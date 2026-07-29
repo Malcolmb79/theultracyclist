@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { GOAL_METRIC_IDS, PROGRESS_PHOTOS_ID, type DatedGoal, type Goals } from "./types";
-import { HEALTH_CALENDAR_ID, PERFORMANCE_CHART_ID } from "../dashboard/types";
+import { HEALTH_CALENDAR_ID, MACRO_SPLIT_ID, PERFORMANCE_CHART_ID } from "../dashboard/types";
 import { useUnits } from "../../context/UnitsContext";
 import { convertTrendMetric, convertValueUnit } from "../../utils/units";
 import { computeBmi } from "../../utils/bmi";
@@ -416,6 +416,17 @@ export function useTrendsData(): TrendsDataState {
             goalDirection: "atLeast",
             getValue: (date) => (carbsKey ? (healthHistory[date]?.[carbsKey]?.value ?? null) : null),
             getGoal: () => goals.carbsG ?? null,
+          },
+          // Rendered as its own card (see TrendsWidget), so getValue is never
+          // read - it exists as a metric purely to appear in the catalog
+          // alongside the per-macro goal widgets it summarises.
+          {
+            id: MACRO_SPLIT_ID,
+            source: "goal",
+            label: "Macro split (Carbs/Fat/Protein)",
+            unit: "",
+            aggregation: "sum",
+            getValue: () => null,
           },
           {
             id: GOAL_METRIC_IDS.calories,

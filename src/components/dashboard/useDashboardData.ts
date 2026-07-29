@@ -1,8 +1,9 @@
 import { useMemo } from "react";
-import { WHOOP_STRAIN_RECOVERY_COMBO_ID, WHOOP_RINGS_COMBO_ID, HEALTH_CALENDAR_ID, CALORIES_BALANCE_ID, PERFORMANCE_CHART_ID, WEATHER_ID, GARMIN_LIVETRACK_ID } from "./types";
+import { WHOOP_STRAIN_RECOVERY_COMBO_ID, WHOOP_RINGS_COMBO_ID, HEALTH_CALENDAR_ID, CALORIES_BALANCE_ID, MACRO_SPLIT_ID, PERFORMANCE_CHART_ID, WEATHER_ID, GARMIN_LIVETRACK_ID } from "./types";
 import { useUnits } from "../../context/UnitsContext";
 import { convertMetricSeries, convertValueUnit } from "../../utils/units";
 import { computeBmi, findWeightMetricName } from "../../utils/bmi";
+import { MACRO_ORDER, findMacroField } from "../../utils/macros";
 import { computePerformanceSeries, type PerformancePoint } from "../../utils/performanceSeries";
 import { irelandTodayDateStr } from "../../utils/irelandDate";
 import type { RawSourcesState } from "../../utils/useRawSources";
@@ -70,7 +71,14 @@ function formatMetricName(name: string): string {
 
 export type DashboardDataState =
   | { status: "loading" }
-  | { status: "ready"; metrics: MetricDef[]; whoopHistory: WhoopDay[]; performanceSeries: PerformancePoint[] };
+  | {
+      status: "ready";
+      metrics: MetricDef[];
+      whoopHistory: WhoopDay[];
+      performanceSeries: PerformancePoint[];
+      /** The athlete's targets, passed straight through for goal-aware widgets. */
+      goals: Record<string, unknown>;
+    };
 
 export function useDashboardData(raw: RawSourcesState): DashboardDataState {
   const { system } = useUnits();
@@ -208,6 +216,14 @@ export function useDashboardData(raw: RawSourcesState): DashboardDataState {
         if (hasCaloriesData) {
           metrics.push({ id: CALORIES_BALANCE_ID, source: "health", label: "Calories: Consumed vs Burned", unit: "", series: [], statOnly: true });
         }
+
+        // Offered as soon as any one macro is being logged - the card shows
+        // "—" for whichever of the three is missing, rather than the option
+        // disappearing until all three happen to be present.
+        const hasMacroData = MACRO_ORDER.some((key) => findMacroField(catalog, key) != null);
+        if (hasMacroData) {
+          metrics.push({ id: MACRO_SPLIT_ID, source: "health", label: "Macro split (Carbs/Fat/Protein)", unit: "", series: [], statOnly: true });
+        }
       }
 
     return {
@@ -215,6 +231,7 @@ export function useDashboardData(raw: RawSourcesState): DashboardDataState {
       metrics: metrics.map((m) => convertMetricSeries(m, system)),
       whoopHistory,
       performanceSeries,
+      goals: raw.goals,
     };
   }, [raw, system]);
 }

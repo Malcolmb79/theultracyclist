@@ -6,9 +6,13 @@ import type { TrendsWidgetConfig, TrendsViewType } from "./types";
 import HealthCalendar from "../dashboard/HealthCalendar";
 import type { HealthCalendarDay } from "../dashboard/HealthDayDetailModal";
 import PerformanceChart from "../dashboard/PerformanceChart";
+import MacroSplitCard from "../dashboard/MacroSplitCard";
+import { MACRO_ORDER, type MacroGrams } from "../../utils/macros";
+import { relativeDayLabel } from "../../utils/relativeDate";
 import GoalProgress from "./GoalProgress";
 import ProgressPhotos from "./ProgressPhotos";
-import { PROGRESS_PHOTOS_ID, type DatedGoal } from "./types";
+import { PROGRESS_PHOTOS_ID, type DatedGoal, type Goals } from "./types";
+import { MACRO_SPLIT_ID } from "../dashboard/types";
 import type { PerformancePoint } from "../../utils/performanceSeries";
 import { isWeightMetricId, formatWeight } from "../../utils/bmi";
 import {
@@ -52,6 +56,10 @@ interface TrendsWidgetProps {
   performanceSeries: PerformancePoint[];
   /** Set when this widget shows a goal with a deadline rather than a metric. */
   datedGoal?: DatedGoal;
+  /** Grams of each macro logged on a given date - for the Macro Split card only. */
+  macroGramsFor?: (date: string) => MacroGrams;
+  /** The athlete's targets, for the Macro Split card's goal column. */
+  goals?: Goals;
   onViewTypeChange: (viewType: TrendsViewType) => void;
   onColorChange: (color: string) => void;
   onMove: (x: number, y: number) => void;
@@ -75,6 +83,7 @@ const VIEW_LABEL: Record<TrendsViewType, string> = {
   performanceChart: "Performance Chart",
   goalProgress: "Goal progress",
   progressPhotos: "Progress photos",
+  macroSplit: "Macro split",
 };
 
 // The selectable time ranges, shown as an always-visible pill row inside
@@ -98,6 +107,7 @@ const VIEW_PILL_LABEL: Record<TrendsViewType, string> = {
   performanceChart: "Performance Chart",
   goalProgress: "Goal",
   progressPhotos: "Photos",
+  macroSplit: "Macro split",
 };
 
 const HEADER_HEIGHT = 40;
@@ -119,6 +129,8 @@ export default function TrendsWidget({
   bmiByDate,
   performanceSeries,
   datedGoal,
+  macroGramsFor,
+  goals,
   onViewTypeChange,
   onColorChange,
   onMove,
@@ -135,6 +147,7 @@ export default function TrendsWidget({
   const isPerformanceChart = widget.viewType === "performanceChart";
   const isGoalProgress = widget.viewType === "goalProgress";
   const isProgressPhotos = widget.metric === PROGRESS_PHOTOS_ID;
+  const isMacroSplit = widget.metric === MACRO_SPLIT_ID;
   // Weight is the goal with a real history behind it: one reading per day the
   // scales were used, straight from Apple Health. FTP is a tested figure with
   // no series, and the sleep goal counts nights rather than tracking toward a
@@ -144,8 +157,25 @@ export default function TrendsWidget({
   // Performance chart's multi-line plot + legend needs similarly generous
   // room to either calendar, so it reuses the same wider min/default sizing
   // rather than a third set of size constants.
-  const needsWideRoom = needsCalendarRoom || isPerformanceChart || isProgressPhotos;
+  const needsWideRoom = needsCalendarRoom || isPerformanceChart || isProgressPhotos || isMacroSplit;
   const isMobile = useIsMobile();
+
+  // The donut is drawn for the most recent day any macro was logged, and all
+  // three grams are read from that one day - see DashboardWidget for why
+  // they can't each take their own latest reading.
+  const macroDate = isMacroSplit
+    ? ([...days].reverse().find((d) => {
+        const g = macroGramsFor?.(d);
+        return g != null && MACRO_ORDER.some((k) => g[k] != null);
+      }) ?? null)
+    : null;
+  const macroGrams: MacroGrams =
+    macroDate && macroGramsFor ? macroGramsFor(macroDate) : { carbs: null, fat: null, protein: null };
+  const macroGoals: MacroGrams = {
+    carbs: goals?.carbsG ?? null,
+    fat: goals?.fatG ?? null,
+    protein: goals?.proteinG ?? null,
+  };
 
   const minWidth = needsWideRoom
     ? isMobile
@@ -214,7 +244,7 @@ export default function TrendsWidget({
   const color = widget.color ?? DEFAULT_TRENDS_COLOR;
   const contentHeight = Math.max(
     24,
-    rect.height - HEADER_HEIGHT - CONTENT_PADDING - (isHealthCalendar || isPerformanceChart || isProgressPhotos ? 0 : VIEW_SEGMENTED_HEIGHT),
+    rect.height - HEADER_HEIGHT - CONTENT_PADDING - (isHealthCalendar || isPerformanceChart || isProgressPhotos || isMacroSplit ? 0 : VIEW_SEGMENTED_HEIGHT),
   );
   const positionStyle = stacked
     ? { width: rect.width, height: rect.height }
@@ -284,7 +314,7 @@ export default function TrendsWidget({
       </div>
 
       <div className={styles.content}>
-        {!isHealthCalendar && !isPerformanceChart && !isProgressPhotos && (
+        {!isHealthCalendar && !isPerformanceChart && !isProgressPhotos && !isMacroSplit && (
           <div className={styles.viewSegmented} role="radiogroup" aria-label="Time range">
             {(datedGoal ? GOAL_PILL_TYPES : VIEW_PILL_TYPES).map((vt) => (
               <button
@@ -303,6 +333,13 @@ export default function TrendsWidget({
         <div className={styles.contentBody}>
         {isProgressPhotos ? (
           <ProgressPhotos latestWeightKg={datedGoal?.current ?? null} weightUnitLabel={datedGoal?.unit} />
+        ) : isMacroSplit ? (
+          <MacroSplitCard
+            grams={macroGrams}
+            goals={macroGoals}
+            periodLabel={macroDate ? relativeDayLabel(macroDate) : undefined}
+            availableHeight={contentHeight}
+          />
         ) : !metric ? (
           <p className={styles.empty}>Metric not available.</p>
         ) : isHealthCalendar ? (

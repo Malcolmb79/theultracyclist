@@ -16,6 +16,12 @@ export type RawSourcesState =
       whoop: unknown | null;
       strava: unknown | null;
       health: unknown | null;
+      // The athlete's targets (weight, macros, calories, ...) as stored by
+      // /api/trends-goals. Trends fetches these for its own goal widgets;
+      // the dashboard needs them too now that a widget there compares
+      // against a target, so they join the shared fetch rather than
+      // becoming a second round-trip for the same JSON.
+      goals: Record<string, unknown>;
       settings: Record<string, unknown>;
       saveSettings: (next: Record<string, unknown>) => Promise<void>;
       // Re-runs the same fetches in the background (e.g. mobile pull-to-
@@ -48,7 +54,7 @@ export function useRawSources(device: DeviceCategory): RawSourcesState {
     };
 
     try {
-      const [whoop, strava, health, settingsBody] = await Promise.all([
+      const [whoop, strava, health, settingsBody, goalsBody] = await Promise.all([
         fetch("/api/whoop-data").then((r) => (r.ok ? r.json() : null)),
         // A generous count (not the default 6 "recent rides" list) so the
         // Performance Chart's CTL/ATL/TSB has real ride history behind it
@@ -57,6 +63,7 @@ export function useRawSources(device: DeviceCategory): RawSourcesState {
         fetch("/api/strava-activities?count=200").then((r) => (r.ok ? r.json() : null)),
         fetch("/api/health-data").then((r) => (r.ok ? r.json() : null)),
         fetch(`/api/coaching-settings?device=${device}`).then((r) => (r.ok ? r.json() : null)),
+        fetch("/api/trends-goals").then((r) => (r.ok ? r.json() : null)),
       ]);
       if (cancelledRef.current) return;
       setState({
@@ -64,13 +71,14 @@ export function useRawSources(device: DeviceCategory): RawSourcesState {
         whoop,
         strava,
         health,
+        goals: (goalsBody as { goals?: Record<string, unknown> } | null)?.goals ?? {},
         settings: (settingsBody as { settings?: Record<string, unknown> } | null)?.settings ?? {},
         saveSettings,
         refetch: load,
       });
     } catch {
       if (cancelledRef.current) return;
-      setState({ status: "ready", whoop: null, strava: null, health: null, settings: {}, saveSettings, refetch: load });
+      setState({ status: "ready", whoop: null, strava: null, health: null, goals: {}, settings: {}, saveSettings, refetch: load });
     }
     // `load` intentionally depends only on `device` - it reassigns itself as
     // each state's `refetch` via useCallback's own memoization, so callers

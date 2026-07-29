@@ -15,6 +15,7 @@ import {
   WHOOP_RINGS_COMBO_ID,
   HEALTH_CALENDAR_ID,
   CALORIES_BALANCE_ID,
+  MACRO_SPLIT_ID,
   DEFAULT_WIDGET_WIDTH,
   DEFAULT_WIDGET_HEIGHT,
   MIN_WIDGET_WIDTH,
@@ -77,6 +78,7 @@ function defaultViewType(metric: MetricDef): Widget["viewType"] {
   if (metric.id === WHOOP_RINGS_COMBO_ID) return "rings";
   if (metric.id === HEALTH_CALENDAR_ID) return "healthCalendar";
   if (metric.id === CALORIES_BALANCE_ID) return "caloriesBalance";
+  if (metric.id === MACRO_SPLIT_ID) return "macroSplit";
   return metric.statOnly ? "stat" : "chart";
 }
 
@@ -320,6 +322,7 @@ function CoachingView() {
                   whoopHistory={dashboardData.status === "ready" ? dashboardData.whoopHistory : []}
                   performanceSeries={dashboardData.status === "ready" ? dashboardData.performanceSeries : []}
                   caloriesBurnSettings={caloriesBurnSettings}
+                  goals={dashboardData.status === "ready" ? dashboardData.goals : undefined}
                   onViewTypeChange={(viewType) => handleViewTypeChange(entry.id, viewType)}
                   onColorChange={(color) => handleColorChange(entry.id, color)}
                   onLabelChange={(label) => handleLabelChange(entry.id, label)}

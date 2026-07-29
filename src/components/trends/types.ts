@@ -10,7 +10,9 @@ export type TrendsViewType =
   // whether the target was met in a period — and cannot express a deadline.
   | "goalProgress"
   // Photographs rather than a metric: no time range applies to it.
-  | "progressPhotos";
+  | "progressPhotos"
+  // Three macros as shares of one day's energy - a composition, not a series.
+  | "macroSplit";
 
 export type TrendsWidgetConfig = {
   id: string;

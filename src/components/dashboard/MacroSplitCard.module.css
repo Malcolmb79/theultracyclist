@@ -1,0 +1,117 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.chartRow {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 0;
+}
+
+/* White on every one of the three fills is only borderline legible, so the
+   label is painted over its own dark stroke (paint-order puts the stroke
+   underneath) rather than trusting the fill colour to carry it. */
+.sliceLabel {
+  font-size: 11px;
+  font-weight: 700;
+  fill: #ffffff;
+  stroke: rgba(0, 0, 0, 0.45);
+  stroke-width: 2.5px;
+  paint-order: stroke fill;
+}
+
+.centreValue {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  fill: var(--color-text);
+}
+
+.centreLabel {
+  font-size: 0.6rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  fill: var(--color-text-muted);
+}
+
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding-top: var(--space-2);
+  font-size: 0.75rem;
+  color: var(--color-text);
+}
+
+.legendHead,
+.legendRow {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: var(--space-3);
+  align-items: baseline;
+}
+
+.legendHead {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.legendHead > span:not(:first-child),
+.total,
+.goal {
+  min-width: 34px;
+  text-align: right;
+}
+
+.legendName {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.grams {
+  color: var(--color-text-muted);
+}
+
+.total {
+  color: var(--color-text-muted);
+}
+
+/* The one figure the athlete is steering towards, so it reads as the
+   reference rather than as another measurement. */
+.goal {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.period {
+  padding-top: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+}
+
+.empty {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  margin: 0;
+}

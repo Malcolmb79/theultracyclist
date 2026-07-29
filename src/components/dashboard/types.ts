@@ -3,7 +3,7 @@ export type Widget = {
   source: "strava" | "whoop" | "health" | "weather" | "garmin";
   metric: string;
   label: string;
-  viewType: "stat" | "chart" | "timeline" | "ring" | "combo" | "rings" | "healthCalendar" | "caloriesBalance";
+  viewType: "stat" | "chart" | "timeline" | "ring" | "combo" | "rings" | "healthCalendar" | "caloriesBalance" | "macroSplit";
   x?: number;
   y?: number;
   width?: number;
@@ -62,6 +62,12 @@ export const PERFORMANCE_CHART_ID = "strava.performanceChart";
 // Special catalog entry: current weather at the athlete's location (browser
 // geolocation + Open-Meteo, no per-metric series).
 export const WEATHER_ID = "weather.current";
+
+// Special catalog entry: carbohydrate/fat/protein as shares of the day's
+// energy, in one donut with the athlete's target split beside it - the
+// separate "Protein vs goal"/"Carbs vs goal" widgets each answer whether one
+// macro hit its number, never how the day actually divided up.
+export const MACRO_SPLIT_ID = "health.macroSplit";
 
 // Special catalog entry: the athlete's currently pasted Garmin LiveTrack
 // session, embedded directly (see GarminLiveTrackCard.tsx and Settings) -

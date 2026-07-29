@@ -14,11 +14,13 @@ import RingGauge from "./RingGauge";
 import BmiChart from "./BmiChart";
 import HealthCalendar from "./HealthCalendar";
 import CaloriesBalanceCard from "./CaloriesBalanceCard";
+import MacroSplitCard from "./MacroSplitCard";
 import PerformanceChart from "./PerformanceChart";
 import WeatherCard from "./WeatherCard";
 import GarminLiveTrackCard from "./GarminLiveTrackCard";
 import type { PerformancePoint } from "../../utils/performanceSeries";
 import { bmiCategoryColor, isWeightMetricId } from "../../utils/bmi";
+import { MACRO_ORDER, findMacroMetricId, type MacroGrams } from "../../utils/macros";
 import { hrvReadinessColor } from "../../utils/hrvColor";
 import WhoopDetailModal, { type WhoopDetailKind } from "./WhoopDetailModal";
 import type { MetricDef, WhoopDay } from "./useDashboardData";
@@ -27,6 +29,7 @@ import {
   WHOOP_RINGS_COMBO_ID,
   HEALTH_CALENDAR_ID,
   CALORIES_BALANCE_ID,
+  MACRO_SPLIT_ID,
   PERFORMANCE_CHART_ID,
   WEATHER_ID,
   GARMIN_LIVETRACK_ID,
@@ -70,6 +73,10 @@ interface DashboardWidgetProps {
   // most widget types never read it; falls back to
   // DEFAULT_CALORIE_BURN_ESTIMATE per-field when unset.
   caloriesBurnSettings?: { wakeTime?: string; targetKcal?: number; targetTime?: string };
+  // The athlete's targets as stored by /api/trends-goals - only the Macro
+  // Split widget reads them so far, and it degrades to actual-only when
+  // they're absent.
+  goals?: Record<string, unknown>;
 }
 
 // Maps a widget's underlying metric id to the Whoop detail view it should
@@ -141,6 +148,13 @@ const DEFAULT_HEALTH_CALENDAR_HEIGHT = 480;
 // own (slightly taller) floor rather than clipping at MIN_BMI_HEIGHT.
 const MIN_CALORIES_HEIGHT = 240;
 const MIN_CALORIES_WIDTH = 220;
+// The donut plus a three-row legend with its own header - taller than the
+// calories card, and wide enough that "Carbohydrates (000g)" doesn't have to
+// ellipsis away the grams.
+const MIN_MACRO_HEIGHT = 300;
+const MIN_MACRO_WIDTH = 260;
+const DEFAULT_MACRO_WIDTH = 320;
+const DEFAULT_MACRO_HEIGHT = 340;
 // Performance chart needs real width for the 5-line PMC plot plus a
 // 3-line legend to stay readable, so it gets a wider floor/default than a
 // plain stat/chart widget.
@@ -203,12 +217,14 @@ export default function DashboardWidget({
   canMoveDown,
   onReorder,
   caloriesBurnSettings,
+  goals,
 }: DashboardWidgetProps) {
   const isCombo = widget.metric === WHOOP_STRAIN_RECOVERY_COMBO_ID;
   const isRings = widget.metric === WHOOP_RINGS_COMBO_ID;
   const isBmi = widget.metric === "health.bmi";
   const isHealthCalendar = widget.metric === HEALTH_CALENDAR_ID;
   const isCaloriesBalance = widget.metric === CALORIES_BALANCE_ID;
+  const isMacroSplit = widget.metric === MACRO_SPLIT_ID;
 
   // Ticks every minute so the estimated-burn fallback below visibly climbs
   // through the day while the page is left open, same pattern as
@@ -226,7 +242,7 @@ export default function DashboardWidget({
   const detailKind = DETAIL_KIND_BY_METRIC[widget.metric];
   const [openDetail, setOpenDetail] = useState<WhoopDetailKind | null>(null);
   const metric =
-    isCombo || isRings || isHealthCalendar || isCaloriesBalance || isPerformanceChart || isWeather || isGarminLiveTrack
+    isCombo || isRings || isHealthCalendar || isCaloriesBalance || isMacroSplit || isPerformanceChart || isWeather || isGarminLiveTrack
       ? undefined
       : metricById.get(widget.metric);
   const isMobile = useIsMobile();
@@ -316,6 +332,31 @@ export default function DashboardWidget({
   // "36 kcal burned" at 7am, when nothing has been logged yet today.
   const consumedLatest = caloriesDisplayDate ? consumedByDate.get(caloriesDisplayDate) ?? null : null;
 
+  // All three macros are read from one shared date - the most recent day any
+  // of them was logged - rather than each taking its own latest point. Carbs
+  // from today mixed with fat from yesterday would still render a confident
+  // three-slice split, of a day that never happened.
+  const macroMetrics = MACRO_ORDER.map((key) => {
+    const id = findMacroMetricId(allMetrics.map((m) => m.id), key);
+    return { key, series: id ? metricById.get(id)?.series ?? [] : [] };
+  });
+  const macroDate = macroMetrics
+    .map((m) => m.series.at(-1)?.date.slice(0, 10))
+    .filter((d): d is string => d != null)
+    .sort()
+    .at(-1);
+  const macroGrams = Object.fromEntries(
+    macroMetrics.map(({ key, series }) => [
+      key,
+      macroDate ? series.find((p) => p.date.slice(0, 10) === macroDate)?.value ?? null : null,
+    ]),
+  ) as MacroGrams;
+  const macroGoals: MacroGrams = {
+    carbs: (goals?.carbsG as number | undefined) ?? null,
+    fat: (goals?.fatG as number | undefined) ?? null,
+    protein: (goals?.proteinG as number | undefined) ?? null,
+  };
+
   const minHeight = isCombo
     ? MIN_COMBO_HEIGHT
     : isRings
@@ -326,6 +367,8 @@ export default function DashboardWidget({
           ? MIN_HEALTH_CALENDAR_HEIGHT
           : isCaloriesBalance
             ? MIN_CALORIES_HEIGHT
+            : isMacroSplit
+              ? MIN_MACRO_HEIGHT
             : isPerformanceChart
               ? MIN_PERFORMANCE_HEIGHT
               : isWeather
@@ -343,6 +386,8 @@ export default function DashboardWidget({
         ? MIN_HEALTH_CALENDAR_WIDTH
         : isCaloriesBalance
           ? MIN_CALORIES_WIDTH
+          : isMacroSplit
+            ? MIN_MACRO_WIDTH
           : isPerformanceChart
             ? MIN_PERFORMANCE_WIDTH
             : isWeather
@@ -354,6 +399,8 @@ export default function DashboardWidget({
                   : MIN_WIDGET_WIDTH;
   const defaultWidth = isHealthCalendar
     ? DEFAULT_HEALTH_CALENDAR_WIDTH
+    : isMacroSplit
+      ? DEFAULT_MACRO_WIDTH
     : isPerformanceChart
       ? DEFAULT_PERFORMANCE_WIDTH
       : isGarminLiveTrack
@@ -365,6 +412,8 @@ export default function DashboardWidget({
             : DEFAULT_WIDGET_WIDTH;
   const defaultHeight = isHealthCalendar
     ? DEFAULT_HEALTH_CALENDAR_HEIGHT
+    : isMacroSplit
+      ? DEFAULT_MACRO_HEIGHT
     : isPerformanceChart
       ? DEFAULT_PERFORMANCE_HEIGHT
       : isGarminLiveTrack
@@ -531,6 +580,7 @@ export default function DashboardWidget({
               !isBmi &&
               !isHealthCalendar &&
               !isCaloriesBalance &&
+              !isMacroSplit &&
               !isPerformanceChart &&
               !isWeather &&
               !isGarminLiveTrack && (
@@ -604,6 +654,13 @@ export default function DashboardWidget({
               burned={burnedLatest}
               date={caloriesDisplayDate}
               burnedEstimated={isBurnedEstimated}
+            />
+          ) : isMacroSplit ? (
+            <MacroSplitCard
+              grams={macroGrams}
+              goals={macroGoals}
+              periodLabel={macroDate ? relativeDayLabel(macroDate) : undefined}
+              availableHeight={contentHeight}
             />
           ) : isPerformanceChart ? (
             <PerformanceChart data={performanceSeries} availableHeight={contentHeight} />

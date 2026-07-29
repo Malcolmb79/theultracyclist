@@ -251,6 +251,7 @@ function DashboardEditor() {
                 whoopHistory={data.whoopHistory}
                 performanceSeries={data.performanceSeries}
                 caloriesBurnSettings={caloriesBurnSettings}
+                goals={data.goals}
                 stacked
                 canMoveUp={index > 0}
                 canMoveDown={index < widgets.length - 1}
@@ -278,6 +279,7 @@ function DashboardEditor() {
                 whoopHistory={data.whoopHistory}
                 performanceSeries={data.performanceSeries}
                 caloriesBurnSettings={caloriesBurnSettings}
+                goals={data.goals}
                 onViewTypeChange={(viewType) => handleViewTypeChange(widget.id, viewType)}
                 onColorChange={(color) => handleColorChange(widget.id, color)}
                 onLabelChange={(label) => handleLabelChange(widget.id, label)}

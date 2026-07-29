@@ -3,7 +3,8 @@ import TrendsCatalog from "../components/trends/TrendsCatalog";
 import TrendsWidget from "../components/trends/TrendsWidget";
 import { useTrendsData, type TrendMetricDef } from "../components/trends/useTrendsData";
 import { GOAL_METRIC_IDS, PROGRESS_PHOTOS_ID, type TrendsWidgetConfig, type TrendsViewType } from "../components/trends/types";
-import { HEALTH_CALENDAR_ID, PERFORMANCE_CHART_ID } from "../components/dashboard/types";
+import { HEALTH_CALENDAR_ID, MACRO_SPLIT_ID, PERFORMANCE_CHART_ID } from "../components/dashboard/types";
+import type { MacroGrams } from "../utils/macros";
 import { useAuthSession } from "../utils/useAuthSession";
 import SignInGate from "../components/shared/SignInGate";
 import TabNav from "../components/shared/TabNav";
@@ -117,6 +118,18 @@ function TrendsEditor() {
     return undefined;
   };
 
+  // The Macro Split card wants all three macros for one date, which the
+  // per-macro goal metrics already know how to read - no second lookup path
+  // into the Apple Health catalog.
+  const macroGramsFor = (date: string): MacroGrams => {
+    const valueOf = (id: string) => data.metrics.find((m) => m.id === id)?.getValue(date) ?? null;
+    return {
+      carbs: valueOf(GOAL_METRIC_IDS.carbs),
+      fat: valueOf(GOAL_METRIC_IDS.fat),
+      protein: valueOf(GOAL_METRIC_IDS.protein),
+    };
+  };
+
   const handleAdd = (metric: TrendMetricDef) => {
     const position = nextWidgetPosition(widgets);
     const widget: TrendsWidgetConfig = {
@@ -126,6 +139,8 @@ function TrendsEditor() {
       viewType:
         metric.id === PROGRESS_PHOTOS_ID
           ? "progressPhotos"
+          : metric.id === MACRO_SPLIT_ID
+            ? "macroSplit"
           : metric.id === HEALTH_CALENDAR_ID
             ? "healthCalendar"
           : metric.id === PERFORMANCE_CHART_ID
@@ -232,6 +247,8 @@ function TrendsEditor() {
                 bmiByDate={data.bmiByDate}
                 performanceSeries={data.performanceSeries}
                 datedGoal={datedGoalFor(widget.metric)}
+                macroGramsFor={macroGramsFor}
+                goals={data.goals}
                 stacked
                 canMoveUp={index > 0}
                 canMoveDown={index < widgets.length - 1}
@@ -263,6 +280,8 @@ function TrendsEditor() {
                 bmiByDate={data.bmiByDate}
                 performanceSeries={data.performanceSeries}
                 datedGoal={datedGoalFor(widget.metric)}
+                macroGramsFor={macroGramsFor}
+                goals={data.goals}
                 onViewTypeChange={(viewType) => handleViewTypeChange(widget.id, viewType)}
                 onColorChange={(color) => handleColorChange(widget.id, color)}
                 onMove={(x, y) => handleMove(widget.id, x, y)}

@@ -1,0 +1,39 @@
+.bar {
+  fill: var(--color-accent-2);
+}
+
+.barMet {
+  fill: var(--color-accent-2);
+}
+
+.barMissed {
+  fill: var(--color-amber);
+}
+
+.barEmpty {
+  fill: var(--color-bg-elevated-2);
+}
+
+.goalLine {
+  stroke: var(--color-text-muted);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.valueLabel {
+  font-size: 9px;
+  font-weight: 700;
+  fill: var(--color-text);
+}
+
+.dayLabel {
+  font-size: 7px;
+  fill: var(--color-text-muted);
+}
+
+.emptyLabel {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  text-align: center;
+  margin: 0;
+}

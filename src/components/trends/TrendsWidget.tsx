@@ -34,8 +34,9 @@ import {
   WIDGET_GRID_SIZE,
 } from "./types";
 import { useIsMobile } from "../../utils/useIsMobile";
-import { aggregateValue, isGoalMet, today } from "./aggregate";
+import { aggregateValue, datesInRange, isGoalMet, today } from "./aggregate";
 import CalendarView from "./CalendarView";
+import WeekBarChart from "./WeekBarChart";
 import styles from "./TrendsWidget.module.css";
 
 interface TrendsWidgetProps {
@@ -318,6 +319,21 @@ export default function TrendsWidget({
           <PerformanceChart data={performanceSeries} height={Math.max(80, contentHeight - 40)} />
         ) : isGoalProgress && datedGoal ? (
           <GoalProgress goal={datedGoal} todayIso={today()} series={goalSeries} />
+        ) : widget.viewType === "week" ? (
+          (() => {
+            const anchor = today();
+            const isWeight = isWeightMetricId(metric.id);
+            const formatStatValue = (v: number) => (isWeight ? formatWeight(v) : v);
+            return (
+              <WeekBarChart
+                metric={metric}
+                dates={datesInRange(days, "week", anchor)}
+                color={color}
+                formatValue={(v) => `${formatStatValue(v)}${metric.unit}`}
+                height={contentHeight}
+              />
+            );
+          })()
         ) : (
           (() => {
             const anchor = today();

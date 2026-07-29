@@ -5,7 +5,7 @@ import { irelandDateStr, irelandTodayDateStr } from "../../utils/irelandDate";
 import HealthDayDetailModal, { type HealthCalendarDay } from "./HealthDayDetailModal";
 import styles from "./HealthCalendar.module.css";
 
-const WEEKDAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
+const WEEKDAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
 const MONTH_LABELS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
@@ -47,7 +47,9 @@ export default function HealthCalendar({ whoopHistory, weightByDate, weightUnit,
   // actually falls on locally.
   const byDate = new Map(whoopHistory.map((d) => [irelandDateStr(new Date(d.date)), d]));
 
-  const firstWeekday = new Date(Date.UTC(year, month - 1, 1)).getUTCDay();
+  // Monday-first grid, so the leading blanks count from Monday rather than
+  // from getUTCDay()'s Sunday - see WEEKDAY_LABELS above.
+  const firstWeekday = (new Date(Date.UTC(year, month - 1, 1)).getUTCDay() + 6) % 7;
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
   const numRows = Math.ceil((firstWeekday + daysInMonth) / 7);
 

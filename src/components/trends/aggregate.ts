@@ -4,15 +4,26 @@ import type { TrendsViewType } from "./types";
 // All range math works on plain "YYYY-MM-DD" strings (lexicographic
 // comparison is safe for ISO dates) rather than Date object comparisons, to
 // avoid local-timezone off-by-one-day bugs near midnight.
+// Weeks run Monday to Sunday, matching the "Mon-Sun" pill this backs and
+// the startOfWeek every other part of the app already uses (atpPlan,
+// coachSnapshot, timeContext, useCoachingData). Subtracting getUTCDay()
+// raw would put the week boundary on Sunday, which showed last Sunday
+// alongside this Mon/Tue/Wed - and on a Sunday would have collapsed the
+// whole week view to that one day.
+function daysSinceMonday(d: Date): number {
+  const day = d.getUTCDay(); // 0 = Sunday .. 6 = Saturday
+  return day === 0 ? 6 : day - 1;
+}
+
 function startOfWeek(dateStr: string): string {
   const d = new Date(`${dateStr}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() - d.getUTCDay());
+  d.setUTCDate(d.getUTCDate() - daysSinceMonday(d));
   return d.toISOString().slice(0, 10);
 }
 
 function endOfWeek(dateStr: string): string {
   const d = new Date(`${dateStr}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + (6 - d.getUTCDay()));
+  d.setUTCDate(d.getUTCDate() + (6 - daysSinceMonday(d)));
   return d.toISOString().slice(0, 10);
 }
 

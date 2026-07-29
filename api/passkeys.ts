@@ -9,7 +9,7 @@ import { SESSION_COOKIE_NAME, createSessionCookieValue, getSessionEmail, isAllow
 import {
   CLEAR_CHALLENGE_COOKIE,
   addCredential,
-  createChallenge,
+  challengeCookie,
   listCredentials,
   readChallenge,
   relyingParty,
@@ -49,14 +49,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case "register-options": {
         if (!email) return unauthorized(res);
         const existing = await listCredentials();
-        const { challenge, cookie } = createChallenge(sessionSecret);
 
         const options = await generateRegistrationOptions({
           rpName,
           rpID,
           userName: email,
           userDisplayName: email,
-          challenge,
           // Prevents registering the same authenticator twice, which would
           // otherwise look like two devices and give false confidence about
           // how many ways back in there are.
@@ -67,7 +65,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           },
         });
 
-        res.setHeader("Set-Cookie", cookie);
+        res.setHeader("Set-Cookie", challengeCookie(options.challenge, sessionSecret));
         res.status(200).json(options);
         return;
       }
@@ -111,16 +109,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // ---- Sign-in: deliberately open, that is the point of a login ------
       case "auth-options": {
-        const { challenge, cookie } = createChallenge(sessionSecret);
         const options = await generateAuthenticationOptions({
           rpID,
-          challenge,
           // No allowCredentials: discoverable (resident) keys let the
           // authenticator offer the right passkey without the site first
           // revealing which credentials exist.
           userVerification: "preferred",
         });
-        res.setHeader("Set-Cookie", cookie);
+        res.setHeader("Set-Cookie", challengeCookie(options.challenge, sessionSecret));
         res.status(200).json(options);
         return;
       }

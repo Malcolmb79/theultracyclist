@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import type { VercelRequest } from "@vercel/node";
 import { getJSON, setJSON } from "./kvStore.js";
 import { parseCookies } from "./session.js";
@@ -72,12 +72,20 @@ function sign(value: string, secret: string): string {
   return createHmac("sha256", secret).update(value).digest("base64url");
 }
 
-export function createChallenge(secret: string): { challenge: string; cookie: string } {
-  const challenge = randomBytes(32).toString("base64url");
+/**
+ * Wraps the challenge that generateRegistration/AuthenticationOptions
+ * actually issued.
+ *
+ * It must be that exact value, not one we invented: passing a string
+ * challenge into those helpers makes them treat it as UTF-8 text and
+ * re-encode it, so the value the authenticator signs is not the string we
+ * handed in. Verification compares against `options.challenge` verbatim, so
+ * that is what gets stored - and the library picks the random bytes.
+ */
+export function challengeCookie(challenge: string, secret: string): string {
   const payload = Buffer.from(JSON.stringify({ challenge, exp: Date.now() + CHALLENGE_MAX_AGE_SECONDS * 1000 })).toString("base64url");
   const token = `${payload}.${sign(payload, secret)}`;
-  const cookie = `${CHALLENGE_COOKIE_NAME}=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${CHALLENGE_MAX_AGE_SECONDS}`;
-  return { challenge, cookie };
+  return `${CHALLENGE_COOKIE_NAME}=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${CHALLENGE_MAX_AGE_SECONDS}`;
 }
 
 export function readChallenge(req: VercelRequest, secret: string): string | null {

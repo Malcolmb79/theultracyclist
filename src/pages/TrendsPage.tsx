@@ -3,8 +3,9 @@ import TrendsCatalog from "../components/trends/TrendsCatalog";
 import TrendsWidget from "../components/trends/TrendsWidget";
 import { useTrendsData, type TrendMetricDef } from "../components/trends/useTrendsData";
 import { GOAL_METRIC_IDS, PROGRESS_PHOTOS_ID, type TrendsWidgetConfig, type TrendsViewType } from "../components/trends/types";
-import { HEALTH_CALENDAR_ID, MACRO_SPLIT_ID, PERFORMANCE_CHART_ID } from "../components/dashboard/types";
+import { CALORIES_BALANCE_ID, HEALTH_CALENDAR_ID, MACRO_SPLIT_ID, PERFORMANCE_CHART_ID } from "../components/dashboard/types";
 import type { MacroGrams } from "../utils/macros";
+import { isEnergyMetricId, type EnergyKind } from "../utils/energy";
 import { useAuthSession } from "../utils/useAuthSession";
 import SignInGate from "../components/shared/SignInGate";
 import TabNav from "../components/shared/TabNav";
@@ -130,6 +131,12 @@ function TrendsEditor() {
     };
   };
 
+  // Consumed/burned come from the plain Apple Health metrics the catalog
+  // already exposes, matched by pattern rather than by exact field name -
+  // see energy.ts.
+  const energyFor = (date: string, kind: EnergyKind): number | null =>
+    data.metrics.find((m) => m.source === "health" && isEnergyMetricId(m.id, kind))?.getValue(date) ?? null;
+
   const handleAdd = (metric: TrendMetricDef) => {
     const position = nextWidgetPosition(widgets);
     const widget: TrendsWidgetConfig = {
@@ -141,6 +148,8 @@ function TrendsEditor() {
           ? "progressPhotos"
           : metric.id === MACRO_SPLIT_ID
             ? "macroSplit"
+          : metric.id === CALORIES_BALANCE_ID
+            ? "day"
           : metric.id === HEALTH_CALENDAR_ID
             ? "healthCalendar"
           : metric.id === PERFORMANCE_CHART_ID
@@ -226,7 +235,8 @@ function TrendsEditor() {
       {catalogOpen && <div className={styles.catalogBackdrop} onClick={() => setCatalogOpen(false)} />}
 
       <aside className={`${styles.catalogDrawer} ${catalogOpen ? styles.catalogDrawerOpen : ""}`}>
-        <TrendsCatalog metrics={data.metrics} goals={data.goals} onSaveGoals={data.saveGoals} onAdd={handleAdd} />
+        <TrendsCatalog metrics={data.metrics} goals={data.goals}
+                onSaveGoals={data.saveGoals} onAdd={handleAdd} />
       </aside>
 
       <main className={styles.canvas}>
@@ -249,6 +259,7 @@ function TrendsEditor() {
                 datedGoal={datedGoalFor(widget.metric)}
                 macroGramsFor={macroGramsFor}
                 goals={data.goals}
+                energyFor={energyFor}
                 stacked
                 canMoveUp={index > 0}
                 canMoveDown={index < widgets.length - 1}
@@ -282,6 +293,7 @@ function TrendsEditor() {
                 datedGoal={datedGoalFor(widget.metric)}
                 macroGramsFor={macroGramsFor}
                 goals={data.goals}
+                energyFor={energyFor}
                 onViewTypeChange={(viewType) => handleViewTypeChange(widget.id, viewType)}
                 onColorChange={(color) => handleColorChange(widget.id, color)}
                 onMove={(x, y) => handleMove(widget.id, x, y)}

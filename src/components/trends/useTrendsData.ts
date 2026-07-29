@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { GOAL_METRIC_IDS, PROGRESS_PHOTOS_ID, type DatedGoal, type Goals } from "./types";
-import { HEALTH_CALENDAR_ID, MACRO_SPLIT_ID, PERFORMANCE_CHART_ID } from "../dashboard/types";
+import { CALORIES_BALANCE_ID, HEALTH_CALENDAR_ID, MACRO_SPLIT_ID, PERFORMANCE_CHART_ID } from "../dashboard/types";
 import { useUnits } from "../../context/UnitsContext";
 import { convertTrendMetric, convertValueUnit } from "../../utils/units";
 import { computeBmi } from "../../utils/bmi";
@@ -422,6 +422,17 @@ export function useTrendsData(): TrendsDataState {
             goalDirection: "atLeast",
             getValue: (date) => (carbsKey ? (healthHistory[date]?.[carbsKey]?.value ?? null) : null),
             getGoal: () => goals.carbsG ?? null,
+          },
+          // Rendered as its own card (see TrendsWidget), summing consumed and
+          // burned across whichever range the pills select, so getValue is
+          // never read - it exists to appear in the catalog.
+          {
+            id: CALORIES_BALANCE_ID,
+            source: "health",
+            label: "Calories: Consumed vs Burned",
+            unit: "",
+            aggregation: "sum",
+            getValue: () => null,
           },
           // Rendered as its own card (see TrendsWidget), so getValue is never
           // read - it exists as a metric purely to appear in the catalog

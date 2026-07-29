@@ -7,12 +7,14 @@ import HealthCalendar from "../dashboard/HealthCalendar";
 import type { HealthCalendarDay } from "../dashboard/HealthDayDetailModal";
 import PerformanceChart from "../dashboard/PerformanceChart";
 import MacroSplitCard from "../dashboard/MacroSplitCard";
+import CaloriesBalanceCard from "../dashboard/CaloriesBalanceCard";
 import { MACRO_ORDER, type MacroGrams } from "../../utils/macros";
+import { BURNED_ACTIVE_ONLY, sumEnergy, type EnergyKind, type EnergyTotals } from "../../utils/energy";
 import { relativeDayLabel } from "../../utils/relativeDate";
 import GoalProgress from "./GoalProgress";
 import ProgressPhotos from "./ProgressPhotos";
 import { PROGRESS_PHOTOS_ID, type DatedGoal, type Goals } from "./types";
-import { MACRO_SPLIT_ID } from "../dashboard/types";
+import { CALORIES_BALANCE_ID, MACRO_SPLIT_ID } from "../dashboard/types";
 import type { PerformancePoint } from "../../utils/performanceSeries";
 import { isWeightMetricId, formatWeight } from "../../utils/bmi";
 import {
@@ -35,6 +37,10 @@ import {
   MOBILE_DEFAULT_CALENDAR_HEIGHT,
   MOBILE_MIN_CALENDAR_WIDTH,
   MOBILE_MIN_CALENDAR_HEIGHT,
+  MIN_CALORIES_WIDTH,
+  MIN_CALORIES_HEIGHT,
+  DEFAULT_CALORIES_WIDTH,
+  DEFAULT_CALORIES_HEIGHT,
   WIDGET_GRID_SIZE,
 } from "./types";
 import { useIsMobile } from "../../utils/useIsMobile";
@@ -60,6 +66,8 @@ interface TrendsWidgetProps {
   macroGramsFor?: (date: string) => MacroGrams;
   /** The athlete's targets, for the Macro Split card's goal column. */
   goals?: Goals;
+  /** Apple Health energy readings for a date - for the Consumed vs Burned card. */
+  energyFor?: (date: string, kind: EnergyKind) => number | null;
   onViewTypeChange: (viewType: TrendsViewType) => void;
   onColorChange: (color: string) => void;
   onMove: (x: number, y: number) => void;
@@ -84,6 +92,7 @@ const VIEW_LABEL: Record<TrendsViewType, string> = {
   goalProgress: "Goal progress",
   progressPhotos: "Progress photos",
   macroSplit: "Macro split",
+  caloriesBalance: "Consumed vs burned",
 };
 
 // The selectable time ranges, shown as an always-visible pill row inside
@@ -98,6 +107,11 @@ const VIEW_PILL_TYPES: TrendsViewType[] = ["day", "week", "month", "calendar"];
 // exactly what happened to the weight goal.
 const GOAL_PILL_TYPES: TrendsViewType[] = ["goalProgress", ...VIEW_PILL_TYPES];
 
+// The consumed-vs-burned card totals a range, so the three range pills all
+// apply to it - but "calendar" doesn't: a per-day grid of a two-sided
+// comparison has nowhere to put the second side.
+const CALORIES_BALANCE_PILL_TYPES: TrendsViewType[] = ["day", "week", "month"];
+
 const VIEW_PILL_LABEL: Record<TrendsViewType, string> = {
   day: "Daily",
   week: "Mon-Sun",
@@ -108,6 +122,7 @@ const VIEW_PILL_LABEL: Record<TrendsViewType, string> = {
   goalProgress: "Goal",
   progressPhotos: "Photos",
   macroSplit: "Macro split",
+  caloriesBalance: "Consumed vs burned",
 };
 
 const HEADER_HEIGHT = 40;
@@ -131,6 +146,7 @@ export default function TrendsWidget({
   datedGoal,
   macroGramsFor,
   goals,
+  energyFor,
   onViewTypeChange,
   onColorChange,
   onMove,
@@ -148,6 +164,7 @@ export default function TrendsWidget({
   const isGoalProgress = widget.viewType === "goalProgress";
   const isProgressPhotos = widget.metric === PROGRESS_PHOTOS_ID;
   const isMacroSplit = widget.metric === MACRO_SPLIT_ID;
+  const isCaloriesBalance = widget.metric === CALORIES_BALANCE_ID;
   // Weight is the goal with a real history behind it: one reading per day the
   // scales were used, straight from Apple Health. FTP is a tested figure with
   // no series, and the sleep goal counts nights rather than tracking toward a
@@ -177,41 +194,63 @@ export default function TrendsWidget({
     protein: goals?.proteinG ?? null,
   };
 
-  const minWidth = needsWideRoom
-    ? isMobile
-      ? MOBILE_MIN_CALENDAR_WIDTH
-      : MIN_CALENDAR_WIDTH
-    : isMobile
-      ? MOBILE_MIN_WIDGET_WIDTH
-      : MIN_WIDGET_WIDTH;
-  const minHeight = needsWideRoom
-    ? isMobile
-      ? MOBILE_MIN_CALENDAR_HEIGHT
-      : MIN_CALENDAR_HEIGHT
-    : isMobile
-      ? MOBILE_MIN_WIDGET_HEIGHT
-      : MIN_WIDGET_HEIGHT;
-  const defaultWidth = needsWideRoom
-    ? isMobile
-      ? MOBILE_DEFAULT_CALENDAR_WIDTH
-      : DEFAULT_CALENDAR_WIDTH
-    : isMobile
-      ? MOBILE_DEFAULT_WIDGET_WIDTH
-      : DEFAULT_WIDGET_WIDTH;
-  const defaultHeight = needsWideRoom
-    ? isMobile
-      ? MOBILE_DEFAULT_CALENDAR_HEIGHT
-      : DEFAULT_CALENDAR_HEIGHT
-    : isMobile
-      ? MOBILE_DEFAULT_WIDGET_HEIGHT
-      : DEFAULT_WIDGET_HEIGHT;
+  // Totalled over whichever range the pills select, so "Monthly" is a real
+  // month of consumed against a month of burned rather than a single day's
+  // pair. Burned is active energy only here - see energy.ts.
+  const caloriesRange = isCaloriesBalance ? datesInRange(days, widget.viewType, today()) : [];
+  const caloriesTotals: EnergyTotals =
+    isCaloriesBalance && energyFor
+      ? sumEnergy(caloriesRange, energyFor, BURNED_ACTIVE_ONLY)
+      : { consumed: null, burned: null };
+  // A single day names itself ("Today"/"Yesterday"); a range says which range.
+  const caloriesPeriodLabel =
+    widget.viewType === "day"
+      ? relativeDayLabel(caloriesRange.at(-1) ?? today())
+      : VIEW_LABEL[widget.viewType];
+
+  const minWidth = isCaloriesBalance
+    ? MIN_CALORIES_WIDTH
+    : needsWideRoom
+      ? isMobile
+        ? MOBILE_MIN_CALENDAR_WIDTH
+        : MIN_CALENDAR_WIDTH
+      : isMobile
+        ? MOBILE_MIN_WIDGET_WIDTH
+        : MIN_WIDGET_WIDTH;
+  const minHeight = isCaloriesBalance
+    ? MIN_CALORIES_HEIGHT
+    : needsWideRoom
+      ? isMobile
+        ? MOBILE_MIN_CALENDAR_HEIGHT
+        : MIN_CALENDAR_HEIGHT
+      : isMobile
+        ? MOBILE_MIN_WIDGET_HEIGHT
+        : MIN_WIDGET_HEIGHT;
+  const defaultWidth = isCaloriesBalance
+    ? DEFAULT_CALORIES_WIDTH
+    : needsWideRoom
+      ? isMobile
+        ? MOBILE_DEFAULT_CALENDAR_WIDTH
+        : DEFAULT_CALENDAR_WIDTH
+      : isMobile
+        ? MOBILE_DEFAULT_WIDGET_WIDTH
+        : DEFAULT_WIDGET_WIDTH;
+  const defaultHeight = isCaloriesBalance
+    ? DEFAULT_CALORIES_HEIGHT
+    : needsWideRoom
+      ? isMobile
+        ? MOBILE_DEFAULT_CALENDAR_HEIGHT
+        : DEFAULT_CALENDAR_HEIGHT
+      : isMobile
+        ? MOBILE_DEFAULT_WIDGET_HEIGHT
+        : DEFAULT_WIDGET_HEIGHT;
   // A stat widget already sized for desktop shows visually compressed on
   // mobile (the saved width/height itself is untouched) - either calendar
   // is exempt since it needs more room than the cap to stay legible. Not
   // applied in stacked (flow) mode - see DashboardWidget.tsx's identical
   // reasoning for why that would just fight a deliberate resize.
-  const capWidth = isMobile && !stacked && !needsWideRoom ? MOBILE_CAP_WIDTH : Infinity;
-  const capHeight = isMobile && !stacked && !needsWideRoom ? MOBILE_CAP_HEIGHT : Infinity;
+  const capWidth = isMobile && !stacked && !needsWideRoom && !isCaloriesBalance ? MOBILE_CAP_WIDTH : Infinity;
+  const capHeight = isMobile && !stacked && !needsWideRoom && !isCaloriesBalance ? MOBILE_CAP_HEIGHT : Infinity;
 
   const { rect, handleDragPointerDown, handleResizePointerDown, applyResize } = useCanvasItem({
     initial: {
@@ -316,7 +355,7 @@ export default function TrendsWidget({
       <div className={styles.content}>
         {!isHealthCalendar && !isPerformanceChart && !isProgressPhotos && !isMacroSplit && (
           <div className={styles.viewSegmented} role="radiogroup" aria-label="Time range">
-            {(datedGoal ? GOAL_PILL_TYPES : VIEW_PILL_TYPES).map((vt) => (
+            {(isCaloriesBalance ? CALORIES_BALANCE_PILL_TYPES : datedGoal ? GOAL_PILL_TYPES : VIEW_PILL_TYPES).map((vt) => (
               <button
                 key={vt}
                 type="button"
@@ -333,6 +372,13 @@ export default function TrendsWidget({
         <div className={styles.contentBody}>
         {isProgressPhotos ? (
           <ProgressPhotos latestWeightKg={datedGoal?.current ?? null} weightUnitLabel={datedGoal?.unit} />
+        ) : isCaloriesBalance ? (
+          <CaloriesBalanceCard
+            consumed={caloriesTotals.consumed}
+            burned={caloriesTotals.burned}
+            date={null}
+            periodLabel={caloriesPeriodLabel}
+          />
         ) : isMacroSplit ? (
           <MacroSplitCard
             grams={macroGrams}

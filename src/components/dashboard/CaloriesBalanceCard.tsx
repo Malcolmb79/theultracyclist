@@ -17,9 +17,13 @@ interface CaloriesBalanceCardProps {
   // reading - only ever true for today, and only until a real reading for
   // today actually arrives.
   burnedEstimated?: boolean;
+  // Overrides the relative-day caption when the figures cover a range rather
+  // than a single day ("This week"), as Trends' own version of this card
+  // does - a week's total captioned "Today" would misread badly.
+  periodLabel?: string;
 }
 
-export default function CaloriesBalanceCard({ consumed, burned, date, burnedEstimated }: CaloriesBalanceCardProps) {
+export default function CaloriesBalanceCard({ consumed, burned, date, burnedEstimated, periodLabel }: CaloriesBalanceCardProps) {
   if (consumed == null && burned == null) {
     return (
       <p className={styles.empty}>
@@ -63,7 +67,9 @@ export default function CaloriesBalanceCard({ consumed, burned, date, burnedEsti
         </div>
       )}
 
-      {date && <span className={styles.caption}>{relativeDayLabel(date)}</span>}
+      {(periodLabel ?? (date ? relativeDayLabel(date) : null)) && (
+        <span className={styles.caption}>{periodLabel ?? relativeDayLabel(date as string)}</span>
+      )}
     </div>
   );
 }

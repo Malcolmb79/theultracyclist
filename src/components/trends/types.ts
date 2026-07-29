@@ -12,7 +12,9 @@ export type TrendsViewType =
   // Photographs rather than a metric: no time range applies to it.
   | "progressPhotos"
   // Three macros as shares of one day's energy - a composition, not a series.
-  | "macroSplit";
+  | "macroSplit"
+  // Consumed vs burned energy, totalled over the selected range.
+  | "caloriesBalance";
 
 export type TrendsWidgetConfig = {
   id: string;
@@ -49,6 +51,13 @@ export const MOBILE_MIN_WIDGET_WIDTH = 140;
 export const MOBILE_MIN_WIDGET_HEIGHT = 110;
 export const MOBILE_CAP_WIDTH = 170;
 export const MOBILE_CAP_HEIGHT = 150;
+
+// Two labelled bars, a net line and a caption, plus the range pills above
+// them - more than a stat widget's floor, well short of a calendar's.
+export const MIN_CALORIES_WIDTH = 240;
+export const MIN_CALORIES_HEIGHT = 260;
+export const DEFAULT_CALORIES_WIDTH = 300;
+export const DEFAULT_CALORIES_HEIGHT = 280;
 
 export const MOBILE_DEFAULT_CALENDAR_WIDTH = 340;
 export const MOBILE_DEFAULT_CALENDAR_HEIGHT = 380;

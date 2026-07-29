@@ -1,5 +1,6 @@
 import type { TrendMetricDef } from "./useTrendsData";
 import type { TrendsViewType } from "./types";
+import { irelandTodayDateStr } from "../../utils/irelandDate";
 
 // All range math works on plain "YYYY-MM-DD" strings (lexicographic
 // comparison is safe for ISO dates) rather than Date object comparisons, to
@@ -51,8 +52,12 @@ export function aggregateValue(metric: TrendMetricDef, days: string[], range: Tr
   return Math.round(result * 100) / 100;
 }
 
+// Ireland's calendar day, not UTC's. Irish local midnight is 23:00 UTC the
+// previous day during BST, so a UTC "today" meant every Daily widget showed
+// yesterday's numbers between midnight and 1am - and the weekly/monthly
+// ranges anchored to it moved a day early too.
 export function today(): string {
-  return new Date().toISOString().slice(0, 10);
+  return irelandTodayDateStr();
 }
 
 // Weight is a body-composition target, not a minimum to clear - "met" means

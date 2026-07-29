@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getJSON, setJSON } from "./_lib/kvStore.js";
+import { irelandDateStr } from "./_lib/timeContext.js";
 
 const TOKEN_URL = "https://api.prod.whoop.com/oauth/oauth2/token";
 const API_BASE = "https://api.prod.whoop.com/developer/v2";
@@ -164,7 +165,10 @@ function zoneMinutesByDate(workouts: WhoopWorkoutRecord[]): Map<string, { zone1t
   const byDate = new Map<string, { zone1to3: number; zone4to5: number }>();
   for (const workout of workouts) {
     if (workout.score_state !== "SCORED" || !workout.score?.zone_duration) continue;
-    const date = workout.start.slice(0, 10);
+    // Whoop timestamps are UTC; the day a workout belongs to is the athlete's
+    // Irish calendar day, which for anything started between Irish midnight
+    // and 1am during BST is the day after the UTC one.
+    const date = irelandDateStr(new Date(workout.start));
     const z = workout.score.zone_duration;
     const zone1to3 = (z.zone_one_milli + z.zone_two_milli + z.zone_three_milli) / 60000;
     const zone4to5 = (z.zone_four_milli + z.zone_five_milli) / 60000;
@@ -282,7 +286,7 @@ export async function fetchWhoopHistory(days: number = DAYS): Promise<WhoopHisto
     const cycleRecord = cyclesById.get(recoveryRecord.cycle_id);
     const sleepRecord = sleepsById.get(recoveryRecord.sleep_id);
     const date = cycleRecord?.start ?? new Date().toISOString();
-    const zoneMinutes = zonesByDate.get(date.slice(0, 10)) ?? { zone1to3: 0, zone4to5: 0 };
+    const zoneMinutes = zonesByDate.get(irelandDateStr(new Date(date))) ?? { zone1to3: 0, zone4to5: 0 };
     return {
       date,
       recovery: buildRecovery(recoveryRecord),

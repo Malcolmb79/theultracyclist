@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getSessionEmail } from "./_lib/session.js";
-import { irelandTimeContext } from "./_lib/timeContext.js";
+import { irelandTimeContext, irelandTodayDateStr } from "./_lib/timeContext.js";
 import { ATHLETE_PROFILE, DATA_SEMANTICS, SEASON_PLAN, LANGUAGE_STYLE } from "./_lib/coachContext.js";
 
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
@@ -21,8 +21,11 @@ export type NarrativeInput = {
   todayDistanceKm: number | null;
 };
 
+// The Irish calendar day, not the server's UTC one - a narrative generated
+// just after Irish midnight during BST was dated, and cached under, the
+// previous day.
 function today(): string {
-  return new Date().toISOString().slice(0, 10);
+  return irelandTodayDateStr();
 }
 
 function buildPrompt(input: NarrativeInput): string {

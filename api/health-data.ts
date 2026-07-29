@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getJSON, setJSON } from "./_lib/kvStore.js";
+import { irelandDateStr } from "./_lib/timeContext.js";
 
 // Active retention cap - the POST handler below trims stored history to the
 // most recent MAX_DAYS on every ingest, permanently discarding older days.
@@ -60,7 +61,10 @@ async function readHistory(): Promise<History> {
 // metric names.
 export async function fetchHealthHistory(days: number = MAX_DAYS, metricNames?: string[]): Promise<History> {
   const history = await readHistory();
-  const cutoff = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+  // Counted back from the Irish calendar day, since that's what the stored
+  // date keys mean - a UTC cutoff trims a day early for the first hour of
+  // every Irish day during BST.
+  const cutoff = irelandDateStr(new Date(Date.now() - days * 86400000));
 
   const filtered: History = {};
   for (const [date, metrics] of Object.entries(history)) {

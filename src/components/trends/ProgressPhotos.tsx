@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { photoToDataUrl, readImageFile } from "../../utils/resizeImage";
+import { irelandTodayDateStr } from "../../utils/irelandDate";
 import styles from "./ProgressPhotos.module.css";
 
 /**
@@ -29,7 +30,7 @@ function formatDate(iso: string): string {
 
 export default function ProgressPhotos({ latestWeightKg, weightUnitLabel }: { latestWeightKg?: number | null; weightUnitLabel?: string }) {
   const [sessions, setSessions] = useState<PhotoSession[] | null>(null);
-  const [uploadDate, setUploadDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [uploadDate, setUploadDate] = useState(() => irelandTodayDateStr());
   const [busy, setBusy] = useState<Angle | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [leftDate, setLeftDate] = useState<string>("");

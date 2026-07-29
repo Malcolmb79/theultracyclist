@@ -8,6 +8,7 @@ import { computeTss } from "../../utils/tss";
 import { computeFitnessSeries } from "../../utils/fitness";
 import { getAtpWeekFor } from "../../utils/atpPlan";
 import { computePerformanceSeries, type PerformancePoint } from "../../utils/performanceSeries";
+import { irelandDateStr } from "../../utils/irelandDate";
 import { today } from "./aggregate";
 
 export type TrendMetricDef = {
@@ -122,12 +123,17 @@ export function useTrendsData(): TrendsDataState {
 
         const goals: Goals = goalsBody?.goals ?? {};
         const whoopDays = (whoop?.history as WhoopDayRaw[] | undefined) ?? [];
-        const whoopByDate = new Map(whoopDays.map((d) => [d.date.slice(0, 10), d]));
+        // Whoop cycle starts and Strava start dates are both full UTC
+        // timestamps, so a raw .slice(0, 10) buckets them by the UTC calendar
+        // day - which is the previous day for anything between Irish midnight
+        // and 1am during BST. An 00:30 start to a long ride belonged to
+        // yesterday; the whole app reads these by Irish day instead.
+        const whoopByDate = new Map(whoopDays.map((d) => [irelandDateStr(new Date(d.date)), d]));
 
         const rides = (strava?.rides as StravaRide[] | undefined) ?? [];
         const stravaByDate = new Map<string, StravaRide[]>();
         for (const ride of rides) {
-          const date = ride.startDate.slice(0, 10);
+          const date = irelandDateStr(new Date(ride.startDate));
           const list = stravaByDate.get(date) ?? [];
           list.push(ride);
           stravaByDate.set(date, list);
@@ -242,7 +248,7 @@ export function useTrendsData(): TrendsDataState {
           const dailyTssByDate = new Map<string, number>();
           let earliestRideDate: string | null = null;
           for (const ride of rides) {
-            const date = ride.startDate.slice(0, 10);
+            const date = irelandDateStr(new Date(ride.startDate));
             const tss = computeTss(ride.weightedAvgWatts ?? ride.avgWatts, ride.movingTimeMinutes, ftpWatts) ?? 0;
             dailyTssByDate.set(date, (dailyTssByDate.get(date) ?? 0) + tss);
             if (!earliestRideDate || date < earliestRideDate) earliestRideDate = date;

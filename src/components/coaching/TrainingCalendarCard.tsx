@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { irelandTodayDateStr } from "../../utils/irelandDate";
 import styles from "./TrainingCalendarCard.module.css";
 
 type PlannedWorkout = {
@@ -14,13 +15,12 @@ const WINDOW_DAYS_PAST = 7;
 const WINDOW_DAYS_FUTURE = 21;
 const shortDateFormatter = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short" });
 
-function addDays(date: Date, n: number): Date {
-  const d = new Date(date);
-  d.setDate(d.getDate() + n);
-  return d;
-}
-
-function dateStr(d: Date): string {
+function addDays(date: string, n: number): string {
+  // Plain "YYYY-MM-DD" arithmetic anchored to the Irish calendar day, rather
+  // than shifting a Date and serialising it - mixing local getters with a UTC
+  // toISOString() is how a window ends up a day out either side of midnight.
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
 }
 
@@ -36,9 +36,9 @@ export default function TrainingCalendarCard() {
 
   useEffect(() => {
     let cancelled = false;
-    const today = new Date();
-    const from = dateStr(addDays(today, -WINDOW_DAYS_PAST));
-    const to = dateStr(addDays(today, WINDOW_DAYS_FUTURE));
+    const today = irelandTodayDateStr();
+    const from = addDays(today, -WINDOW_DAYS_PAST);
+    const to = addDays(today, WINDOW_DAYS_FUTURE);
 
     fetch(`/api/planned-workouts?from=${from}&to=${to}`)
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error("failed"))))
@@ -59,7 +59,7 @@ export default function TrainingCalendarCard() {
     fetch(`/api/planned-workouts?id=${id}`, { method: "DELETE" }).catch(() => {});
   };
 
-  const todayStr = dateStr(new Date());
+  const todayStr = irelandTodayDateStr();
   const sorted = workouts
     ? [...workouts].sort((a, b) => a.date.localeCompare(b.date))
     : null;

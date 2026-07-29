@@ -1,6 +1,7 @@
 import { computeTss } from "./tss";
 import { computeFitnessSeries } from "./fitness";
 import { getAtpWeekFor } from "./atpPlan";
+import { irelandDateStr } from "./irelandDate";
 
 export type PerformancePoint = {
   date: string;
@@ -43,7 +44,10 @@ export function computePerformanceSeries(
   const dailyTssByDate = new Map<string, number>();
   let earliest: string | null = null;
   for (const r of rides) {
-    const date = r.startDate.slice(0, 10);
+    // startDate is Strava's UTC start_date, so the ride's Irish calendar day
+    // has to be derived rather than sliced off the front - an 00:30 BST start
+    // is 23:30 UTC the day before, which put its whole TSS on the wrong day.
+    const date = irelandDateStr(new Date(r.startDate));
     const tss = computeTss(r.weightedAvgWatts ?? r.avgWatts, r.movingTimeMinutes, ftpWatts) ?? 0;
     dailyTssByDate.set(date, (dailyTssByDate.get(date) ?? 0) + tss);
     if (!earliest || date < earliest) earliest = date;

@@ -16,6 +16,13 @@ const MAX_HISTORY = 20; // matches the browser chat's own cap in coaching-chat.t
 // trip for something that's really just a static lookup.
 const CHECKIN_TEMPLATE_TRIGGERS = ["checkin", "check in", "check-in", "template", "checkin template"];
 
+// Clears this number's stored history. A thread carries 20 messages of
+// context, so once the coach has said something wrong it can keep agreeing
+// with itself - it saw its own "there's no body weight data" and repeated it
+// even after being told otherwise. This is the way out without waiting for the
+// bad turns to age off the end.
+const RESET_TRIGGERS = ["reset", "new chat", "start over", "forget"];
+
 const CHECKIN_TEMPLATE = `*ALL CHECK INS MUST USE THIS FORMAT PLEASE* (copy paste and fill in please)
 
 Current Weight fasted (upon waking):
@@ -175,6 +182,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Silently ignore rather than replying "not authorized" - no reason to
     // confirm to a stranger that this number even does anything.
     sendTwiml(res);
+    return;
+  }
+
+  if (RESET_TRIGGERS.includes(messageBody.toLowerCase())) {
+    await setJSON(historyKey(fromNumber), []);
+    sendTwiml(res, "Cleared our conversation - starting fresh. What do you need?");
     return;
   }
 

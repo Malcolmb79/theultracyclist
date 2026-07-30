@@ -294,7 +294,29 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
       case "get_health_metrics": {
         const days = typeof input.days === "number" ? input.days : undefined;
         const metric = typeof input.metric === "string" ? input.metric : undefined;
-        return await fetchHealthHistory(days, metric ? [metric] : undefined);
+        const history = await fetchHealthHistory(days, metric ? [metric] : undefined);
+
+        // Always hand back the real field names, and say plainly when a filter
+        // matched nothing. Returning a bare empty object let the coach conclude
+        // "there's no body weight data in your export" about an athlete whose
+        // weight was sitting there as "weight_body_mass" - and then repeat it
+        // when told otherwise. It cannot draw that conclusion if it can see
+        // the list.
+        const everything = await fetchHealthHistory(days);
+        const availableFields = [...new Set(Object.values(everything).flatMap((day) => Object.keys(day)))].sort();
+
+        if (metric && Object.keys(history).length === 0) {
+          return {
+            history: {},
+            matchedNothing: metric,
+            availableFields,
+            note:
+              `Nothing matched "${metric}", but these fields do exist. The data is present - pick the right ` +
+              "field name from availableFields and call this again. Do not tell the athlete the data is missing.",
+          };
+        }
+
+        return { history, availableFields };
       }
       case "get_fitness": {
         const trendDays = typeof input.trendDays === "number" ? input.trendDays : 14;

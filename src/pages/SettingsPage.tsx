@@ -11,6 +11,7 @@ import type { CoachingSettings } from "../components/coaching/types";
 import SignInGate from "../components/shared/SignInGate";
 import PasskeysSection from "../components/settings/PasskeysSection";
 import RidePhotosSection from "../components/settings/RidePhotosSection";
+import PortraitSection from "../components/settings/PortraitSection";
 import TabNav from "../components/shared/TabNav";
 import GoalsEditor from "../components/trends/GoalsEditor";
 import type { Goals } from "../components/trends/types";
@@ -404,6 +405,15 @@ function SettingsEditor() {
               </button>
             ))}
           </div>
+        </div>
+
+        <div className={styles.section}>
+          <p className={styles.sectionTitle}>About portrait</p>
+          <p className={styles.sectionHint}>
+            The photo beside your story on the public About page. This one is public - unlike the profile picture
+            above, which only appears in your own menu. Leave it unset to keep the placeholder illustration.
+          </p>
+          <PortraitSection />
         </div>
 
         <div className={styles.section}>

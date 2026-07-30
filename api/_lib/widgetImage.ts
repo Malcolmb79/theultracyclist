@@ -63,7 +63,11 @@ const H = 420;
 const BG = "#14181d";
 const TEXT = "#f5f6f7";
 const MUTED = "#9aa4ae";
-const FONT = "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
+// The bundled family, not a system stack: the renderer runs with system fonts
+// disabled (there are none on the serverless runtime), so a family it hasn't
+// been handed draws nothing at all - which is how the first WhatsApp image
+// arrived as a donut with every label missing.
+const FONT = "Inter";
 
 // Matches src/utils/macros.ts - same fixed order, same categorical colours.
 const MACRO_COLORS = { carbs: "#5b8def", fat: "#c9781f", protein: "#12a37c" };

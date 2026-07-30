@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { Resvg } from "@resvg/resvg-js";
+import path from "node:path";
 import { fetchHealthHistory } from "./health-data.js";
 import { fetchCoachingSettings } from "./coaching-settings.js";
 import { irelandTodayDateStr } from "./_lib/timeContext.js";
@@ -21,6 +22,21 @@ import {
  */
 
 const IMAGE_WIDTH = 720;
+
+/**
+ * Fonts are vendored into the repo and bundled with this function (see
+ * `functions.includeFiles` in vercel.json) rather than taken from the system:
+ * the serverless runtime has no fonts installed, and resvg silently draws
+ * nothing for a family it can't resolve - no error, just a chart with every
+ * label missing. loadSystemFonts stays off so local and deployed renders are
+ * identical instead of local quietly succeeding on a system font.
+ */
+const FONT_DIR = path.join(process.cwd(), "api", "_fonts");
+const FONT_OPTIONS = {
+  loadSystemFonts: false,
+  fontFiles: [path.join(FONT_DIR, "Inter_400Regular.ttf"), path.join(FONT_DIR, "Inter_700Bold.ttf")],
+  defaultFontFamily: "Inter",
+};
 
 // Twilio, and then WhatsApp, may each fetch the URL - regenerating per fetch
 // is wasted work. Private caching only: this is personal data on a URL that
@@ -113,7 +129,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       svg = noDataImage("Widget", "That widget can't be drawn as an image yet.");
     }
 
-    const png = new Resvg(svg, { fitTo: { mode: "width", value: IMAGE_WIDTH } }).render().asPng();
+    const png = new Resvg(svg, { fitTo: { mode: "width", value: IMAGE_WIDTH }, font: FONT_OPTIONS }).render().asPng();
     res.setHeader("Content-Type", "image/png");
     res.setHeader("Cache-Control", CACHE_CONTROL);
     res.status(200).send(png);

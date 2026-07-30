@@ -22,6 +22,7 @@ import type { PerformancePoint } from "../../utils/performanceSeries";
 import { bmiCategoryColor, isWeightMetricId } from "../../utils/bmi";
 import { MACRO_ORDER, findMacroMetricId, type MacroGrams } from "../../utils/macros";
 import { hrvReadinessColor } from "../../utils/hrvColor";
+import { latestWhoop, type LatestWhoop } from "../../utils/latestWhoop";
 import WhoopDetailModal, { type WhoopDetailKind } from "./WhoopDetailModal";
 import type { MetricDef, WhoopDay } from "./useDashboardData";
 import {
@@ -642,7 +643,7 @@ export default function DashboardWidget({
             />
           ) : isRings ? (
             <RingsRow
-              latest={whoopHistory[whoopHistory.length - 1]}
+              latest={latestWhoop(whoopHistory)}
               contentHeight={contentHeight}
               onOpenDetail={setOpenDetail}
             />
@@ -749,7 +750,10 @@ function RingsRow({
   contentHeight,
   onOpenDetail,
 }: {
-  latest: WhoopDay | undefined;
+  // Each ring takes the last day its own field was scored, not the newest
+  // cycle wholesale - strain is live all day while recovery and sleep arrive
+  // hours later, so the newest cycle blanks two of three rings all morning.
+  latest: LatestWhoop<WhoopDay>;
   contentHeight: number;
   onOpenDetail: (kind: WhoopDetailKind) => void;
 }) {
@@ -759,7 +763,7 @@ function RingsRow({
   // widget's 1px border) and clipped the rightmost ring at small sizes.
   const [containerRef, measuredWidth] = useMeasuredWidth(MIN_RINGS_WIDTH);
 
-  if (!latest || (!latest.sleep && !latest.recovery && !latest.strain)) {
+  if (!latest.sleep && !latest.recovery && !latest.strain) {
     return <p className={styles.empty}>No data yet for this metric.</p>;
   }
 
@@ -771,9 +775,9 @@ function RingsRow({
       {latest.sleep && (
         <button type="button" className={styles.ringButton} onClick={() => onOpenDetail("sleep")}>
           <RingGauge
-            percent={latest.sleep.performancePercent}
+            percent={latest.sleep.value.performancePercent}
             color="#8FA9C5"
-            centerValue={`${latest.sleep.performancePercent}%`}
+            centerValue={`${latest.sleep.value.performancePercent}%`}
             label="SLEEP"
             pixelSize={ringSize}
           />
@@ -782,9 +786,9 @@ function RingsRow({
       {latest.recovery && (
         <button type="button" className={styles.ringButton} onClick={() => onOpenDetail("recovery")}>
           <RingGauge
-            percent={latest.recovery.score}
-            color={recoveryColor(latest.recovery.score)}
-            centerValue={`${latest.recovery.score}%`}
+            percent={latest.recovery.value.score}
+            color={recoveryColor(latest.recovery.value.score)}
+            centerValue={`${latest.recovery.value.score}%`}
             label="RECOVERY"
             pixelSize={ringSize}
           />
@@ -793,9 +797,9 @@ function RingsRow({
       {latest.strain && (
         <button type="button" className={styles.ringButton} onClick={() => onOpenDetail("strain")}>
           <RingGauge
-            percent={(latest.strain.score / 21) * 100}
+            percent={(latest.strain.value.score / 21) * 100}
             color="#4B87F5"
-            centerValue={latest.strain.score.toFixed(1)}
+            centerValue={latest.strain.value.score.toFixed(1)}
             label="STRAIN"
             pixelSize={ringSize}
           />

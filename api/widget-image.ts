@@ -278,14 +278,36 @@ async function ringsImage(): Promise<string> {
   const days = (history as Day[])
     .slice()
     .sort((a, b) => a.date.localeCompare(b.date));
-  const latest = days.at(-1);
-  if (!latest) return noDataImage("Sleep, Recovery & Strain", "No Whoop history yet.");
+  if (days.length === 0) return noDataImage("Sleep, Recovery & Strain", "No Whoop history yet.");
+
+  // Each ring falls back to the last day its own field was scored. Strain is
+  // live all day while recovery and sleep arrive hours later, so reading the
+  // newest cycle wholesale blanks two rings of three every morning - and the
+  // athlete knows those numbers exist, because the watch is showing them.
+  const newestScored = <K extends "recovery" | "strain" | "sleep">(key: K) => {
+    for (let i = days.length - 1; i >= 0; i--) {
+      const value = days[i][key];
+      if (value) return { value, date: days[i].date };
+    }
+    return null;
+  };
+  const recovery = newestScored("recovery");
+  const strain = newestScored("strain");
+  const sleep = newestScored("sleep");
+
+  // Dated by the freshest thing on the card, with a note when the others are
+  // older, so nothing older is passed off as today's.
+  const dates = [recovery?.date, strain?.date, sleep?.date].filter((d): d is string => !!d).sort();
+  const newest = dates.at(-1);
+  const mixed = dates.length > 1 && irelandDateStr(new Date(dates[0])) !== irelandDateStr(new Date(newest as string));
 
   return ringsRowSvg({
-    sleepPerformance: latest.sleep?.performancePercent ?? null,
-    recovery: latest.recovery?.score ?? null,
-    strain: latest.strain?.score ?? null,
-    dateLabel: dayLabel(irelandDateStr(new Date(latest.date))),
+    sleepPerformance: sleep?.value.performancePercent ?? null,
+    recovery: recovery?.value.score ?? null,
+    strain: strain?.value.score ?? null,
+    dateLabel: newest
+      ? `${dayLabel(irelandDateStr(new Date(newest)))}${mixed ? " · recovery and sleep from the last scored night" : ""}`
+      : "",
   });
 }
 

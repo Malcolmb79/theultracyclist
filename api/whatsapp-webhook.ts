@@ -3,6 +3,7 @@ import twilio from "twilio";
 import { getJSON, setJSON } from "./_lib/kvStore.js";
 import { generateCoachReply, type ChatMessage } from "./coaching-chat.js";
 import { computeChatContext } from "./_lib/coachSnapshot.js";
+import { IMAGEABLE_METRICS, signWidgetToken } from "./_lib/widgetImage.js";
 
 const MAX_HISTORY = 20; // matches the browser chat's own cap in coaching-chat.ts
 
@@ -99,14 +100,32 @@ function escapeXml(text: string): string {
     .replace(/'/g, "&apos;");
 }
 
-function twiml(message?: string): string {
-  const body = message ? `<Message>${escapeXml(message)}</Message>` : "";
+function twiml(message?: string, mediaUrls: string[] = []): string {
+  // Media rides inside the same <Message> so the picture and the sentence
+  // arrive together rather than as two unrelated notifications.
+  const media = mediaUrls.map((url) => `<Media>${escapeXml(url)}</Media>`).join("");
+  const body = message || media ? `<Message>${message ? escapeXml(message) : ""}${media}</Message>` : "";
   return `<?xml version="1.0" encoding="UTF-8"?><Response>${body}</Response>`;
 }
 
-function sendTwiml(res: VercelResponse, message?: string) {
+function sendTwiml(res: VercelResponse, message?: string, mediaUrls: string[] = []) {
   res.setHeader("Content-Type", "text/xml");
-  res.status(200).send(twiml(message));
+  res.status(200).send(twiml(message, mediaUrls));
+}
+
+/**
+ * Pulls the metrics out of any `[widget:...]` markers the coach left, so they
+ * can be sent as images. Only the ones drawable server-side survive - see
+ * IMAGEABLE_METRICS - so a marker for anything else just disappears from the
+ * text rather than promising a picture that never arrives.
+ */
+function widgetMetricsIn(text: string): string[] {
+  const found = new Set<string>();
+  for (const match of text.matchAll(/\[widget:([^:\]]+)(?::[^\]]*)?\]/g)) {
+    const metric = match[1].trim();
+    if (IMAGEABLE_METRICS.has(metric)) found.add(metric);
+  }
+  return [...found];
 }
 
 /**
@@ -178,10 +197,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const nextHistory = [...messages, { role: "assistant" as const, content: reply }].slice(-MAX_HISTORY);
     await setJSON(key, nextHistory);
 
-    // A reply that was nothing but a widget marker would strip to empty, and
-    // an empty TwiML body is silence rather than an answer.
+    // Markers become image attachments; the text keeps only prose. A reply
+    // that was nothing but a marker still needs words, or the message reads as
+    // a bare image with no reason for arriving.
+    const secret = process.env.SESSION_SECRET;
+    const origin = `${proto}://${req.headers.host}`;
+    const mediaUrls = secret
+      ? widgetMetricsIn(reply).map(
+          (metric) =>
+            `${origin}/api/widget-image?token=${encodeURIComponent(signWidgetToken({ metric, view: "chart" }, secret))}`,
+        )
+      : [];
+
     const text = stripWidgetMarkers(reply);
-    sendTwiml(res, text || "I can show you that on the dashboard - ask me there and I'll put the chart up.");
+    sendTwiml(
+      res,
+      text || (mediaUrls.length > 0 ? "Here you go." : "I couldn't put that together - try asking another way."),
+      mediaUrls,
+    );
   } catch (error) {
     console.error(error);
     sendTwiml(res, "Sorry, I couldn't pull that together just now - try again in a bit.");

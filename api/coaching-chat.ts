@@ -442,10 +442,39 @@ function buildSystemPrompt(context: Partial<ChatContext>): string {
  */
 export type CoachChannel = "web" | "whatsapp";
 
-const WIDGET_TOOL_NAMES = new Set(["show_widget"]);
+// WhatsApp can show a widget, but only as a rendered image, and only for the
+// few drawn server-side (see IMAGEABLE_METRICS in _lib/widgetImage.ts). The
+// model can't tell which channel it's on, so the constraint goes in the tool
+// description it actually sees rather than in a general instruction it has no
+// way to apply.
+const WHATSAPP_DRAWABLE = "\"health.bmi\", \"health.macroSplit\" or \"health.caloriesBalance\"";
 
 function toolsFor(channel: CoachChannel) {
-  return channel === "web" ? TOOLS : TOOLS.filter((tool) => !WIDGET_TOOL_NAMES.has(tool.name));
+  if (channel === "web") return TOOLS;
+  return TOOLS.map((tool) =>
+    tool.name === "show_widget"
+      ? {
+          ...tool,
+          description:
+            "Send the athlete a picture of one of their widgets. On this channel only " +
+            WHATSAPP_DRAWABLE +
+            " can be drawn - for anything else, don't call this tool, just describe the numbers " +
+            "(fetch them with the other tools first). Say something useful alongside the image; " +
+            "it arrives as a separate attachment, so don't write as though it is inline in your text.",
+          input_schema: {
+            type: "object",
+            properties: {
+              metric: {
+                type: "string",
+                enum: ["health.bmi", "health.macroSplit", "health.caloriesBalance"],
+                description: "Which widget to draw.",
+              },
+            },
+            required: ["metric"],
+          },
+        }
+      : tool,
+  );
 }
 
 export async function generateCoachReply(

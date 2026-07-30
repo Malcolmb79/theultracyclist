@@ -594,3 +594,135 @@ export function ringsRowSvg(day: {
     `${body}<text x="40" y="${H - 24}" fill="${MUTED}" font-family="${FONT}" font-size="17">${esc(day.dateLabel)}</text>`,
   );
 }
+
+/**
+ * The full goal card: trajectory against the plan line, the insight table, the
+ * pace verdict, and the headline figures - what the dashboard shows, rather
+ * than the bar-only version this replaces.
+ *
+ * Taller than the other cards on purpose. There is genuinely more to say here,
+ * and a WhatsApp image scrolls; squeezing a chart, six insights and two
+ * headline figures into a 420px-high box would make all three unreadable.
+ */
+const GOAL_CARD_H = 1080;
+
+export function goalCardSvg(card: {
+  title: string;
+  unit: string;
+  series: { date: string; value: number }[];
+  target: number;
+  targetDate?: string;
+  current: number;
+  direction: "down" | "up";
+  insights: { label: string; value: string; tone?: "good" | "bad" }[];
+  pace?: { ahead: boolean; deltaFromPace: number } | null;
+  daysLeft?: number | null;
+  perWeekNeeded?: number | null;
+  reached: boolean;
+  currentSecondary?: string;
+  targetSecondary?: string;
+}): string {
+  const H2 = GOAL_CARD_H;
+  const good = "#2ee6a6";
+  const warn = "#e0a13a";
+  const toneColor = (tone?: "good" | "bad") => (tone === "good" ? good : tone === "bad" ? warn : TEXT);
+
+  // ---- trajectory -------------------------------------------------------
+  const left = 90;
+  const right = W - 40;
+  const top = 120;
+  const bottom = 400;
+  const ordered = [...card.series].sort((a, b) => a.date.localeCompare(b.date));
+  let chart = `<text x="40" y="${top + 40}" fill="${MUTED}" font-family="${FONT}" font-size="18">Not enough readings to chart yet.</text>`;
+
+  if (ordered.length >= 2 && card.targetDate) {
+    const toMs = (iso: string) => Date.parse(`${iso.slice(0, 10)}T00:00:00Z`);
+    const startMs = toMs(ordered[0].date);
+    const endMs = toMs(card.targetDate);
+    const spanMs = Math.max(1, endMs - startMs);
+    const values = [...ordered.map((p) => p.value), card.target];
+    const lo = Math.min(...values);
+    const hi = Math.max(...values);
+    const pad = (hi - lo) * 0.1 || 1;
+    const min = lo - pad;
+    const max = hi + pad;
+    const x = (ms: number) => left + Math.min(1, Math.max(0, (ms - startMs) / spanMs)) * (right - left);
+    const y = (v: number) => bottom - ((v - min) / (max - min)) * (bottom - top);
+
+    const actual = ordered.map((p, i) => `${i === 0 ? "M" : "L"}${x(toMs(p.date)).toFixed(1)},${y(p.value).toFixed(1)}`).join(" ");
+    const dots = ordered
+      .map((p) => `<circle cx="${x(toMs(p.date)).toFixed(1)}" cy="${y(p.value).toFixed(1)}" r="4.5" fill="${BG}" stroke="${card.pace?.ahead === false ? warn : good}" stroke-width="2.5"/>`)
+      .join("");
+    const lineColor = card.pace?.ahead === false ? warn : good;
+
+    chart = `<line x1="${left}" y1="${y(card.target).toFixed(1)}" x2="${right}" y2="${y(card.target).toFixed(1)}" stroke="rgba(255,255,255,.15)"/>
+      <path d="M${x(startMs).toFixed(1)},${y(ordered[0].value).toFixed(1)} L${x(endMs).toFixed(1)},${y(card.target).toFixed(1)}" stroke="${MUTED}" stroke-width="2" stroke-dasharray="8 7" fill="none"/>
+      <path d="${actual}" fill="none" stroke="${lineColor}" stroke-width="3" stroke-linejoin="round"/>
+      ${dots}
+      <text x="${left - 12}" y="${(y(hi) + 5).toFixed(1)}" fill="${MUTED}" font-family="${FONT}" font-size="17" text-anchor="end">${esc(String(Math.round(hi * 10) / 10))}</text>
+      <text x="${left - 12}" y="${(y(card.target) + 5).toFixed(1)}" fill="${MUTED}" font-family="${FONT}" font-size="17" text-anchor="end">${esc(String(Math.round(card.target * 10) / 10))}</text>
+      <text x="${left}" y="${bottom + 34}" fill="${MUTED}" font-family="${FONT}" font-size="17">${esc(shortDay(ordered[0].date))}</text>
+      <text x="${right}" y="${bottom + 34}" fill="${MUTED}" font-family="${FONT}" font-size="17" text-anchor="end">${esc(shortDay(card.targetDate))}</text>`;
+  }
+
+  // ---- pace verdict -----------------------------------------------------
+  // On two lines rather than one: the sentence is long enough that at this
+  // width it ran off the right edge as "...has you tod".
+  const paceY = 486;
+  const pace = card.pace
+    ? `<text x="40" y="${paceY}" fill="${card.pace.ahead ? good : warn}" font-family="${FONT}" font-size="24" font-weight="700">${card.pace.ahead ? "Ahead of pace" : "Behind pace"}</text>
+       <text x="40" y="${paceY + 32}" fill="${MUTED}" font-family="${FONT}" font-size="20">${card.pace.deltaFromPace}${esc(card.unit)} ${card.pace.ahead ? "better than" : "off"} where the plan has you today</text>`
+    : "";
+
+  // ---- insight rows -----------------------------------------------------
+  const rows = card.insights
+    .map((insight, i) => {
+      const y = 580 + i * 46;
+      return `<text x="40" y="${y}" fill="${MUTED}" font-family="${FONT}" font-size="20">${esc(insight.label)}</text>
+        <text x="${W - 40}" y="${y}" fill="${toneColor(insight.tone)}" font-family="${FONT}" font-size="20" font-weight="600" text-anchor="end">${esc(insight.value)}</text>
+        <line x1="40" y1="${y + 14}" x2="${W - 40}" y2="${y + 14}" stroke="rgba(255,255,255,.07)"/>`;
+    })
+    .join("");
+
+  // ---- headline figures + status ----------------------------------------
+  // Headline figures sit below the last insight row, and the status line below
+  // them - the first cut had all three overlapping at the bottom of the card.
+  const figuresY = 580 + card.insights.length * 46 + 54;
+  const gap = Math.abs(Math.round((card.target - card.current) * 10) / 10);
+  const status = card.reached
+    ? "Target reached"
+    : [
+        `${gap}${card.unit} to go`,
+        card.daysLeft != null && card.daysLeft > 0 ? `${card.daysLeft} days left` : null,
+        card.daysLeft != null && card.daysLeft > 0 && card.perWeekNeeded != null
+          ? `${Math.abs(Math.round(card.perWeekNeeded * 100) / 100)}${card.unit}/week needed`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H2}" viewBox="0 0 ${W} ${H2}">
+  <rect width="${W}" height="${H2}" rx="20" fill="${BG}"/>
+  <text x="40" y="62" fill="${TEXT}" font-family="${FONT}" font-size="28" font-weight="600">${esc(card.title)}</text>
+  ${chart}
+  ${pace}
+  ${rows}
+  <text x="40" y="${figuresY}" fill="${MUTED}" font-family="${FONT}" font-size="17" letter-spacing="1">NOW</text>
+  <text x="40" y="${figuresY + 52}" fill="${TEXT}" font-family="${FONT}" font-size="50" font-weight="700">${Math.round(card.current * 10) / 10}<tspan font-size="22" fill="${MUTED}"> ${esc(card.unit)}</tspan></text>
+  ${card.currentSecondary ? `<text x="40" y="${figuresY + 82}" fill="${MUTED}" font-family="${FONT}" font-size="18">${esc(card.currentSecondary)}</text>` : ""}
+  <text x="${W - 40}" y="${figuresY}" fill="${MUTED}" font-family="${FONT}" font-size="17" letter-spacing="1" text-anchor="end">TARGET</text>
+  <text x="${W - 40}" y="${figuresY + 52}" fill="${TEXT}" font-family="${FONT}" font-size="50" font-weight="700" text-anchor="end">${Math.round(card.target * 10) / 10}<tspan font-size="22" fill="${MUTED}"> ${esc(card.unit)}</tspan></text>
+  ${card.targetSecondary ? `<text x="${W - 40}" y="${figuresY + 82}" fill="${MUTED}" font-family="${FONT}" font-size="18" text-anchor="end">${esc(card.targetSecondary)}</text>` : ""}
+  <text x="40" y="${H2 - 56}" fill="${card.reached ? good : TEXT}" font-family="${FONT}" font-size="21">${esc(status)}</text>
+  ${card.targetDate ? `<text x="40" y="${H2 - 26}" fill="${MUTED}" font-family="${FONT}" font-size="17">by ${esc(shortDay(card.targetDate))}</text>` : ""}
+</svg>`;
+}
+
+function shortDay(iso: string): string {
+  return new Date(`${iso.slice(0, 10)}T00:00:00Z`).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}

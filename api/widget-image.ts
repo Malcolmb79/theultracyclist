@@ -8,6 +8,7 @@ import {
   bmiSvg,
   caloriesBalanceSvg,
   chartSvg,
+  goalCardSvg,
   goalProgressSvg,
   macroSplitSvg,
   noDataImage,
@@ -28,6 +29,7 @@ import { getAtpWeekFor } from "./_lib/atpPlan.js";
 import { irelandDateStr } from "./_lib/timeContext.js";
 import { resolveMetric } from "./_lib/metricSeries.js";
 import { fetchGoals } from "./trends-goals.js";
+import { goalInsights, paceVerdict } from "./_lib/goalInsights.js";
 import { convertValueUnit } from "./_lib/units.js";
 
 /**
@@ -143,21 +145,30 @@ async function goalImage(
     if (latestKg == null || targetKg == null) {
       return noDataImage("Weight vs goal", "Needs a weight reading and a weight target in Settings.");
     }
-    const firstKg = toKg(readingOn(weightDates[0])!.value, readingOn(weightDates[0])!.unit);
     const daysLeft = goals.weightTargetDate ? daysBetween(today, goals.weightTargetDate) : null;
     const gapKg = latestKg - targetKg;
     const display = (kg: number) => convertValueUnit(kg, "kg", system);
     const shown = display(latestKg);
+    const unit = shown.unit;
 
-    return goalProgressSvg({
+    // Every reading, in the athlete's units, so the chart and the insights are
+    // computed on the same numbers that get printed.
+    const series = weightDates.map((date) => {
+      const r = readingOn(date)!;
+      return { date, value: Math.round(display(toKg(r.value, r.unit)).value * 100) / 100 };
+    });
+    const target = display(targetKg).value;
+
+    return goalCardSvg({
       title: "Weight vs goal",
+      unit,
+      series,
+      target,
+      targetDate: goals.weightTargetDate,
       current: shown.value,
-      target: display(targetKg).value,
-      unit: shown.unit,
-      // Travelled from the first recorded reading; 0 when the athlete has
-      // moved the wrong way, rather than a negative bar.
-      progress: firstKg > targetKg ? (firstKg - latestKg) / (firstKg - targetKg) : 0,
-      deadline: goals.weightTargetDate,
+      direction: "down",
+      insights: goalInsights(series, target, unit, "down", today),
+      pace: goals.weightTargetDate ? paceVerdict(series, target, goals.weightTargetDate, "down", today) : null,
       daysLeft,
       perWeekNeeded: daysLeft && daysLeft > 0 ? display(gapKg).value / (daysLeft / 7) : null,
       reached: gapKg <= 0,

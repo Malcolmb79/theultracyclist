@@ -288,7 +288,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       profileUrl: `https://www.strava.com/athletes/${athleteData.id}`,
     };
 
-    res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=600");
+    // Ride history barely changes, and a cold response costs ~10s upstream:
+    // paging 200 activities out of Strava is slow whatever we do with it. The
+    // long stale-while-revalidate window is what matters - the old 600s meant
+    // that opening the dashboard after a quiet afternoon fell all the way
+    // through to a full round trip, which is the "Loading..." stall. With a
+    // day's grace, a stale copy is served instantly and refreshed behind the
+    // request, so only a first load in 24h ever waits.
+    res.setHeader("Cache-Control", "public, s-maxage=900, stale-while-revalidate=86400");
     res.status(200).json({ athlete, rides, summary });
   } catch (error) {
     console.error(error);

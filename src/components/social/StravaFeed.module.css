@@ -88,3 +88,21 @@
   color: var(--color-text-muted);
   text-align: center;
 }
+
+/* Published ride photos, under the route profile. A horizontal strip rather
+   than a grid: the feed row is narrow, and a couple of photos should widen the
+   card as little as possible. */
+.photoStrip {
+  display: flex;
+  gap: var(--space-1);
+  overflow-x: auto;
+  margin-top: var(--space-1);
+}
+
+.photo {
+  height: 64px;
+  width: auto;
+  border-radius: 6px;
+  flex: none;
+  object-fit: cover;
+}

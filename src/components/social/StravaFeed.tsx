@@ -60,9 +60,22 @@ type LoadState =
 
 export default function StravaFeed() {
   const [state, setState] = useState<LoadState>({ status: "loading" });
+  // Empty until the saved-photos fetch lands, so the feed renders immediately
+  // and photos appear when they arrive rather than holding up the rides.
+  const [ridePhotos, setRidePhotos] = useState<Record<string, { photos: string[] }>>({});
 
   useEffect(() => {
     let cancelled = false;
+
+    // Photos the athlete chose to publish, keyed by ride id. Unauthenticated
+    // callers only ever receive rides marked public (see api/strava-photos.ts),
+    // so this is safe to fetch from the public site.
+    fetch("/api/strava-photos?action=saved")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((body: { rides?: Record<string, { photos: string[] }> } | null) => {
+        if (body?.rides) setRidePhotos(body.rides);
+      })
+      .catch(() => {});
 
     fetch("/api/strava-activities")
       .then((res) => {
@@ -129,6 +142,13 @@ export default function StravaFeed() {
                   <span className={styles.stats}>{performanceStats(ride).join(" · ")}</span>
                 )}
                 <RouteProfile points={ride.elevationProfile} distanceKm={ride.distanceKm} />
+                {(ridePhotos[String(ride.id)]?.photos ?? []).length > 0 && (
+                  <span className={styles.photoStrip}>
+                    {ridePhotos[String(ride.id)].photos.map((src, i) => (
+                      <img key={i} src={src} alt="" className={styles.photo} loading="lazy" />
+                    ))}
+                  </span>
+                )}
               </div>
             </ExternalLink>
           </li>

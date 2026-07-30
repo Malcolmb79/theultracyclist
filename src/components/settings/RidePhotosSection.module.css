@@ -1,0 +1,165 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+/* Scrolls rather than growing: there can be dozens of rides with photos, and
+   this sits inside a settings page, not a page of its own. */
+.rides {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.ride {
+  border-radius: var(--radius);
+  background: var(--color-bg-elevated-2);
+}
+
+.rideButton {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--color-text);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  border-radius: var(--radius);
+}
+
+.rideButton:hover {
+  background: var(--color-bg-elevated);
+}
+
+.rideButtonOpen {
+  background: var(--color-bg-elevated);
+}
+
+.rideName {
+  font-size: 0.9rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rideMeta {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0 var(--space-3) var(--space-3);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: var(--space-2);
+}
+
+/* The tick and border carry selection, not colour alone - the photos
+   underneath are arbitrary and can be any colour at all. */
+.thumb {
+  position: relative;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: none;
+  cursor: pointer;
+  aspect-ratio: 4 / 3;
+}
+
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.thumbOn {
+  border-color: var(--color-accent-2);
+}
+
+.tick {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--color-accent-2);
+  color: #06251b;
+  font-size: 0.8rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.publicRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.85rem;
+  color: var(--color-text);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.count {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.saveButton {
+  background: var(--color-accent-2);
+  color: #06251b;
+  border: none;
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.saveButton:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.fail {
+  margin: 0;
+  color: var(--color-accent);
+  font-size: 0.85rem;
+}
+
+.ok {
+  margin: 0;
+  color: var(--color-accent-2);
+  font-size: 0.85rem;
+}

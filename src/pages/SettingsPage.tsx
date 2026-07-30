@@ -10,6 +10,7 @@ import { DEFAULT_CALORIE_BURN_ESTIMATE } from "../utils/estimateCalorieBurn";
 import type { CoachingSettings } from "../components/coaching/types";
 import SignInGate from "../components/shared/SignInGate";
 import PasskeysSection from "../components/settings/PasskeysSection";
+import RidePhotosSection from "../components/settings/RidePhotosSection";
 import TabNav from "../components/shared/TabNav";
 import GoalsEditor from "../components/trends/GoalsEditor";
 import type { Goals } from "../components/trends/types";
@@ -403,6 +404,15 @@ function SettingsEditor() {
               </button>
             ))}
           </div>
+        </div>
+
+        <div className={styles.section}>
+          <p className={styles.sectionTitle}>Ride photos</p>
+          <p className={styles.sectionHint}>
+            Pick which photos from a Strava ride to keep. Chosen photos are copied here rather than linked, because
+            Strava's own photo links expire. Nothing appears on the public ride feed unless you tick it.
+          </p>
+          <RidePhotosSection />
         </div>
 
         <div className={styles.section}>

@@ -7,10 +7,13 @@ import { irelandTodayDateStr } from "./_lib/timeContext.js";
 import {
   bmiSvg,
   caloriesBalanceSvg,
+  goalProgressSvg,
   macroSplitSvg,
   noDataImage,
   verifyWidgetToken,
 } from "./_lib/widgetImage.js";
+import { fetchGoals } from "./trends-goals.js";
+import { convertValueUnit } from "./_lib/units.js";
 
 /**
  * Renders one widget as a PNG for WhatsApp.
@@ -92,6 +95,84 @@ function dayLabel(date: string): string {
   });
 }
 
+
+function daysBetween(fromIso: string, toIso: string): number {
+  return Math.round((Date.parse(`${toIso}T00:00:00Z`) - Date.parse(`${fromIso}T00:00:00Z`)) / 86400000);
+}
+
+/**
+ * The two dated goals as a progress card.
+ *
+ * Weight has a real starting reading to measure from, so its bar shows how far
+ * it has actually travelled. FTP is a tested figure entered in Settings with no
+ * history behind it, so its bar reads as a fraction of the target - the same
+ * distinction the dashboard's own goal cards make.
+ */
+async function goalImage(
+  metric: string,
+  history: Record<string, Record<string, HealthValue>>,
+): Promise<string> {
+  const goals = await fetchGoals();
+  const settings = (await fetchCoachingSettings()) as { ftpWatts?: number; unitSystem?: string };
+  const system = settings.unitSystem === "imperial" ? "imperial" : "metric";
+  const today = irelandTodayDateStr();
+
+  const weightDates = Object.keys(history)
+    .filter((d) => Object.keys(history[d]).some((n) => /weight|body_mass/i.test(n)))
+    .sort();
+  const readingOn = (date: string) => reading(history[date], [/weight|body_mass/i]);
+  const latestKg = weightDates.length ? toKg(readingOn(weightDates.at(-1) as string)!.value, readingOn(weightDates.at(-1) as string)!.unit) : null;
+
+  if (metric === "goal.weight") {
+    const targetKg = goals.weightKg ?? null;
+    if (latestKg == null || targetKg == null) {
+      return noDataImage("Weight vs goal", "Needs a weight reading and a weight target in Settings.");
+    }
+    const firstKg = toKg(readingOn(weightDates[0])!.value, readingOn(weightDates[0])!.unit);
+    const daysLeft = goals.weightTargetDate ? daysBetween(today, goals.weightTargetDate) : null;
+    const gapKg = latestKg - targetKg;
+    const display = (kg: number) => convertValueUnit(kg, "kg", system);
+    const shown = display(latestKg);
+
+    return goalProgressSvg({
+      title: "Weight vs goal",
+      current: shown.value,
+      target: display(targetKg).value,
+      unit: shown.unit,
+      // Travelled from the first recorded reading; 0 when the athlete has
+      // moved the wrong way, rather than a negative bar.
+      progress: firstKg > targetKg ? (firstKg - latestKg) / (firstKg - targetKg) : 0,
+      deadline: goals.weightTargetDate,
+      daysLeft,
+      perWeekNeeded: daysLeft && daysLeft > 0 ? display(gapKg).value / (daysLeft / 7) : null,
+      reached: gapKg <= 0,
+    });
+  }
+
+  const currentFtp = settings.ftpWatts ?? null;
+  const targetFtp = goals.ftpTargetWatts ?? null;
+  if (currentFtp == null || targetFtp == null) {
+    return noDataImage("FTP vs goal", "Needs an FTP in Settings and an FTP target.");
+  }
+  const daysLeft = goals.ftpTargetDate ? daysBetween(today, goals.ftpTargetDate) : null;
+  // Power-to-weight on both sides, target divided by the target weight so the
+  // two goals describe the same end state - matching the dashboard.
+  const targetWeightKg = goals.weightKg ?? latestKg;
+  return goalProgressSvg({
+    title: "FTP vs goal",
+    current: currentFtp,
+    target: targetFtp,
+    unit: "W",
+    progress: currentFtp / targetFtp,
+    currentSecondary: latestKg ? `${(currentFtp / latestKg).toFixed(2)} W/kg` : undefined,
+    targetSecondary: targetWeightKg ? `${(targetFtp / targetWeightKg).toFixed(2)} W/kg` : undefined,
+    deadline: goals.ftpTargetDate,
+    daysLeft,
+    perWeekNeeded: daysLeft && daysLeft > 0 ? (targetFtp - currentFtp) / (daysLeft / 7) : null,
+    reached: currentFtp >= targetFtp,
+  });
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const secret = process.env.SESSION_SECRET;
   const token = typeof req.query.token === "string" ? req.query.token : "";
@@ -153,6 +234,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               active == null && basal == null ? null : (active ?? 0) + (basal ?? 0),
               dayLabel(date),
             );
+    } else if (spec.metric === "goal.weight" || spec.metric === "goal.ftp") {
+      svg = await goalImage(spec.metric, history);
     } else {
       svg = noDataImage("Widget", "That widget can't be drawn as an image yet.");
     }

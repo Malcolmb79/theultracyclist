@@ -558,7 +558,8 @@ export type CoachChannel = "web" | "whatsapp";
 // model can't tell which channel it's on, so the constraint goes in the tool
 // description it actually sees rather than in a general instruction it has no
 // way to apply.
-const WHATSAPP_DRAWABLE = "\"health.bmi\", \"health.macroSplit\" or \"health.caloriesBalance\"";
+const WHATSAPP_DRAWABLE =
+  "\"health.bmi\", \"health.macroSplit\", \"health.caloriesBalance\", \"goal.weight\" or \"goal.ftp\"";
 
 function toolsFor(channel: CoachChannel) {
   if (channel === "web") return TOOLS;
@@ -582,7 +583,7 @@ function toolsFor(channel: CoachChannel) {
             properties: {
               metric: {
                 type: "string",
-                enum: ["health.bmi", "health.macroSplit", "health.caloriesBalance"],
+                enum: ["health.bmi", "health.macroSplit", "health.caloriesBalance", "goal.weight", "goal.ftp"],
                 description: "Which widget to draw.",
               },
             },

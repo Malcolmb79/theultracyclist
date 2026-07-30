@@ -235,4 +235,76 @@ export function caloriesBalanceSvg(consumed: number | null, burned: number | nul
 }
 
 /** Which metrics can be drawn as an image; anything else is described instead. */
-export const IMAGEABLE_METRICS = new Set(["health.bmi", "health.macroSplit", "health.caloriesBalance"]);
+export const IMAGEABLE_METRICS = new Set([
+  "health.bmi",
+  "health.macroSplit",
+  "health.caloriesBalance",
+  "goal.weight",
+  "goal.ftp",
+]);
+
+/**
+ * A dated goal: where the athlete is, where they're going, and whether the
+ * remaining time is realistic.
+ *
+ * `progress` is passed in rather than derived here because the two goals
+ * measure it differently - weight has a real starting reading to move away
+ * from, while FTP is a tested figure with no history behind it, so its bar
+ * reads as a fraction of the target instead. See widget-image.ts.
+ */
+export function goalProgressSvg(goal: {
+  title: string;
+  current: number;
+  target: number;
+  unit: string;
+  /** 0-1. */
+  progress: number;
+  /** Optional second reading of each figure, e.g. W/kg beside watts. */
+  currentSecondary?: string;
+  targetSecondary?: string;
+  deadline?: string;
+  daysLeft?: number | null;
+  perWeekNeeded?: number | null;
+  reached: boolean;
+}): string {
+  const barX = 40;
+  const barW = W - 80;
+  const barY = 150;
+  const filled = Math.max(0, Math.min(1, goal.progress)) * barW;
+  // Amber while there's still a gap, green once it's closed - the same
+  // met/unmet colouring the dashboard's goal cards use.
+  const fill = goal.reached ? "#2ee6a6" : "#ffb020";
+
+  const gap = Math.abs(Math.round((goal.target - goal.current) * 10) / 10);
+  const statusParts: string[] = [];
+  if (goal.reached) {
+    statusParts.push("Target reached");
+  } else {
+    statusParts.push(`${gap}${goal.unit} to go`);
+    if (goal.daysLeft != null && goal.daysLeft > 0) {
+      statusParts.push(`${goal.daysLeft} day${goal.daysLeft === 1 ? "" : "s"} left`);
+      if (goal.perWeekNeeded != null) {
+        statusParts.push(`${Math.abs(Math.round(goal.perWeekNeeded * 100) / 100)}${goal.unit}/week needed`);
+      }
+    } else if (goal.daysLeft != null) {
+      statusParts.push("target date passed");
+    }
+  }
+
+  return frame(
+    goal.title,
+    `<rect x="${barX}" y="${barY}" width="${barW}" height="22" rx="11" fill="rgba(255,255,255,.08)"/>
+     <rect x="${barX}" y="${barY}" width="${filled.toFixed(1)}" height="22" rx="11" fill="${fill}"/>
+
+     <text x="${barX}" y="${barY + 78}" fill="${MUTED}" font-family="${FONT}" font-size="16" letter-spacing="1">NOW</text>
+     <text x="${barX}" y="${barY + 120}" fill="${TEXT}" font-family="${FONT}" font-size="44" font-weight="700">${Math.round(goal.current * 10) / 10}<tspan font-size="20" fill="${MUTED}"> ${esc(goal.unit)}</tspan></text>
+     ${goal.currentSecondary ? `<text x="${barX}" y="${barY + 148}" fill="${MUTED}" font-family="${FONT}" font-size="17">${esc(goal.currentSecondary)}</text>` : ""}
+
+     <text x="${W - 40}" y="${barY + 78}" fill="${MUTED}" font-family="${FONT}" font-size="16" letter-spacing="1" text-anchor="end">TARGET</text>
+     <text x="${W - 40}" y="${barY + 120}" fill="${TEXT}" font-family="${FONT}" font-size="44" font-weight="700" text-anchor="end">${Math.round(goal.target * 10) / 10}<tspan font-size="20" fill="${MUTED}"> ${esc(goal.unit)}</tspan></text>
+     ${goal.targetSecondary ? `<text x="${W - 40}" y="${barY + 148}" fill="${MUTED}" font-family="${FONT}" font-size="17" text-anchor="end">${esc(goal.targetSecondary)}</text>` : ""}
+
+     <text x="${barX}" y="${H - 52}" fill="${goal.reached ? "#2ee6a6" : TEXT}" font-family="${FONT}" font-size="19">${esc(statusParts.join(" · "))}</text>
+     ${goal.deadline ? `<text x="${barX}" y="${H - 24}" fill="${MUTED}" font-family="${FONT}" font-size="16">by ${esc(goal.deadline)}</text>` : ""}`,
+  );
+}

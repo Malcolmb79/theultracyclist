@@ -125,7 +125,11 @@ const TOOLS = [
       properties: {
         metric: {
           type: "string",
-          description: "Optional exact metric name to filter to. Omit to get every tracked metric.",
+          description:
+            "Optional filter, matched as a substring of the stored field name rather than exactly - " +
+            "\"weight\" finds \"weight_body_mass\", \"energy\" finds both dietary and active energy. Omit to " +
+            "get every tracked metric, which is the reliable way to see what actually exists. If a filter " +
+            "returns nothing, retry without it before telling the athlete the data isn't there.",
         },
         days: {
           type: "number",

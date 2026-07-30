@@ -57,6 +57,30 @@ async function readHistory(): Promise<History> {
   return (await getJSON<History>(KV_KEY)) ?? readLegacyHistory();
 }
 
+/**
+ * Loose match between a requested metric name and a stored field name.
+ *
+ * Apple Health field names come from whichever app wrote them
+ * ("weight_body_mass", "step_count", "dietary_energy"), so a caller asking for
+ * "body weight" or "steps" cannot be expected to guess the exact string. An
+ * exact-match filter told an athlete there was no body weight data while it sat
+ * there under a longer name.
+ *
+ * Matches if any meaningful word of the request appears in the field name,
+ * with a naive plural trim so "steps" still finds "step_count". Deliberately
+ * generous: a couple of extra metrics in the answer is harmless, a false "no
+ * data" is not.
+ */
+function matchesMetricName(fieldName: string, wanted: string): boolean {
+  const field = fieldName.toLowerCase();
+  const tokens = wanted
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length >= 3);
+  if (tokens.length === 0) return false;
+  return tokens.some((token) => field.includes(token) || (token.endsWith("s") && field.includes(token.slice(0, -1))));
+}
+
 // In-process accessor for the tool-calling coach: same stored history the
 // GET route reads, filtered to a day window and optionally to specific
 // metric names.
@@ -76,9 +100,14 @@ export async function fetchHealthHistory(days: number = MAX_DAYS, metricNames?: 
       continue;
     }
 
+    // Matched loosely on purpose. Apple Health's field names come from
+    // whichever app wrote them ("weight_body_mass", "dietary_energy"), and a
+    // caller asking for "weight" has no way to know the exact string - an
+    // exact-match filter answered "no body weight data" for an athlete whose
+    // weight was right there under a longer name.
     const subset: DayMetrics = {};
-    for (const name of metricNames) {
-      if (metrics[name]) subset[name] = metrics[name];
+    for (const [name, value] of Object.entries(metrics)) {
+      if (metricNames.some((wanted) => matchesMetricName(name, wanted))) subset[name] = value;
     }
     if (Object.keys(subset).length > 0) filtered[date] = subset;
   }

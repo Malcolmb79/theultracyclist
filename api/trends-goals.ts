@@ -32,6 +32,14 @@ function readLegacyGoals(): Goals {
   }
 }
 
+// In-process accessor, same record the GET route serves. The coach needs the
+// targets to answer anything shaped like "how am I tracking" - without them it
+// had the athlete's weight but no idea what it was meant to be, and asked for
+// numbers already stored here.
+export async function fetchGoals(): Promise<Goals> {
+  return (await getJSON<Goals>(KV_KEY)) ?? readLegacyGoals();
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!getSessionEmail(req)) {
     res.status(401).json({ error: "Unauthorized" });

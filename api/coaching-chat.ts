@@ -38,6 +38,28 @@ export type ChatContext = {
   customRules: string | null;
   hasRiddenToday: boolean;
   todayDistanceKm: number | null;
+  // Every target the athlete has set (weight, FTP, sleep, macros, calories),
+  // plus the profile figures behind them. In the prompt rather than behind a
+  // tool: they are a handful of numbers, they are needed for anything shaped
+  // like "how am I tracking", and a tool the coach forgets to call is how it
+  // ended up asking for a target it already had.
+  goals?: GoalTargets;
+  heightCm?: number | null;
+  weeklyTargetHours?: number | null;
+  ftpWatts?: number | null;
+};
+
+export type GoalTargets = {
+  weightKg?: number;
+  weightTargetDate?: string;
+  sleepHours?: number;
+  ftpTargetWatts?: number;
+  ftpTargetDate?: string;
+  proteinG?: number;
+  fatG?: number;
+  carbsG?: number;
+  calorieGoalTrainingDay?: number;
+  calorieGoalRestDay?: number;
 };
 
 type TextBlock = { type: "text"; text: string };
@@ -404,6 +426,32 @@ function buildSystemPrompt(context: Partial<ChatContext>): string {
     lines.push(`This week's distance so far: ${context.weeklyDistanceKm}km of a ${context.weeklyTargetKm}km target`);
   }
   if (context.phase) lines.push(`Current training phase: ${context.phase}`);
+  if (context.ftpWatts != null) lines.push(`FTP (tested, from Settings): ${context.ftpWatts}W`);
+  if (context.heightCm != null) lines.push(`Height: ${context.heightCm}cm`);
+  if (context.weeklyTargetHours != null) lines.push(`Weekly hours target: ${context.weeklyTargetHours}h`);
+
+  const g = context.goals ?? {};
+  const goalLines: string[] = [];
+  if (g.weightKg != null) goalLines.push(`Weight target: ${g.weightKg}kg${g.weightTargetDate ? ` by ${g.weightTargetDate}` : ""}`);
+  if (g.ftpTargetWatts != null) goalLines.push(`FTP target: ${g.ftpTargetWatts}W${g.ftpTargetDate ? ` by ${g.ftpTargetDate}` : ""}`);
+  if (g.sleepHours != null) goalLines.push(`Sleep target: ${g.sleepHours}h a night`);
+  if (g.proteinG != null || g.fatG != null || g.carbsG != null) {
+    goalLines.push(
+      `Macro targets: ${[g.carbsG != null ? `${g.carbsG}g carbs` : null, g.fatG != null ? `${g.fatG}g fat` : null, g.proteinG != null ? `${g.proteinG}g protein` : null]
+        .filter(Boolean)
+        .join(", ")}`,
+    );
+  }
+  if (g.calorieGoalTrainingDay != null || g.calorieGoalRestDay != null) {
+    goalLines.push(
+      `Calorie targets: ${g.calorieGoalTrainingDay ?? "?"} kcal on a training day, ${g.calorieGoalRestDay ?? "?"} on a rest day`,
+    );
+  }
+  if (goalLines.length) {
+    lines.push("");
+    lines.push("The athlete's own targets, already set - never ask for these:");
+    lines.push(...goalLines);
+  }
   lines.push(
     context.hasRiddenToday
       ? `Already completed a ride today: ${context.todayDistanceKm}km`

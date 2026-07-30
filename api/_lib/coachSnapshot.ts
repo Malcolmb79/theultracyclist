@@ -1,6 +1,7 @@
 import { fetchWhoopHistory } from "../whoop-data.js";
 import { fetchStravaRides, type Ride } from "../strava-activities.js";
 import { fetchCoachingSettings } from "../coaching-settings.js";
+import { fetchGoals } from "../trends-goals.js";
 import type { ChatContext } from "../coaching-chat.js";
 import { irelandDateStr, irelandTodayDateStr } from "./timeContext.js";
 
@@ -77,5 +78,9 @@ export async function computeChatContext(): Promise<Partial<ChatContext>> {
     customRules: settings.customRules ?? null,
     hasRiddenToday,
     todayDistanceKm,
+    goals: await fetchGoals(),
+    heightCm: settings.heightCm ?? null,
+    weeklyTargetHours: settings.weeklyHours ?? null,
+    ftpWatts: settings.ftpWatts ?? null,
   };
 }

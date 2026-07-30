@@ -560,7 +560,7 @@ export type CoachChannel = "web" | "whatsapp";
 // way to apply.
 const WHATSAPP_DRAWABLE =
   "\"health.bmi\", \"health.macroSplit\", \"health.caloriesBalance\", \"goal.weight\", \"goal.ftp\", " +
-  "\"weather.current\" or \"strava.performanceChart\"";
+  "\"weather.current\", \"strava.performanceChart\" or \"whoop.sleepRecoveryStrainRings\"";
 
 function toolsFor(channel: CoachChannel) {
   if (channel === "web") return TOOLS;

@@ -13,12 +13,14 @@ import {
   noDataImage,
   performanceChartSvg,
   ringSvg,
+  ringsRowSvg,
   statSvg,
   timelineSvg,
   verifyWidgetToken,
   weatherSvg,
 } from "./_lib/widgetImage.js";
 import { fetchLastLocation } from "./last-location.js";
+import { fetchWhoopHistory } from "./whoop-data.js";
 import { fetchStravaRides } from "./strava-activities.js";
 import { computeTss } from "./_lib/tss.js";
 import { computeFitnessSeries } from "./_lib/fitness.js";
@@ -252,6 +254,30 @@ async function performanceImage(): Promise<string> {
   return performanceChartSvg(points, { ctl: week?.targetCtl ?? null, tsb: week?.targetTsb ?? null });
 }
 
+
+/** Whoop's three-up summary for the most recent scored day. */
+async function ringsImage(): Promise<string> {
+  const { history } = await fetchWhoopHistory();
+  type Day = {
+    date: string;
+    recovery?: { score?: number } | null;
+    strain?: { score?: number } | null;
+    sleep?: { performancePercent?: number } | null;
+  };
+  const days = (history as Day[])
+    .slice()
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const latest = days.at(-1);
+  if (!latest) return noDataImage("Sleep, Recovery & Strain", "No Whoop history yet.");
+
+  return ringsRowSvg({
+    sleepPerformance: latest.sleep?.performancePercent ?? null,
+    recovery: latest.recovery?.score ?? null,
+    strain: latest.strain?.score ?? null,
+    dateLabel: dayLabel(irelandDateStr(new Date(latest.date))),
+  });
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const secret = process.env.SESSION_SECRET;
   const token = typeof req.query.token === "string" ? req.query.token : "";
@@ -320,6 +346,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       svg = await weatherImage(s.unitSystem === "imperial" ? "imperial" : "metric");
     } else if (spec.metric === "strava.performanceChart") {
       svg = await performanceImage();
+    } else if (spec.metric === "whoop.sleepRecoveryStrainRings") {
+      svg = await ringsImage();
     } else {
       // Anything else is a plain metric: resolve its series and draw it in the
       // requested view. This is what makes the whole catalog available rather

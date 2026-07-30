@@ -35,6 +35,8 @@ type WhoopCycleRecord = {
 
 type WhoopSleepRecord = {
   id: string;
+  /** Used to attach a night to a cycle when recovery hasn't been scored yet. */
+  end?: string;
   score_state: string;
   score?: {
     sleep_performance_percentage: number;
@@ -278,22 +280,42 @@ export async function fetchWhoopHistory(days: number = DAYS): Promise<WhoopHisto
     fetchCollection<WhoopWorkoutRecord>("/activity/workout", authHeader, days).catch(() => [] as WhoopWorkoutRecord[]),
   ]);
 
-  const cyclesById = new Map(cycleRecords.map((c) => [c.id, c]));
   const sleepsById = new Map(sleepRecords.map((s) => [s.id, s]));
   const zonesByDate = zoneMinutesByDate(workoutRecords);
+  const recoveryByCycleId = new Map(recoveryRecords.map((r) => [r.cycle_id, r]));
 
-  const history: DaySummary[] = recoveryRecords.map((recoveryRecord) => {
-    const cycleRecord = cyclesById.get(recoveryRecord.cycle_id);
-    const sleepRecord = sleepsById.get(recoveryRecord.sleep_id);
-    const date = cycleRecord?.start ?? new Date().toISOString();
-    const zoneMinutes = zonesByDate.get(irelandDateStr(new Date(date))) ?? { zone1to3: 0, zone4to5: 0 };
-    return {
-      date,
-      recovery: buildRecovery(recoveryRecord),
-      strain: buildStrain(cycleRecord, zoneMinutes),
-      sleep: buildSleep(sleepRecord),
-    };
-  });
+  /**
+   * Built from cycles, not from recovery records.
+   *
+   * Recovery is scored per cycle and arrives some time after the cycle begins,
+   * so a list derived from recovery records is missing the current day until
+   * that lands - and Whoop's own app shows it immediately. That gap is what
+   * made today's rings read a day behind the watch, and what left days with no
+   * recovery record blank across every Whoop widget even though strain and
+   * sleep existed for them.
+   *
+   * A cycle exists as soon as it starts, so iterating cycles means every day
+   * appears, with whatever has been scored so far attached to it.
+   */
+  const history: DaySummary[] = cycleRecords
+    .slice()
+    .sort((a, b) => b.start.localeCompare(a.start))
+    .map((cycleRecord) => {
+      const recoveryRecord = recoveryByCycleId.get(cycleRecord.id);
+      // Sleep is linked through recovery when it has been scored; without it,
+      // fall back to the most recent sleep that ended after this cycle began,
+      // which is the night this cycle is built on.
+      const sleepRecord = recoveryRecord
+        ? sleepsById.get(recoveryRecord.sleep_id)
+        : sleepRecords.find((sleep) => (sleep.end ?? "") >= cycleRecord.start);
+      const zoneMinutes = zonesByDate.get(irelandDateStr(new Date(cycleRecord.start))) ?? { zone1to3: 0, zone4to5: 0 };
+      return {
+        date: cycleRecord.start,
+        recovery: buildRecovery(recoveryRecord),
+        strain: buildStrain(cycleRecord, zoneMinutes),
+        sleep: buildSleep(sleepRecord),
+      };
+    });
 
   const latest = history[0] ?? { recovery: null, strain: null, sleep: null };
 
@@ -303,7 +325,11 @@ export async function fetchWhoopHistory(days: number = DAYS): Promise<WhoopHisto
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const result = await fetchWhoopHistory(DAYS);
-    res.setHeader("Cache-Control", "public, s-maxage=1800, stale-while-revalidate=3600");
+    // Recovery lands each morning and strain climbs all day, so half an hour
+    // of edge cache plus an hour of stale-while-revalidate could show a figure
+    // up to 90 minutes behind the watch. Short enough now that the dashboard
+    // and the Whoop app do not visibly disagree.
+    res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=600");
     res.status(200).json(result);
   } catch (error) {
     console.error(error);

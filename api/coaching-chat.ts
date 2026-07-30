@@ -5,6 +5,7 @@ import { ATHLETE_PROFILE, DATA_SEMANTICS, SEASON_PLAN, LANGUAGE_STYLE } from "./
 import { fetchWhoopHistory } from "./whoop-data.js";
 import { fetchStravaRides } from "./strava-activities.js";
 import { fetchHealthHistory } from "./health-data.js";
+import { convertHealthHistory, type UnitSystem } from "./_lib/units.js";
 import { fetchCoachingSettings } from "./coaching-settings.js";
 import { computeTss } from "./_lib/tss.js";
 import { computeFitnessSeries } from "./_lib/fitness.js";
@@ -81,6 +82,16 @@ function isToolUseBlock(block: ContentBlock): block is ToolUseBlock {
   return block.type === "tool_use";
 }
 
+/**
+ * The athlete's chosen system, defaulting to metric - kg and km - when nothing
+ * has been set. Everything read out of storage passes through this so the coach
+ * speaks one system consistently.
+ */
+async function preferredUnitSystem(): Promise<UnitSystem> {
+  const settings = await fetchCoachingSettings();
+  return settings.unitSystem === "imperial" ? "imperial" : "metric";
+}
+
 // Tools give the model on-demand access to full historical data instead of
 // relying on the single latest-value snapshot baked into the system prompt.
 const TOOLS = [
@@ -145,7 +156,9 @@ const TOOLS = [
     name: "get_health_metrics",
     description:
       "Fetch daily Apple Health history (whatever the athlete's export includes - e.g. body weight, resting " +
-      "energy, VO2 max, step count). Use this for body weight trends or anything tracked outside Whoop/Strava.",
+      "energy, VO2 max, step count). Use this for body weight trends or anything tracked outside Whoop/Strava. " +
+      "Values come back already converted into the athlete's chosen system and the `units` field says which - " +
+      "quote them as given, don't convert again.",
     input_schema: {
       type: "object",
       properties: {
@@ -320,7 +333,11 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
       case "get_health_metrics": {
         const days = typeof input.days === "number" ? input.days : undefined;
         const metric = typeof input.metric === "string" ? input.metric : undefined;
-        const history = await fetchHealthHistory(days, metric ? [metric] : undefined);
+        // Converted before the coach ever sees it, so it cannot quote a stored
+        // unit back at an athlete who reads in the other system. Metric is the
+        // default when nothing has been chosen - kg and km.
+        const system = await preferredUnitSystem();
+        const history = convertHealthHistory(await fetchHealthHistory(days, metric ? [metric] : undefined), system);
 
         // Always hand back the real field names, and say plainly when a filter
         // matched nothing. Returning a bare empty object let the coach conclude
@@ -336,13 +353,14 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
             history: {},
             matchedNothing: metric,
             availableFields,
+            units: system,
             note:
               `Nothing matched "${metric}", but these fields do exist. The data is present - pick the right ` +
               "field name from availableFields and call this again. Do not tell the athlete the data is missing.",
           };
         }
 
-        return { history, availableFields };
+        return { history, availableFields, units: system };
       }
       case "get_fitness": {
         const trendDays = typeof input.trendDays === "number" ? input.trendDays : 14;

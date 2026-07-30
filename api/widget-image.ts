@@ -118,6 +118,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // only the weight shown beside it follows the athlete's chosen system.
         const weightKg = toKg(raw.value, raw.unit);
         const heightM = heightCm / 100;
+        // Metric unless imperial has been chosen - same default as everywhere else.
         const imperial = (settings as { unitSystem?: string }).unitSystem === "imperial";
         svg = bmiSvg(
           Math.round((weightKg / (heightM * heightM)) * 10) / 10,

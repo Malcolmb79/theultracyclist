@@ -102,6 +102,7 @@ export async function computeChatContext(): Promise<Partial<ChatContext>> {
     hasRiddenToday,
     todayDistanceKm,
     goals: await fetchGoals(),
+    // Metric unless imperial has been chosen: kg and km are the default.
     unitSystem: settings.unitSystem === "imperial" ? "imperial" : "metric",
     latestWeightKg: await latestWeightKg(),
     heightCm: settings.heightCm ?? null,

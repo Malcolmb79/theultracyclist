@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CoachingSettings, NarrativeInput } from "./types";
 import { WEEKLY_CHECKIN_QUESTIONS, buildWeeklyCheckinMessage } from "./weeklyCheckin";
+import ChatWidgetMessage, { type ChatWidgetData } from "./ChatWidgetMessage";
 import styles from "./CoachChatCard.module.css";
 
 interface CoachChatCardProps {
@@ -8,6 +9,10 @@ interface CoachChatCardProps {
   settings: CoachingSettings;
   onSaveSettings: (next: CoachingSettings) => Promise<void>;
   dataAvailable: boolean;
+  // Live dashboard data, so a reply containing a [widget:...] marker can render
+  // the real widget inline (see ChatWidgetMessage). Optional: without it the
+  // reply still shows, just as plain text.
+  widgetData?: ChatWidgetData;
 }
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
@@ -20,7 +25,7 @@ type CardStatus = "waiting" | "loading" | "unconfigured" | "error" | "ready";
 // persisted, since a half-finished check-in isn't worth resuming later.
 type CheckinState = { phase: "asking"; step: number; answers: string[] } | { phase: "confirming"; answers: string[] };
 
-export default function CoachChatCard({ input, settings, onSaveSettings, dataAvailable }: CoachChatCardProps) {
+export default function CoachChatCard({ input, settings, onSaveSettings, dataAvailable, widgetData }: CoachChatCardProps) {
   const [status, setStatus] = useState<CardStatus>("loading");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
@@ -256,11 +261,15 @@ export default function CoachChatCard({ input, settings, onSaveSettings, dataAva
       {status === "ready" && (
         <>
           <div className={styles.messages} ref={listRef}>
-            {messages.map((message, i) => (
-              <p key={i} className={message.role === "user" ? styles.userMessage : styles.text}>
-                {message.content}
-              </p>
-            ))}
+            {messages.map((message, i) =>
+              message.role === "user" ? (
+                <p key={i} className={styles.userMessage}>
+                  {message.content}
+                </p>
+              ) : (
+                <ChatWidgetMessage key={i} content={message.content} data={widgetData} />
+              ),
+            )}
             {sending && <p className={styles.muted}>Thinking…</p>}
             {sendingCheckin && <p className={styles.muted}>Sending…</p>}
           </div>

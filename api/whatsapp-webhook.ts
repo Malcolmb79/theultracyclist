@@ -109,6 +109,21 @@ function sendTwiml(res: VercelResponse, message?: string) {
   res.status(200).send(twiml(message));
 }
 
+/**
+ * The show_widget tool asks the model to place a `[widget:id:view]` marker in
+ * its reply, which the browser chat swaps for the real widget. WhatsApp can't
+ * draw one, so the marker is removed rather than sent as literal text - the
+ * tool description already tells the coach to describe the numbers here, but
+ * this makes a slip look like nothing rather than like gibberish.
+ */
+function stripWidgetMarkers(text: string): string {
+  return text
+    .replace(/^[ \t]*\[widget:[^\]]*\][ \t]*$/gm, "")
+    .replace(/\[widget:[^\]]*\]/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     res.status(405).send("Method not allowed");
@@ -160,7 +175,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const nextHistory = [...messages, { role: "assistant" as const, content: reply }].slice(-MAX_HISTORY);
     await setJSON(key, nextHistory);
 
-    sendTwiml(res, reply);
+    // A reply that was nothing but a widget marker would strip to empty, and
+    // an empty TwiML body is silence rather than an answer.
+    const text = stripWidgetMarkers(reply);
+    sendTwiml(res, text || "I can show you that on the dashboard - ask me there and I'll put the chart up.");
   } catch (error) {
     console.error(error);
     sendTwiml(res, "Sorry, I couldn't pull that together just now - try again in a bit.");

@@ -352,7 +352,19 @@ function CoachingView() {
               >
                 {data.status === "ready" && entry.kind === "readiness" && <ReadinessCard readiness={data.readiness} />}
                 {data.status === "ready" && entry.kind === "chat" && (
-                  <CoachChatCard input={narrativeInputFrom(data)} settings={data.settings} onSaveSettings={data.saveSettings} dataAvailable={data.dataAvailable} />
+                  <CoachChatCard
+                    input={narrativeInputFrom(data)}
+                    settings={data.settings}
+                    onSaveSettings={data.saveSettings}
+                    dataAvailable={data.dataAvailable}
+                    widgetData={{
+                      metricById,
+                      whoopHistory: dashboardData.status === "ready" ? dashboardData.whoopHistory : [],
+                      performanceSeries: dashboardData.status === "ready" ? dashboardData.performanceSeries : [],
+                      goals: dashboardData.status === "ready" ? dashboardData.goals : undefined,
+                      caloriesBurnSettings,
+                    }}
+                  />
                 )}
                 {data.status === "ready" && entry.kind === "trainingPlan" && (
                   <TrainingPlanCard settings={data.settings} onSaveSettings={data.saveSettings} weeklyProgress={data.weeklyProgress} />

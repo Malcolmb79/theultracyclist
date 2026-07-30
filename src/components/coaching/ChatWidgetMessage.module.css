@@ -1,0 +1,32 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Matches CoachChatCard's own .text so an expanded reply reads identically to
+   a plain one - only the widget between the paragraphs should look different. */
+.text {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+/* The widget keeps its own card styling (border, background) from
+   DashboardWidget, so this only reserves the row. */
+.widgetSlot {
+  width: 100%;
+}
+
+.missing {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.missing code {
+  font-style: normal;
+  font-size: 0.75rem;
+}

@@ -149,6 +149,36 @@ const TOOLS = [
     },
   },
   {
+    name: "show_widget",
+    description:
+      "Show one of the dashboard's own widgets inline in the chat, so the athlete sees the real chart rather than " +
+      "a description of it. Use this whenever they ask to see something - \"show me my macro split\", \"what does " +
+      "my performance chart look like\" - and say something useful about it alongside. The widget renders itself " +
+      "from live data, so there's no need to fetch the numbers separately just to display it. Browser chat only: " +
+      "over WhatsApp the widget can't be drawn, so describe the numbers there instead.",
+    input_schema: {
+      type: "object",
+      properties: {
+        metric: {
+          type: "string",
+          description:
+            "Which widget, as a metric id the dashboard knows - e.g. \"health.macroSplit\", " +
+            "\"health.caloriesBalance\", \"health.bmi\", \"strava.performanceChart\", \"whoop.recovery\", " +
+            "\"whoop.sleepRecoveryStrainRings\", \"whoop.healthCalendar\", or any \"health.<field>\" Apple " +
+            "Health field. Call get_health_metrics first if unsure what exists.",
+        },
+        view: {
+          type: "string",
+          enum: ["stat", "chart", "timeline", "ring"],
+          description:
+            "How to draw a plain metric: one number, a trend chart, a timeline, or a ring. Ignored by the " +
+            "composite widgets, which have only one form. Defaults to chart.",
+        },
+      },
+      required: ["metric"],
+    },
+  },
+  {
     name: "create_workout",
     description:
       "Schedule a new structured workout. Build interval structure naturally from what the athlete describes " +
@@ -289,6 +319,22 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
         const from = typeof input.from === "string" ? input.from : undefined;
         const to = typeof input.to === "string" ? input.to : undefined;
         return await listPlannedWorkouts(from, to);
+      }
+      // Renders nothing server-side: it hands back a marker for the model to
+      // place in its reply, which the browser chat swaps for the real widget
+      // (see WIDGET_MARKER in CoachChatCard.tsx). Kept as a marker in the
+      // reply text rather than a second return channel so the one
+      // generateCoachReply string still serves WhatsApp, where it is stripped.
+      case "show_widget": {
+        const metric = typeof input.metric === "string" ? input.metric.trim() : "";
+        if (!metric) return { error: "No metric given." };
+        const view = typeof input.view === "string" ? input.view : "chart";
+        return {
+          marker: `[widget:${metric}:${view}]`,
+          instruction:
+            "Include that marker exactly, on its own line, at the point in your reply where the widget should " +
+            "appear. Do not describe the marker or wrap it in backticks.",
+        };
       }
       case "create_workout": {
         const { date, sport, title } = input;

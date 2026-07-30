@@ -77,6 +77,12 @@ interface DashboardWidgetProps {
   // Split widget reads them so far, and it degrades to actual-only when
   // they're absent.
   goals?: Record<string, unknown>;
+  // Rendered as a plain card inside something else (the AI coach chat) rather
+  // than as a canvas item: no dragging, resizing, renaming, recolouring or
+  // removing, and it sits in normal flow instead of at an absolute x/y. The
+  // widget body itself is identical, which is the point - the chat shows the
+  // real widget, not a lookalike.
+  inline?: boolean;
 }
 
 // Maps a widget's underlying metric id to the Whoop detail view it should
@@ -218,6 +224,7 @@ export default function DashboardWidget({
   onReorder,
   caloriesBurnSettings,
   goals,
+  inline = false,
 }: DashboardWidgetProps) {
   const isCombo = widget.metric === WHOOP_STRAIN_RECOVERY_COMBO_ID;
   const isRings = widget.metric === WHOOP_RINGS_COMBO_ID;
@@ -486,7 +493,9 @@ export default function DashboardWidget({
   // narrowed widget can sit next to another one, but .stacked's
   // max-width:100% (see the stylesheet) clamps it if it's wider than the
   // row so it can never force horizontal scrolling.
-  const positionStyle = stacked
+  const positionStyle = inline
+    ? { width: "100%", height: rect.height }
+    : stacked
     ? { width: rect.width, height: rect.height }
     : {
         position: "absolute" as const,
@@ -510,11 +519,11 @@ export default function DashboardWidget({
         ref={widgetRef}
         style={positionStyle}
         className={`${styles.widget} ${stacked ? styles.stacked : ""}`}
-        data-selected={selected || undefined}
-        {...pressHandlers}
+        data-selected={inline ? undefined : selected || undefined}
+        {...(inline ? {} : pressHandlers)}
       >
         <div className={styles.header}>
-          {!stacked && (
+          {!stacked && !inline && (
             <div
               className={styles.dragHandle}
               onPointerDown={handleDragPointerDown}
@@ -541,11 +550,15 @@ export default function DashboardWidget({
               autoFocus
             />
           ) : (
-            <span className={styles.label} onClick={() => setEditingLabel(true)} title="Click to rename">
+            <span
+              className={styles.label}
+              onClick={inline ? undefined : () => setEditingLabel(true)}
+              title={inline ? undefined : "Click to rename"}
+            >
               {widget.label}
             </span>
           )}
-          <div className={styles.controls}>
+          {!inline && <div className={styles.controls}>
             {stacked && (
               <>
                 <button
@@ -610,7 +623,7 @@ export default function DashboardWidget({
             >
               ×
             </button>
-          </div>
+          </div>}
         </div>
 
         <div
@@ -714,15 +727,17 @@ export default function DashboardWidget({
           )}
         </div>
 
-        <div
-          className={styles.resizeHandle}
-          onPointerDown={handleResizePointerDown}
-          role="button"
-          tabIndex={0}
-          aria-label="Drag to resize"
-        >
-          ⌟
-        </div>
+        {!inline && (
+          <div
+            className={styles.resizeHandle}
+            onPointerDown={handleResizePointerDown}
+            role="button"
+            tabIndex={0}
+            aria-label="Drag to resize"
+          >
+            ⌟
+          </div>
+        )}
       </div>
       {openDetail && <WhoopDetailModal kind={openDetail} history={whoopHistory} onClose={() => setOpenDetail(null)} />}
     </>

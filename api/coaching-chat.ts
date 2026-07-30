@@ -154,8 +154,8 @@ const TOOLS = [
       "Show one of the dashboard's own widgets inline in the chat, so the athlete sees the real chart rather than " +
       "a description of it. Use this whenever they ask to see something - \"show me my macro split\", \"what does " +
       "my performance chart look like\" - and say something useful about it alongside. The widget renders itself " +
-      "from live data, so there's no need to fetch the numbers separately just to display it. Browser chat only: " +
-      "over WhatsApp the widget can't be drawn, so describe the numbers there instead.",
+      "from live data, so there's no need to fetch the numbers separately just to display it. This tool is only " +
+      "offered where a widget can actually be drawn, so if you can see it, you can use it.",
     input_schema: {
       type: "object",
       properties: {
@@ -431,7 +431,28 @@ function buildSystemPrompt(context: Partial<ChatContext>): string {
 // compute a context snapshot or hold conversation state client-side) can
 // share the exact same coaching logic instead of two divergent copies.
 // Throws on an Anthropic API error; callers decide how to surface that.
-export async function generateCoachReply(messages: ChatMessage[], context: Partial<ChatContext>): Promise<string> {
+/**
+ * `channel` decides which tools the coach is even offered.
+ *
+ * show_widget only means anything where a widget can be drawn. Leaving it
+ * available over WhatsApp and merely telling the model not to use it there
+ * doesn't work - the model has no idea which channel it's in, so it called the
+ * tool and replied "there's your BMI widget" over a text-only transport. A
+ * tool it can see is a tool it will use, so the fix is to withhold it.
+ */
+export type CoachChannel = "web" | "whatsapp";
+
+const WIDGET_TOOL_NAMES = new Set(["show_widget"]);
+
+function toolsFor(channel: CoachChannel) {
+  return channel === "web" ? TOOLS : TOOLS.filter((tool) => !WIDGET_TOOL_NAMES.has(tool.name));
+}
+
+export async function generateCoachReply(
+  messages: ChatMessage[],
+  context: Partial<ChatContext>,
+  channel: CoachChannel = "web",
+): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not configured");
 
@@ -454,7 +475,7 @@ export async function generateCoachReply(messages: ChatMessage[], context: Parti
         model: MODEL,
         max_tokens: 600,
         system,
-        tools: TOOLS,
+        tools: toolsFor(channel),
         messages: anthropicMessages,
       }),
     });

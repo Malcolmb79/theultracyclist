@@ -170,7 +170,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const messages: ChatMessage[] = [...history, { role: "user", content: messageBody }].slice(-MAX_HISTORY);
 
     const context = await computeChatContext();
-    const reply = await generateCoachReply(messages, context);
+    // "whatsapp" withholds the widget tool - see CoachChannel. The marker
+    // stripping below stays as a backstop in case a stale conversation history
+    // still contains one.
+    const reply = await generateCoachReply(messages, context, "whatsapp");
 
     const nextHistory = [...messages, { role: "assistant" as const, content: reply }].slice(-MAX_HISTORY);
     await setJSON(key, nextHistory);

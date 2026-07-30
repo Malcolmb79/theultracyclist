@@ -308,3 +308,94 @@ export function goalProgressSvg(goal: {
      ${goal.deadline ? `<text x="${barX}" y="${H - 24}" fill="${MUTED}" font-family="${FONT}" font-size="16">by ${esc(goal.deadline)}</text>` : ""}`,
   );
 }
+
+// ---------------------------------------------------------------------------
+// Generic renderers, one per view type rather than one per metric.
+//
+// Every plain metric in the catalog is a stat, a chart, a timeline or a ring,
+// so these four cover all of them - the alternative was a hand-written card per
+// metric, which is dozens of near-copies and dozens of chances to drift from
+// the dashboard.
+// ---------------------------------------------------------------------------
+
+function formatValue(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  return rounded.toLocaleString("en-GB", { maximumFractionDigits: 1 });
+}
+
+export function statSvg(label: string, value: number | null, unit: string, dateLabel: string, color = "#2ee6a6"): string {
+  return frame(
+    label,
+    value == null
+      ? `<text x="40" y="160" fill="${MUTED}" font-family="${FONT}" font-size="20">No reading yet.</text>`
+      : `<text x="40" y="215" fill="${color}" font-family="${FONT}" font-size="86" font-weight="700">${esc(formatValue(value))}<tspan font-size="30" fill="${MUTED}"> ${esc(unit)}</tspan></text>
+         <text x="40" y="270" fill="${MUTED}" font-family="${FONT}" font-size="19">${esc(dateLabel)}</text>`,
+  );
+}
+
+export function chartSvg(label: string, series: { date: string; value: number }[], unit: string, color = "#2ee6a6"): string {
+  if (series.length < 2) return noDataImage(label, "Not enough history to chart yet.");
+
+  const left = 40;
+  const right = W - 40;
+  const top = 110;
+  const bottom = H - 70;
+  const values = series.map((p) => p.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  // A flat series would divide by zero and, worse, draw a line pinned to the
+  // top of the box as though it were a maximum.
+  const span = max - min || Math.abs(max) || 1;
+  const x = (i: number) => left + (i / (series.length - 1)) * (right - left);
+  const y = (v: number) => bottom - ((v - min) / span) * (bottom - top);
+
+  const line = series.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(" ");
+  const area = `${line} L${x(series.length - 1).toFixed(1)},${bottom} L${x(0).toFixed(1)},${bottom} Z`;
+  const last = series[series.length - 1];
+
+  return frame(
+    label,
+    `<path d="${area}" fill="${color}" fill-opacity="0.15"/>
+     <path d="${line}" fill="none" stroke="${color}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+     <circle cx="${x(series.length - 1).toFixed(1)}" cy="${y(last.value).toFixed(1)}" r="5" fill="${color}"/>
+     <text x="${right}" y="${(y(last.value) - 16).toFixed(1)}" fill="${TEXT}" font-family="${FONT}" font-size="22" font-weight="700" text-anchor="end">${esc(formatValue(last.value))}${esc(unit)}</text>
+     <text x="${left}" y="${H - 34}" fill="${MUTED}" font-family="${FONT}" font-size="16">${esc(series[0].date)}</text>
+     <text x="${right}" y="${H - 34}" fill="${MUTED}" font-family="${FONT}" font-size="16" text-anchor="end">${esc(last.date)}</text>
+     <text x="${left}" y="${top - 20}" fill="${MUTED}" font-family="${FONT}" font-size="16">${esc(`${formatValue(min)}-${formatValue(max)}${unit}`)}</text>`,
+  );
+}
+
+export function timelineSvg(label: string, series: { date: string; value: number }[], unit: string): string {
+  if (series.length === 0) return noDataImage(label, "No readings yet.");
+  const rows = series
+    .slice(-8)
+    .reverse()
+    .map((p, i) => {
+      const y = 120 + i * 36;
+      return `<text x="40" y="${y}" fill="${MUTED}" font-family="${FONT}" font-size="18">${esc(p.date)}</text>
+              <text x="${W - 40}" y="${y}" fill="${TEXT}" font-family="${FONT}" font-size="18" font-weight="600" text-anchor="end">${esc(formatValue(p.value))}${esc(unit)}</text>`;
+    })
+    .join("");
+  return frame(label, rows);
+}
+
+export function ringSvg(label: string, value: number | null, unit: string, dateLabel: string, color = "#2ee6a6"): string {
+  if (value == null) return noDataImage(label, "No reading yet.");
+  const cx = W / 2;
+  const cy = 250;
+  const r = 110;
+  const circumference = 2 * Math.PI * r;
+  // Percent metrics fill the ring directly; anything else is shown against
+  // 100 so the ring still means something rather than nothing.
+  const fraction = Math.max(0, Math.min(1, (unit === "%" ? value : Math.min(value, 100)) / 100));
+
+  return frame(
+    label,
+    `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="22"/>
+     <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="22" stroke-linecap="round"
+       stroke-dasharray="${(circumference * fraction).toFixed(1)} ${circumference.toFixed(1)}"
+       transform="rotate(-90 ${cx} ${cy})"/>
+     <text x="${cx}" y="${cy + 12}" fill="${TEXT}" font-family="${FONT}" font-size="52" font-weight="700" text-anchor="middle">${esc(formatValue(value))}<tspan font-size="22" fill="${MUTED}">${esc(unit)}</tspan></text>
+     <text x="${cx}" y="${H - 34}" fill="${MUTED}" font-family="${FONT}" font-size="18" text-anchor="middle">${esc(dateLabel)}</text>`,
+  );
+}

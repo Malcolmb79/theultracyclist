@@ -568,10 +568,10 @@ function toolsFor(channel: CoachChannel) {
       ? {
           ...tool,
           description:
-            "Send the athlete a picture of one of their widgets. On this channel only " +
+            "Send the athlete a picture of one of their widgets. Any metric the dashboard knows can be " +
+            "drawn here - the composite cards (" +
             WHATSAPP_DRAWABLE +
-            " can be drawn - for anything else, don't call this tool, just describe the numbers " +
-            "(fetch them with the other tools first). " +
+            "), or any plain metric as a stat, chart, timeline or ring. " +
             "These three are computed by the dashboard, not stored as Apple Health fields: BMI comes from " +
             "body weight plus the height in Settings, and the other two from the nutrition and energy " +
             "fields. So when asked to see one, call this straight away - do not search Apple Health for a " +
@@ -583,8 +583,17 @@ function toolsFor(channel: CoachChannel) {
             properties: {
               metric: {
                 type: "string",
-                enum: ["health.bmi", "health.macroSplit", "health.caloriesBalance", "goal.weight", "goal.ftp"],
-                description: "Which widget to draw.",
+                description:
+                  "Which widget. A composite card id, or any metric id the dashboard knows - e.g. " +
+                  "\"whoop.recovery\", \"whoop.hrv\", \"strava.distance\", or \"health.<field>\" for any " +
+                  "Apple Health field (call get_health_metrics to see the field names).",
+              },
+              view: {
+                type: "string",
+                enum: ["stat", "chart", "timeline", "ring"],
+                description:
+                  "How to draw a plain metric. Ignored by the composite cards. Prefer chart for a trend " +
+                  "question and stat for a single current figure. Defaults to stat.",
               },
             },
             required: ["metric"],

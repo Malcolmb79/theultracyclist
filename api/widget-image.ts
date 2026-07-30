@@ -7,11 +7,16 @@ import { irelandTodayDateStr } from "./_lib/timeContext.js";
 import {
   bmiSvg,
   caloriesBalanceSvg,
+  chartSvg,
   goalProgressSvg,
   macroSplitSvg,
   noDataImage,
+  ringSvg,
+  statSvg,
+  timelineSvg,
   verifyWidgetToken,
 } from "./_lib/widgetImage.js";
+import { resolveMetric } from "./_lib/metricSeries.js";
 import { fetchGoals } from "./trends-goals.js";
 import { convertValueUnit } from "./_lib/units.js";
 
@@ -237,7 +242,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } else if (spec.metric === "goal.weight" || spec.metric === "goal.ftp") {
       svg = await goalImage(spec.metric, history);
     } else {
-      svg = noDataImage("Widget", "That widget can't be drawn as an image yet.");
+      // Anything else is a plain metric: resolve its series and draw it in the
+      // requested view. This is what makes the whole catalog available rather
+      // than a hand-picked handful.
+      const resolved = await resolveMetric(spec.metric);
+      if (!resolved) {
+        svg = noDataImage("Widget", `Nothing tracked under "${spec.metric}".`);
+      } else {
+        const last = resolved.series.at(-1) ?? null;
+        const when = last ? dayLabel(last.date) : "";
+        svg =
+          spec.view === "chart"
+            ? chartSvg(resolved.label, resolved.series, resolved.unit)
+            : spec.view === "timeline"
+              ? timelineSvg(resolved.label, resolved.series, resolved.unit)
+              : spec.view === "ring"
+                ? ringSvg(resolved.label, last?.value ?? null, resolved.unit, when)
+                : statSvg(resolved.label, last?.value ?? null, resolved.unit, when);
+      }
     }
 
     const png = new Resvg(svg, { fitTo: { mode: "width", value: IMAGE_WIDTH }, font: FONT_OPTIONS }).render().asPng();

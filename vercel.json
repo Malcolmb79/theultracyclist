@@ -12,5 +12,11 @@
     "api/widget-image.ts": {
       "includeFiles": "api/_fonts/**"
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron-refresh",
+      "schedule": "*/15 * * * *"
+    }
+  ]
 }

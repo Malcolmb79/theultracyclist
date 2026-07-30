@@ -41,6 +41,7 @@ type StravaRide = {
   weightedAvgWatts: number | null;
   avgHeartrate: number | null;
   relativeEffort: number | null;
+  elevationGainM?: number;
   elevationProfile: { distanceKm: number; altitudeM: number }[];
 };
 
@@ -137,7 +138,11 @@ export function useDashboardData(raw: RawSourcesState): DashboardDataState {
           { id: "strava.avgPower", source: "strava", label: "Ride avg power", unit: "W", series: series((r) => r.avgWatts) },
           { id: "strava.avgHeartrate", source: "strava", label: "Ride avg heart rate", unit: "bpm", series: series((r) => r.avgHeartrate) },
           { id: "strava.relativeEffort", source: "strava", label: "Ride relative effort", unit: "", series: series((r) => r.relativeEffort) },
-          { id: "strava.elevationGain", source: "strava", label: "Ride elevation gain", unit: "m", series: series((r) => (r.elevationProfile.length > 1 ? Math.round(elevationGain(r.elevationProfile)) : null)) },
+          // Strava's own total for the ride, not summed from the elevation
+          // profile: profiles are only fetched for the most recent handful now
+          // (see fetchStravaRides), and deriving it meant this metric silently
+          // had no value for any older ride.
+          { id: "strava.elevationGain", source: "strava", label: "Ride elevation gain", unit: "m", series: series((r) => r.elevationGainM ?? (r.elevationProfile.length > 1 ? Math.round(elevationGain(r.elevationProfile)) : null)) },
         );
 
         performanceSeries = computePerformanceSeries(rides, settings.ftpWatts as number | undefined, irelandTodayDateStr());

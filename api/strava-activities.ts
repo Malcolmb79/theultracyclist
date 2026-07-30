@@ -127,6 +127,12 @@ export type Ride = {
   avgHeartrate: number | null;
   maxHeartrate: number | null;
   relativeEffort: number | null;
+  /** Strava's own total for the ride - always present, unlike the profile. */
+  elevationGainM: number;
+  /**
+   * Only populated for the first `profileCount` rides (see fetchStravaRides).
+   * Empty is normal for older rides, not an error.
+   */
   elevationProfile: ElevationPoint[];
 };
 
@@ -190,14 +196,25 @@ async function fetchRideActivities(authHeader: HeadersInit, count: number): Prom
   return rides.slice(0, count);
 }
 
-export async function fetchStravaRides(count: number = RIDE_COUNT): Promise<Ride[]> {
+/**
+ * `profileCount` caps how many rides get an elevation *profile*, which is a
+ * separate Strava streams call per ride.
+ *
+ * That matters a lot: the dashboard asks for 200 rides (for CTL/ATL/TSB
+ * history), and fetching a profile for each meant 200 extra API calls on every
+ * page load - about seven seconds, and far past Strava's 100-per-15-minutes
+ * limit, so most of them came back 429 and were swallowed as an empty profile.
+ * Only the public ride feed actually draws the trace, and it shows the default
+ * handful, so profiles stop at this many and the rest ship without one.
+ */
+export async function fetchStravaRides(count: number = RIDE_COUNT, profileCount: number = RIDE_COUNT): Promise<Ride[]> {
   const accessToken = await getAccessToken();
   const authHeader = { Authorization: `Bearer ${accessToken}` };
 
   const rideActivities = await fetchRideActivities(authHeader, count);
 
   return Promise.all(
-    rideActivities.map(async (activity) => ({
+    rideActivities.map(async (activity, index) => ({
       id: activity.id,
       name: activity.name,
       distanceKm: Math.round((activity.distance / 1000) * 10) / 10,
@@ -216,7 +233,10 @@ export async function fetchStravaRides(count: number = RIDE_COUNT): Promise<Ride
         ? Math.round(activity.max_heartrate)
         : null,
       relativeEffort: activity.suffer_score != null ? Math.round(activity.suffer_score) : null,
-      elevationProfile: await fetchElevationProfile(activity.id, authHeader),
+      // Strava's own per-ride total, so the elevation-gain metric no longer
+      // depends on a streams call that mostly failed at this volume.
+      elevationGainM: Math.round(activity.total_elevation_gain ?? 0),
+      elevationProfile: index < profileCount ? await fetchElevationProfile(activity.id, authHeader) : [],
     })),
   );
 }

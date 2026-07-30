@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DeviceCategory } from "./useDeviceCategory";
 
+// Upper bound on any one source. Long enough that a slow-but-working response
+// still lands, short enough that a hang doesn't strand the page.
+const SOURCE_TIMEOUT_MS = 20_000;
+
 // Fetches Whoop/Strava/Apple Health/coaching-settings ONCE and shares the
 // raw JSON across every hook that needs it (useDashboardData, useCoachingData).
 // Each of those used to run this exact set of fetches independently, so a
@@ -53,17 +57,32 @@ export function useRawSources(device: DeviceCategory): RawSourcesState {
       setState((prev) => (prev.status === "ready" ? { ...prev, settings: next } : prev));
     };
 
+    // Every source is awaited together, so without a deadline one hung
+    // upstream holds the whole page on "Loading…" indefinitely - there is no
+    // partial render to fall back to. A source that misses the deadline
+    // resolves null, which each consumer already treats as "no data" rather
+    // than an error. Generous rather than tight: the point is to bound a hang,
+    // not to cut off a slow-but-working response.
+    const withDeadline = async (url: string): Promise<unknown | null> => {
+      try {
+        const res = await fetch(url, { signal: AbortSignal.timeout(SOURCE_TIMEOUT_MS) });
+        return res.ok ? await res.json() : null;
+      } catch {
+        return null;
+      }
+    };
+
     try {
       const [whoop, strava, health, settingsBody, goalsBody] = await Promise.all([
-        fetch("/api/whoop-data").then((r) => (r.ok ? r.json() : null)),
+        withDeadline("/api/whoop-data"),
         // A generous count (not the default 6 "recent rides" list) so the
         // Performance Chart's CTL/ATL/TSB has real ride history behind it
         // instead of ramping up from an artificially recent start - matches
         // Trends' own useTrendsData.ts fetch for the same reason.
-        fetch("/api/strava-activities?count=200").then((r) => (r.ok ? r.json() : null)),
-        fetch("/api/health-data").then((r) => (r.ok ? r.json() : null)),
-        fetch(`/api/coaching-settings?device=${device}`).then((r) => (r.ok ? r.json() : null)),
-        fetch("/api/trends-goals").then((r) => (r.ok ? r.json() : null)),
+        withDeadline("/api/strava-activities?count=200"),
+        withDeadline("/api/health-data"),
+        withDeadline(`/api/coaching-settings?device=${device}`),
+        withDeadline("/api/trends-goals"),
       ]);
       if (cancelledRef.current) return;
       setState({

@@ -47,6 +47,10 @@ export type ChatContext = {
   heightCm?: number | null;
   weeklyTargetHours?: number | null;
   ftpWatts?: number | null;
+  /** Which system the athlete reads in - everything spoken should match it. */
+  unitSystem?: "metric" | "imperial";
+  /** Latest body weight already converted to kg, whatever the export stored. */
+  latestWeightKg?: number | null;
 };
 
 export type GoalTargets = {
@@ -428,6 +432,7 @@ function buildSystemPrompt(context: Partial<ChatContext>): string {
   if (context.phase) lines.push(`Current training phase: ${context.phase}`);
   if (context.ftpWatts != null) lines.push(`FTP (tested, from Settings): ${context.ftpWatts}W`);
   if (context.heightCm != null) lines.push(`Height: ${context.heightCm}cm`);
+  if (context.latestWeightKg != null) lines.push(`Latest body weight: ${context.latestWeightKg}kg`);
   if (context.weeklyTargetHours != null) lines.push(`Weekly hours target: ${context.weeklyTargetHours}h`);
 
   const g = context.goals ?? {};
@@ -452,6 +457,17 @@ function buildSystemPrompt(context: Partial<ChatContext>): string {
     lines.push("The athlete's own targets, already set - never ask for these:");
     lines.push(...goalLines);
   }
+
+  // Apple Health stores fields in whichever unit the device uses - body weight
+  // comes back in pounds here - so raw values from get_health_metrics will not
+  // match how the athlete reads. Say the converted figure, not both.
+  const imperial = context.unitSystem === "imperial";
+  lines.push("");
+  lines.push(
+    `The athlete reads in ${imperial ? "imperial - use lb, miles, feet" : "metric - use kg, km, metres"}. ` +
+      "Some stored health fields use the other system (body weight is recorded in lb); convert before quoting " +
+      "and give one figure in the athlete's units, without narrating the conversion or naming the stored unit.",
+  );
   lines.push(
     context.hasRiddenToday
       ? `Already completed a ride today: ${context.todayDistanceKm}km`

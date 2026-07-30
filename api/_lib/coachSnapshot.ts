@@ -2,6 +2,7 @@ import { fetchWhoopHistory } from "../whoop-data.js";
 import { fetchStravaRides, type Ride } from "../strava-activities.js";
 import { fetchCoachingSettings } from "../coaching-settings.js";
 import { fetchGoals } from "../trends-goals.js";
+import { fetchHealthHistory } from "../health-data.js";
 import type { ChatContext } from "../coaching-chat.js";
 import { irelandDateStr, irelandTodayDateStr } from "./timeContext.js";
 
@@ -29,6 +30,28 @@ function rideDateStr(ride: Ride): string {
 // CoachingPage.tsx) and POSTs alongside every chat/narrative request - the
 // WhatsApp webhook has no browser session to do that, so it fetches the
 // underlying data directly and reproduces the calc here instead.
+const LB_TO_KG = 0.45359237;
+
+/**
+ * The most recent body weight, in kilograms whatever the export stored.
+ *
+ * Apple Health keeps body mass in the device's own unit - this athlete's is
+ * pounds - and handing the coach the raw figure had it opening with "you're
+ * around 159-160 lb, which is roughly 72-73 kg" to someone who reads in
+ * metric. Converting here means it never has to do that in the reply.
+ */
+async function latestWeightKg(): Promise<number | null> {
+  const history = await fetchHealthHistory(60);
+  for (const date of Object.keys(history).sort().reverse()) {
+    const day = history[date];
+    const key = Object.keys(day).find((name) => /weight|body_mass/i.test(name));
+    if (!key) continue;
+    const { value, unit } = day[key];
+    return Math.round((/^(lb|lbs|pound)/i.test(unit ?? "") ? value * LB_TO_KG : value) * 10) / 10;
+  }
+  return null;
+}
+
 export async function computeChatContext(): Promise<Partial<ChatContext>> {
   const [whoop, rides, settings] = await Promise.all([
     fetchWhoopHistory().catch(() => null),
@@ -79,6 +102,8 @@ export async function computeChatContext(): Promise<Partial<ChatContext>> {
     hasRiddenToday,
     todayDistanceKm,
     goals: await fetchGoals(),
+    unitSystem: settings.unitSystem === "imperial" ? "imperial" : "metric",
+    latestWeightKg: await latestWeightKg(),
     heightCm: settings.heightCm ?? null,
     weeklyTargetHours: settings.weeklyHours ?? null,
     ftpWatts: settings.ftpWatts ?? null,

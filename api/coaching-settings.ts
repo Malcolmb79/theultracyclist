@@ -29,6 +29,11 @@ type CoachingWidgetEntry = {
 
 export type CoachingSettings = {
   ftpWatts?: number;
+  // Metric or imperial, as chosen in Settings. Persisted server-side rather
+  // than only in the browser because things rendered away from the browser
+  // need it too - a WhatsApp widget image has no localStorage to read, and
+  // was showing kilograms to an athlete reading in pounds.
+  unitSystem?: "metric" | "imperial";
   // Always centimeters - see the client-side CoachingSettings type for why.
   heightCm?: number;
   weeklyDistanceKm?: number;
@@ -155,6 +160,7 @@ export async function fetchCoachingSettings(): Promise<CoachingSettings> {
   return {
     ftpWatts: stored.ftpWatts,
     heightCm: stored.heightCm,
+    unitSystem: stored.unitSystem,
     weeklyDistanceKm: stored.weeklyDistanceKm,
     weeklyHours: stored.weeklyHours,
     phase: stored.phase,
@@ -188,6 +194,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const next: StoredSettings = {
       ftpWatts: incoming.ftpWatts,
       heightCm: incoming.heightCm,
+      unitSystem: incoming.unitSystem,
       weeklyDistanceKm: incoming.weeklyDistanceKm,
       weeklyHours: incoming.weeklyHours,
       phase: incoming.phase,
@@ -226,6 +233,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const settings: CoachingSettings = {
     ftpWatts: stored.ftpWatts,
     heightCm: stored.heightCm,
+    unitSystem: stored.unitSystem,
     weeklyDistanceKm: stored.weeklyDistanceKm,
     weeklyHours: stored.weeklyHours,
     phase: stored.phase,

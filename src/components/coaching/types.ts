@@ -41,6 +41,8 @@ export type CoachingSettings = {
   // used only to derive the BMI widget (see src/utils/bmi.ts), which has no
   // meaningful imperial "unit" of its own to convert to.
   heightCm?: number;
+  /** Metric or imperial, mirrored from UnitsContext so non-browser renders can read it. */
+  unitSystem?: "metric" | "imperial";
   weeklyDistanceKm?: number;
   weeklyHours?: number;
   phase?: TrainingPhase;

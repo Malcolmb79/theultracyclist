@@ -97,7 +97,7 @@ export function noDataImage(title: string, message: string): string {
   return frame(title, `<text x="40" y="140" fill="${MUTED}" font-family="${FONT}" font-size="20">${esc(message)}</text>`);
 }
 
-export function bmiSvg(bmi: number, weightKg: number | null, dateLabel: string): string {
+export function bmiSvg(bmi: number, weight: { value: number; unit: string } | null, dateLabel: string): string {
   const min = 15;
   const max = 45;
   const barX = 40;
@@ -131,7 +131,7 @@ export function bmiSvg(bmi: number, weightKg: number | null, dateLabel: string):
      <polygon points="${markerX.toFixed(1)},${barY - 6} ${(markerX - 9).toFixed(1)},${barY - 22} ${(markerX + 9).toFixed(1)},${barY - 22}" fill="${TEXT}"/>
      ${ticks}
      <text x="40" y="${barY + 110}" fill="${MUTED}" font-family="${FONT}" font-size="18">${esc(
-       weightKg != null ? `${dateLabel} · ${Math.round(weightKg * 10) / 10} kg` : dateLabel,
+       weight != null ? `${dateLabel} · ${Math.round(weight.value * 10) / 10} ${weight.unit}` : dateLabel,
      )}</text>`,
   );
 }

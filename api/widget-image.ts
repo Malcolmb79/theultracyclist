@@ -43,7 +43,7 @@ const FONT_OPTIONS = {
 // stops working shortly anyway.
 const CACHE_CONTROL = "private, max-age=600";
 
-function latestDateWith(history: Record<string, Record<string, { value: number }>>, match: RegExp): string | null {
+function latestDateWith(history: Record<string, Record<string, HealthValue>>, match: RegExp): string | null {
   const dates = Object.keys(history).sort();
   for (let i = dates.length - 1; i >= 0; i--) {
     if (Object.keys(history[dates[i]]).some((name) => match.test(name))) return dates[i];
@@ -51,13 +51,32 @@ function latestDateWith(history: Record<string, Record<string, { value: number }
   return null;
 }
 
-function field(day: Record<string, { value: number }> | undefined, patterns: RegExp[]): number | null {
+type HealthValue = { value: number; unit?: string };
+
+function reading(day: Record<string, HealthValue> | undefined, patterns: RegExp[]): HealthValue | null {
   if (!day) return null;
   for (const pattern of patterns) {
     const key = Object.keys(day).find((name) => pattern.test(name));
-    if (key) return day[key].value;
+    if (key) return day[key];
   }
   return null;
+}
+
+function field(day: Record<string, HealthValue> | undefined, patterns: RegExp[]): number | null {
+  return reading(day, patterns)?.value ?? null;
+}
+
+const LB_TO_KG = 0.45359237;
+const KG_TO_LB = 1 / LB_TO_KG;
+
+/**
+ * Apple Health exports body mass in whatever unit the athlete's device is set
+ * to, so the stored number is only kilograms if it says so. Taking it raw put
+ * 72kg on screen as "158.7 kg" and a BMI of 55.6 - the same trap the dashboard
+ * avoids by converting through the catalog's own unit (see bmi.ts).
+ */
+function toKg(value: number, unit?: string): number {
+  return /^(lb|lbs|pound)/i.test(unit ?? "") ? value * LB_TO_KG : value;
 }
 
 function dayLabel(date: string): string {
@@ -84,19 +103,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const history = (await fetchHealthHistory(120)) as Record<string, Record<string, { value: number }>>;
+    const history = (await fetchHealthHistory(120)) as Record<string, Record<string, HealthValue>>;
     let svg: string;
 
     if (spec.metric === "health.bmi") {
       const date = latestDateWith(history, /weight|body_mass/i);
-      const weight = field(history[date ?? ""], [/weight|body_mass/i]);
+      const raw = reading(history[date ?? ""], [/weight|body_mass/i]);
       const settings = await fetchCoachingSettings();
       const heightCm = (settings as { heightCm?: number }).heightCm;
-      if (date == null || weight == null || !heightCm) {
+      if (date == null || raw == null || !heightCm) {
         svg = noDataImage("BMI", "Needs a weight reading and a height set in Settings.");
       } else {
+        // BMI is kg/m² by definition, so the maths always runs in kilograms -
+        // only the weight shown beside it follows the athlete's chosen system.
+        const weightKg = toKg(raw.value, raw.unit);
         const heightM = heightCm / 100;
-        svg = bmiSvg(Math.round((weight / (heightM * heightM)) * 10) / 10, weight, dayLabel(date));
+        const imperial = (settings as { unitSystem?: string }).unitSystem === "imperial";
+        svg = bmiSvg(
+          Math.round((weightKg / (heightM * heightM)) * 10) / 10,
+          imperial ? { value: weightKg * KG_TO_LB, unit: "lb" } : { value: weightKg, unit: "kg" },
+          dayLabel(date),
+        );
       }
     } else if (spec.metric === "health.macroSplit") {
       const date = latestDateWith(history, /carbohydrate|protein|fat/i);

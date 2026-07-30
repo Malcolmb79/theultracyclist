@@ -165,7 +165,10 @@ const TOOLS = [
             "Which widget, as a metric id the dashboard knows - e.g. \"health.macroSplit\", " +
             "\"health.caloriesBalance\", \"health.bmi\", \"strava.performanceChart\", \"whoop.recovery\", " +
             "\"whoop.sleepRecoveryStrainRings\", \"whoop.healthCalendar\", or any \"health.<field>\" Apple " +
-            "Health field. Call get_health_metrics first if unsure what exists.",
+            "Health field. These are dashboard widgets, not raw Apple Health fields - several are derived " +
+            "(BMI from body weight and the height in Settings; macro split and calories balance from the " +
+            "nutrition fields), so do not go looking for a matching field first and do not conclude the data " +
+            "is missing when you cannot find one. Just show the widget.",
         },
         view: {
           type: "string",
@@ -459,8 +462,13 @@ function toolsFor(channel: CoachChannel) {
             "Send the athlete a picture of one of their widgets. On this channel only " +
             WHATSAPP_DRAWABLE +
             " can be drawn - for anything else, don't call this tool, just describe the numbers " +
-            "(fetch them with the other tools first). Say something useful alongside the image; " +
-            "it arrives as a separate attachment, so don't write as though it is inline in your text.",
+            "(fetch them with the other tools first). " +
+            "These three are computed by the dashboard, not stored as Apple Health fields: BMI comes from " +
+            "body weight plus the height in Settings, and the other two from the nutrition and energy " +
+            "fields. So when asked to see one, call this straight away - do not search Apple Health for a " +
+            "matching field, and never tell the athlete the data is missing because you couldn't find one. " +
+            "Say something useful alongside the image; it arrives as an attachment, so don't write as " +
+            "though it is inline in your text.",
           input_schema: {
             type: "object",
             properties: {

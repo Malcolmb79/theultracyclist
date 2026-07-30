@@ -123,6 +123,19 @@ export default function WeatherCard() {
         ])
           .then(([weather, place]) => {
             if (cancelled) return;
+            // Remember roughly where this was, so things rendered away from a
+            // browser (the WhatsApp weather image) aren't stuck with a fixed
+            // location. Fire-and-forget: it 401s harmlessly on the public site,
+            // and a failure here must never stop the card rendering.
+            fetch("/api/last-location", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                latitude,
+                longitude,
+                place: place?.city ?? place?.locality ?? undefined,
+              }),
+            }).catch(() => {});
             const c = weather.current;
             const d = weather.daily;
             const days: DayForecast[] = (d?.time ?? []).map((date: string, i: number) => ({

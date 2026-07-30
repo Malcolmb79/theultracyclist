@@ -11,11 +11,19 @@ import {
   goalProgressSvg,
   macroSplitSvg,
   noDataImage,
+  performanceChartSvg,
   ringSvg,
   statSvg,
   timelineSvg,
   verifyWidgetToken,
+  weatherSvg,
 } from "./_lib/widgetImage.js";
+import { fetchLastLocation } from "./last-location.js";
+import { fetchStravaRides } from "./strava-activities.js";
+import { computeTss } from "./_lib/tss.js";
+import { computeFitnessSeries } from "./_lib/fitness.js";
+import { getAtpWeekFor } from "./_lib/atpPlan.js";
+import { irelandDateStr } from "./_lib/timeContext.js";
 import { resolveMetric } from "./_lib/metricSeries.js";
 import { fetchGoals } from "./trends-goals.js";
 import { convertValueUnit } from "./_lib/units.js";
@@ -178,6 +186,72 @@ async function goalImage(
   });
 }
 
+
+// Where to ask about the weather when nothing has been reported yet - the
+// athlete's base, and the same fallback the dashboard's theme uses when
+// geolocation is refused. Overwritten as soon as the dashboard reports a real
+// position (see api/last-location.ts).
+const IRELAND_FALLBACK = { latitude: 53.35, longitude: -6.26, place: "Ireland" };
+
+async function weatherImage(system: "metric" | "imperial"): Promise<string> {
+  const location = (await fetchLastLocation()) ?? IRELAND_FALLBACK;
+  const tempUnit = system === "imperial" ? "fahrenheit" : "celsius";
+  const windUnit = system === "imperial" ? "mph" : "kmh";
+  const url =
+    `https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}` +
+    `&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m` +
+    `&daily=weather_code,temperature_2m_max,temperature_2m_min&forecast_days=7&timezone=auto` +
+    `&temperature_unit=${tempUnit}&wind_speed_unit=${windUnit}`;
+
+  const res = await fetch(url);
+  if (!res.ok) return noDataImage("Weather", "Couldn't reach the weather service.");
+  const body = (await res.json()) as {
+    current?: Record<string, number>;
+    daily?: { time?: string[]; weather_code?: number[]; temperature_2m_max?: number[]; temperature_2m_min?: number[] };
+  };
+  const c = body.current;
+  if (!c) return noDataImage("Weather", "No current conditions returned.");
+
+  return weatherSvg({
+    place: "place" in location ? (location as { place?: string }).place : undefined,
+    temperature: c.temperature_2m,
+    apparent: c.apparent_temperature,
+    code: c.weather_code,
+    windSpeed: c.wind_speed_10m,
+    humidity: c.relative_humidity_2m,
+    tempUnit: system === "imperial" ? "°F" : "°C",
+    windUnit: system === "imperial" ? "mph" : "km/h",
+    days: (body.daily?.time ?? []).map((date, i) => ({
+      date,
+      code: body.daily?.weather_code?.[i] ?? 0,
+      max: body.daily?.temperature_2m_max?.[i] ?? 0,
+      min: body.daily?.temperature_2m_min?.[i] ?? 0,
+    })),
+  });
+}
+
+/** CTL/ATL/TSB from the same computation the coach's get_fitness tool uses. */
+async function performanceImage(): Promise<string> {
+  const [rides, settings] = await Promise.all([fetchStravaRides(200), fetchCoachingSettings()]);
+  const dailyTssByDate = new Map<string, number>();
+  let earliest: string | null = null;
+  for (const r of rides) {
+    const date = irelandDateStr(new Date(r.startDate));
+    const tss = computeTss(r.weightedAvgWatts ?? r.avgWatts, r.movingTimeMinutes, (settings as { ftpWatts?: number }).ftpWatts) ?? 0;
+    dailyTssByDate.set(date, (dailyTssByDate.get(date) ?? 0) + tss);
+    if (!earliest || date < earliest) earliest = date;
+  }
+  const today = irelandTodayDateStr();
+  if (!earliest) return noDataImage("ATP Progress / Performance Chart", "No ride history yet.");
+
+  const series = computeFitnessSeries(dailyTssByDate, earliest, today);
+  // The trailing window the dashboard shows, rather than the whole season -
+  // a year of days squeezed into a phone-width image is a smear.
+  const points = Array.from(series.values()).slice(-120);
+  const week = getAtpWeekFor(today);
+  return performanceChartSvg(points, { ctl: week?.targetCtl ?? null, tsb: week?.targetTsb ?? null });
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const secret = process.env.SESSION_SECRET;
   const token = typeof req.query.token === "string" ? req.query.token : "";
@@ -241,6 +315,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             );
     } else if (spec.metric === "goal.weight" || spec.metric === "goal.ftp") {
       svg = await goalImage(spec.metric, history);
+    } else if (spec.metric === "weather.current") {
+      const s = (await fetchCoachingSettings()) as { unitSystem?: string };
+      svg = await weatherImage(s.unitSystem === "imperial" ? "imperial" : "metric");
+    } else if (spec.metric === "strava.performanceChart") {
+      svg = await performanceImage();
     } else {
       // Anything else is a plain metric: resolve its series and draw it in the
       // requested view. This is what makes the whole catalog available rather

@@ -3,7 +3,7 @@ import twilio from "twilio";
 import { getJSON, setJSON } from "./_lib/kvStore.js";
 import { generateCoachReply, type ChatMessage } from "./coaching-chat.js";
 import { computeChatContext } from "./_lib/coachSnapshot.js";
-import { IMAGEABLE_METRICS, signWidgetToken } from "./_lib/widgetImage.js";
+import { isImageableMetric, signWidgetToken } from "./_lib/widgetImage.js";
 
 const MAX_HISTORY = 20; // matches the browser chat's own cap in coaching-chat.ts
 
@@ -126,13 +126,16 @@ function sendTwiml(res: VercelResponse, message?: string, mediaUrls: string[] = 
  * IMAGEABLE_METRICS - so a marker for anything else just disappears from the
  * text rather than promising a picture that never arrives.
  */
-function widgetMetricsIn(text: string): string[] {
-  const found = new Set<string>();
-  for (const match of text.matchAll(/\[widget:([^:\]]+)(?::[^\]]*)?\]/g)) {
+function widgetMetricsIn(text: string): { metric: string; view: string }[] {
+  const found = new Map<string, { metric: string; view: string }>();
+  for (const match of text.matchAll(/\[widget:([^:\]]+)(?::([^\]]*))?\]/g)) {
     const metric = match[1].trim();
-    if (IMAGEABLE_METRICS.has(metric)) found.add(metric);
+    const view = (match[2] ?? "").trim() || "stat";
+    // Keyed by metric+view so "HRV as a chart" and "HRV as a stat" are two
+    // images rather than one silently winning.
+    if (isImageableMetric(metric)) found.set(`${metric}:${view}`, { metric, view });
   }
-  return [...found];
+  return [...found.values()];
 }
 
 /**
@@ -217,8 +220,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const origin = `${proto}://${req.headers.host}`;
     const mediaUrls = secret
       ? widgetMetricsIn(reply).map(
-          (metric) =>
-            `${origin}/api/widget-image?token=${encodeURIComponent(signWidgetToken({ metric, view: "chart" }, secret))}`,
+          ({ metric, view }) =>
+            `${origin}/api/widget-image?token=${encodeURIComponent(signWidgetToken({ metric, view }, secret))}`,
         )
       : [];
 

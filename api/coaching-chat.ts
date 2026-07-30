@@ -559,7 +559,8 @@ export type CoachChannel = "web" | "whatsapp";
 // description it actually sees rather than in a general instruction it has no
 // way to apply.
 const WHATSAPP_DRAWABLE =
-  "\"health.bmi\", \"health.macroSplit\", \"health.caloriesBalance\", \"goal.weight\" or \"goal.ftp\"";
+  "\"health.bmi\", \"health.macroSplit\", \"health.caloriesBalance\", \"goal.weight\", \"goal.ftp\", " +
+  "\"weather.current\" or \"strava.performanceChart\"";
 
 function toolsFor(channel: CoachChannel) {
   if (channel === "web") return TOOLS;

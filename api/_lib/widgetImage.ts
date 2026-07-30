@@ -235,13 +235,37 @@ export function caloriesBalanceSvg(consumed: number | null, burned: number | nul
 }
 
 /** Which metrics can be drawn as an image; anything else is described instead. */
-export const IMAGEABLE_METRICS = new Set([
+/**
+ * The composite cards, which have their own shapes. Plain metrics are not
+ * listed because every one of them is drawable through the generic stat /
+ * chart / timeline / ring renderers - see resolveMetric.
+ */
+export const COMPOSITE_IMAGE_METRICS = new Set([
   "health.bmi",
   "health.macroSplit",
   "health.caloriesBalance",
   "goal.weight",
   "goal.ftp",
+  "weather.current",
+  "strava.performanceChart",
 ]);
+
+/**
+ * Whether an image can be produced at all. Garmin LiveTrack is deliberately
+ * absent: it is a live embedded map, and a still of it says nothing.
+ */
+export function isImageableMetric(metric: string): boolean {
+  return (
+    COMPOSITE_IMAGE_METRICS.has(metric) ||
+    metric.startsWith("health.") ||
+    metric.startsWith("whoop.") ||
+    (metric.startsWith("strava.") && metric !== "strava.performanceChart") ||
+    false
+  );
+}
+
+// Kept for callers that only care about the bespoke set.
+export const IMAGEABLE_METRICS = COMPOSITE_IMAGE_METRICS;
 
 /**
  * A dated goal: where the athlete is, where they're going, and whether the
@@ -397,5 +421,104 @@ export function ringSvg(label: string, value: number | null, unit: string, dateL
        transform="rotate(-90 ${cx} ${cy})"/>
      <text x="${cx}" y="${cy + 12}" fill="${TEXT}" font-family="${FONT}" font-size="52" font-weight="700" text-anchor="middle">${esc(formatValue(value))}<tspan font-size="22" fill="${MUTED}">${esc(unit)}</tspan></text>
      <text x="${cx}" y="${H - 34}" fill="${MUTED}" font-family="${FONT}" font-size="18" text-anchor="middle">${esc(dateLabel)}</text>`,
+  );
+}
+
+// WMO weather codes, condensed to the groups worth naming on a phone-sized
+// card - matching how WeatherCard labels them on the dashboard.
+const WEATHER_LABELS: [number[], string][] = [
+  [[0], "Clear"],
+  [[1, 2], "Partly cloudy"],
+  [[3], "Overcast"],
+  [[45, 48], "Fog"],
+  [[51, 53, 55, 56, 57], "Drizzle"],
+  [[61, 63, 65, 66, 67, 80, 81, 82], "Rain"],
+  [[71, 73, 75, 77, 85, 86], "Snow"],
+  [[95, 96, 99], "Thunderstorm"],
+];
+
+export function weatherLabel(code: number): string {
+  return WEATHER_LABELS.find(([codes]) => codes.includes(code))?.[1] ?? "—";
+}
+
+export function weatherSvg(weather: {
+  place?: string;
+  temperature: number;
+  apparent: number;
+  code: number;
+  windSpeed: number;
+  humidity: number;
+  tempUnit: string;
+  windUnit: string;
+  days: { date: string; code: number; max: number; min: number }[];
+}): string {
+  const forecast = weather.days.slice(0, 5);
+  const colWidth = (W - 80) / Math.max(1, forecast.length);
+  const strip = forecast
+    .map((day, i) => {
+      const cx = 40 + colWidth * i + colWidth / 2;
+      const name = new Date(`${day.date}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" });
+      return `<text x="${cx.toFixed(0)}" y="${H - 92}" fill="${MUTED}" font-family="${FONT}" font-size="16" text-anchor="middle">${esc(name)}</text>
+              <text x="${cx.toFixed(0)}" y="${H - 66}" fill="${TEXT}" font-family="${FONT}" font-size="17" text-anchor="middle">${Math.round(day.max)}°</text>
+              <text x="${cx.toFixed(0)}" y="${H - 44}" fill="${MUTED}" font-family="${FONT}" font-size="15" text-anchor="middle">${Math.round(day.min)}°</text>
+              <text x="${cx.toFixed(0)}" y="${H - 22}" fill="${MUTED}" font-family="${FONT}" font-size="13" text-anchor="middle">${esc(weatherLabel(day.code))}</text>`;
+    })
+    .join("");
+
+  return frame(
+    weather.place ? `Weather · ${weather.place}` : "Weather",
+    `<text x="40" y="185" fill="${TEXT}" font-family="${FONT}" font-size="76" font-weight="700">${Math.round(weather.temperature)}<tspan font-size="30" fill="${MUTED}">${esc(weather.tempUnit)}</tspan></text>
+     <text x="40" y="225" fill="${MUTED}" font-family="${FONT}" font-size="19">${esc(weatherLabel(weather.code))} · feels ${Math.round(weather.apparent)}${esc(weather.tempUnit)}</text>
+     <text x="${W - 40}" y="185" fill="${MUTED}" font-family="${FONT}" font-size="19" text-anchor="end">Wind ${Math.round(weather.windSpeed)} ${esc(weather.windUnit)}</text>
+     <text x="${W - 40}" y="215" fill="${MUTED}" font-family="${FONT}" font-size="19" text-anchor="end">Humidity ${Math.round(weather.humidity)}%</text>
+     ${strip}`,
+  );
+}
+
+export function performanceChartSvg(
+  points: { date: string; ctl: number; atl: number; tsb: number }[],
+  targets?: { ctl?: number | null; tsb?: number | null },
+): string {
+  if (points.length < 2) return noDataImage("ATP Progress / Performance Chart", "Not enough ride history yet.");
+
+  const left = 50;
+  const right = W - 60;
+  const top = 100;
+  const bottom = H - 60;
+  const all = points.flatMap((p) => [p.ctl, p.atl, p.tsb]);
+  // Always include zero: TSB straddles it, and a zero line the data never
+  // reaches would sit outside the plot.
+  const min = Math.min(0, ...all);
+  const max = Math.max(0, ...all);
+  const span = max - min || 1;
+  const x = (i: number) => left + (i / (points.length - 1)) * (right - left);
+  const y = (v: number) => bottom - ((v - min) / span) * (bottom - top);
+  const path = (pick: (p: { ctl: number; atl: number; tsb: number }) => number) =>
+    points.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(pick(p)).toFixed(1)}`).join(" ");
+
+  const last = points[points.length - 1];
+  const legend = [
+    { label: `CTL ${Math.round(last.ctl)}`, color: "#2ee6a6", extra: targets?.ctl != null ? ` (target ${Math.round(targets.ctl)})` : "" },
+    { label: `ATL ${Math.round(last.atl)}`, color: "#ffb020", extra: "" },
+    { label: `TSB ${Math.round(last.tsb)}`, color: "#4B87F5", extra: targets?.tsb != null ? ` (target ${Math.round(targets.tsb)})` : "" },
+  ]
+    .map((item, i) => {
+      const lx = 50 + i * 210;
+      return `<rect x="${lx}" y="${H - 40}" width="12" height="12" rx="3" fill="${item.color}"/>
+              <text x="${lx + 20}" y="${H - 29}" fill="${TEXT}" font-family="${FONT}" font-size="16">${esc(item.label)}<tspan fill="${MUTED}">${esc(item.extra)}</tspan></text>`;
+    })
+    .join("");
+
+  return frame(
+    "ATP Progress / Performance Chart",
+    `<line x1="${left}" y1="${y(0).toFixed(1)}" x2="${right}" y2="${y(0).toFixed(1)}" stroke="rgba(255,255,255,.15)" stroke-width="1"/>
+     <path d="${path((p) => p.ctl)}" fill="none" stroke="#2ee6a6" stroke-width="3" stroke-linejoin="round"/>
+     <path d="${path((p) => p.atl)}" fill="none" stroke="#ffb020" stroke-width="2.5" stroke-linejoin="round"/>
+     <path d="${path((p) => p.tsb)}" fill="none" stroke="#4B87F5" stroke-width="2.5" stroke-linejoin="round"/>
+     <text x="${left - 8}" y="${(y(max) + 5).toFixed(1)}" fill="${MUTED}" font-family="${FONT}" font-size="14" text-anchor="end">${Math.round(max)}</text>
+     <text x="${left - 8}" y="${(y(min) + 5).toFixed(1)}" fill="${MUTED}" font-family="${FONT}" font-size="14" text-anchor="end">${Math.round(min)}</text>
+     <text x="${left}" y="${bottom + 24}" fill="${MUTED}" font-family="${FONT}" font-size="14">${esc(points[0].date)}</text>
+     <text x="${right}" y="${bottom + 24}" fill="${MUTED}" font-family="${FONT}" font-size="14" text-anchor="end">${esc(last.date)}</text>
+     ${legend}`,
   );
 }

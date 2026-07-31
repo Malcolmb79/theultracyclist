@@ -307,10 +307,18 @@ export default function DashboardWidget({
   // date briefly outrunning Active/Basal's (e.g. a meal logged before the
   // day's workout syncs) used to make a real, already-synced burn total
   // for today look absent and fall back to the estimate.
-  const realBurnedToday =
-    activeByDate.has(today) || basalByDate.has(today) ? (activeByDate.get(today) ?? 0) + (basalByDate.get(today) ?? 0) : null;
+  const activeToday = activeByDate.get(today) ?? null;
+  const basalToday = basalByDate.get(today) ?? null;
+  // Only a real basal reading makes the day's burn genuinely measured. Active
+  // energy on its own does not: it is the cost of the ride, not of the day, so
+  // treating it as the whole figure showed a 500kcal spin as an entire day's
+  // burn and made Net look wildly negative.
+  const realBurnedToday = basalToday != null ? basalToday + (activeToday ?? 0) : null;
   const hasRealBurnToday = realBurnedToday != null;
-  const estimatedBurnedToday = !hasRealBurnToday
+  // The ramp models the day's baseline burn, which is why today's real active
+  // energy is added on top rather than replacing it - a ride is extra to the
+  // baseline, not instead of it.
+  const estimatedBaseline = !hasRealBurnToday
     ? estimateCalorieBurnNow(
         {
           wakeTime: caloriesBurnSettings?.wakeTime ?? DEFAULT_CALORIE_BURN_ESTIMATE.wakeTime,
@@ -320,6 +328,7 @@ export default function DashboardWidget({
         estimateNow,
       )
     : null;
+  const estimatedBurnedToday = estimatedBaseline != null ? estimatedBaseline + (activeToday ?? 0) : null;
   // Past-day fallback (no real burn today and no estimate settings resolve
   // one) - the latest day that Active/Basal actually has a reading for,
   // not blended with Consumed's own latest sync date for the same reason

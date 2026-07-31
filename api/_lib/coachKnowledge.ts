@@ -18,23 +18,44 @@ import { getJSON, setJSON } from "./kvStore.js";
  */
 
 const KV_KEY = "COACH_KNOWLEDGE";
+// Chunks live one key per document rather than all in the index. A book is
+// hundreds of passages and a megabyte of text; keeping that in the same value
+// as the document list would mean rewriting the whole store to add a title, and
+// a single value large enough to strain the KV limits.
+const CHUNKS_KEY = (docId: string) => `${KV_KEY}_CHUNKS_${docId}`;
 
 // Big enough to hold a whole idea, small enough that several fit in a tool
 // result without crowding out the conversation.
 const CHUNK_TARGET_CHARS = 1200;
 const CHUNK_OVERLAP_CHARS = 150;
 
-// Guards against one paste filling the store; the whole thing is read on every
-// search, so it has to stay a sensible size.
-export const MAX_DOCUMENT_CHARS = 200_000;
-const MAX_TOTAL_CHARS = 1_000_000;
+// A full-length book is roughly 500k-900k characters, so the per-document cap
+// has to clear that. The total is what keeps search responsive: every chunk is
+// scored on every query, and a few million characters is the point where that
+// stops being instant.
+export const MAX_DOCUMENT_CHARS = 1_200_000;
+const MAX_TOTAL_CHARS = 6_000_000;
 
 export type KnowledgeChunk = { docId: string; title: string; index: number; text: string };
 export type KnowledgeDoc = { id: string; title: string; chars: number; chunkCount: number; addedAt: string };
-type Store = { docs: KnowledgeDoc[]; chunks: KnowledgeChunk[] };
+type DocIndex = { docs: KnowledgeDoc[] };
 
-async function read(): Promise<Store> {
-  return (await getJSON<Store>(KV_KEY)) ?? { docs: [], chunks: [] };
+async function readIndex(): Promise<DocIndex> {
+  // Older stores kept docs and chunks together in one value; anything shaped
+  // that way still reads correctly here, and rewrites into the new layout the
+  // next time a document is added.
+  const stored = await getJSON<DocIndex & { chunks?: KnowledgeChunk[] }>(KV_KEY);
+  return { docs: stored?.docs ?? [] };
+}
+
+async function readChunks(docId: string): Promise<KnowledgeChunk[]> {
+  return (await getJSON<KnowledgeChunk[]>(CHUNKS_KEY(docId))) ?? [];
+}
+
+async function readAllChunks(): Promise<KnowledgeChunk[]> {
+  const { docs } = await readIndex();
+  const perDoc = await Promise.all(docs.map((doc) => readChunks(doc.id)));
+  return perDoc.flat();
 }
 
 /**
@@ -100,7 +121,7 @@ export type KnowledgeHit = { title: string; text: string; score: number };
  * spot" means the phrase, not two common words.
  */
 export async function searchKnowledge(query: string, limit = 4): Promise<KnowledgeHit[]> {
-  const { chunks } = await read();
+  const chunks = await readAllChunks();
   if (chunks.length === 0) return [];
 
   const terms = [...new Set(tokenise(query))];
@@ -132,11 +153,11 @@ export async function searchKnowledge(query: string, limit = 4): Promise<Knowled
 }
 
 export async function listDocuments(): Promise<KnowledgeDoc[]> {
-  return (await read()).docs;
+  return (await readIndex()).docs;
 }
 
 export async function addDocument(title: string, text: string): Promise<KnowledgeDoc> {
-  const store = await read();
+  const store = await readIndex();
   const trimmed = text.trim();
   if (!trimmed) throw new Error("Nothing to store.");
   if (trimmed.length > MAX_DOCUMENT_CHARS) throw new Error("That document is too long - split it up.");
@@ -156,18 +177,22 @@ export async function addDocument(title: string, text: string): Promise<Knowledg
     addedAt: new Date().toISOString(),
   };
 
-  await setJSON(KV_KEY, {
-    docs: [...store.docs, doc],
-    chunks: [...store.chunks, ...pieces.map((text, index) => ({ docId: id, title: doc.title, index, text }))],
-  } satisfies Store);
+  await setJSON(
+    CHUNKS_KEY(id),
+    pieces.map((text, index) => ({ docId: id, title: doc.title, index, text })),
+  );
+  await setJSON(KV_KEY, { docs: [...store.docs, doc] } satisfies DocIndex);
 
   return doc;
 }
 
+/** The stored passages for one document, so the athlete can see what actually went in. */
+export async function documentChunks(id: string): Promise<KnowledgeChunk[]> {
+  return (await readChunks(id)).sort((a, b) => a.index - b.index);
+}
+
 export async function removeDocument(id: string): Promise<void> {
-  const store = await read();
-  await setJSON(KV_KEY, {
-    docs: store.docs.filter((d) => d.id !== id),
-    chunks: store.chunks.filter((c) => c.docId !== id),
-  } satisfies Store);
+  const store = await readIndex();
+  await setJSON(CHUNKS_KEY(id), []);
+  await setJSON(KV_KEY, { docs: store.docs.filter((d) => d.id !== id) } satisfies DocIndex);
 }

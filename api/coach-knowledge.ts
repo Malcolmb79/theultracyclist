@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getSessionEmail } from "./_lib/session.js";
-import { addDocument, listDocuments, removeDocument, searchKnowledge } from "./_lib/coachKnowledge.js";
+import { addDocument, documentChunks, listDocuments, removeDocument, searchKnowledge } from "./_lib/coachKnowledge.js";
 
 /**
  * Manage the coach's knowledge base: add source material, list what's stored,
@@ -37,6 +37,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       await removeDocument(id);
       res.status(200).json({ ok: true });
+      return;
+    }
+
+    // Read back exactly what was stored - a character count is not evidence
+    // that the right thing went in.
+    const previewId = typeof req.query.preview === "string" ? req.query.preview : "";
+    if (previewId) {
+      res.status(200).json({ chunks: await documentChunks(previewId) });
       return;
     }
 

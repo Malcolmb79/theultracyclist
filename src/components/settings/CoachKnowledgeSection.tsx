@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { extractDocumentText } from "../../utils/extractDocumentText";
 import styles from "./CoachKnowledgeSection.module.css";
 
 /**
@@ -19,6 +20,11 @@ export default function CoachKnowledgeSection() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  const [picked, setPicked] = useState<string | null>(null);
+  const [openDoc, setOpenDoc] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ index: number; text: string }[] | null>(null);
+  const [extracting, setExtracting] = useState<string | null>(null);
+  const [describeFigures, setDescribeFigures] = useState(true);
   const [testQuery, setTestQuery] = useState("");
   const [hits, setHits] = useState<Hit[] | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -48,6 +54,7 @@ export default function CoachKnowledgeSection() {
       setDone(`Stored "${body.doc?.title}" in ${body.doc?.chunkCount} passages.`);
       setTitle("");
       setText("");
+      setPicked(null);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't save that");
@@ -65,14 +72,39 @@ export default function CoachKnowledgeSection() {
   const onFile = async (file: File | undefined) => {
     if (!file) return;
     setError(null);
-    // Plain text only - a PDF read this way is bytes, not prose, and would
-    // fill the store with rubbish that still scores on searches.
-    if (!/\.(txt|md|markdown)$/i.test(file.name)) {
-      setError("Text files only (.txt or .md). For a PDF, copy the text out and paste it.");
+    setDone(null);
+    setExtracting(`Reading ${file.name}…`);
+    try {
+      // A book takes long enough to extract that a silent spinner reads as
+      // broken, so progress is reported per page.
+      const contents = await extractDocumentText(file, {
+        describeFigures,
+        onProgress: (done, total, stage) =>
+          setExtracting(`${stage ?? "Reading"} ${file.name} — ${done} of ${total}`),
+      });
+      if (!contents.trim()) {
+        throw new Error("No text found. If this is a scanned PDF it holds images, not text, and can't be read.");
+      }
+      setText(contents);
+      setPicked(`${file.name} — ${contents.length.toLocaleString("en-GB")} characters`);
+      if (!title) setTitle(file.name.replace(/\.[^.]+$/, ""));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't read that file");
+    } finally {
+      setExtracting(null);
+    }
+  };
+
+  const showPreview = async (id: string) => {
+    if (openDoc === id) {
+      setOpenDoc(null);
       return;
     }
-    setText(await file.text());
-    if (!title) setTitle(file.name.replace(/\.[^.]+$/, ""));
+    setOpenDoc(id);
+    setPreview(null);
+    const res = await fetch(`/api/coach-knowledge?preview=${encodeURIComponent(id)}`);
+    const body = (await res.json()) as { chunks?: { index: number; text: string }[] };
+    setPreview(body.chunks ?? []);
   };
 
   const runTest = async () => {
@@ -85,21 +117,42 @@ export default function CoachKnowledgeSection() {
   return (
     <div className={styles.wrap}>
       {docs != null && docs.length > 0 && (
-        <ul className={styles.list}>
-          {docs.map((doc) => (
-            <li key={doc.id} className={styles.item}>
-              <span className={styles.itemMain}>
-                <span className={styles.itemTitle}>{doc.title}</span>
-                <span className={styles.itemMeta}>
-                  {doc.chunkCount} passages · {(doc.chars / 1000).toFixed(1)}k characters
-                </span>
-              </span>
-              <button type="button" className={styles.remove} onClick={() => remove(doc)}>
-                Remove
-              </button>
-            </li>
-          ))}
-        </ul>
+        <>
+          <p className={styles.listHeading}>
+            Stored ({docs.length}) — tap one to read what went in
+          </p>
+          <ul className={styles.list}>
+            {docs.map((doc) => (
+              <li key={doc.id} className={styles.item}>
+                <div className={styles.itemRow}>
+                  <button type="button" className={styles.itemMain} onClick={() => showPreview(doc.id)}>
+                    <span className={styles.itemTitle}>{doc.title}</span>
+                    <span className={styles.itemMeta}>
+                      {doc.chunkCount} passages · {(doc.chars / 1000).toFixed(1)}k characters
+                    </span>
+                  </button>
+                  <button type="button" className={styles.remove} onClick={() => remove(doc)}>
+                    Remove
+                  </button>
+                </div>
+                {openDoc === doc.id && (
+                  <div className={styles.preview}>
+                    {preview == null ? (
+                      <p className={styles.hint}>Loading…</p>
+                    ) : (
+                      preview.map((chunk) => (
+                        <p key={chunk.index} className={styles.previewChunk}>
+                          <span className={styles.previewIndex}>{chunk.index + 1}</span>
+                          {chunk.text}
+                        </p>
+                      ))
+                    )}
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </>
       )}
       {docs != null && docs.length === 0 && (
         <p className={styles.hint}>Nothing stored yet — the coach falls back on general knowledge.</p>
@@ -114,11 +167,17 @@ export default function CoachKnowledgeSection() {
       />
       <textarea
         className={styles.textarea}
-        placeholder="Paste the material here, or choose a .txt / .md file below."
+        placeholder="Paste the material here, or choose a PDF, EPUB or text file below."
         rows={6}
         value={text}
         onChange={(e) => setText(e.target.value)}
       />
+
+      <label className={styles.checkboxRow}>
+        <input type="checkbox" checked={describeFigures} onChange={(e) => setDescribeFigures(e.target.checked)} />
+        Describe charts, tables and diagrams — slower, and uses your Anthropic credit, but a book&apos;s figures
+        are lost entirely without it
+      </label>
 
       <div className={styles.actions}>
         <label className={styles.fileButton}>
@@ -126,13 +185,24 @@ export default function CoachKnowledgeSection() {
           <input
             ref={fileRef}
             type="file"
-            accept=".txt,.md,.markdown,text/plain"
+            accept=".txt,.md,.markdown,.pdf,.epub,text/plain,application/pdf,application/epub+zip"
             className={styles.hiddenInput}
             onChange={(e) => onFile(e.target.files?.[0])}
           />
         </label>
-        <span className={styles.count}>{text.length.toLocaleString("en-GB")} characters</span>
-        <button type="button" className={styles.saveButton} onClick={save} disabled={busy || !text.trim()}>
+        <span className={styles.count}>
+          {extracting
+            ? extracting
+            : picked
+              ? `Loaded ${picked} — not stored yet`
+              : `${text.length.toLocaleString("en-GB")} characters`}
+        </span>
+        <button
+          type="button"
+          className={styles.saveButton}
+          onClick={save}
+          disabled={busy || !!extracting || !text.trim()}
+        >
           {busy ? "Storing…" : "Add to knowledge base"}
         </button>
       </div>

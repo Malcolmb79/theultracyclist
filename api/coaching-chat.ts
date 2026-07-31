@@ -8,6 +8,7 @@ import { fetchHealthHistory } from "./health-data.js";
 import { convertHealthHistory, type UnitSystem } from "./_lib/units.js";
 import { searchKnowledge } from "./_lib/coachKnowledge.js";
 import { summariseWidget } from "./_lib/widgetSummary.js";
+import { computeChatContext } from "./_lib/coachSnapshot.js";
 import { fetchCoachingSettings } from "./coaching-settings.js";
 import { computeTss } from "./_lib/tss.js";
 import { computeFitnessSeries } from "./_lib/fitness.js";
@@ -776,7 +777,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const reply = await generateCoachReply(inputMessages, body.context ?? {});
+    // The browser sends a context built client-side, which carries the live
+    // recovery/strain figures but knows nothing about goals, FTP, power zones
+    // or units - those are only assembled server-side. Taking the client's
+    // version at face value meant every one of those was missing from the
+    // dashboard chat while WhatsApp had them, which is why the coach could
+    // prescribe "65-75% of threshold, whatever that is for you" to an athlete
+    // whose FTP is on file.
+    //
+    // Server values win where it has them; the client's fill any gap.
+    const serverContext = await computeChatContext().catch(() => ({}) as Partial<ChatContext>);
+    const context: Partial<ChatContext> = { ...(body.context ?? {}) };
+    for (const [key, value] of Object.entries(serverContext)) {
+      if (value != null) (context as Record<string, unknown>)[key] = value;
+    }
+
+    const reply = await generateCoachReply(inputMessages, context);
     res.status(200).json({ configured: true, reply });
   } catch (error) {
     console.error(error);

@@ -491,7 +491,30 @@ function buildSystemPrompt(context: Partial<ChatContext>): string {
     lines.push(`This week's distance so far: ${context.weeklyDistanceKm}km of a ${context.weeklyTargetKm}km target`);
   }
   if (context.phase) lines.push(`Current training phase: ${context.phase}`);
-  if (context.ftpWatts != null) lines.push(`FTP (tested, from Settings): ${context.ftpWatts}W`);
+  if (context.ftpWatts != null) {
+    lines.push(`FTP (tested, from Settings): ${context.ftpWatts}W`);
+    // The zones themselves, not just the FTP. Given only the FTP the coach
+    // still hedged - "65-75% of threshold, whatever that is for you" - which
+    // is useless to an athlete who came here precisely so the numbers were
+    // worked out. Same Coggan bands the Power Zones widget draws.
+    const ftp = context.ftpWatts;
+    const band = (name: string, lo: number, hi: number | null) =>
+      hi == null
+        ? `${name} ${Math.round((lo / 100) * ftp)}W+`
+        : `${name} ${Math.round((lo / 100) * ftp)}-${Math.round((hi / 100) * ftp)}W`;
+    lines.push(
+      "Power zones from that FTP: " +
+        [
+          band("Active Recovery", 0, 55),
+          band("Endurance", 55, 75),
+          band("Tempo", 75, 90),
+          band("Threshold", 90, 105),
+          band("VO2 Max", 105, 120),
+          band("Anaerobic", 120, 150),
+          band("Neuromuscular", 150, null),
+        ].join(", "),
+    );
+  }
   if (context.heightCm != null) lines.push(`Height: ${context.heightCm}cm`);
   if (context.latestWeightKg != null) lines.push(`Latest body weight: ${context.latestWeightKg}kg`);
   if (context.weeklyTargetHours != null) lines.push(`Weekly hours target: ${context.weeklyTargetHours}h`);
@@ -518,6 +541,16 @@ function buildSystemPrompt(context: Partial<ChatContext>): string {
     lines.push("The athlete's own targets, already set - never ask for these:");
     lines.push(...goalLines);
   }
+
+  lines.push("");
+  lines.push(
+    "Answer in this athlete's own numbers, never in generic ones. Their FTP, power zones, goals, targets and " +
+      "recent data are all above or available through the tools - so prescribe watts, kilometres, hours and " +
+      "dates, not percentages of a threshold they would have to work out themselves. Never write \"whatever " +
+      "that is for you\", \"depending on your zones\", or ask them for a figure the tools can give you. If " +
+      "something genuinely is not available, fetch it first; if it still is not there, say which figure is " +
+      "missing rather than hedging around it.",
+  );
 
   // Apple Health stores fields in whichever unit the device uses - body weight
   // comes back in pounds here - so raw values from get_health_metrics will not

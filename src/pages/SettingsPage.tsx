@@ -12,6 +12,7 @@ import SignInGate from "../components/shared/SignInGate";
 import PasskeysSection from "../components/settings/PasskeysSection";
 import RidePhotosSection from "../components/settings/RidePhotosSection";
 import PortraitSection from "../components/settings/PortraitSection";
+import CoachKnowledgeSection from "../components/settings/CoachKnowledgeSection";
 import TabNav from "../components/shared/TabNav";
 import GoalsEditor from "../components/trends/GoalsEditor";
 import type { Goals } from "../components/trends/types";
@@ -405,6 +406,16 @@ function SettingsEditor() {
               </button>
             ))}
           </div>
+        </div>
+
+        <div className={styles.section}>
+          <p className={styles.sectionTitle}>Coach knowledge</p>
+          <p className={styles.sectionHint}>
+            Training plans, protocols, notes from your coach. The AI coach searches this when a question touches
+            it and is told to prefer it over generic advice — so it shapes the answers you get, on the dashboard
+            and over WhatsApp.
+          </p>
+          <CoachKnowledgeSection />
         </div>
 
         <div className={styles.section}>

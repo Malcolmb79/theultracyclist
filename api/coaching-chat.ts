@@ -6,6 +6,7 @@ import { fetchWhoopHistory } from "./whoop-data.js";
 import { fetchStravaRides } from "./strava-activities.js";
 import { fetchHealthHistory } from "./health-data.js";
 import { convertHealthHistory, type UnitSystem } from "./_lib/units.js";
+import { searchKnowledge } from "./_lib/coachKnowledge.js";
 import { fetchCoachingSettings } from "./coaching-settings.js";
 import { computeTss } from "./_lib/tss.js";
 import { computeFitnessSeries } from "./_lib/fitness.js";
@@ -189,6 +190,26 @@ const TOOLS = [
         from: { type: "string", description: "Start date, YYYY-MM-DD. Omit for no lower bound." },
         to: { type: "string", description: "End date, YYYY-MM-DD. Omit for no upper bound." },
       },
+    },
+  },
+  {
+    name: "search_knowledge",
+    description:
+      "Search the athlete's own coaching material - training plans, protocols, notes from their coach, anything " +
+      "they have added to the knowledge base. Use it whenever a question touches methodology, fuelling, pacing, " +
+      "or anything their coach may have already specified, and prefer what it returns over generic best " +
+      "practice: this is what the athlete is actually following. Returns the most relevant passages with the " +
+      "document each came from, so you can say where guidance came from. An empty result means nothing has been " +
+      "stored on that topic - say so rather than implying their plan is silent on it.",
+    input_schema: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: "What to look for, in the athlete's own words - e.g. \"carbs per hour on long rides\".",
+        },
+      },
+      required: ["query"],
     },
   },
   {
@@ -398,6 +419,17 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
       // (see WIDGET_MARKER in CoachChatCard.tsx). Kept as a marker in the
       // reply text rather than a second return channel so the one
       // generateCoachReply string still serves WhatsApp, where it is stripped.
+      case "search_knowledge": {
+        const query = typeof input.query === "string" ? input.query : "";
+        if (!query.trim()) return { hits: [], note: "No query given." };
+        const hits = await searchKnowledge(query, 4);
+        return hits.length > 0
+          ? { hits }
+          : {
+              hits: [],
+              note: "Nothing stored matches that. Say the plan doesn't cover it rather than implying it does.",
+            };
+      }
       case "show_widget": {
         const metric = typeof input.metric === "string" ? input.metric.trim() : "";
         if (!metric) return { error: "No metric given." };

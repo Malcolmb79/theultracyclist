@@ -1,0 +1,12 @@
+{
+  "name": "The Ultra Cyclist",
+  "short_name": "Ultra Cyclist",
+  "description": "Ireland North-to-South record attempt, training dashboard and fundraising.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#0b0e11",
+  "theme_color": "#0b0e11",
+  "icons": [
+    { "src": "/logo.png", "sizes": "328x326", "type": "image/png", "purpose": "any" }
+  ]
+}

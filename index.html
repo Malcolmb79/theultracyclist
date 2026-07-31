@@ -3,6 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/logo.png" />
+    <!-- iOS ignores rel="icon" entirely: without an apple-touch-icon, adding
+         the site to the home screen gives a screenshot of the page rather than
+         the logo. It also ignores the manifest's icons for that, so both are
+         needed - the manifest is what makes Android and desktop installs use
+         the mark, and what stops the standalone window opening white. -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="apple-mobile-web-app-title" content="Ultra Cyclist" />
+    <meta name="theme-color" content="#0b0e11" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>The Ultra Cyclist — Ireland North to South</title>
     <meta

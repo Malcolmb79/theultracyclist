@@ -7,6 +7,7 @@ import { fetchStravaRides } from "./strava-activities.js";
 import { fetchHealthHistory } from "./health-data.js";
 import { convertHealthHistory, type UnitSystem } from "./_lib/units.js";
 import { searchKnowledge } from "./_lib/coachKnowledge.js";
+import { summariseWidget } from "./_lib/widgetSummary.js";
 import { fetchCoachingSettings } from "./coaching-settings.js";
 import { computeTss } from "./_lib/tss.js";
 import { computeFitnessSeries } from "./_lib/fitness.js";
@@ -434,11 +435,21 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
         const metric = typeof input.metric === "string" ? input.metric.trim() : "";
         if (!metric) return { error: "No metric given." };
         const view = typeof input.view === "string" ? input.view : "chart";
+        // The rendered image is never seen by the model - a separate endpoint
+        // draws it - so the figures it is built from come back here. Without
+        // them the coach invents: asked for the rings it described "the red
+        // ring" and "the last couple of weeks" for a single-day card showing
+        // 68% in green.
+        const summary = await summariseWidget(metric, view);
         return {
           marker: `[widget:${metric}:${view}]`,
+          widgetShows: summary.shows,
+          ...(summary.note ? { colourNote: summary.note } : {}),
           instruction:
             "Include that marker exactly, on its own line, at the point in your reply where the widget should " +
-            "appear. Do not describe the marker or wrap it in backticks.",
+            "appear. Do not describe the marker or wrap it in backticks. Describe only what widgetShows states - " +
+            "you cannot see the image. Do not invent trends, time ranges or colours that are not stated there, " +
+            "and if it says a single day, do not talk about weeks.",
         };
       }
       case "create_workout": {

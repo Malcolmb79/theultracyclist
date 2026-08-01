@@ -16,6 +16,7 @@ import {
   HEALTH_CALENDAR_ID,
   CALORIES_BALANCE_ID,
   MACRO_SPLIT_ID,
+  ALL_ACTIVITY_ID,
   DEFAULT_WIDGET_WIDTH,
   DEFAULT_WIDGET_HEIGHT,
   type Widget,
@@ -77,6 +78,7 @@ function defaultViewType(metric: MetricDef): Widget["viewType"] {
   if (metric.id === HEALTH_CALENDAR_ID) return "healthCalendar";
   if (metric.id === CALORIES_BALANCE_ID) return "caloriesBalance";
   if (metric.id === MACRO_SPLIT_ID) return "macroSplit";
+  if (metric.id === ALL_ACTIVITY_ID) return "allActivity";
   return metric.statOnly ? "stat" : "chart";
 }
 

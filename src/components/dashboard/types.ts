@@ -5,7 +5,7 @@ export type Widget = {
   source: "strava" | "whoop" | "health" | "weather" | "garmin";
   metric: string;
   label: string;
-  viewType: "stat" | "chart" | "timeline" | "ring" | "combo" | "rings" | "healthCalendar" | "caloriesBalance" | "macroSplit";
+  viewType: "stat" | "chart" | "timeline" | "ring" | "combo" | "rings" | "healthCalendar" | "caloriesBalance" | "macroSplit" | "allActivity";
   x?: number;
   y?: number;
   width?: number;
@@ -81,3 +81,8 @@ export const MACRO_SPLIT_ID = "health.macroSplit";
 // session, embedded directly (see GarminLiveTrackCard.tsx and Settings) -
 // no per-metric series, always offered regardless of connected data sources.
 export const GARMIN_LIVETRACK_ID = "garmin.liveTrack";
+
+// Special catalog entry: every recorded session from every source, not just
+// the bike rides the rest of the dashboard is built on - see
+// api/activities.ts for why that filtering exists everywhere else.
+export const ALL_ACTIVITY_ID = "activity.all";

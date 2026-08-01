@@ -16,7 +16,8 @@ import { relativeDayLabel } from "../../utils/relativeDate";
 import GoalProgress from "./GoalProgress";
 import ProgressPhotos from "./ProgressPhotos";
 import { PROGRESS_PHOTOS_ID, type DatedGoal, type Goals } from "./types";
-import { CALORIES_BALANCE_ID, MACRO_SPLIT_ID } from "../dashboard/types";
+import { ALL_ACTIVITY_ID, CALORIES_BALANCE_ID, MACRO_SPLIT_ID } from "../dashboard/types";
+import AllActivityCard from "../dashboard/AllActivityCard";
 import type { PerformancePoint } from "../../utils/performanceSeries";
 import { isWeightMetricId, formatWeight } from "../../utils/bmi";
 import {
@@ -87,6 +88,7 @@ interface TrendsWidgetProps {
 }
 
 const VIEW_LABEL: Record<TrendsViewType, string> = {
+  allActivity: "All activity",
   day: "Today",
   week: "This week",
   month: "This month",
@@ -117,6 +119,7 @@ const GOAL_PILL_TYPES: TrendsViewType[] = ["goalProgress", ...VIEW_PILL_TYPES];
 const CALORIES_BALANCE_PILL_TYPES: TrendsViewType[] = ["day", "week", "month"];
 
 const VIEW_PILL_LABEL: Record<TrendsViewType, string> = {
+  allActivity: "All activity",
   day: "Daily",
   week: "Mon-Sun",
   month: "Monthly",
@@ -184,6 +187,7 @@ export default function TrendsWidget({
   const isGoalProgress = widget.viewType === "goalProgress";
   const isProgressPhotos = widget.metric === PROGRESS_PHOTOS_ID;
   const isMacroSplit = widget.metric === MACRO_SPLIT_ID;
+  const isAllActivity = widget.metric === ALL_ACTIVITY_ID;
   const isCaloriesBalance = widget.metric === CALORIES_BALANCE_ID;
   // Weight is the goal with a real history behind it: one reading per day the
   // scales were used, straight from Apple Health. FTP is a tested figure with
@@ -322,7 +326,7 @@ export default function TrendsWidget({
   const color = widget.color ?? DEFAULT_TRENDS_COLOR;
   const contentHeight = Math.max(
     24,
-    rect.height - HEADER_HEIGHT - CONTENT_PADDING - (isHealthCalendar || isPerformanceChart || isProgressPhotos || isMacroSplit ? 0 : VIEW_SEGMENTED_HEIGHT),
+    rect.height - HEADER_HEIGHT - CONTENT_PADDING - (isHealthCalendar || isPerformanceChart || isProgressPhotos || isMacroSplit || isAllActivity ? 0 : VIEW_SEGMENTED_HEIGHT),
   );
   const positionStyle = stacked
     ? { width: rect.width, height: rect.height }
@@ -403,7 +407,7 @@ export default function TrendsWidget({
       )}
 
       <div className={styles.content}>
-        {!isHealthCalendar && !isPerformanceChart && !isProgressPhotos && !isMacroSplit && (
+        {!isHealthCalendar && !isPerformanceChart && !isProgressPhotos && !isMacroSplit && !isAllActivity && (
           <div className={styles.viewSegmented} role="radiogroup" aria-label="Time range">
             {(isCaloriesBalance ? CALORIES_BALANCE_PILL_TYPES : datedGoal ? GOAL_PILL_TYPES : VIEW_PILL_TYPES).map((vt) => (
               <button
@@ -429,6 +433,8 @@ export default function TrendsWidget({
             date={null}
             periodLabel={caloriesPeriodLabel}
           />
+        ) : isAllActivity ? (
+          <AllActivityCard range={resolvedRange} />
         ) : isMacroSplit ? (
           <MacroSplitCard
             grams={macroGrams}

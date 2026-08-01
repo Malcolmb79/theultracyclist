@@ -197,6 +197,64 @@ async function fetchRideActivities(authHeader: HeadersInit, count: number): Prom
 }
 
 /**
+ * Every activity, not just the bike ones.
+ *
+ * fetchStravaRides deliberately keeps only RIDE_TYPES, because CTL/ATL/TSB
+ * here is a cycling measure and quietly folding a gym session into it would
+ * move the athlete's fitness numbers without them asking. The all-activity
+ * widget needs the opposite - runs, walks, swims, strength, everything - so it
+ * gets its own reader rather than a flag on that one, keeping the two uses
+ * impossible to confuse.
+ */
+export type Activity = {
+  id: number;
+  name: string;
+  sport: string;
+  startDate: string;
+  movingTimeMinutes: number;
+  distanceKm: number | null;
+  elevationGainM: number | null;
+  avgWatts: number | null;
+  avgHeartrate: number | null;
+  isRide: boolean;
+};
+
+export async function fetchStravaActivities(count = 60): Promise<Activity[]> {
+  const accessToken = await getAccessToken();
+  const authHeader = { Authorization: `Bearer ${accessToken}` };
+
+  const collected: StravaActivity[] = [];
+  let page = 1;
+  while (collected.length < count) {
+    const res = await fetch(`${ACTIVITIES_URL}?per_page=${PER_PAGE}&page=${page}`, { headers: authHeader });
+    if (!res.ok) throw new Error(`Strava activities fetch failed: ${res.status}`);
+    const activities = (await res.json()) as StravaActivity[];
+    if (activities.length === 0) break;
+    collected.push(...activities);
+    if (activities.length < PER_PAGE) break;
+    page += 1;
+  }
+
+  return collected.slice(0, count).map((a) => {
+    const sport = a.sport_type || a.type;
+    return {
+      id: a.id,
+      name: a.name,
+      sport,
+      startDate: a.start_date,
+      movingTimeMinutes: Math.round(a.moving_time / 60),
+      // A gym session has no distance worth showing; zero would read as a
+      // measurement rather than an absence.
+      distanceKm: a.distance > 0 ? Math.round((a.distance / 1000) * 100) / 100 : null,
+      elevationGainM: a.total_elevation_gain != null && a.total_elevation_gain > 0 ? Math.round(a.total_elevation_gain) : null,
+      avgWatts: a.average_watts ?? null,
+      avgHeartrate: a.average_heartrate ?? null,
+      isRide: RIDE_TYPES.has(sport),
+    };
+  });
+}
+
+/**
  * `profileCount` caps how many rides get an elevation *profile*, which is a
  * separate Strava streams call per ride.
  *

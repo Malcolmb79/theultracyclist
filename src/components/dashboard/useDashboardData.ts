@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { WHOOP_STRAIN_RECOVERY_COMBO_ID, WHOOP_RINGS_COMBO_ID, HEALTH_CALENDAR_ID, CALORIES_BALANCE_ID, MACRO_SPLIT_ID, PERFORMANCE_CHART_ID, WEATHER_ID, GARMIN_LIVETRACK_ID } from "./types";
+import { WHOOP_STRAIN_RECOVERY_COMBO_ID, WHOOP_RINGS_COMBO_ID, HEALTH_CALENDAR_ID, CALORIES_BALANCE_ID, MACRO_SPLIT_ID, PERFORMANCE_CHART_ID, WEATHER_ID, GARMIN_LIVETRACK_ID, ALL_ACTIVITY_ID } from "./types";
 import { useUnits } from "../../context/UnitsContext";
 import { convertMetricSeries, convertValueUnit } from "../../utils/units";
 import { computeBmi, findWeightMetricName } from "../../utils/bmi";
@@ -103,6 +103,9 @@ export function useDashboardData(raw: RawSourcesState): DashboardDataState {
       // live location snapshot, not derived from Whoop/Strava/Health.
       metrics.push({ id: WEATHER_ID, source: "weather", label: "Weather", unit: "", series: [], statOnly: true });
       metrics.push({ id: GARMIN_LIVETRACK_ID, source: "garmin", label: "Garmin LiveTrack", unit: "", series: [], statOnly: true });
+      // Reads its own endpoint rather than the shared Strava fetch, which is
+      // ride-filtered on purpose, so it is offered whatever else connected.
+      metrics.push({ id: ALL_ACTIVITY_ID, source: "strava", label: "All activity", unit: "", series: [], statOnly: true });
 
       if (whoop?.history) {
         const days = (whoop.history as WhoopDay[]).slice().reverse();

@@ -3,7 +3,7 @@ import TrendsCatalog from "../components/trends/TrendsCatalog";
 import TrendsWidget from "../components/trends/TrendsWidget";
 import { useTrendsData, type TrendMetricDef } from "../components/trends/useTrendsData";
 import { GOAL_METRIC_IDS, PROGRESS_PHOTOS_ID, type TrendsWidgetConfig, type TrendsViewType } from "../components/trends/types";
-import { CALORIES_BALANCE_ID, HEALTH_CALENDAR_ID, MACRO_SPLIT_ID, PERFORMANCE_CHART_ID } from "../components/dashboard/types";
+import { ALL_ACTIVITY_ID, CALORIES_BALANCE_ID, HEALTH_CALENDAR_ID, MACRO_SPLIT_ID, PERFORMANCE_CHART_ID } from "../components/dashboard/types";
 import type { MacroGrams } from "../utils/macros";
 import { isEnergyMetricId, type EnergyKind } from "../utils/energy";
 import { useAuthSession } from "../utils/useAuthSession";
@@ -145,7 +145,9 @@ function TrendsEditor() {
       metric: metric.id,
       label: metric.label,
       viewType:
-        metric.id === PROGRESS_PHOTOS_ID
+        metric.id === ALL_ACTIVITY_ID
+          ? "allActivity"
+          : metric.id === PROGRESS_PHOTOS_ID
           ? "progressPhotos"
           : metric.id === MACRO_SPLIT_ID
             ? "macroSplit"

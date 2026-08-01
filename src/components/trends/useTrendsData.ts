@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { GOAL_METRIC_IDS, PROGRESS_PHOTOS_ID, type DatedGoal, type Goals } from "./types";
-import { CALORIES_BALANCE_ID, HEALTH_CALENDAR_ID, MACRO_SPLIT_ID, PERFORMANCE_CHART_ID } from "../dashboard/types";
+import { ALL_ACTIVITY_ID, CALORIES_BALANCE_ID, HEALTH_CALENDAR_ID, MACRO_SPLIT_ID, PERFORMANCE_CHART_ID } from "../dashboard/types";
 import { useUnits } from "../../context/UnitsContext";
 import { convertTrendMetric, convertValueUnit } from "../../utils/units";
 import { computeBmi, isWeightFieldName } from "../../utils/bmi";
@@ -330,6 +330,17 @@ export function useTrendsData(): TrendsDataState {
             getValue: () => null,
           });
         }
+
+        // Reads its own endpoint, so it is offered whatever else connected -
+        // same stub getValue as the chart above, for the same reason.
+        metrics.push({
+          id: ALL_ACTIVITY_ID,
+          source: "strava",
+          label: "All activity",
+          unit: "",
+          aggregation: "sum",
+          getValue: () => null,
+        });
 
         for (const entry of healthCatalog) {
           metrics.push({

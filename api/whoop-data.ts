@@ -61,6 +61,10 @@ type WhoopSleepRecord = {
 type WhoopWorkoutRecord = {
   id: string;
   start: string;
+  end?: string;
+  /** v2 names the sport; v1 only numbered it. Both are read defensively. */
+  sport_name?: string;
+  sport_id?: number;
   score_state: string;
   score?: {
     zone_duration: {
@@ -449,6 +453,46 @@ async function fetchWhoopHistoryCached(days: number): Promise<WhoopHistoryResult
     }
     throw error;
   }
+}
+
+/**
+ * Whoop's own record of a session, for the all-activity view.
+ *
+ * Whoop sees things Strava never does - a gym session, a walk, anything the
+ * strap picked up without a head unit running - so it is a genuinely
+ * independent source rather than a second copy of the same rides. Only the
+ * fields the list actually shows are kept.
+ */
+export type WhoopWorkout = {
+  id: string;
+  sport: string;
+  start: string;
+  durationMinutes: number | null;
+  strainMinutes: { zone1to3: number; zone4to5: number } | null;
+};
+
+export async function fetchWhoopWorkouts(days = 30): Promise<WhoopWorkout[]> {
+  const accessToken = await getAccessToken();
+  const records = await fetchCollection<WhoopWorkoutRecord>("/activity/workout", { Authorization: `Bearer ${accessToken}` }, days);
+
+  return records.map((record) => {
+    const zones = record.score?.zone_duration;
+    return {
+      id: record.id,
+      // Whoop v2 gives a name; older records only a numeric id, and a bare
+      // number reads as noise in a list, so it degrades to a plain label.
+      sport: record.sport_name ?? (record.sport_id != null ? `Activity ${record.sport_id}` : "Workout"),
+      start: record.start,
+      durationMinutes:
+        record.end != null ? Math.round((Date.parse(record.end) - Date.parse(record.start)) / 60000) : null,
+      strainMinutes: zones
+        ? {
+            zone1to3: Math.round((zones.zone_one_milli + zones.zone_two_milli + zones.zone_three_milli) / 60000),
+            zone4to5: Math.round((zones.zone_four_milli + zones.zone_five_milli) / 60000),
+          }
+        : null,
+    };
+  });
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

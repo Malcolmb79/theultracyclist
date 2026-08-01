@@ -18,6 +18,7 @@ import MacroSplitCard from "./MacroSplitCard";
 import PerformanceChart from "./PerformanceChart";
 import WeatherCard from "./WeatherCard";
 import GarminLiveTrackCard from "./GarminLiveTrackCard";
+import AllActivityCard from "./AllActivityCard";
 import type { PerformancePoint } from "../../utils/performanceSeries";
 import { bmiCategoryColor, isWeightMetricId } from "../../utils/bmi";
 import { MACRO_ORDER, findMacroMetricId, type MacroGrams } from "../../utils/macros";
@@ -34,6 +35,7 @@ import {
   PERFORMANCE_CHART_ID,
   WEATHER_ID,
   GARMIN_LIVETRACK_ID,
+  ALL_ACTIVITY_ID,
   DEFAULT_WIDGET_WIDTH,
   DEFAULT_WIDGET_HEIGHT,
   DEFAULT_WIDGET_COLOR,
@@ -121,6 +123,12 @@ const MIN_COMBO_HEIGHT = 360;
 // minimum width.
 const WIDGET_HORIZONTAL_CHROME = 24 * 2 + 1 * 2;
 const MIN_RINGS_HEIGHT = 210;
+// A list of sessions is only worth having if several fit at once - below this
+// it shows one row and a scrollbar, which is worse than not adding it.
+const MIN_ALL_ACTIVITY_HEIGHT = 220;
+const MIN_ALL_ACTIVITY_WIDTH = 260;
+const DEFAULT_ALL_ACTIVITY_WIDTH = 380;
+const DEFAULT_ALL_ACTIVITY_HEIGHT = 340;
 // .ringsRow's gap between each of the 3 rings at a comfortable width - the
 // outer two rings overflow their column and get clipped by .content's
 // overflow:hidden if this isn't subtracted from the available row width.
@@ -266,10 +274,11 @@ export default function DashboardWidget({
   const isPerformanceChart = widget.metric === PERFORMANCE_CHART_ID;
   const isWeather = widget.metric === WEATHER_ID;
   const isGarminLiveTrack = widget.metric === GARMIN_LIVETRACK_ID;
+  const isAllActivity = widget.metric === ALL_ACTIVITY_ID;
   const detailKind = DETAIL_KIND_BY_METRIC[widget.metric];
   const [openDetail, setOpenDetail] = useState<WhoopDetailKind | null>(null);
   const fullMetric =
-    isCombo || isRings || isHealthCalendar || isCaloriesBalance || isMacroSplit || isPerformanceChart || isWeather || isGarminLiveTrack
+    isCombo || isRings || isHealthCalendar || isCaloriesBalance || isMacroSplit || isPerformanceChart || isWeather || isGarminLiveTrack || isAllActivity
       ? undefined
       : metricById.get(widget.metric);
   const isMobile = useIsMobile();
@@ -292,7 +301,7 @@ export default function DashboardWidget({
   // card (the rings, the macro donut, the calorie balance) or one with no
   // series at all (weather, LiveTrack) would show the picker doing nothing,
   // and the health calendar draws a whole month by construction.
-  const supportsDateRange = !!fullMetric || isCombo || isPerformanceChart;
+  const supportsDateRange = !!fullMetric || isCombo || isPerformanceChart || isAllActivity;
   const rangedMetric = (id: string) => {
     const source = metricById.get(id);
     return source ? { ...source, series: filterSeriesToRange(source.series, resolvedRange) } : undefined;
@@ -417,7 +426,9 @@ export default function DashboardWidget({
     protein: (goals?.proteinG as number | undefined) ?? null,
   };
 
-  const minHeight = isCombo
+  const minHeight = isAllActivity
+    ? MIN_ALL_ACTIVITY_HEIGHT
+    : isCombo
     ? MIN_COMBO_HEIGHT
     : isRings
       ? MIN_RINGS_HEIGHT
@@ -438,7 +449,9 @@ export default function DashboardWidget({
                   : isMobile
                     ? MOBILE_MIN_WIDGET_HEIGHT
                     : MIN_WIDGET_HEIGHT;
-  const minWidth = isRings
+  const minWidth = isAllActivity
+    ? MIN_ALL_ACTIVITY_WIDTH
+    : isRings
     ? MIN_RINGS_WIDTH
     : isBmi
       ? MIN_BMI_WIDTH
@@ -457,7 +470,9 @@ export default function DashboardWidget({
                 : isMobile
                   ? MOBILE_MIN_WIDGET_WIDTH
                   : MIN_WIDGET_WIDTH;
-  const defaultWidth = isHealthCalendar
+  const defaultWidth = isAllActivity
+    ? DEFAULT_ALL_ACTIVITY_WIDTH
+    : isHealthCalendar
     ? DEFAULT_HEALTH_CALENDAR_WIDTH
     : isMacroSplit
       ? DEFAULT_MACRO_WIDTH
@@ -470,7 +485,9 @@ export default function DashboardWidget({
           : isMobile
             ? MOBILE_DEFAULT_WIDGET_WIDTH
             : DEFAULT_WIDGET_WIDTH;
-  const defaultHeight = isHealthCalendar
+  const defaultHeight = isAllActivity
+    ? DEFAULT_ALL_ACTIVITY_HEIGHT
+    : isHealthCalendar
     ? DEFAULT_HEALTH_CALENDAR_HEIGHT
     : isMacroSplit
       ? DEFAULT_MACRO_HEIGHT
@@ -671,7 +688,8 @@ export default function DashboardWidget({
               !isMacroSplit &&
               !isPerformanceChart &&
               !isWeather &&
-              !isGarminLiveTrack && (
+              !isGarminLiveTrack &&
+              !isAllActivity && (
               <select
                 className={styles.select}
                 value={widget.viewType}
@@ -772,6 +790,8 @@ export default function DashboardWidget({
             <WeatherCard />
           ) : isGarminLiveTrack ? (
             <GarminLiveTrackCard />
+          ) : isAllActivity ? (
+            <AllActivityCard range={resolvedRange} />
           ) : !metric || metric.series.length === 0 ? (
             <p className={styles.empty}>
               {rangeIsEmpty ? "No readings in this date range." : "No data yet for this metric."}

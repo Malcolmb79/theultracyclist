@@ -15,7 +15,10 @@ export type TrendsViewType =
   // Three macros as shares of one day's energy - a composition, not a series.
   | "macroSplit"
   // Consumed vs burned energy, totalled over the selected range.
-  | "caloriesBalance";
+  | "caloriesBalance"
+  // Every recorded session from every source, listed - not an aggregate, so
+  // the day/week/month pills don't apply to it.
+  | "allActivity";
 
 export type TrendsWidgetConfig = {
   id: string;

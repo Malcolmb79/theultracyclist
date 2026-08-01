@@ -94,6 +94,7 @@ export function useDashboardData(raw: RawSourcesState): DashboardDataState {
     const health = raw.health as { catalog?: HealthCatalogEntry[]; history?: HealthHistory } | null;
     const settings = raw.settings;
     const planned = raw.planned;
+    const trainingPeaks = raw.trainingPeaks;
 
     const metrics: MetricDef[] = [];
       let whoopHistory: WhoopDay[] = [];
@@ -149,7 +150,14 @@ export function useDashboardData(raw: RawSourcesState): DashboardDataState {
           { id: "strava.elevationGain", source: "strava", label: "Ride elevation gain", unit: "m", series: series((r) => r.elevationGainM ?? (r.elevationProfile.length > 1 ? Math.round(elevationGain(r.elevationProfile)) : null)) },
         );
 
-        performanceSeries = computePerformanceSeries(rides, settings.ftpWatts as number | undefined, irelandTodayDateStr(), undefined, planned);
+        performanceSeries = computePerformanceSeries(
+          rides,
+          settings.ftpWatts as number | undefined,
+          irelandTodayDateStr(),
+          undefined,
+          planned,
+          trainingPeaks ?? undefined,
+        );
         if (performanceSeries.length > 0) {
           metrics.push({ id: PERFORMANCE_CHART_ID, source: "strava", label: "ATP Progress / Performance Chart", unit: "", series: [], statOnly: true });
         }

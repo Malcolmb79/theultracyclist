@@ -5,18 +5,39 @@ import { PROJECTION_DAYS, type PlannedTss } from "./performanceSeries";
 
 // Only the future matters here - the performance chart projects forward
 // through planned work, and anything already ridden comes from Strava.
+export type TrainingPeaksPayload = {
+  configured?: boolean;
+  authExpired?: boolean;
+  fitness?: { date: string; ctl: number | null; atl: number | null; tsb: number | null }[];
+  atp?: { weekStart: string; tssTarget: number | null; ctlTarget: number | null; tsbTarget: number | null }[];
+  workouts?: { date: string; plannedTss: number | null; completed: boolean }[];
+};
+
 /**
- * The athlete's own saved workouts win over the TrainingPeaks feed for any day
- * they both cover. A session entered here is deliberate and current; the feed
- * runs up to 24 hours behind and carries no TSS of its own, so letting it
- * override would replace a real figure with an estimate.
+ * Three sources for one day's planned load, in order of authority.
+ *
+ * TrainingPeaks direct wins: its tssPlanned is the real prescription. The
+ * athlete's own saved workouts come next - deliberate and current. The ICS
+ * feed is last, because it carries no TSS at all and the figure attached to it
+ * was estimated here from the session's title and length.
  */
-function mergePlanned(saved: PlannedTss[], feed: { date: string; tss?: number }[]): PlannedTss[] {
-  const savedDays = new Set(saved.map((w) => w.date.slice(0, 10)));
-  const extra = feed
-    .filter((e) => e.tss != null && !savedDays.has(e.date))
-    .map((e) => ({ date: e.date, tssPlanned: e.tss }));
-  return [...saved, ...extra];
+function mergePlanned(
+  saved: PlannedTss[],
+  feed: { date: string; tss?: number }[],
+  trainingPeaks: { date: string; plannedTss: number | null; completed: boolean }[],
+): PlannedTss[] {
+  const merged = new Map<string, PlannedTss>();
+  for (const e of feed) {
+    if (e.tss != null) merged.set(e.date, { date: e.date, tssPlanned: e.tss });
+  }
+  for (const w of saved) merged.set(w.date.slice(0, 10), { date: w.date.slice(0, 10), tssPlanned: w.tssPlanned });
+  for (const w of trainingPeaks) {
+    // A completed session is already in the ride history; counting its plan
+    // again would double that day.
+    if (w.completed || w.plannedTss == null) continue;
+    merged.set(w.date, { date: w.date, tssPlanned: w.plannedTss });
+  }
+  return [...merged.values()];
 }
 
 export function plannedWorkoutsPath(): string {
@@ -53,6 +74,8 @@ export type RawSourcesState =
       goals: Record<string, unknown>;
       /** Workouts on the calendar between today and PROJECTION_DAYS ahead. */
       planned: PlannedTss[];
+      /** TrainingPeaks' own fitness and plan, when connected - authoritative. */
+      trainingPeaks: TrainingPeaksPayload | null;
       settings: Record<string, unknown>;
       saveSettings: (next: Record<string, unknown>) => Promise<void>;
       // Re-runs the same fetches in the background (e.g. mobile pull-to-
@@ -100,7 +123,7 @@ export function useRawSources(device: DeviceCategory): RawSourcesState {
     };
 
     try {
-      const [whoop, strava, health, settingsBody, goalsBody, plannedBody, tpBody] = await Promise.all([
+      const [whoop, strava, health, settingsBody, goalsBody, plannedBody, tpBody, tpDirect] = await Promise.all([
         withDeadline("/api/whoop-data"),
         // A generous count (not the default 6 "recent rides" list) so the
         // Performance Chart's CTL/ATL/TSB has real ride history behind it
@@ -116,6 +139,9 @@ export function useRawSources(device: DeviceCategory): RawSourcesState {
         // The TrainingPeaks calendar feed, if one is configured. Merged with
         // the saved workouts rather than stored, so it never overwrites them.
         withDeadline("/api/trainingpeaks-calendar"),
+        // TrainingPeaks itself, which outranks both the calendar feed and
+        // anything this app computes.
+        withDeadline("/api/trainingpeaks"),
       ]);
       if (cancelledRef.current) return;
       setState({
@@ -127,14 +153,16 @@ export function useRawSources(device: DeviceCategory): RawSourcesState {
         planned: mergePlanned(
           (plannedBody as { workouts?: PlannedTss[] } | null)?.workouts ?? [],
           (tpBody as { events?: { date: string; tss?: number }[] } | null)?.events ?? [],
+          (tpDirect as TrainingPeaksPayload | null)?.workouts ?? [],
         ),
+        trainingPeaks: (tpDirect as TrainingPeaksPayload | null) ?? null,
         settings: (settingsBody as { settings?: Record<string, unknown> } | null)?.settings ?? {},
         saveSettings,
         refetch: load,
       });
     } catch {
       if (cancelledRef.current) return;
-      setState({ status: "ready", whoop: null, strava: null, health: null, goals: {}, planned: [], settings: {}, saveSettings, refetch: load });
+      setState({ status: "ready", whoop: null, strava: null, health: null, goals: {}, planned: [], trainingPeaks: null, settings: {}, saveSettings, refetch: load });
     }
     // `load` intentionally depends only on `device` - it reassigns itself as
     // each state's `refetch` via useCallback's own memoization, so callers

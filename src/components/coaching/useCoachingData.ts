@@ -3,7 +3,7 @@ import type { CoachingSettings, Readiness, RideZoneClassification, WeeklyProgres
 import { computeReadiness } from "./readiness";
 import { classifyPower } from "./powerZones";
 import type { RawSourcesState } from "../../utils/useRawSources";
-import { irelandDateStr, irelandTodayDateStr } from "../../utils/irelandDate";
+import { irelandDateStr, irelandTodayDateStr, whoopDayStr } from "../../utils/irelandDate";
 
 type WhoopDayRaw = {
   date: string;
@@ -86,7 +86,7 @@ export function useCoachingData(raw: RawSourcesState): CoachingDataState {
     const rides = strava?.rides ?? [];
 
       const recoveryHistory = whoopDays.map((d) => ({
-        date: irelandDateStr(new Date(d.date)),
+        date: whoopDayStr(new Date(d.date)),
         recovery: d.recovery?.score ?? null,
         strain: d.strain?.score ?? null,
         hrvMs: d.recovery?.hrvMs ?? null,

@@ -4,7 +4,7 @@ import { fetchCoachingSettings } from "../coaching-settings.js";
 import { fetchGoals } from "../trends-goals.js";
 import { fetchHealthHistory } from "../health-data.js";
 import type { ChatContext } from "../coaching-chat.js";
-import { irelandDateStr, irelandTodayDateStr } from "./timeContext.js";
+import { irelandDateStr, irelandTodayDateStr, whoopDayStr } from "./timeContext.js";
 import { isWeightFieldName } from "./weightField.js";
 
 // Monday-start week boundary, matching the athlete's training-week
@@ -87,7 +87,7 @@ export async function computeChatContext(): Promise<Partial<ChatContext>> {
   // they're left out entirely rather than mislabelled, matching the same
   // fix on the browser side (useCoachingData.ts's readinessDataIsFresh).
   // Strain is unaffected since it's live/continuous, not once-daily.
-  const latestIsFresh = latest ? irelandDateStr(new Date(latest.date)) === todayStr : false;
+  const latestIsFresh = latest ? whoopDayStr(new Date(latest.date)) === todayStr : false;
 
   return {
     recoveryScore: latestIsFresh ? (latest?.recovery?.score ?? null) : null,

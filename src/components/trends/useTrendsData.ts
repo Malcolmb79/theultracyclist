@@ -8,7 +8,7 @@ import { computeTss } from "../../utils/tss";
 import { computeFitnessSeries } from "../../utils/fitness";
 import { getAtpWeekFor } from "../../utils/atpPlan";
 import { computePerformanceSeries, type PerformancePoint } from "../../utils/performanceSeries";
-import { irelandDateStr } from "../../utils/irelandDate";
+import { irelandDateStr, whoopDayStr } from "../../utils/irelandDate";
 import { today } from "./aggregate";
 
 export type TrendMetricDef = {
@@ -132,7 +132,7 @@ export function useTrendsData(): TrendsDataState {
         // day - which is the previous day for anything between Irish midnight
         // and 1am during BST. An 00:30 start to a long ride belonged to
         // yesterday; the whole app reads these by Irish day instead.
-        const whoopByDate = new Map(whoopDays.map((d) => [irelandDateStr(new Date(d.date)), d]));
+        const whoopByDate = new Map(whoopDays.map((d) => [whoopDayStr(new Date(d.date)), d]));
 
         const rides = (strava?.rides as StravaRide[] | undefined) ?? [];
         const stravaByDate = new Map<string, StravaRide[]>();

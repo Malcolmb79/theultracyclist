@@ -46,6 +46,35 @@ export function irelandTodayDateStr(): string {
   return irelandDateStr(new Date());
 }
 
+// A Whoop cycle starts when the athlete goes to bed, so its recovery, HRV,
+// RHR and sleep scores land the *next* morning - the watch shows them as
+// today's. Bucketing a cycle by the calendar date it started therefore dates
+// every reading a day early: the cycle beginning 23:17 on 31 July carries the
+// 29% recovery read on the morning of 1 August.
+//
+// It also collides. A cycle starting 01:30 and the next starting 23:21 the
+// same evening both land on that one date, leaving the day between them empty
+// - which is why a day could go blank on Trends while two readings stacked on
+// its neighbour.
+//
+// So an evening start belongs to the morning it runs into. Cycles are
+// contiguous, so this gives one reading per day with no gaps and no stacking.
+// Mirrored in src/utils/irelandDate.ts - the two must agree, or the coach and
+// the widgets disagree about which day a reading belongs to.
+const EVENING_HOUR = 18;
+
+export function whoopDayStr(cycleStart: Date): string {
+  const date = irelandDateStr(cycleStart);
+  return irelandHour(cycleStart) >= EVENING_HOUR ? addDays(date, 1) : date;
+}
+
+function irelandHour(date: Date): number {
+  const hour = new Intl.DateTimeFormat("en-GB", { timeZone: TIME_ZONE, hour: "2-digit", hourCycle: "h23" })
+    .formatToParts(date)
+    .find((p) => p.type === "hour")?.value;
+  return Number(hour ?? "0");
+}
+
 // Monday-start week boundary, matching the athlete's training-week
 // convention (see ATHLETE_PROFILE in coachContext.ts) - same calc as
 // api/_lib/coachSnapshot.ts's local copy, duplicated rather than imported

@@ -2,7 +2,7 @@ import { fetchWhoopHistory } from "../whoop-data.js";
 import { fetchStravaRides } from "../strava-activities.js";
 import { fetchHealthHistory } from "../health-data.js";
 import { fetchCoachingSettings } from "../coaching-settings.js";
-import { irelandDateStr } from "./timeContext.js";
+import { irelandDateStr, whoopDayStr } from "./timeContext.js";
 import { convertValueUnit, type UnitSystem } from "./units.js";
 import { isWeightFieldName } from "./weightField.js";
 
@@ -73,7 +73,7 @@ export async function resolveMetric(id: string, days = 60): Promise<ResolvedMetr
     const def = WHOOP_METRICS[id];
     const { history } = await fetchWhoopHistory();
     const series = (history as WhoopDay[])
-      .map((day) => ({ date: irelandDateStr(new Date(day.date)), value: def.pick(day) }))
+      .map((day) => ({ date: whoopDayStr(new Date(day.date)), value: def.pick(day) }))
       .filter((p): p is MetricPoint => p.value != null)
       .sort((a, b) => a.date.localeCompare(b.date));
     return { id, label: def.label, unit: def.unit, series };

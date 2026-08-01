@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { recoveryColor } from "../../utils/recoveryColor";
 import { bmiCategoryColor, formatWeight } from "../../utils/bmi";
-import { irelandDateStr, irelandTodayDateStr } from "../../utils/irelandDate";
+import { irelandTodayDateStr, whoopDayStr } from "../../utils/irelandDate";
 import HealthDayDetailModal, { type HealthCalendarDay } from "./HealthDayDetailModal";
 import styles from "./HealthCalendar.module.css";
 
@@ -45,7 +45,7 @@ export default function HealthCalendar({ whoopHistory, weightByDate, weightUnit,
   // the first hour of every Irish day during BST (Irish midnight is 23:00
   // UTC the previous day), showing that cycle one day earlier than it
   // actually falls on locally.
-  const byDate = new Map(whoopHistory.map((d) => [irelandDateStr(new Date(d.date)), d]));
+  const byDate = new Map(whoopHistory.map((d) => [whoopDayStr(new Date(d.date)), d]));
 
   // Monday-first grid, so the leading blanks count from Monday rather than
   // from getUTCDay()'s Sunday - see WEEKDAY_LABELS above.

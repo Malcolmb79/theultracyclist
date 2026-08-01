@@ -377,6 +377,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(200).json(result);
   } catch (error) {
     console.error(error);
-    res.status(502).json({ error: "Unable to load Whoop data" });
+    // The reason, not just the fact. A bare "Unable to load Whoop data" gave
+    // no way to tell an expired authorisation (which needs the athlete to
+    // reconnect) from a rate limit or a Whoop outage (which need nothing but
+    // patience) - the messages thrown above name which, and none of them
+    // carry a token or any other secret.
+    const reason = error instanceof Error ? error.message : "Unknown error";
+    res.setHeader("Cache-Control", "no-store");
+    res.status(502).json({ error: "Unable to load Whoop data", reason, reconnect: "/api/whoop-authorize" });
   }
 }

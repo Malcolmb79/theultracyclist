@@ -26,25 +26,28 @@ type CardStatus = "waiting" | "loading" | "unconfigured" | "error" | "ready";
 type CheckinState = { phase: "asking"; step: number; answers: string[] } | { phase: "confirming"; answers: string[] };
 
 /**
- * Questions worth asking now that TrainingPeaks is the source of truth.
+ * The questions an athlete actually asks, in the words they'd use.
  *
- * Picking one sends it immediately rather than filling the box: these are
- * whole questions, not starting points, and a list that needs editing before
- * it works is slower than typing.
+ * These were written long and precise first - "What does TrainingPeaks say my
+ * CTL, ATL and TSB are right now?" - which reads like a query builder rather
+ * than a question. The coach is already told to reach for TrainingPeaks for
+ * anything about fitness, form or the plan (see TRAININGPEAKS_PRECEDENCE), so
+ * the question does not have to name the source or the metric to get the right
+ * answer. Short wins.
  *
- * They are written to make the coach reach for the TrainingPeaks tool - real
- * CTL, the real ATP, real planned TSS - because that is the data the athlete
- * cannot see anywhere else in this app.
+ * Picking one sends it immediately rather than filling the box: these are whole
+ * questions, and a suggestion that needs editing before it works is slower than
+ * typing.
  */
 const TRAININGPEAKS_QUESTIONS = [
-  "What does TrainingPeaks say my CTL, ATL and TSB are right now?",
-  "Am I ahead of or behind my Annual Training Plan this week?",
-  "What has my coach got planned for me over the next two weeks?",
-  "How does my actual training load compare to what the plan called for?",
-  "What is my hardest session this week, and how should I approach it?",
-  "Is my form heading the right way for the phase I'm meant to be in?",
-  "Where is my CTL projected to be a month from now if I hit every session?",
-  "Why does the dashboard's fitness number differ from TrainingPeaks?",
+  "How's my fitness?",
+  "Am I on track this week?",
+  "What's planned this week?",
+  "Should I train hard today?",
+  "How's my form?",
+  "What's my hardest session this week?",
+  "Where will my fitness be in a month?",
+  "Why don't my numbers match TrainingPeaks?",
 ];
 
 export default function CoachChatCard({ input, settings, onSaveSettings, dataAvailable, widgetData }: CoachChatCardProps) {
@@ -310,7 +313,7 @@ export default function CoachChatCard({ input, settings, onSaveSettings, dataAva
               }}
               aria-label="Ask a TrainingPeaks question"
             >
-              <option value="">Ask about TrainingPeaks…</option>
+              <option value="">Quick questions…</option>
               {TRAININGPEAKS_QUESTIONS.map((question) => (
                 <option key={question} value={question}>
                   {question}

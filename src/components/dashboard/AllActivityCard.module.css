@@ -3,17 +3,28 @@
   margin: 0;
   padding: 0;
   overflow-y: auto;
+  /* Both widget shells centre their content (align-items: center on
+     .content / .contentBody), which sizes a block child to its own content
+     width instead of the card's. That clipped every row on both sides - the
+     middle of a name and the first digit of a duration were all that showed.
+     A list has to claim the full width; it is not a centred figure. */
+  align-self: stretch;
+  width: 100%;
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  /* Vertical scrolling alone would compute overflow-x to auto, letting a long
+     session name scroll the list sideways instead of being truncated. */
+  overflow-x: hidden;
 }
 
 .day {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  width: 100%;
 }
 
 /* Sticky so the day a row belongs to stays visible while scrolling a long
@@ -34,17 +45,25 @@
   list-style: none;
   margin: 0;
   padding: 0;
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
 .row {
-  display: flex;
+  /* Grid rather than flex so the three cells can never negotiate themselves
+     out of the card: the name column is the only one that flexes, and it is
+     the only one allowed to truncate. */
+  display: grid;
+  /* icon | name | facts | badge. The badge is conditional, and an `auto`
+     track with no item in it collapses to nothing, so its column costs
+     no width on the rows that lack one. */
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: baseline;
   gap: var(--space-2);
   font-size: 0.8rem;
-  min-width: 0;
+  width: 100%;
 }
 
 .icon {
@@ -57,7 +76,6 @@
    what the athlete is scanning for, and a truncated title still identifies
    the session. */
 .name {
-  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -65,14 +83,13 @@
 }
 
 .facts {
-  flex: none;
+  justify-self: end;
   color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 .badge {
-  flex: none;
   font-size: 0.62rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;

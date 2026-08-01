@@ -53,33 +53,28 @@ async function latestWeightKg(): Promise<number | null> {
   return null;
 }
 
-export async function computeChatContext(): Promise<Partial<ChatContext>> {
-  const [whoop, rides, settings] = await Promise.all([
-    fetchWhoopHistory().catch(() => null),
-    fetchStravaRides().catch(() => [] as Ride[]),
-    fetchCoachingSettings().catch(() => ({})),
-  ]);
+export type WhoopReadings = Pick<
+  ChatContext,
+  "recoveryScore" | "hrvMs" | "restingHeartRate" | "strainScore" | "sleepPerformance" | "recentAvgStrain" | "recoveryDate" | "strainDate" | "sleepDate"
+>;
 
-  const history = whoop?.history ?? []; // newest first
-  const latest = history[0];
-  const last3Strain = history
-    .slice(0, 3)
-    .map((d) => d.strain?.score)
-    .filter((v): v is number => v != null);
-  const recentAvgStrain =
-    last3Strain.length > 0 ? Math.round((last3Strain.reduce((a, b) => a + b, 0) / last3Strain.length) * 10) / 10 : null;
+/**
+ * The latest scored value of each Whoop field, with the day it came from.
+ *
+ * Separate from computeChatContext because the daily note only needs this
+ * much. Reaching for the whole snapshot there pulled Whoop, Strava, the health
+ * history twice, goals and settings on every page load, and the request stopped
+ * coming back at all - far too much work for a card that renders on open.
+ */
+export async function latestWhoopReadings(): Promise<WhoopReadings> {
+  const whoop = await fetchWhoopHistory().catch(() => null);
+  return readingsFrom(whoop?.history ?? []);
+}
 
-  const todayStr = irelandTodayDateStr();
-  const weekStart = startOfWeek(todayStr);
-  const thisWeekRides = rides.filter((r) => rideDateStr(r) >= weekStart);
-  const weeklyDistanceKm = Math.round(thisWeekRides.reduce((sum, r) => sum + r.distanceKm, 0) * 10) / 10;
+type WhoopHistory = NonNullable<Awaited<ReturnType<typeof fetchWhoopHistory>>>["history"];
 
-  const todaysRides = rides.filter((r) => rideDateStr(r) === todayStr);
-  const hasRiddenToday = todaysRides.length > 0;
-  const todayDistanceKm = hasRiddenToday
-    ? Math.round(todaysRides.reduce((sum, r) => sum + r.distanceKm, 0) * 10) / 10
-    : null;
-
+/** `history` is newest first, the order whoop-data returns it in. */
+function readingsFrom(history: WhoopHistory): WhoopReadings {
   // Each field falls back to the last day it was actually scored, and its day
   // travels with it. Whoop publishes recovery and sleep hours after the watch
   // shows them and strain climbs live all day, so the newest cycle is often
@@ -99,16 +94,47 @@ export async function computeChatContext(): Promise<Partial<ChatContext>> {
   const strain = newestScored("strain");
   const sleep = newestScored("sleep");
 
+  const last3Strain = history
+    .slice(0, 3)
+    .map((d) => d.strain?.score)
+    .filter((v): v is number => v != null);
+
   return {
     recoveryScore: recovery?.value?.score ?? null,
     hrvMs: recovery?.value?.hrvMs ?? null,
     restingHeartRate: recovery?.value?.restingHeartRate ?? null,
     strainScore: strain?.value?.score ?? null,
+    sleepPerformance: sleep?.value?.performancePercent ?? null,
     recoveryDate: recovery?.date ?? null,
     strainDate: strain?.date ?? null,
     sleepDate: sleep?.date ?? null,
-    recentAvgStrain,
-    sleepPerformance: sleep?.value?.performancePercent ?? null,
+    recentAvgStrain:
+      last3Strain.length > 0 ? Math.round((last3Strain.reduce((a, b) => a + b, 0) / last3Strain.length) * 10) / 10 : null,
+  };
+}
+
+export async function computeChatContext(): Promise<Partial<ChatContext>> {
+  const [whoop, rides, settings] = await Promise.all([
+    fetchWhoopHistory().catch(() => null),
+    fetchStravaRides().catch(() => [] as Ride[]),
+    fetchCoachingSettings().catch(() => ({})),
+  ]);
+
+  const readings = readingsFrom(whoop?.history ?? []);
+
+  const todayStr = irelandTodayDateStr();
+  const weekStart = startOfWeek(todayStr);
+  const thisWeekRides = rides.filter((r) => rideDateStr(r) >= weekStart);
+  const weeklyDistanceKm = Math.round(thisWeekRides.reduce((sum, r) => sum + r.distanceKm, 0) * 10) / 10;
+
+  const todaysRides = rides.filter((r) => rideDateStr(r) === todayStr);
+  const hasRiddenToday = todaysRides.length > 0;
+  const todayDistanceKm = hasRiddenToday
+    ? Math.round(todaysRides.reduce((sum, r) => sum + r.distanceKm, 0) * 10) / 10
+    : null;
+
+  return {
+    ...readings,
     weeklyDistanceKm,
     weeklyTargetKm: settings.weeklyDistanceKm ?? null,
     phase: settings.phase ?? null,

@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getSessionEmail } from "./_lib/session.js";
-import { computeChatContext } from "./_lib/coachSnapshot.js";
+import { latestWhoopReadings } from "./_lib/coachSnapshot.js";
 import { irelandTimeContext, irelandTodayDateStr } from "./_lib/timeContext.js";
 import { ATHLETE_PROFILE, DATA_SEMANTICS, SEASON_PLAN, LANGUAGE_STYLE, READING_HONESTY, readingLine } from "./_lib/coachContext.js";
 
@@ -148,10 +148,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // posted. The browser's came from /api/whoop-data behind an edge cache, so
   // it can be up to a quarter of an hour behind the watch - and a note that
   // opens with this morning's recovery has to be looking at this morning's
-  // recovery. Server values win where it has them; the client's fill any gap.
-  // Same merge the chat endpoint does.
+  // recovery. Only the Whoop readings are re-read: everything else in the
+  // note (weekly distance, phase, rules) the browser already has right, and
+  // fetching the whole coach snapshot here made the card stop loading.
   const posted = req.body as NarrativeInput;
-  const live = await computeChatContext().catch(() => ({}));
+  const live = await latestWhoopReadings().catch(() => ({}));
   const input: NarrativeInput = { ...posted };
   for (const [field, value] of Object.entries(live)) {
     if (value != null) (input as Record<string, unknown>)[field] = value;

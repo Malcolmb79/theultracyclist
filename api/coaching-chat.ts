@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getSessionEmail } from "./_lib/session.js";
 import { irelandTimeContext } from "./_lib/timeContext.js";
-import { ATHLETE_PROFILE, DATA_SEMANTICS, SEASON_PLAN, LANGUAGE_STYLE, READING_HONESTY, readingLine } from "./_lib/coachContext.js";
+import { ATHLETE_PROFILE, DATA_SEMANTICS, SEASON_PLAN, LANGUAGE_STYLE, READING_HONESTY, TRAININGPEAKS_PRECEDENCE, readingLine } from "./_lib/coachContext.js";
 import { fetchWhoopHistory } from "./whoop-data.js";
 import { fetchStravaRides } from "./strava-activities.js";
 import { fetchHealthHistory } from "./health-data.js";
@@ -9,6 +9,7 @@ import { convertHealthHistory, type UnitSystem } from "./_lib/units.js";
 import { searchKnowledge } from "./_lib/coachKnowledge.js";
 import { summariseWidget } from "./_lib/widgetSummary.js";
 import { computeChatContext } from "./_lib/coachSnapshot.js";
+import { fetchTrainingPeaksData } from "./trainingpeaks.js";
 import { fetchCoachingSettings } from "./coaching-settings.js";
 import { computeTss } from "./_lib/tss.js";
 import { computeFitnessSeries } from "./_lib/fitness.js";
@@ -140,6 +141,28 @@ const TOOLS = [
           description:
             "How many of the most recent rides to fetch. Defaults to 6 if omitted; pass a higher number " +
             "for a longer look-back (e.g. 30 for the last month of rides).",
+        },
+      },
+    },
+  },
+  {
+    name: "get_trainingpeaks",
+    description:
+      "Get the athlete's data straight from TrainingPeaks: their real CTL/ATL/TSB, their Annual Training " +
+      "Plan week by week, and their planned and completed workouts with real planned TSS. THIS IS THE " +
+      "SOURCE OF TRUTH. Where it disagrees with get_fitness or the dashboard, TrainingPeaks is correct and " +
+      "you should quote it - the app's own CTL is built only from Strava rides that recorded power, so it " +
+      "reads lower than reality whenever the athlete trains without a power meter or logs a session " +
+      "TrainingPeaks sees and Strava does not. Use this first for anything about fitness, form, training " +
+      "load, the plan, or what is scheduled. If it returns configured:false the athlete has not connected " +
+      "TrainingPeaks, so fall back to get_fitness and say which you are using.",
+    input_schema: {
+      type: "object",
+      properties: {
+        include: {
+          type: "array",
+          items: { type: "string", enum: ["fitness", "atp", "workouts"] },
+          description: "Which parts to return. Defaults to all three.",
         },
       },
     },
@@ -395,6 +418,46 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
 
         return { history, availableFields, units: system };
       }
+      case "get_trainingpeaks": {
+        const data = await fetchTrainingPeaksData();
+        if (!data.configured) {
+          return {
+            configured: false,
+            note: "TrainingPeaks isn't connected. Use get_fitness instead, and say the figures are computed from Strava power data rather than TrainingPeaks.",
+          };
+        }
+        if (data.authExpired) {
+          return {
+            configured: true,
+            authExpired: true,
+            note: "The TrainingPeaks connection has expired and needs reconnecting in Settings. Use get_fitness meanwhile and say why.",
+          };
+        }
+
+        const include = Array.isArray(input.include) ? (input.include as string[]) : ["fitness", "atp", "workouts"];
+        const latest = data.fitness.at(-1) ?? null;
+        return {
+          configured: true,
+          source: "TrainingPeaks - authoritative, overrides any figure derived from Strava alone",
+          ...(include.includes("fitness")
+            ? {
+                latest,
+                // The trailing window rather than the whole series: the coach
+                // needs the shape, and a hundred rows of it crowds out
+                // everything else in the reply.
+                fitnessTrend: data.fitness.slice(-21),
+              }
+            : {}),
+          ...(include.includes("atp") ? { atpWeeks: data.atp.slice(0, 12) } : {}),
+          ...(include.includes("workouts")
+            ? {
+                plannedWorkouts: data.workouts.filter((w) => !w.completed),
+                recentCompleted: data.workouts.filter((w) => w.completed).slice(-10),
+              }
+            : {}),
+        };
+      }
+
       case "get_fitness": {
         const trendDays = typeof input.trendDays === "number" ? input.trendDays : 14;
         // A generous ride count (not the default 6) so CTL's 42-day window

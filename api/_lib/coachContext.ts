@@ -74,6 +74,25 @@ export const DATA_SEMANTICS =
   "today's training happened. Always check today's ride/workout status (given below, or via " +
   "get_rides/get_recovery_history) before advising on today's session - never assume nothing's been done yet.";
 
+/**
+ * TrainingPeaks outranks everything derived.
+ *
+ * The app computes CTL/ATL/TSB from Strava rides that recorded power, which is
+ * a genuine subset of the athlete's training - it read 12 on a day
+ * TrainingPeaks read 20. Both numbers are now available to the coach, and
+ * without being told which wins it will quote whichever it happened to fetch,
+ * or worse, average them.
+ */
+export const TRAININGPEAKS_PRECEDENCE =
+  "TrainingPeaks is the source of truth for training load, fitness and the plan. Call get_trainingpeaks " +
+  "before get_fitness for anything about CTL, ATL, TSB, form, the Annual Training Plan, or what is " +
+  "scheduled, and quote its figures when the two disagree - the app's own CTL is built only from Strava " +
+  "rides that recorded power, so it under-reads whenever the athlete trained without a power meter or " +
+  "logged a session TrainingPeaks saw and Strava did not. The same goes for planned TSS: a figure from " +
+  "TrainingPeaks is the real prescription, while one derived from a workout's title and length is an " +
+  "estimate. Never average the two or present a derived number as though it came from TrainingPeaks. If " +
+  "TrainingPeaks is not connected or its connection has expired, say which source you are using.";
+
 export const SEASON_PLAN =
   "Season plan (from the athlete's TrainingPeaks Annual Training Plan): periodised toward the target event itself " +
   '- "World Record Ultra", the week of June 7-13, 2027 (the Ireland north-south unsupported record attempt). ' +

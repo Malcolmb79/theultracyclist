@@ -137,6 +137,12 @@ function SettingsEditor() {
   );
   const [garminUrlInput, setGarminUrlInput] = useState("");
   const [tpUrlInput, setTpUrlInput] = useState("");
+  const [tpCookieInput, setTpCookieInput] = useState("");
+  const [tpConn, setTpConn] = useState<
+    | { status: "unknown" }
+    | { status: "saving" }
+    | { status: "done"; configured: boolean; authExpired?: boolean; error?: string; counts?: Record<string, number> }
+  >({ status: "unknown" });
   const [tpCheck, setTpCheck] = useState<
     | { status: "idle" }
     | { status: "checking" }
@@ -275,6 +281,20 @@ function SettingsEditor() {
     } finally {
       setSaving(null);
     }
+  };
+
+  const handleSaveTrainingPeaksCookie = async () => {
+    setTpConn({ status: "saving" });
+    const res = await fetch("/api/trainingpeaks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cookie: tpCookieInput.trim() || null }),
+    });
+    const body = (await res.json()) as { configured?: boolean; authExpired?: boolean; error?: string; counts?: Record<string, number> };
+    // Cleared from the field the moment it is stored - a session credential
+    // has no reason to sit in a text box afterwards.
+    setTpCookieInput("");
+    setTpConn({ status: "done", configured: !!body.configured, authExpired: body.authExpired, error: body.error, counts: body.counts });
   };
 
   const handleSaveTrainingPeaksUrl = async () => {
@@ -741,6 +761,46 @@ function SettingsEditor() {
           <a href="/api/whoop-authorize" className={styles.connectButton}>
             Reconnect Whoop
           </a>
+        </div>
+
+        <div className={styles.section}>
+          <p className={styles.sectionTitle}>TrainingPeaks connection</p>
+          <p className={styles.sectionHint}>
+            Connects the AI coach directly to TrainingPeaks, which then <strong>overrides</strong> anything this
+            app infers: your real CTL/ATL/TSB rather than the figures built from Strava power alone, your real
+            Annual Training Plan rather than the copy in the code, and real planned TSS rather than an estimate
+            from a workout&apos;s title. Paste your <code>Production_tpAuth</code> cookie from a signed-in
+            TrainingPeaks tab (DevTools &rarr; Application &rarr; Cookies). It is stored write-only, never shown
+            again and never put in a prompt &mdash; but it is a long-lived key to your whole TrainingPeaks
+            account, so treat it like a password. It expires periodically and will need re-pasting.
+          </p>
+          <input
+            type="password"
+            autoComplete="off"
+            className={`${styles.input} ${styles.inputWide}`}
+            value={tpCookieInput}
+            onChange={(e) => setTpCookieInput(e.target.value)}
+            placeholder="Production_tpAuth cookie value"
+          />
+          <button
+            type="button"
+            className={styles.saveButton}
+            onClick={handleSaveTrainingPeaksCookie}
+            disabled={tpConn.status === "saving"}
+          >
+            {tpConn.status === "saving" ? "Connecting…" : "Connect"}
+          </button>
+          {tpConn.status === "done" && (
+            <p className={styles.sectionHint}>
+              {!tpConn.configured
+                ? "Disconnected. The coach will fall back to figures derived from Strava."
+                : tpConn.authExpired
+                  ? "That cookie was rejected — it has probably expired. Copy a fresh one and try again."
+                  : tpConn.error
+                    ? `Connected, but TrainingPeaks returned an error: ${tpConn.error}`
+                    : `Connected. Read ${tpConn.counts?.fitness ?? 0} days of fitness, ${tpConn.counts?.atp ?? 0} ATP weeks and ${tpConn.counts?.workouts ?? 0} workouts.`}
+            </p>
+          )}
         </div>
 
         <div className={styles.section}>

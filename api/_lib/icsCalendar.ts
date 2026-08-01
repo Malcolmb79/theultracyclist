@@ -24,6 +24,8 @@ export type CalendarEvent = {
   tss?: number;
   /** True when tss was derived from duration rather than read from the feed. */
   tssEstimated?: boolean;
+  /** True when even the session length was assumed - see ASSUMED_SESSION_MINUTES. */
+  durationAssumed?: boolean;
 };
 
 /**
@@ -164,6 +166,51 @@ export function estimateTssFromDuration(durationMinutes: number, text = ""): num
   return Math.round((durationMinutes / 60) * factor ** 2 * 100);
 }
 
+/**
+ * Session length out of the workout title.
+ *
+ * TrainingPeaks writes most planned sessions as all-day events, so the only
+ * length in the feed is the one the athlete put in the name -
+ * "Z2 Endurance 90min", "Easy Spin 45min", "Long Ride 3h".
+ *
+ * Interval notation is explicitly not a duration. "Sweet Spot 2x12min"
+ * describes twelve-minute efforts, not a twelve-minute ride, and reading it as
+ * one would have put a 27-TSS number on a session worth three times that.
+ */
+const INTERVAL_NOTATION = /\d+\s*[x×]\s*$/i;
+
+export function durationFromTitle(title: string): number | null {
+  // "3h", "2h30", "1.5h", "2 hours". The negative lookahead stops the bare "h"
+  // swallowing the start of an ordinary word - without it "30 hard efforts"
+  // parses as thirty hours.
+  const hours = /(\d+(?:[.,]\d+)?)\s*(?:hours?|hrs?|h)(?![a-z])\s*(\d{1,2})?/i.exec(title);
+  if (hours) {
+    const value = Number(hours[1].replace(",", "."));
+    const extra = hours[2] ? Number(hours[2]) : 0;
+    if (Number.isFinite(value) && value > 0) return Math.round(value * 60 + extra);
+  }
+
+  // Every "NN min" in the title, skipping any that follows an "NxN".
+  const pattern = /(\d+)\s*(?:min|mins|minutes)\b/gi;
+  for (let match = pattern.exec(title); match; match = pattern.exec(title)) {
+    const before = title.slice(0, match.index);
+    if (INTERVAL_NOTATION.test(before)) continue;
+    const value = Number(match[1]);
+    if (Number.isFinite(value) && value > 0) return value;
+  }
+  return null;
+}
+
+/**
+ * What a planned session is worth when nothing states its length.
+ *
+ * Interval workouts named only by their efforts ("Sweet Spot 2x12min") leave
+ * no total to read. Contributing nothing would under-project fitness on
+ * precisely the days that build it, so they are treated as an hour - long
+ * enough to be real, short enough that being wrong costs little.
+ */
+const ASSUMED_SESSION_MINUTES = 60;
+
 export function parseIcsEvents(ics: string, timeZone = "Europe/Dublin"): CalendarEvent[] {
   const events: CalendarEvent[] = [];
   let current: Record<string, string> | null = null;
@@ -203,21 +250,35 @@ function toEvent(fields: Record<string, string>, timeZone: string): CalendarEven
   const title = unescapeText(fields.SUMMARY ?? "").trim();
   const description = fields.DESCRIPTION ? unescapeText(fields.DESCRIPTION).trim() : undefined;
 
-  const durationMinutes =
-    (fields.DURATION ? parseDuration(fields.DURATION) : null) ??
-    (fields.DTEND ? minutesBetween(start, fields.DTEND) : null) ??
-    undefined;
+  // TrainingPeaks writes most planned workouts as all-day events, whose DTEND
+  // is the *next* date - an exclusive end, meaning "occupies this day", not a
+  // 24-hour session. Measuring between them put 1440 minutes and 1014 TSS on a
+  // 90-minute endurance ride. For those the only length available is whatever
+  // the athlete wrote in the title.
+  const allDay = /VALUE=DATE(?!-TIME)/i.test(fields.DTSTART__PARAMS ?? "") || /^\d{8}$/.test(start.trim());
+  const scheduled = allDay
+    ? null
+    : (fields.DURATION ? parseDuration(fields.DURATION) : null) ??
+      (fields.DTEND ? minutesBetween(start, fields.DTEND) : null);
 
-  const text = `${title}\n${description ?? ""}`;
-  const stated = readTss(text);
-  const tss = stated ?? (durationMinutes ? estimateTssFromDuration(durationMinutes, text) : undefined);
+  const durationMinutes = scheduled ?? durationFromTitle(title) ?? undefined;
+
+  // Intensity is read from the title alone. The description is free text and
+  // routinely mentions recovery in passing ("ride the recovery valleys
+  // easy"), which was enough to price a Sweet Spot session as a rest day.
+  const stated = readTss(`${title}\n${description ?? ""}`);
+  const tss =
+    stated ??
+    estimateTssFromDuration(durationMinutes ?? ASSUMED_SESSION_MINUTES, title);
 
   return {
     date,
     title: title || "Planned workout",
     description,
-    durationMinutes: durationMinutes ?? undefined,
-    tss: tss ?? undefined,
-    tssEstimated: stated == null && tss != null ? true : undefined,
+    durationMinutes,
+    tss,
+    tssEstimated: stated == null ? true : undefined,
+    /** True when even the length was assumed, not read. */
+    durationAssumed: durationMinutes == null ? true : undefined,
   };
 }

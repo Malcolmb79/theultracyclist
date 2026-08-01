@@ -1,6 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getSessionEmail } from "./_lib/session.js";
-import { latestWhoopReadings } from "./_lib/coachSnapshot.js";
 import { irelandTimeContext, irelandTodayDateStr } from "./_lib/timeContext.js";
 import { ATHLETE_PROFILE, DATA_SEMANTICS, SEASON_PLAN, LANGUAGE_STYLE, READING_HONESTY, readingLine } from "./_lib/coachContext.js";
 
@@ -144,19 +143,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const date = today();
-  // Read Whoop server-side rather than trusting the snapshot the browser
-  // posted. The browser's came from /api/whoop-data behind an edge cache, so
-  // it can be up to a quarter of an hour behind the watch - and a note that
-  // opens with this morning's recovery has to be looking at this morning's
-  // recovery. Only the Whoop readings are re-read: everything else in the
-  // note (weekly distance, phase, rules) the browser already has right, and
-  // fetching the whole coach snapshot here made the card stop loading.
-  const posted = req.body as NarrativeInput;
-  const live = await latestWhoopReadings().catch(() => ({}));
-  const input: NarrativeInput = { ...posted };
-  for (const [field, value] of Object.entries(live)) {
-    if (value != null) (input as Record<string, unknown>)[field] = value;
-  }
+  // Deliberately built from the snapshot the browser posted rather than a
+  // fresh server-side Whoop read.
+  //
+  // Reading Whoop here looked like the way to guarantee the note quotes this
+  // morning's numbers, but Whoop rotates its refresh token: every refresh
+  // invalidates the last one. This endpoint fires on every Coaching page load,
+  // so it raced /api/whoop-data for the same single-use token and knocked the
+  // Whoop feed out across the whole site - every Whoop widget went blank.
+  //
+  // The browser's snapshot comes from /api/whoop-data, which is one shared,
+  // edge-cached read. Up to a quarter of an hour behind the watch at worst,
+  // which costs nothing here: every reading is labelled with the day it came
+  // from, so a lagging figure is stated accurately rather than passed off as
+  // something it isn't.
+  const input = req.body as NarrativeInput;
   const key = cacheKey(date, input);
   if (cached && cached.key === key) {
     res.status(200).json({ configured: true, text: cached.text, cached: true });

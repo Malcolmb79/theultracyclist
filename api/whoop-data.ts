@@ -197,11 +197,51 @@ export async function persistWhoopRefreshToken(token: string): Promise<void> {
   await setJSON(REFRESH_TOKEN_KEY, token);
 }
 
+/**
+ * Whoop rotates its refresh token: a successful refresh returns a new one and
+ * invalidates the one that bought it. Two refreshes racing on the same stored
+ * token therefore means one of them is spending a token that is already dead,
+ * and it fails - which is exactly what happened when a second endpoint started
+ * refreshing independently on every page load and took the whole Whoop feed
+ * down with it.
+ *
+ * So refreshes are collapsed two ways. In-process, concurrent callers await
+ * one shared promise instead of each starting their own. Across instances, the
+ * access token itself is kept in the same store as the refresh token, so a
+ * cold lambda picks up a live token rather than spending the refresh token to
+ * mint another one. Only a genuinely expired access token reaches Whoop.
+ */
+const ACCESS_TOKEN_KEY = "WHOOP_ACCESS_TOKEN";
+type StoredAccessToken = { accessToken: string; expiresAt: number };
+
+// Refreshed this far ahead of expiry, so a token never dies mid-request.
+const EXPIRY_MARGIN_SECONDS = 60;
+
+let refreshInFlight: Promise<string> | null = null;
+
+function isLive(token: StoredAccessToken | null | undefined): token is StoredAccessToken {
+  return !!token && token.expiresAt - EXPIRY_MARGIN_SECONDS > Date.now() / 1000;
+}
+
 async function getAccessToken(): Promise<string> {
-  if (cachedToken && cachedToken.expiresAt - 60 > Date.now() / 1000) {
-    return cachedToken.accessToken;
+  if (isLive(cachedToken)) return cachedToken.accessToken;
+
+  // Another instance may already have refreshed - reuse its token rather than
+  // spending the refresh token again.
+  const shared = await getJSON<StoredAccessToken>(ACCESS_TOKEN_KEY).catch(() => null);
+  if (isLive(shared)) {
+    cachedToken = shared;
+    return shared.accessToken;
   }
 
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = refreshAccessToken().finally(() => {
+    refreshInFlight = null;
+  });
+  return refreshInFlight;
+}
+
+async function refreshAccessToken(): Promise<string> {
   const clientId = process.env.WHOOP_CLIENT_ID;
   const clientSecret = process.env.WHOOP_CLIENT_SECRET;
   // WHOOP_REFRESH_TOKEN env var is a one-time seed for first setup only -
@@ -233,7 +273,11 @@ async function getAccessToken(): Promise<string> {
 
   const data = (await response.json()) as WhoopTokenResponse;
   cachedToken = { accessToken: data.access_token, expiresAt: Date.now() / 1000 + data.expires_in };
+  // The new refresh token first: losing it strands the integration until the
+  // athlete re-authorises, whereas losing the shared access token only costs
+  // one extra refresh.
   await persistWhoopRefreshToken(data.refresh_token);
+  await setJSON(ACCESS_TOKEN_KEY, cachedToken).catch(() => {});
 
   return cachedToken.accessToken;
 }

@@ -167,3 +167,19 @@
   opacity: 0.5;
   cursor: default;
 }
+
+/* Whole questions, sent on pick. Sits directly above the composer so it reads
+   as a way of filling it rather than a separate feature. */
+.suggestions {
+  width: 100%;
+  margin-bottom: var(--space-2);
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  /* A long question must not stretch the card it sits in. */
+  max-width: 100%;
+  text-overflow: ellipsis;
+}

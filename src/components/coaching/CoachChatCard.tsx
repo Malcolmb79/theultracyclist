@@ -25,6 +25,28 @@ type CardStatus = "waiting" | "loading" | "unconfigured" | "error" | "ready";
 // persisted, since a half-finished check-in isn't worth resuming later.
 type CheckinState = { phase: "asking"; step: number; answers: string[] } | { phase: "confirming"; answers: string[] };
 
+/**
+ * Questions worth asking now that TrainingPeaks is the source of truth.
+ *
+ * Picking one sends it immediately rather than filling the box: these are
+ * whole questions, not starting points, and a list that needs editing before
+ * it works is slower than typing.
+ *
+ * They are written to make the coach reach for the TrainingPeaks tool - real
+ * CTL, the real ATP, real planned TSS - because that is the data the athlete
+ * cannot see anywhere else in this app.
+ */
+const TRAININGPEAKS_QUESTIONS = [
+  "What does TrainingPeaks say my CTL, ATL and TSB are right now?",
+  "Am I ahead of or behind my Annual Training Plan this week?",
+  "What has my coach got planned for me over the next two weeks?",
+  "How does my actual training load compare to what the plan called for?",
+  "What is my hardest session this week, and how should I approach it?",
+  "Is my form heading the right way for the phase I'm meant to be in?",
+  "Where is my CTL projected to be a month from now if I hit every session?",
+  "Why does the dashboard's fitness number differ from TrainingPeaks?",
+];
+
 export default function CoachChatCard({ input, settings, onSaveSettings, dataAvailable, widgetData }: CoachChatCardProps) {
   const [status, setStatus] = useState<CardStatus>("loading");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -179,8 +201,8 @@ export default function CoachChatCard({ input, settings, onSaveSettings, dataAva
     }
   };
 
-  const send = () => {
-    const text = draft.trim();
+  const send = (override?: string) => {
+    const text = (override ?? draft).trim();
     if (!text || sending || sendingCheckin) return;
     setDraft("");
 
@@ -273,6 +295,29 @@ export default function CoachChatCard({ input, settings, onSaveSettings, dataAva
             {sending && <p className={styles.muted}>Thinking…</p>}
             {sendingCheckin && <p className={styles.muted}>Sending…</p>}
           </div>
+          {/* Only when the coach is free to answer - mid check-in it is
+              waiting on a specific reply, and a stray question would be read
+              as that answer. */}
+          {!checkin && (
+            <select
+              className={styles.suggestions}
+              value=""
+              disabled={sending || sendingCheckin}
+              onChange={(e) => {
+                const question = e.target.value;
+                e.currentTarget.selectedIndex = 0;
+                if (question) send(question);
+              }}
+              aria-label="Ask a TrainingPeaks question"
+            >
+              <option value="">Ask about TrainingPeaks…</option>
+              {TRAININGPEAKS_QUESTIONS.map((question) => (
+                <option key={question} value={question}>
+                  {question}
+                </option>
+              ))}
+            </select>
+          )}
           <form
             className={styles.composer}
             onSubmit={(e) => {

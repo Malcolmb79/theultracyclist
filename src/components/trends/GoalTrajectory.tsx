@@ -50,7 +50,10 @@ export default function GoalTrajectory({
   direction: "down" | "up";
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
   const [width, setWidth] = useState(420);
+  /** Milliseconds of the day being inspected, or null when nothing is held. */
+  const [probeMs, setProbeMs] = useState<number | null>(null);
 
   useEffect(() => {
     const element = ref.current;
@@ -96,9 +99,77 @@ export default function GoalTrajectory({
   const ahead = direction === "down" ? latest <= paceToday : latest >= paceToday;
   const lineColour = ahead ? "var(--color-good, #2ee6a6)" : "var(--color-warn, #e0a13a)";
 
+  /**
+   * The day under the finger.
+   *
+   * Touch coordinates are read against the SVG's own box rather than the
+   * wrapper's, so the reading stays aligned when the card is scrolled or the
+   * chart is not flush with its container.
+   */
+  const dayAtClientX = (clientX: number): number => {
+    const box = svgRef.current?.getBoundingClientRect();
+    if (!box) return startDay;
+    const ratio = (clientX - box.left - PAD_LEFT) / plotWidth;
+    return startDay + Math.min(1, Math.max(0, ratio)) * span;
+  };
+
+  // Snap to the nearest whole day: the axis is days, and a readout that moves
+  // in fractions of one would show a date that jitters while the finger holds
+  // still.
+  const probeDay = probeMs == null ? null : Math.round(probeMs / 86_400_000) * 86_400_000;
+
+  // The pace line has a value on every day between the start and the target.
+  const paceAt = (ms: number) =>
+    ordered[0].value + (target - ordered[0].value) * Math.min(1, Math.max(0, (ms - startDay) / span));
+
+  /**
+   * A reading counts as "on" the probed day only if one was actually taken
+   * near it. Interpolating between readings would put a weight on the screen
+   * that was never on the scales, which on a card about a weight goal is the
+   * one number that must never be invented.
+   */
+  const READING_TOLERANCE_MS = 36 * 60 * 60 * 1000;
+  const nearestReading =
+    probeDay == null
+      ? null
+      : ordered.reduce<{ point: TrajectoryPoint; distance: number } | null>((best, point) => {
+          const distance = Math.abs(toDay(point.date) - probeDay);
+          return best == null || distance < best.distance ? { point, distance } : best;
+        }, null);
+  const probeReading = nearestReading && nearestReading.distance <= READING_TOLERANCE_MS ? nearestReading.point : null;
+
+  const probeX = probeDay == null ? 0 : xFor(probeDay);
+  // The readout flips to the left of the crosshair when it would otherwise run
+  // off the right edge of a narrow card.
+  const READOUT_WIDTH = 132;
+  const readoutFlipped = probeX + READOUT_WIDTH + 8 > width;
+
+  const endProbe = () => setProbeMs(null);
+
   return (
     <div className={styles.wrap} ref={ref}>
-      <svg width={width} height={HEIGHT} role="img" aria-label="Progress against the pace needed to reach the goal">
+      <svg
+        ref={svgRef}
+        width={width}
+        height={HEIGHT}
+        role="img"
+        aria-label="Progress against the pace needed to reach the goal"
+        className={styles.plot}
+        // Pointer events cover touch, pen and mouse in one path. Capture keeps
+        // the readout following the finger once it has started, even when it
+        // slides outside the chart - without it a drag off the top edge simply
+        // stops updating.
+        onPointerDown={(e) => {
+          e.currentTarget.setPointerCapture(e.pointerId);
+          setProbeMs(dayAtClientX(e.clientX));
+        }}
+        onPointerMove={(e) => {
+          if (probeMs != null) setProbeMs(dayAtClientX(e.clientX));
+        }}
+        onPointerUp={endProbe}
+        onPointerCancel={endProbe}
+        onPointerLeave={endProbe}
+      >
         {/* The target itself, so the gap to it is readable at any point. */}
         <line x1={PAD_LEFT} x2={width} y1={yFor(target)} y2={yFor(target)} stroke="var(--color-border)" strokeWidth={1} />
         <text x={4} y={yFor(target) + 4} fontSize="10" fill="var(--color-text-muted)">
@@ -134,6 +205,37 @@ export default function GoalTrajectory({
 
         {/* Where it has to end up, and when. */}
         <circle cx={paceEnd.x} cy={paceEnd.y} r={4} fill="var(--color-bg)" stroke="var(--color-text-muted)" strokeWidth={1.5} />
+
+        {/* What is under the finger: the day, the reading if one was taken
+            near it, and where the plan expects to be. */}
+        {probeDay != null && (
+          <g pointerEvents="none">
+            <line x1={probeX} x2={probeX} y1={PAD_TOP} y2={HEIGHT - PAD_BOTTOM} stroke="var(--color-text-muted)" strokeWidth={1} />
+            <circle cx={probeX} cy={yFor(paceAt(probeDay))} r={3} fill="var(--color-text-muted)" />
+            {probeReading && (
+              <circle cx={xFor(toDay(probeReading.date))} cy={yFor(probeReading.value)} r={4.5} fill={lineColour} />
+            )}
+            <foreignObject
+              x={readoutFlipped ? probeX - READOUT_WIDTH - 8 : probeX + 8}
+              y={PAD_TOP}
+              width={READOUT_WIDTH}
+              height={HEIGHT - PAD_TOP - PAD_BOTTOM}
+            >
+              <div className={styles.readout}>
+                <span className={styles.readoutDate}>{shortDate(probeDay)}</span>
+                <span className={styles.readoutRow}>
+                  <i className={styles.readoutSwatch} style={{ background: lineColour }} />
+                  {probeReading ? `${Math.round(probeReading.value * 10) / 10}${unit}` : "no reading"}
+                </span>
+                <span className={styles.readoutRow}>
+                  <i className={`${styles.readoutSwatch} ${styles.readoutPlanned}`} />
+                  {Math.round(paceAt(probeDay) * 10) / 10}
+                  {unit} planned
+                </span>
+              </div>
+            </foreignObject>
+          </g>
+        )}
 
         <text x={PAD_LEFT} y={HEIGHT - 6} fontSize="10" fill="var(--color-text-muted)">
           {shortDate(startDay)}

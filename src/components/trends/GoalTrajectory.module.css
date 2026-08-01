@@ -12,3 +12,57 @@
   color: var(--color-text-muted);
   font-weight: 400;
 }
+
+/* Touch-dragging the chart must scan it, not scroll the page underneath -
+   without this the first vertical movement is stolen by the scroll container
+   and the readout jumps away from the finger. */
+.plot {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* The readout follows the crosshair, so it sits over the plot and has to
+   stay legible against both the lines and the background. */
+.readout {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+  width: max-content;
+  max-width: 100%;
+}
+
+.readoutDate {
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.62rem;
+}
+
+.readoutRow {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.readoutSwatch {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  flex: none;
+}
+
+/* Matches the dashed pace line: an outline, because it is a plan. */
+.readoutPlanned {
+  background: transparent;
+  border: 1px solid var(--color-text-muted);
+}

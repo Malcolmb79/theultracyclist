@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getJSON, setJSON } from "./_lib/kvStore.js";
+import { getJSON, readJSON, setJSON } from "./_lib/kvStore.js";
 import { getSessionEmail } from "./_lib/session.js";
 import { isDeviceCategory, mergeDeviceLayout, resolveDeviceLayout, type DeviceCategory } from "./_lib/deviceLayout.js";
 
@@ -191,7 +191,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === "POST") {
     const incoming = (req.body ?? {}) as CoachingSettings;
-    const stored = (await getJSON<StoredSettings>(KV_KEY)) ?? readLegacySettings();
+    // Refuse to save on top of a read we couldn't make. mergeDeviceLayout
+    // keeps the other devices' layouts by copying them out of `stored`, so a
+    // read that quietly returned "nothing" would write a record containing
+    // only this device - turning a momentary Redis blip into a permanent loss
+    // of every other device's arrangement.
+    let stored: StoredSettings;
+    try {
+      stored = (await readJSON<StoredSettings>(KV_KEY)) ?? readLegacySettings();
+    } catch (error) {
+      console.error("Refusing to save layout - could not read current state", error);
+      res.status(503).json({ error: "Storage is unavailable right now - nothing was saved." });
+      return;
+    }
 
     const widgetsByDevice = mergeDeviceLayout<CoachingWidgetEntry>(
       stored.widgetsByDevice ?? stored.widgets ?? [],

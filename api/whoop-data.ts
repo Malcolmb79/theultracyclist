@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getJSON, setJSON } from "./_lib/kvStore.js";
+import { getSessionEmail } from "./_lib/session.js";
 import { irelandDateStr } from "./_lib/timeContext.js";
 
 const TOKEN_URL = "https://api.prod.whoop.com/oauth/oauth2/token";
@@ -366,24 +367,104 @@ export async function fetchWhoopHistory(days: number = DAYS): Promise<WhoopHisto
   return { recovery: latest.recovery, strain: latest.strain, sleep: latest.sleep, history };
 }
 
+/**
+ * What an unauthenticated caller gets.
+ *
+ * The public /follow page shows this data deliberately - recovery, HRV,
+ * resting heart rate, strain and sleep, with trends - so the endpoint stays
+ * open, and every field that page renders is kept. What it never showed, and
+ * no longer hands out, is the detail underneath: sleep stages, respiratory
+ * rate, efficiency and consistency, strain zone minutes and max heart rate.
+ * Publishing a recovery score is a choice the athlete made; publishing a
+ * month of sleep architecture was not one anybody made.
+ *
+ * Typed as its own shape rather than cast to the full one - a partial object
+ * wearing the full type is exactly how a field nobody meant to publish gets
+ * read back out later as though it were there.
+ */
+export type PublicDaySummary = {
+  date: string;
+  recovery: Recovery | null;
+  strain: Pick<Strain, "score" | "avgHeartRate"> | null;
+  sleep: Pick<Sleep, "performancePercent" | "totalSleepHours"> | null;
+};
+
+export type PublicWhoopResult = Omit<PublicDaySummary, "date"> & { history: PublicDaySummary[] };
+
+function toPublic(result: WhoopHistoryResult): PublicWhoopResult {
+  const day = (d: Omit<DaySummary, "date">): Omit<PublicDaySummary, "date"> => ({
+    recovery: d.recovery,
+    strain: d.strain ? { score: d.strain.score, avgHeartRate: d.strain.avgHeartRate } : null,
+    sleep: d.sleep
+      ? { performancePercent: d.sleep.performancePercent, totalSleepHours: d.sleep.totalSleepHours }
+      : null,
+  });
+
+  return {
+    ...day(result),
+    history: result.history.map((d) => ({ date: d.date, ...day(d) })),
+  };
+}
+
+/**
+ * A short read-through cache in front of Whoop, shared by every instance.
+ *
+ * The signed-in response is private, so it can't sit in the edge cache the
+ * public one uses - which would put every dashboard load straight through to
+ * Whoop. That upstream call rate is precisely what broke the integration
+ * earlier: more calls means more token refreshes, and Whoop's refresh token is
+ * single-use. This bounds it at one upstream read per TTL no matter how often
+ * the page is opened or how many devices ask.
+ *
+ * Falls straight through to a live read if Redis is unavailable - a stale
+ * cache is an optimisation, never a dependency.
+ */
+const HISTORY_CACHE_KEY = "WHOOP_HISTORY_CACHE";
+const HISTORY_CACHE_MS = 5 * 60 * 1000;
+
+type CachedHistory = { fetchedAt: number; result: WhoopHistoryResult };
+
+async function fetchWhoopHistoryCached(days: number): Promise<WhoopHistoryResult> {
+  const cached = await getJSON<CachedHistory>(HISTORY_CACHE_KEY).catch(() => null);
+  if (cached && Date.now() - cached.fetchedAt < HISTORY_CACHE_MS) return cached.result;
+
+  try {
+    const result = await fetchWhoopHistory(days);
+    await setJSON(HISTORY_CACHE_KEY, { fetchedAt: Date.now(), result } satisfies CachedHistory).catch(() => {});
+    return result;
+  } catch (error) {
+    // Whoop is down or rate-limiting. A cached copy past its TTL beats an
+    // error page - the athlete would rather see this morning's recovery than
+    // a blank dashboard.
+    if (cached) {
+      console.error("Serving stale Whoop history", error);
+      return cached.result;
+    }
+    throw error;
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
-    const result = await fetchWhoopHistory(DAYS);
-    // Recovery lands each morning and strain climbs all day, so half an hour
-    // of edge cache plus an hour of stale-while-revalidate could show a figure
-    // up to 90 minutes behind the watch. Short enough now that the dashboard
-    // and the Whoop app do not visibly disagree.
-    res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=600");
+    const full = await fetchWhoopHistoryCached(DAYS);
+    const signedIn = !!getSessionEmail(req);
+    const result = signedIn ? full : toPublic(full);
+    // The two responses differ, so they must not share a cache entry. Only the
+    // trimmed public one is edge-cacheable; a signed-in response is private by
+    // definition and would otherwise be served to the next anonymous visitor.
+    if (!signedIn) {
+      res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=600");
+      res.status(200).json(result);
+      return;
+    }
+    res.setHeader("Cache-Control", "private, max-age=300");
     res.status(200).json(result);
+    return;
   } catch (error) {
     console.error(error);
-    // The reason, not just the fact. A bare "Unable to load Whoop data" gave
-    // no way to tell an expired authorisation (which needs the athlete to
-    // reconnect) from a rate limit or a Whoop outage (which need nothing but
-    // patience) - the messages thrown above name which, and none of them
-    // carry a token or any other secret.
     const reason = error instanceof Error ? error.message : "Unknown error";
     res.setHeader("Cache-Control", "no-store");
     res.status(502).json({ error: "Unable to load Whoop data", reason, reconnect: "/api/whoop-authorize" });
+    return;
   }
 }

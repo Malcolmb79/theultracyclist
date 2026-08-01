@@ -33,8 +33,10 @@ const TSS_COLOR = "#d6559e"; // daily training load - pink, matching the usual P
 // Weight is context for the fitness lines, not one of them, so it is drawn in
 // muted ink rather than given a fourth identity colour - the same choice
 // TrainingPeaks makes on its own Overall Fitness chart.
-const WEIGHT_COLOR = "var(--color-text-muted)";
-const WEIGHT_DOT_RADIUS = 1.6;
+// Muted rather than a fourth identity colour, but a step brighter than body
+// text so it separates from the grid it crosses.
+const WEIGHT_COLOR = "var(--color-text-secondary)";
+const WEIGHT_DOT_RADIUS = 2.4;
 
 export type WeightPoint = { date: string; value: number };
 
@@ -255,8 +257,22 @@ export default function PerformanceChart({ data, weight, weightUnit, availableHe
             return (
               <>
                 <path d={path.trim()} className={styles.weightLine} style={{ stroke: WEIGHT_COLOR }} />
+                {/* The overlay has no axis of its own - two labels give it a
+                    scale without a third column of tick marks eating the plot. */}
+                {[weightMax, weightMin].map((value, i) => (
+                  <text
+                    key={`w${i}`}
+                    x={LEFT_PAD + 3}
+                    y={toYWeight(value) + (i === 0 ? -4 : 9)}
+                    className={styles.axisLabel}
+                    style={{ fill: WEIGHT_COLOR }}
+                  >
+                    {Math.round(value * 10) / 10}
+                    {weightUnit ?? ""}
+                  </text>
+                ))}
                 {dots.map((d) => (
-                  <circle key={d.date} cx={d.x} cy={d.y} r={WEIGHT_DOT_RADIUS} fill={WEIGHT_COLOR} fillOpacity={0.85} />
+                  <circle key={d.date} cx={d.x} cy={d.y} r={WEIGHT_DOT_RADIUS} fill={WEIGHT_COLOR} />
                 ))}
               </>
             );

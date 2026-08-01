@@ -99,11 +99,15 @@
   opacity: 0.5;
 }
 
-/* Body weight overlay - thinner than the fitness lines and semi-transparent,
-   so it reads as background context rather than a fourth series competing
-   with the three that share the left axis. */
+/* Body weight overlay - still lighter than the fitness lines, but findable.
+   At 1.25px and 0.75 opacity it was invisible against the filled CTL band:
+   recessive is the goal, absent is not. Weight is measured on a handful of
+   days across a 90-day window, so the dots carry as much of the line as the
+   stroke does. */
 .weightLine {
   fill: none;
-  stroke-width: 1.25;
-  opacity: 0.75;
+  stroke-width: 1.75;
+  opacity: 0.95;
+  stroke-linejoin: round;
+  stroke-linecap: round;
 }

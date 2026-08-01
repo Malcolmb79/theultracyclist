@@ -267,5 +267,5 @@
   flex-direction: column;
   gap: 4px;
   font-size: 0.82rem;
-  color: var(--color-text-secondary);
+  color: var(--color-text-muted);
 }

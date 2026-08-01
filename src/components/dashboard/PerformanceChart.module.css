@@ -106,6 +106,9 @@
    stroke does. */
 .weightLine {
   fill: none;
+  /* Carries its own colour so the line survives even if the inline stroke is
+     ever dropped - an unstroked path is invisible, not merely wrong. */
+  stroke: var(--color-text-muted, #9aa4ae);
   stroke-width: 1.75;
   opacity: 0.95;
   stroke-linejoin: round;

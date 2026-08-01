@@ -33,9 +33,12 @@ const TSS_COLOR = "#d6559e"; // daily training load - pink, matching the usual P
 // Weight is context for the fitness lines, not one of them, so it is drawn in
 // muted ink rather than given a fourth identity colour - the same choice
 // TrainingPeaks makes on its own Overall Fitness chart.
-// Muted rather than a fourth identity colour, but a step brighter than body
-// text so it separates from the grid it crosses.
-const WEIGHT_COLOR = "var(--color-text-secondary)";
+// Muted rather than a fourth identity colour. The literal fallback matters:
+// --color-text-secondary was used here briefly and does not exist, and an
+// invalid var() drops the whole declaration - which left the dots falling back
+// to black fill and the line to SVG's default stroke of none. A colour this
+// chart depends on should not be able to vanish because a token was renamed.
+const WEIGHT_COLOR = "var(--color-text-muted, #9aa4ae)";
 const WEIGHT_DOT_RADIUS = 2.4;
 
 export type WeightPoint = { date: string; value: number };

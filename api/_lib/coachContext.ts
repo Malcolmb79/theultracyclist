@@ -15,6 +15,56 @@ export const ATHLETE_PROFILE =
   "Their training week runs Monday-Sunday, not Sunday-Saturday - the weekly distance/hours figures below are " +
   "already computed on that boundary, so reason about \"this week\" the same way.";
 
+/**
+ * A Whoop reading with the day it came from, rendered for the prompt.
+ *
+ * Withholding a reading that wasn't today's used to be the safeguard against
+ * the coach citing yesterday's number as this morning's - but a prompt that
+ * named no recovery score while still asking for specific numbers just got one
+ * invented: "your recovery score came in at 67 this morning" beside a
+ * dashboard reading 29%. Handing over the latest reading *and* its date gives
+ * it something true to say either way, and nothing to fill in.
+ */
+export function readingLine(
+  label: string,
+  value: number | null | undefined,
+  date: string | null | undefined,
+  unit: string,
+  todayStr: string,
+): string {
+  if (value == null) return `${label}: no reading on record`;
+  if (!date) return `${label}: ${value}${unit} (day unknown - do not call it today's)`;
+  if (date === todayStr) return `${label}: ${value}${unit} - today's reading`;
+  return `${label}: ${value}${unit} - from ${describeDate(date, todayStr)}, NOT today's; today's has not arrived from Whoop yet`;
+}
+
+function describeDate(date: string, todayStr: string): string {
+  const days = Math.round((Date.parse(`${todayStr}T00:00:00Z`) - Date.parse(`${date}T00:00:00Z`)) / 86_400_000);
+  const long = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "UTC",
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).format(new Date(`${date}T12:00:00Z`));
+  if (days === 1) return `yesterday, ${long}`;
+  if (days > 1) return `${days} days ago, ${long}`;
+  return long;
+}
+
+/**
+ * Told to the coach alongside those readings. Without it the model has the
+ * date but no instruction to pass it on, and speaks about a three-day-old
+ * sleep score as if it were last night's.
+ */
+export const READING_HONESTY =
+  "Every number you state about recovery, HRV, resting heart rate, sleep or strain must appear verbatim in the " +
+  "readings below - never estimate one, never average two, never carry a figure over from another day. Each " +
+  "reading is labelled with the day it came from. If a reading is not today's, say so and name the day it is " +
+  "from before drawing anything from it; do not present it as this morning's. If a reading has no record at " +
+  "all, say it hasn't come through rather than quietly working around the gap. The athlete reads your reply " +
+  "beside the widgets showing the same figures, so an unlabelled or invented number contradicts what is on the " +
+  "screen next to it.";
+
 export const DATA_SEMANTICS =
   'Data semantics: on the Sleep, Recovery & Strain dashboard, "today"\'s strain is LIVE - it keeps rising all ' +
   'day as activity accumulates and is not final until the day ends. "Today"\'s recovery and sleep scores are ' +

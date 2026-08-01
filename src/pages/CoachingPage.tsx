@@ -381,22 +381,35 @@ function CoachingView() {
 }
 
 function narrativeInputFrom(data: Extract<ReturnType<typeof useCoachingData>, { status: "ready" }>): NarrativeInput {
-  const latest = data.recoveryHistory.at(-1);
-  // Recovery/HRV/RHR/sleep are a once-daily morning reading (see
-  // DATA_SEMANTICS) - when today's hasn't landed yet, `latest` is still
-  // yesterday's. Passing those through anyway would have the coach cite a
-  // stale number as if it were today's (the same class of bug that made it
-  // fabricate a "last week" date range), so they're left out of the AI
-  // coach's own snapshot entirely rather than mislabelled - the Readiness
-  // widget itself just shows whatever the latest reading is, stale or not.
-  // Strain is unaffected here since it's live/continuous, not once-daily.
+  // The last day each field was actually scored, with the day it came from.
+  // Whoop publishes recovery and sleep hours after the watch shows them and
+  // strain climbs live all day, so the newest cycle is often part-empty and
+  // the three can be from three different days. Sending only what was
+  // definitely today's used to be the guard against a stale number being read
+  // as this morning's - it backfired, since a prompt with no recovery score
+  // in it got one invented. Send the latest of each and let the coach name
+  // the day. Same per-field fallback the rings widget uses.
+  const newestScored = <K extends "recovery" | "strain" | "sleepPerformance">(key: K) => {
+    for (let i = data.recoveryHistory.length - 1; i >= 0; i--) {
+      const entry = data.recoveryHistory[i];
+      if (entry[key] != null) return entry;
+    }
+    return null;
+  };
+  const recovery = newestScored("recovery");
+  const strain = newestScored("strain");
+  const sleep = newestScored("sleepPerformance");
+
   return {
-    recoveryScore: data.readinessDataIsFresh ? data.readiness.recoveryScore : null,
-    hrvMs: data.readinessDataIsFresh ? (latest?.hrvMs ?? null) : null,
-    restingHeartRate: data.readinessDataIsFresh ? (latest?.restingHeartRate ?? null) : null,
-    strainScore: latest?.strain ?? null,
+    recoveryScore: recovery?.recovery ?? null,
+    hrvMs: recovery?.hrvMs ?? null,
+    restingHeartRate: recovery?.restingHeartRate ?? null,
+    strainScore: strain?.strain ?? null,
+    recoveryDate: recovery?.date ?? null,
+    strainDate: strain?.date ?? null,
+    sleepDate: sleep?.date ?? null,
     recentAvgStrain: data.readiness.recentAvgStrain,
-    sleepPerformance: data.readinessDataIsFresh ? (latest?.sleepPerformance ?? null) : null,
+    sleepPerformance: sleep?.sleepPerformance ?? null,
     weeklyDistanceKm: data.weeklyProgress.distanceKm,
     weeklyTargetKm: data.weeklyProgress.distanceTargetKm,
     phase: data.settings.phase ?? null,

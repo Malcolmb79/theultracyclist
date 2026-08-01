@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getSessionEmail } from "./_lib/session.js";
 import { irelandTimeContext } from "./_lib/timeContext.js";
-import { ATHLETE_PROFILE, DATA_SEMANTICS, SEASON_PLAN, LANGUAGE_STYLE } from "./_lib/coachContext.js";
+import { ATHLETE_PROFILE, DATA_SEMANTICS, SEASON_PLAN, LANGUAGE_STYLE, READING_HONESTY, readingLine } from "./_lib/coachContext.js";
 import { fetchWhoopHistory } from "./whoop-data.js";
 import { fetchStravaRides } from "./strava-activities.js";
 import { fetchHealthHistory } from "./health-data.js";
@@ -34,6 +34,16 @@ export type ChatContext = {
   hrvMs: number | null;
   restingHeartRate: number | null;
   strainScore: number | null;
+  /**
+   * The day each reading belongs to (YYYY-MM-DD, Irish). Recovery, HRV and RHR
+   * share one - they are scored together each morning - while sleep and strain
+   * can lag or lead it independently, so each carries its own. Sent even when
+   * it is today's: the coach is told to name the day whenever it isn't, and it
+   * cannot do that without knowing which day it has.
+   */
+  recoveryDate: string | null;
+  sleepDate: string | null;
+  strainDate: string | null;
   recentAvgStrain: number | null;
   sleepPerformance: number | null;
   weeklyDistanceKm: number | null;
@@ -482,12 +492,22 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
 
 function buildSystemPrompt(context: Partial<ChatContext>): string {
   const lines: string[] = [];
-  if (context.recoveryScore != null) lines.push(`Recovery score: ${context.recoveryScore}%`);
-  if (context.hrvMs != null) lines.push(`HRV: ${context.hrvMs} ms`);
-  if (context.restingHeartRate != null) lines.push(`Resting heart rate: ${context.restingHeartRate} bpm`);
-  if (context.strainScore != null) lines.push(`Today's strain so far (live, still rising through the day): ${context.strainScore}`);
+  // Read fresh on every message, and each one labelled with the day it came
+  // from - the coach is told to name that day whenever it is not today's
+  // rather than letting a stale figure pass as this morning's.
+  const todayStr = irelandTodayDateStr();
+  lines.push(readingLine("Recovery score", context.recoveryScore, context.recoveryDate, "%", todayStr));
+  lines.push(readingLine("HRV", context.hrvMs, context.recoveryDate, " ms", todayStr));
+  lines.push(readingLine("Resting heart rate", context.restingHeartRate, context.recoveryDate, " bpm", todayStr));
+  lines.push(
+    context.strainScore == null
+      ? "Strain: no reading on record"
+      : context.strainDate === todayStr
+        ? `Strain so far today: ${context.strainScore} - LIVE, read just now, still rising as the day goes on`
+        : readingLine("Strain", context.strainScore, context.strainDate, "", todayStr),
+  );
   if (context.recentAvgStrain != null) lines.push(`Average strain, last 3 days: ${context.recentAvgStrain}`);
-  if (context.sleepPerformance != null) lines.push(`Sleep performance: ${context.sleepPerformance}%`);
+  lines.push(readingLine("Sleep performance", context.sleepPerformance, context.sleepDate, "%", todayStr));
   if (context.weeklyDistanceKm != null && context.weeklyTargetKm != null) {
     lines.push(`This week's distance so far: ${context.weeklyDistanceKm}km of a ${context.weeklyTargetKm}km target`);
   }
@@ -578,6 +598,8 @@ function buildSystemPrompt(context: Partial<ChatContext>): string {
     ATHLETE_PROFILE +
     "\n\n" +
     DATA_SEMANTICS +
+    "\n\n" +
+    READING_HONESTY +
     "\n\n" +
     SEASON_PLAN +
     "\n\n" +

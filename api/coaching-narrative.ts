@@ -1,7 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getSessionEmail } from "./_lib/session.js";
+import { computeChatContext } from "./_lib/coachSnapshot.js";
 import { irelandTimeContext, irelandTodayDateStr } from "./_lib/timeContext.js";
-import { ATHLETE_PROFILE, DATA_SEMANTICS, SEASON_PLAN, LANGUAGE_STYLE } from "./_lib/coachContext.js";
+import { ATHLETE_PROFILE, DATA_SEMANTICS, SEASON_PLAN, LANGUAGE_STYLE, READING_HONESTY, readingLine } from "./_lib/coachContext.js";
 
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const MODEL = "claude-haiku-4-5-20251001";
@@ -11,6 +12,16 @@ export type NarrativeInput = {
   hrvMs: number | null;
   restingHeartRate: number | null;
   strainScore: number | null;
+  /**
+   * The day each reading belongs to (YYYY-MM-DD, Irish). Recovery, HRV and RHR
+   * share one - they are scored together each morning - while sleep and strain
+   * can lag or lead it independently, so each carries its own. Sent even when
+   * it is today's: the coach is told to name the day whenever it isn't, and it
+   * cannot do that without knowing which day it has.
+   */
+  recoveryDate: string | null;
+  sleepDate: string | null;
+  strainDate: string | null;
   recentAvgStrain: number | null;
   sleepPerformance: number | null;
   weeklyDistanceKm: number | null;
@@ -28,27 +39,23 @@ function today(): string {
   return irelandTodayDateStr();
 }
 
-/**
- * A reading the athlete doesn't have yet has to say so.
- *
- * Omitting the line left a prompt that named no recovery score while still
- * asking for "the specific numbers", and the model filled the gap: it opened a
- * morning note with "your recovery score came in at 67 this morning" on a day
- * the dashboard beside it read 29%. There was no 67 anywhere in the history.
- * Stating the absence costs one line and leaves nothing to invent.
- */
-function line(label: string, value: number | null, unit: string): string {
-  return value == null ? `${label}: not available yet` : `${label}: ${value}${unit}`;
-}
-
 function buildPrompt(input: NarrativeInput): string {
+  const todayStr = today();
   const lines: string[] = [];
-  lines.push(line("Recovery score", input.recoveryScore, "%"));
-  lines.push(line("HRV", input.hrvMs, " ms"));
-  lines.push(line("Resting heart rate", input.restingHeartRate, " bpm"));
-  if (input.strainScore != null) lines.push(`Today's strain so far (live, still rising through the day): ${input.strainScore}`);
+  lines.push(readingLine("Recovery score", input.recoveryScore, input.recoveryDate, "%", todayStr));
+  lines.push(readingLine("HRV", input.hrvMs, input.recoveryDate, " ms", todayStr));
+  lines.push(readingLine("Resting heart rate", input.restingHeartRate, input.recoveryDate, " bpm", todayStr));
+  // Strain is the one live figure here: it climbs all day and is read fresh on
+  // every request, so it is the current total, not a settled score.
+  lines.push(
+    input.strainScore == null
+      ? "Strain: no reading on record"
+      : input.strainDate === todayStr
+        ? `Strain so far today: ${input.strainScore} - LIVE, read just now, still rising as the day goes on`
+        : readingLine("Strain", input.strainScore, input.strainDate, "", todayStr),
+  );
   if (input.recentAvgStrain != null) lines.push(`Average strain, last 3 days: ${input.recentAvgStrain}`);
-  lines.push(line("Sleep performance", input.sleepPerformance, "%"));
+  lines.push(readingLine("Sleep performance", input.sleepPerformance, input.sleepDate, "%", todayStr));
   if (input.weeklyDistanceKm != null && input.weeklyTargetKm != null) {
     lines.push(`This week's distance so far: ${input.weeklyDistanceKm}km of a ${input.weeklyTargetKm}km target`);
   }
@@ -86,11 +93,8 @@ function buildPrompt(input: NarrativeInput): string {
     "have, don't ask what's on the schedule or suggest they still need to train today; instead speak to " +
     "recovery from that ride and what it means for tomorrow. Be direct and practical, not generic " +
     "motivational filler. Do not use markdown formatting.\n\n" +
-    "Every number you state must appear verbatim in the readings below. Any reading marked \"not available yet\" " +
-    "has not arrived from the athlete's watch - say it hasn't landed, or simply write around it. Never estimate " +
-    "one, never carry over a figure from a previous day, and never state a number you were not given: the " +
-    "athlete is reading this beside the widgets showing the same data, and an invented figure contradicts what " +
-    "is on the screen next to it.\n\n" +
+    READING_HONESTY +
+    "\n\n" +
     (input.customRules
       ? `The athlete has set these standing rules - always follow them, even over generic best practice:\n${input.customRules}\n\n`
       : "") +
@@ -113,9 +117,11 @@ function cacheKey(date: string, input: NarrativeInput): string {
   return [
     date,
     input.recoveryScore,
+    input.recoveryDate,
     input.hrvMs,
     input.restingHeartRate,
     input.sleepPerformance,
+    input.sleepDate,
     input.hasRiddenToday,
   ].join("|");
 }
@@ -138,7 +144,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const date = today();
-  const input = req.body as NarrativeInput;
+  // Read Whoop server-side rather than trusting the snapshot the browser
+  // posted. The browser's came from /api/whoop-data behind an edge cache, so
+  // it can be up to a quarter of an hour behind the watch - and a note that
+  // opens with this morning's recovery has to be looking at this morning's
+  // recovery. Server values win where it has them; the client's fill any gap.
+  // Same merge the chat endpoint does.
+  const posted = req.body as NarrativeInput;
+  const live = await computeChatContext().catch(() => ({}));
+  const input: NarrativeInput = { ...posted };
+  for (const [field, value] of Object.entries(live)) {
+    if (value != null) (input as Record<string, unknown>)[field] = value;
+  }
   const key = cacheKey(date, input);
   if (cached && cached.key === key) {
     res.status(200).json({ configured: true, text: cached.text, cached: true });

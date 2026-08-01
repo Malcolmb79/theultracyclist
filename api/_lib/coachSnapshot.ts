@@ -80,22 +80,35 @@ export async function computeChatContext(): Promise<Partial<ChatContext>> {
     ? Math.round(todaysRides.reduce((sum, r) => sum + r.distanceKm, 0) * 10) / 10
     : null;
 
-  // Recovery/HRV/RHR/sleep are a once-daily morning reading (see
-  // DATA_SEMANTICS in coachContext.ts) - if today's hasn't landed from
-  // Whoop yet, `latest` is still yesterday's. Passing those through anyway
-  // would have the coach cite a stale number as if it were today's, so
-  // they're left out entirely rather than mislabelled, matching the same
-  // fix on the browser side (useCoachingData.ts's readinessDataIsFresh).
-  // Strain is unaffected since it's live/continuous, not once-daily.
-  const latestIsFresh = latest ? whoopDayStr(new Date(latest.date)) === todayStr : false;
+  // Each field falls back to the last day it was actually scored, and its day
+  // travels with it. Whoop publishes recovery and sleep hours after the watch
+  // shows them and strain climbs live all day, so the newest cycle is often
+  // part-empty - and the three fields can legitimately be from three different
+  // days. Withholding anything that wasn't today's was the previous guard
+  // against a stale figure being read as this morning's; it backfired, because
+  // a prompt with no recovery score in it got one invented. The coach is given
+  // the latest of everything and told to name the day whenever it isn't
+  // today's. Same per-field fallback as the rings widget (src/utils/latestWhoop.ts).
+  const newestScored = <K extends "recovery" | "strain" | "sleep">(key: K) => {
+    for (const day of history) {
+      if (day[key]) return { value: day[key], date: whoopDayStr(new Date(day.date)) };
+    }
+    return null;
+  };
+  const recovery = newestScored("recovery");
+  const strain = newestScored("strain");
+  const sleep = newestScored("sleep");
 
   return {
-    recoveryScore: latestIsFresh ? (latest?.recovery?.score ?? null) : null,
-    hrvMs: latestIsFresh ? (latest?.recovery?.hrvMs ?? null) : null,
-    restingHeartRate: latestIsFresh ? (latest?.recovery?.restingHeartRate ?? null) : null,
-    strainScore: latest?.strain?.score ?? null,
+    recoveryScore: recovery?.value?.score ?? null,
+    hrvMs: recovery?.value?.hrvMs ?? null,
+    restingHeartRate: recovery?.value?.restingHeartRate ?? null,
+    strainScore: strain?.value?.score ?? null,
+    recoveryDate: recovery?.date ?? null,
+    strainDate: strain?.date ?? null,
+    sleepDate: sleep?.date ?? null,
     recentAvgStrain,
-    sleepPerformance: latestIsFresh ? (latest?.sleep?.performancePercent ?? null) : null,
+    sleepPerformance: sleep?.value?.performancePercent ?? null,
     weeklyDistanceKm,
     weeklyTargetKm: settings.weeklyDistanceKm ?? null,
     phase: settings.phase ?? null,

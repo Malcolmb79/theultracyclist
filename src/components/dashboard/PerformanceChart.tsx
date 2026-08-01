@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 import { useMeasuredWidth } from "../../utils/useMeasuredWidth";
 import { useMeasuredHeight } from "../../utils/useMeasuredHeight";
 import type { PerformancePoint } from "../../utils/performanceSeries";
@@ -106,6 +107,9 @@ function niceTicks(min: number, max: number, count = 4): number[] {
 // track for the season" (the plan comparison), rather than two separate
 // charts competing for the same widget space.
 export default function PerformanceChart({ data, weight, weightUnit, availableHeight }: PerformanceChartProps) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  /** Index into `data` of the day being inspected, or null when nothing is held. */
+  const [probe, setProbe] = useState<number | null>(null);
   const [containerRef, viewWidth] = useMeasuredWidth(FALLBACK_WIDTH);
   const [legendRef, legendHeight] = useMeasuredHeight(FALLBACK_LEGEND_HEIGHT);
 
@@ -187,6 +191,30 @@ export default function PerformanceChart({ data, weight, weightUnit, availableHe
   const todayIndex = data.findIndex((p) => p.projected === true) - 1;
   const hasProjection = data.some((p) => p.projected === true);
 
+  /**
+   * The day under the finger.
+   *
+   * Read against the SVG's own box rather than the wrapper's, so the reading
+   * stays aligned when the widget is scrolled or the plot is not flush with
+   * its container. Snapped to a whole index because the x axis is days: a
+   * readout interpolating between them would show a date that jitters while
+   * the finger holds still.
+   */
+  const indexAtClientX = (clientX: number): number => {
+    const box = svgRef.current?.getBoundingClientRect();
+    if (!box || data.length < 2) return 0;
+    const ratio = (clientX - box.left - LEFT_PAD) / plotWidth;
+    return Math.min(data.length - 1, Math.max(0, Math.round(ratio * (data.length - 1))));
+  };
+  const endProbe = () => setProbe(null);
+
+  const probed = probe == null ? null : data[probe];
+  const probeX = probed ? toX(probe as number) : 0;
+  const probeWeight = probed ? weightByIndex.get(probed.date) : undefined;
+  // Flips to the left of the crosshair rather than running off a narrow card.
+  const READOUT_WIDTH = 128;
+  const readoutFlipped = probeX + READOUT_WIDTH + 8 > viewWidth;
+
   // End-of-line value labels for CTL/ATL/TSB, nudged apart vertically when
   // two of them land within MIN_LABEL_GAP of each other so the text doesn't
   // overlap (common when form/fatigue converge).
@@ -208,12 +236,26 @@ export default function PerformanceChart({ data, weight, weightUnit, availableHe
   return (
     <div ref={containerRef} className={styles.wrap}>
       <svg
+        ref={svgRef}
         width={viewWidth}
         height={viewHeight}
         viewBox={`0 0 ${viewWidth} ${viewHeight}`}
         xmlns="http://www.w3.org/2000/svg"
         aria-hidden="true"
+        className={styles.plot}
         style={{ display: "block" }}
+        // Pointer events cover touch, pen and mouse together. Capture keeps
+        // the readout following a finger that slides off the plot mid-drag.
+        onPointerDown={(e) => {
+          e.currentTarget.setPointerCapture(e.pointerId);
+          setProbe(indexAtClientX(e.clientX));
+        }}
+        onPointerMove={(e) => {
+          if (probe != null) setProbe(indexAtClientX(e.clientX));
+        }}
+        onPointerUp={endProbe}
+        onPointerCancel={endProbe}
+        onPointerLeave={endProbe}
       >
         {yTicks.map((tick) => (
           <g key={tick}>
@@ -358,6 +400,58 @@ export default function PerformanceChart({ data, weight, weightUnit, availableHe
         <text x={plotRightEdge} y={viewHeight - 6} textAnchor="end" className={styles.dateLabel}>
           {shortDate(latest.date)}
         </text>
+        {/* What is under the finger. Drawn last so it sits over every line. */}
+        {probed && (
+          <g pointerEvents="none">
+            <line x1={probeX} x2={probeX} y1={TOP_PAD} y2={TOP_PAD + plotHeight} className={styles.probeLine} />
+            <circle cx={probeX} cy={toY(probed.ctl)} r={3} fill={ctlColorFor(probed.ctl)} />
+            <circle cx={probeX} cy={toY(probed.atl)} r={3} fill={ATL_COLOR} />
+            <circle cx={probeX} cy={toY(probed.tsb)} r={3} fill={TSB_COLOR} />
+            {probeWeight != null && <circle cx={probeX} cy={toYWeight(probeWeight)} r={3} fill={WEIGHT_COLOR} />}
+            <foreignObject
+              x={readoutFlipped ? probeX - READOUT_WIDTH - 8 : probeX + 8}
+              y={TOP_PAD}
+              width={READOUT_WIDTH}
+              height={plotHeight}
+            >
+              <div className={styles.readout}>
+                <span className={styles.readoutDate}>
+                  {shortDate(probed.date)}
+                  {probed.projected && <span className={styles.readoutTag}> projected</span>}
+                </span>
+                <span className={styles.readoutRow}>
+                  <i className={styles.readoutSwatch} style={{ background: ctlColorFor(probed.ctl) }} />
+                  CTL {fmt(probed.ctl)}
+                  {probed.ctlTarget != null && <span className={styles.readoutTarget}>/{fmt(probed.ctlTarget)}</span>}
+                </span>
+                <span className={styles.readoutRow}>
+                  <i className={styles.readoutSwatch} style={{ background: ATL_COLOR }} />
+                  ATL {fmt(probed.atl)}
+                </span>
+                <span className={styles.readoutRow}>
+                  <i className={styles.readoutSwatch} style={{ background: TSB_COLOR }} />
+                  TSB {fmt(probed.tsb)}
+                  {probed.tsbTarget != null && <span className={styles.readoutTarget}>/{fmt(probed.tsbTarget)}</span>}
+                </span>
+                {/* Only on days with training - a zero on every rest day is
+                    three-quarters of the column saying nothing. */}
+                {probed.tss > 0 && (
+                  <span className={styles.readoutRow}>
+                    <i className={styles.readoutSwatch} style={{ background: TSS_COLOR }} />
+                    TSS {fmt(probed.tss)}
+                  </span>
+                )}
+                {probeWeight != null && (
+                  <span className={styles.readoutRow}>
+                    <i className={styles.readoutSwatch} style={{ background: WEIGHT_COLOR }} />
+                    {Math.round(probeWeight * 10) / 10}
+                    {weightUnit ?? ""}
+                  </span>
+                )}
+              </div>
+            </foreignObject>
+          </g>
+        )}
       </svg>
 
       <div ref={legendRef} className={styles.legend}>

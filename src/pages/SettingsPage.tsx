@@ -40,6 +40,8 @@ const PAGE_RANGE_ORDER: { page: DashboardPageId; label: string }[] = [
   { page: "coaching", label: "Coaching" },
 ];
 
+type TpEvent = { date: string; title: string; tss?: number; tssEstimated?: boolean };
+
 export default function SettingsPage() {
   useDashboardTheme();
   const auth = useAuthSession();
@@ -112,10 +114,16 @@ function SettingsEditor() {
     DEFAULT_CALORIE_BURN_ESTIMATE.dailyTargetKcal.toString(),
   );
   const [caloriesBurnTargetTimeInput, setCaloriesBurnTargetTimeInput] = useState(DEFAULT_CALORIE_BURN_ESTIMATE.targetTime);
-  const [saving, setSaving] = useState<"ftp" | "height" | "targets" | "garmin" | "liveTracker" | "caloriesBurn" | null>(
+  const [saving, setSaving] = useState<
+    "ftp" | "height" | "targets" | "garmin" | "liveTracker" | "caloriesBurn" | "trainingPeaks" | null
+  >(
     null,
   );
   const [garminUrlInput, setGarminUrlInput] = useState("");
+  const [tpUrlInput, setTpUrlInput] = useState("");
+  const [tpCheck, setTpCheck] = useState<
+    { status: "idle" } | { status: "checking" } | { status: "done"; events: TpEvent[]; error?: string }
+  >({ status: "idle" });
   const [gpxUrlInput, setGpxUrlInput] = useState("");
   const [positionFeedUrlInput, setPositionFeedUrlInput] = useState("");
   const [targetHoursInput, setTargetHoursInput] = useState("18");
@@ -156,6 +164,7 @@ function SettingsEditor() {
         setHoursInput(s.weeklyHours?.toString() ?? "");
         setPictureDataUrl(s.profilePictureDataUrl);
         setGarminUrlInput(s.garminLiveTrackUrl ?? "");
+        setTpUrlInput(s.trainingPeaksIcsUrl ?? "");
         setCaloriesBurnWakeTimeInput(s.caloriesBurnWakeTime ?? DEFAULT_CALORIE_BURN_ESTIMATE.wakeTime);
         setCaloriesBurnTargetInput((s.caloriesBurnTarget ?? DEFAULT_CALORIE_BURN_ESTIMATE.dailyTargetKcal).toString());
         setCaloriesBurnTargetTimeInput(s.caloriesBurnTargetTime ?? DEFAULT_CALORIE_BURN_ESTIMATE.targetTime);
@@ -245,6 +254,22 @@ function SettingsEditor() {
         caloriesBurnTarget: caloriesBurnTargetInput === "" ? undefined : Number(caloriesBurnTargetInput),
         caloriesBurnTargetTime: caloriesBurnTargetTimeInput || undefined,
       });
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const handleSaveTrainingPeaksUrl = async () => {
+    if (!settings) return;
+    setSaving("trainingPeaks");
+    try {
+      await persist({ ...settings, trainingPeaksIcsUrl: tpUrlInput.trim() === "" ? undefined : tpUrlInput.trim() });
+      // Read it straight back so the athlete sees what the feed actually
+      // contains rather than a "Saved" that proves nothing.
+      setTpCheck({ status: "checking" });
+      const res = await fetch("/api/trainingpeaks-calendar?refresh=1");
+      const body = (await res.json()) as { events?: TpEvent[]; error?: string };
+      setTpCheck({ status: "done", events: body.events ?? [], error: body.error });
     } finally {
       setSaving(null);
     }
@@ -698,6 +723,58 @@ function SettingsEditor() {
           <a href="/api/whoop-authorize" className={styles.connectButton}>
             Reconnect Whoop
           </a>
+        </div>
+
+        <div className={styles.section}>
+          <p className={styles.sectionTitle}>TrainingPeaks calendar</p>
+          <p className={styles.sectionHint}>
+            TrainingPeaks has no personal API, so a Premium calendar feed is the only way to pull your planned
+            workouts in automatically. In TrainingPeaks go to Settings &rarr; Calendar Sync and copy the .ics link,
+            then paste it here. Two caveats worth knowing: the feed only reaches{" "}
+            <strong>14 days ahead</strong> and can lag the app by up to a day, and TrainingPeaks does not put
+            planned TSS in it at all &mdash; so load is estimated from each session&apos;s length unless you write
+            &quot;TSS 85&quot; into the workout title or description, which is read exactly.
+          </p>
+          <input
+            type="text"
+            className={`${styles.input} ${styles.inputWide}`}
+            value={tpUrlInput}
+            onChange={(e) => setTpUrlInput(e.target.value)}
+            placeholder="webcal://www.trainingpeaks.com/ical/..."
+          />
+          <button
+            type="button"
+            className={styles.saveButton}
+            onClick={handleSaveTrainingPeaksUrl}
+            disabled={saving === "trainingPeaks" || !settings}
+          >
+            {saving === "trainingPeaks" ? "Saving…" : "Save and check"}
+          </button>
+          {tpCheck.status === "checking" && <p className={styles.sectionHint}>Reading the calendar…</p>}
+          {tpCheck.status === "done" && (
+            tpCheck.error ? (
+              <p className={styles.sectionHint}>Couldn&apos;t read that feed: {tpCheck.error}</p>
+            ) : tpCheck.events.length === 0 ? (
+              <p className={styles.sectionHint}>
+                The feed loaded but held no workouts. TrainingPeaks only publishes 5 days back and 14 forward, so
+                an empty fortnight reads the same as a wrong link.
+              </p>
+            ) : (
+              <>
+                <p className={styles.sectionHint}>
+                  Found {tpCheck.events.length} workout{tpCheck.events.length === 1 ? "" : "s"}:
+                </p>
+                <ul className={styles.plainList}>
+                  {tpCheck.events.slice(0, 8).map((e, i) => (
+                    <li key={i}>
+                      {e.date} — {e.title}
+                      {e.tss != null && ` · ${e.tss} TSS${e.tssEstimated ? " (estimated)" : ""}`}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )
+          )}
         </div>
 
         <div className={styles.section}>

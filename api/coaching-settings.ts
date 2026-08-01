@@ -73,6 +73,8 @@ export type CoachingSettings = {
    * Trends on 90 days wants that on the phone too.
    */
   pageDateRanges?: Record<string, string>;
+  /** TrainingPeaks Premium calendar feed URL - see api/trainingpeaks-calendar.ts. */
+  trainingPeaksIcsUrl?: string;
 };
 
 // KV shape: profile fields (ftpWatts, heightCm, ...) are shared across every
@@ -178,6 +180,7 @@ export async function fetchCoachingSettings(): Promise<CoachingSettings> {
     caloriesBurnTarget: stored.caloriesBurnTarget,
     caloriesBurnTargetTime: stored.caloriesBurnTargetTime,
     pageDateRanges: stored.pageDateRanges,
+    trainingPeaksIcsUrl: stored.trainingPeaksIcsUrl,
   };
 }
 
@@ -225,6 +228,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       caloriesBurnTarget: incoming.caloriesBurnTarget,
       caloriesBurnTargetTime: incoming.caloriesBurnTargetTime,
       pageDateRanges: incoming.pageDateRanges,
+      trainingPeaksIcsUrl: incoming.trainingPeaksIcsUrl,
       widgetsByDevice,
       // A save from today's client always sends an already-migrated list
       // (or a deliberately-emptied one) - either way, the array is now the
@@ -265,6 +269,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     caloriesBurnTarget: stored.caloriesBurnTarget,
     caloriesBurnTargetTime: stored.caloriesBurnTargetTime,
     pageDateRanges: stored.pageDateRanges,
+    trainingPeaksIcsUrl: stored.trainingPeaksIcsUrl,
     widgets,
   };
   res.status(200).json({ settings });

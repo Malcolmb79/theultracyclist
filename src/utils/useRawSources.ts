@@ -5,6 +5,20 @@ import { PROJECTION_DAYS, type PlannedTss } from "./performanceSeries";
 
 // Only the future matters here - the performance chart projects forward
 // through planned work, and anything already ridden comes from Strava.
+/**
+ * The athlete's own saved workouts win over the TrainingPeaks feed for any day
+ * they both cover. A session entered here is deliberate and current; the feed
+ * runs up to 24 hours behind and carries no TSS of its own, so letting it
+ * override would replace a real figure with an estimate.
+ */
+function mergePlanned(saved: PlannedTss[], feed: { date: string; tss?: number }[]): PlannedTss[] {
+  const savedDays = new Set(saved.map((w) => w.date.slice(0, 10)));
+  const extra = feed
+    .filter((e) => e.tss != null && !savedDays.has(e.date))
+    .map((e) => ({ date: e.date, tssPlanned: e.tss }));
+  return [...saved, ...extra];
+}
+
 export function plannedWorkoutsPath(): string {
   const today = irelandTodayDateStr();
   const end = new Date(`${today}T00:00:00Z`);
@@ -86,7 +100,7 @@ export function useRawSources(device: DeviceCategory): RawSourcesState {
     };
 
     try {
-      const [whoop, strava, health, settingsBody, goalsBody, plannedBody] = await Promise.all([
+      const [whoop, strava, health, settingsBody, goalsBody, plannedBody, tpBody] = await Promise.all([
         withDeadline("/api/whoop-data"),
         // A generous count (not the default 6 "recent rides" list) so the
         // Performance Chart's CTL/ATL/TSB has real ride history behind it
@@ -99,6 +113,9 @@ export function useRawSources(device: DeviceCategory): RawSourcesState {
         // Future workouts on the calendar - what the performance chart
         // projects CTL/ATL/TSB forward through.
         withDeadline(plannedWorkoutsPath()),
+        // The TrainingPeaks calendar feed, if one is configured. Merged with
+        // the saved workouts rather than stored, so it never overwrites them.
+        withDeadline("/api/trainingpeaks-calendar"),
       ]);
       if (cancelledRef.current) return;
       setState({
@@ -107,7 +124,10 @@ export function useRawSources(device: DeviceCategory): RawSourcesState {
         strava,
         health,
         goals: (goalsBody as { goals?: Record<string, unknown> } | null)?.goals ?? {},
-        planned: (plannedBody as { workouts?: PlannedTss[] } | null)?.workouts ?? [],
+        planned: mergePlanned(
+          (plannedBody as { workouts?: PlannedTss[] } | null)?.workouts ?? [],
+          (tpBody as { events?: { date: string; tss?: number }[] } | null)?.events ?? [],
+        ),
         settings: (settingsBody as { settings?: Record<string, unknown> } | null)?.settings ?? {},
         saveSettings,
         refetch: load,

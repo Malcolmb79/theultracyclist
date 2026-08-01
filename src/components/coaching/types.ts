@@ -76,6 +76,13 @@ export type CoachingSettings = {
    * it sits on; PAGE_RANGE_FALLBACK covers anything unset.
    */
   pageDateRanges?: PageDateRanges;
+  /**
+   * The athlete's TrainingPeaks Premium calendar feed (webcal:// or https://).
+   * TrainingPeaks has no personal API, so this feed is the only automatable
+   * way in - read-only, and never merged into saved workouts. See
+   * api/trainingpeaks-calendar.ts.
+   */
+  trainingPeaksIcsUrl?: string;
 };
 
 export type ReadinessLevel = "hard" | "moderate" | "easy" | "rest";

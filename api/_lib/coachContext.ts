@@ -93,6 +93,26 @@ export const TRAININGPEAKS_PRECEDENCE =
   "estimate. Never average the two or present a derived number as though it came from TrainingPeaks. If " +
   "TrainingPeaks is not connected or its connection has expired, say which source you are using.";
 
+/**
+ * Used in place of TRAININGPEAKS_PRECEDENCE once TrainingPeaks is answering.
+ *
+ * "Prefer TrainingPeaks" left the coach still holding two sets of figures, and
+ * it opened a reply with "computed from your Strava power data" on a question
+ * that named TrainingPeaks. When TrainingPeaks has the data it is not the
+ * better source, it is the only one - so the alternative is not to be quoted,
+ * caveated, or mentioned at all.
+ */
+export const TRAININGPEAKS_SOLE_SOURCE =
+  "TrainingPeaks is connected and is the SINGLE SOURCE OF TRUTH. Every figure you give for CTL, ATL, TSB, " +
+  "form, training load, planned TSS or the Annual Training Plan must come from get_trainingpeaks and " +
+  "nothing else. Do not compute these yourself, do not quote the dashboard's versions, and do not caveat " +
+  "your answer with where it came from - the athlete knows, and a phrase like \"computed from your Strava " +
+  "power data\" is simply wrong now. Never contrast the two sources or explain that they differ unless the " +
+  "athlete asks about the difference directly. Individual rides are a separate matter: get_rides still " +
+  "describes what a given ride did, and that is not something TrainingPeaks overrides. If a specific figure " +
+  "is genuinely missing from TrainingPeaks, say it is not in TrainingPeaks rather than substituting one " +
+  "from somewhere else.";
+
 export const SEASON_PLAN =
   "Season plan (from the athlete's TrainingPeaks Annual Training Plan): periodised toward the target event itself " +
   '- "World Record Ultra", the week of June 7-13, 2027 (the Ireland north-south unsupported record attempt). ' +

@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getSessionEmail } from "./_lib/session.js";
 import { irelandTimeContext } from "./_lib/timeContext.js";
-import { ATHLETE_PROFILE, DATA_SEMANTICS, SEASON_PLAN, LANGUAGE_STYLE, READING_HONESTY, TRAININGPEAKS_PRECEDENCE, readingLine } from "./_lib/coachContext.js";
+import { ATHLETE_PROFILE, DATA_SEMANTICS, SEASON_PLAN, LANGUAGE_STYLE, READING_HONESTY, TRAININGPEAKS_PRECEDENCE, TRAININGPEAKS_SOLE_SOURCE, readingLine } from "./_lib/coachContext.js";
 import { fetchWhoopHistory } from "./whoop-data.js";
 import { fetchStravaRides } from "./strava-activities.js";
 import { fetchHealthHistory } from "./health-data.js";
@@ -553,7 +553,7 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
   }
 }
 
-function buildSystemPrompt(context: Partial<ChatContext>): string {
+function buildSystemPrompt(context: Partial<ChatContext>, trainingPeaksActive = false): string {
   const lines: string[] = [];
   // Read fresh on every message, and each one labelled with the day it came
   // from - the coach is told to name that day whenever it is not today's
@@ -724,9 +724,24 @@ const WHATSAPP_DRAWABLE =
   "\"health.bmi\", \"health.macroSplit\", \"health.caloriesBalance\", \"goal.weight\", \"goal.ftp\", " +
   "\"weather.current\", \"strava.performanceChart\" or \"whoop.sleepRecoveryStrainRings\"";
 
-function toolsFor(channel: CoachChannel) {
-  if (channel === "web") return TOOLS;
-  return TOOLS.map((tool) =>
+/**
+ * When TrainingPeaks is answering, the derived alternative is not on the menu.
+ *
+ * Telling the model to prefer one source still leaves it holding two, and it
+ * reached for the wrong one - "Right now (computed from your Strava power
+ * data): CTL 12" on a question that named TrainingPeaks. An instruction it can
+ * overlook is weaker than a tool it does not have, so get_fitness is withheld
+ * entirely whenever TrainingPeaks is connected and returning figures. It comes
+ * back the moment TrainingPeaks cannot answer, which is exactly when it should.
+ *
+ * get_rides is untouched: individual rides are a different question from
+ * training load, and TrainingPeaks is not the source of truth for what a
+ * particular Strava ride did.
+ */
+function toolsFor(channel: CoachChannel, trainingPeaksActive: boolean) {
+  const available = trainingPeaksActive ? TOOLS.filter((tool) => tool.name !== "get_fitness") : TOOLS;
+  if (channel === "web") return available;
+  return available.map((tool) =>
     tool.name === "show_widget"
       ? {
           ...tool,
@@ -775,8 +790,17 @@ export async function generateCoachReply(
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not configured");
 
   const anthropicMessages: AnthropicMessage[] = messages.map((m) => ({ role: m.role, content: m.content }));
+  // Whether TrainingPeaks can actually answer right now, not merely whether a
+  // cookie is stored - an expired connection has to fall back like a missing
+  // one.
+  const tp = await fetchTrainingPeaksData().catch(() => null);
+  const trainingPeaksActive = !!tp?.configured && !tp.authExpired && tp.fitness.length > 0;
   const system = [
-    { type: "text" as const, text: buildSystemPrompt(context), cache_control: { type: "ephemeral" as const } },
+    {
+      type: "text" as const,
+      text: buildSystemPrompt(context, trainingPeaksActive),
+      cache_control: { type: "ephemeral" as const },
+    },
   ];
 
   let finalText = "";
@@ -793,7 +817,7 @@ export async function generateCoachReply(
         model: MODEL,
         max_tokens: 600,
         system,
-        tools: toolsFor(channel),
+        tools: toolsFor(channel, trainingPeaksActive),
         messages: anthropicMessages,
       }),
     });

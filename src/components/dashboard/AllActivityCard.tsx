@@ -43,6 +43,15 @@ const SPORT_ICONS: { pattern: RegExp; icon: string }[] = [
   { pattern: /strength|weight|gym|lift/i, icon: "🏋" },
   { pattern: /yoga|stretch|mobility/i, icon: "🧘" },
   { pattern: /row/i, icon: "🚣" },
+  { pattern: /pickle|tennis|padel|squash/i, icon: "🎾" },
+  { pattern: /ski|snowboard/i, icon: "⛷" },
+  // Whoop logs recovery modalities as workouts. They are kept deliberately -
+  // they are part of what the athlete did - so they get their own marks rather
+  // than falling through to the generic bullet, which made them look like
+  // unrecognised noise in a list they belong in.
+  { pattern: /meditat|breath|mindful/i, icon: "🧠" },
+  { pattern: /compression|massage|sauna|ice bath|cold|recovery/i, icon: "💆" },
+  { pattern: /dog|pet/i, icon: "🐕" },
 ];
 
 function iconFor(sport: string): string {

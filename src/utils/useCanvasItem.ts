@@ -152,8 +152,8 @@ export function computeCanvasHeight(rects: { y: number; height: number }[], minH
 // never scrolls horizontally (see .canvas in DashboardPage/TrendsPage/
 // CoachingPage.module.css). A widget saved beyond that width is therefore
 // unreachable: it can't be seen, can't be dragged back, and can't be re-added
-// - the catalog hides fixed cards that are already in the layout, so the only
-// way out was Fit to screen, which reshuffles everything.
+// - the catalog hides fixed cards that are already in the layout, so there was
+// no way back at all short of reshuffling the whole canvas.
 //
 // Positions saved on a much wider screen (or by an earlier layout pass) could
 // strand a card thousands of pixels out. The AI Coach card was found at

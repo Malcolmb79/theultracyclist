@@ -4,7 +4,7 @@ import PowerZonesCard from "../components/coaching/PowerZonesCard";
 import TrainingPlanCard from "../components/coaching/TrainingPlanCard";
 import CoachChatCard from "../components/coaching/CoachChatCard";
 import TrainingCalendarCard from "../components/coaching/TrainingCalendarCard";
-import CoachingWidget, { COACHING_WIDGET_GRID_SIZE } from "../components/coaching/CoachingWidget";
+import CoachingWidget from "../components/coaching/CoachingWidget";
 import { useCoachingData } from "../components/coaching/useCoachingData";
 import { FIXED_CARD_LABELS, type CoachingWidgetEntry, type FixedCardKind, type NarrativeInput } from "../components/coaching/types";
 import DataCatalog from "../components/dashboard/DataCatalog";
@@ -18,7 +18,6 @@ import {
   MACRO_SPLIT_ID,
   DEFAULT_WIDGET_WIDTH,
   DEFAULT_WIDGET_HEIGHT,
-  MIN_WIDGET_WIDTH,
   type Widget,
 } from "../components/dashboard/types";
 import type { MetricDef } from "../components/dashboard/useDashboardData";
@@ -29,7 +28,6 @@ import { useDashboardTheme } from "../utils/useDashboardTheme";
 import { useRawSources } from "../utils/useRawSources";
 import { usePullToRefresh } from "../utils/usePullToRefresh";
 import { computeCanvasHeight, rescueOffCanvasX, usableCanvasWidth } from "../utils/useCanvasItem";
-import { fitWidgetsToWidth } from "../utils/fitWidgetsToWidth";
 import SignInGate from "../components/shared/SignInGate";
 import TabNav from "../components/shared/TabNav";
 import PageHeader from "../components/shared/PageHeader";
@@ -227,18 +225,6 @@ function CoachingView() {
     saveWidgets(next);
   };
 
-  // Proportionally stretches every widget's x/width to fill the canvas'
-  // actual current width (see fitWidgetsToWidth.ts) - a one-click way to
-  // take advantage of a widened browser window/monitor without needing to
-  // drag each widget out by hand. Desktop-only: the stacked phone/tablet
-  // layout has no x/y positioning for this to act on.
-  const handleFitToScreen = () => {
-    if (!canvasRef.current) return;
-    const availableWidth = canvasRef.current.clientWidth;
-    const minWidthFor = (w: CoachingWidgetEntry) => (w.kind === "metric" ? MIN_WIDGET_WIDTH : MIN_SIZE[w.kind].minWidth);
-    saveWidgets(fitWidgetsToWidth(widgets, availableWidth, COACHING_WIDGET_GRID_SIZE, minWidthFor));
-  };
-
   const canvasHeight =
     data.status === "ready"
       ? computeCanvasHeight(widgets.map((w) => ({ y: w.y ?? 0, height: w.height ?? DEFAULT_WIDGET_HEIGHT })))
@@ -256,11 +242,6 @@ function CoachingView() {
           ]}
           trailing={
             <>
-              {!stacked && (
-                <button type="button" className={styles.switchLink} onClick={handleFitToScreen}>
-                  Fit to screen
-                </button>
-              )}
               <button
                 type="button"
                 className={styles.catalogToggle}

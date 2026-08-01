@@ -449,7 +449,12 @@ export default function TrendsWidget({
         ) : isCalendar ? (
           <CalendarView metric={metric} color={color} height={contentHeight} />
         ) : isPerformanceChart ? (
-          <PerformanceChart data={performanceSeries} availableHeight={contentHeight} />
+          <PerformanceChart
+            data={performanceSeries}
+            weight={weightSeries}
+            weightUnit={weightUnit}
+            availableHeight={contentHeight}
+          />
         ) : isGoalProgress && datedGoal ? (
           <GoalProgress goal={datedGoal} todayIso={today()} series={goalSeries} />
         ) : widget.viewType === "week" ? (

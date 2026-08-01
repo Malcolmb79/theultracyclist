@@ -764,6 +764,8 @@ export default function DashboardWidget({
           ) : isPerformanceChart ? (
             <PerformanceChart
               data={filterSeriesToRange(performanceSeries, resolvedRange)}
+              weight={filterSeriesToRange(weightMetric?.series ?? [], resolvedRange)}
+              weightUnit={weightUnit}
               availableHeight={contentHeight}
             />
           ) : isWeather ? (

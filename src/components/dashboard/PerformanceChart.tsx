@@ -30,9 +30,30 @@ const CTL_COLOR = "var(--color-accent-2)"; // fitness - green, matches the "on t
 const ATL_COLOR = "var(--color-amber)"; // fatigue
 const TSB_COLOR = "#4B87F5"; // form - matches the blue used for "burned" elsewhere
 const TSS_COLOR = "#d6559e"; // daily training load - pink, matching the usual PMC convention
+// Weight is context for the fitness lines, not one of them, so it is drawn in
+// muted ink rather than given a fourth identity colour - the same choice
+// TrainingPeaks makes on its own Overall Fitness chart.
+const WEIGHT_COLOR = "var(--color-text-muted)";
+const WEIGHT_DOT_RADIUS = 1.6;
+
+export type WeightPoint = { date: string; value: number };
 
 interface PerformanceChartProps {
   data: PerformancePoint[];
+  /**
+   * Body weight over the same window, on its own scale - the overlay
+   * TrainingPeaks shows on its Overall Fitness chart. Optional: a widget with
+   * no weight readings simply draws the fitness lines.
+   *
+   * A third y-scale is normally a mistake, and it is one here too in the
+   * strict sense - weight cannot be compared to CTL by eye. It earns its place
+   * because the question it answers is a real one for an athlete building
+   * toward a climb-heavy ultra ("is my fitness rising while my weight falls?")
+   * and because it is drawn recessively enough to read as background rather
+   * than as a fourth series competing with the three that share an axis.
+   */
+  weight?: WeightPoint[];
+  weightUnit?: string;
   // Total height available to the whole card (plot plus legend), not the
   // plot alone - the legend wraps to two or three rows at narrower widget
   // widths, so how much is left for the plot can only be known here, after
@@ -79,7 +100,7 @@ function niceTicks(min: number, max: number, count = 4): number[] {
 // both "what's my current training load" (the classic PMC) and "am I on
 // track for the season" (the plan comparison), rather than two separate
 // charts competing for the same widget space.
-export default function PerformanceChart({ data, availableHeight }: PerformanceChartProps) {
+export default function PerformanceChart({ data, weight, weightUnit, availableHeight }: PerformanceChartProps) {
   const [containerRef, viewWidth] = useMeasuredWidth(FALLBACK_WIDTH);
   const [legendRef, legendHeight] = useMeasuredHeight(FALLBACK_LEGEND_HEIGHT);
 
@@ -117,6 +138,20 @@ export default function PerformanceChart({ data, availableHeight }: PerformanceC
   const tssMax = Math.max(0, ...data.map((p) => p.tss));
   const toYTss = (value: number) => TOP_PAD + plotHeight - (value / (tssMax || 1)) * plotHeight;
   const tssTicks = niceTicks(0, tssMax);
+
+  // Weight sits on its own scale, padded so the line never runs along the very
+  // top or bottom edge of the plot - a 2kg swing across a 70kg athlete is the
+  // whole story, and an unpadded scale flattens it against the frame.
+  const weightByIndex = new Map((weight ?? []).map((w) => [w.date, w.value]));
+  const weightValues = data.map((p) => weightByIndex.get(p.date)).filter((v): v is number => v != null);
+  const hasWeight = weightValues.length >= 2;
+  const weightMin = hasWeight ? Math.min(...weightValues) : 0;
+  const weightMax = hasWeight ? Math.max(...weightValues) : 1;
+  const weightSpan = (weightMax - weightMin) || 1;
+  const weightLow = weightMin - weightSpan * 0.25;
+  const weightHigh = weightMax + weightSpan * 0.25;
+  const toYWeight = (value: number) =>
+    TOP_PAD + plotHeight - ((value - weightLow) / (weightHigh - weightLow)) * plotHeight;
 
   // `only` splits the line into what happened and what is projected, so the
   // two can be drawn with different strokes. The boundary point belongs to
@@ -196,6 +231,36 @@ export default function PerformanceChart({ data, availableHeight }: PerformanceC
             {Math.round(tick)}
           </text>
         ))}
+        {/* Weight, under everything else - it is context for the fitness
+            lines, not one of them. Gaps are left as gaps: weight is measured
+            on the days the athlete steps on the scales, and joining across a
+            fortnight's silence would invent a trend. */}
+        {hasWeight &&
+          (() => {
+            let path = "";
+            let drawing = false;
+            const dots: { x: number; y: number; date: string }[] = [];
+            data.forEach((p, i) => {
+              const value = weightByIndex.get(p.date);
+              if (value == null) {
+                drawing = false;
+                return;
+              }
+              const x = toX(i);
+              const y = toYWeight(value);
+              path += `${drawing ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)} `;
+              drawing = true;
+              dots.push({ x, y, date: p.date });
+            });
+            return (
+              <>
+                <path d={path.trim()} className={styles.weightLine} style={{ stroke: WEIGHT_COLOR }} />
+                {dots.map((d) => (
+                  <circle key={d.date} cx={d.x} cy={d.y} r={WEIGHT_DOT_RADIUS} fill={WEIGHT_COLOR} fillOpacity={0.85} />
+                ))}
+              </>
+            );
+          })()}
         <line x1={LEFT_PAD} y1={zeroY} x2={plotRightEdge} y2={zeroY} className={styles.zeroLine} />
         {data.map((p, i) => {
           if (i === 0) return null;
@@ -291,6 +356,13 @@ export default function PerformanceChart({ data, availableHeight }: PerformanceC
         <span className={styles.legendItem}>
           <i className={styles.swatch} style={{ background: TSS_COLOR }} /> TSS/day {fmt(latest.tss)}
         </span>
+        {hasWeight && (
+          <span className={styles.legendItem}>
+            <i className={styles.swatch} style={{ background: WEIGHT_COLOR }} /> Weight{" "}
+            {Math.round(weightValues[weightValues.length - 1] * 10) / 10}
+            {weightUnit ?? ""}
+          </span>
+        )}
       </div>
     </div>
   );

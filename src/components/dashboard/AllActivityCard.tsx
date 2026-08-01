@@ -66,6 +66,10 @@ function formatDuration(minutes: number | null): string | null {
   return rest === 0 ? `${hours}h` : `${hours}h${String(rest).padStart(2, "0")}`;
 }
 
+function shortDate(date: string): string {
+  return new Date(`${date}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+}
+
 function dayHeading(date: string, today: string): string {
   if (date === today) return "Today";
   const yesterday = new Date(`${today}T00:00:00Z`);
@@ -125,7 +129,18 @@ export default function AllActivityCard({ range }: { range?: { start: string; en
   };
 
   return (
-    <ul className={styles.days}>
+    <>
+      {/* The window this list is showing, and how much is in it.
+          Without it a range change looks like nothing happened: the list is
+          newest-first, so narrowing from 90 days to 7 leaves the visible top
+          rows identical and only shortens the scroll. */}
+      {range && (
+        <p className={styles.summary}>
+          {activities.length} {activities.length === 1 ? "activity" : "activities"} · {shortDate(range.start)} –{" "}
+          {shortDate(range.end)}
+        </p>
+      )}
+      <ul className={styles.days}>
       {[...byDay.entries()].map(([date, list]) => (
         <li key={date} className={styles.day}>
           <p className={styles.dayHeading}>{dayHeading(date, today)}</p>
@@ -161,6 +176,7 @@ export default function AllActivityCard({ range }: { range?: { start: string; en
           </ul>
         </li>
       ))}
-    </ul>
+      </ul>
+    </>
   );
 }

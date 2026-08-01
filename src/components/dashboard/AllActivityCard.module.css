@@ -105,3 +105,17 @@
   font-size: 0.85rem;
   text-align: center;
 }
+
+/* States the window the list is filtered to. The list is newest-first, so
+   without this a narrower range looks like nothing happened - the visible top
+   rows are the same and only the scroll gets shorter. */
+.summary {
+  align-self: stretch;
+  width: 100%;
+  margin: 0 0 var(--space-1);
+  padding-bottom: var(--space-1);
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}

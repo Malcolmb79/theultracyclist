@@ -29,9 +29,26 @@ import { computeFitnessSeries } from "./_lib/fitness.js";
 import { getAtpWeekFor } from "./_lib/atpPlan.js";
 import { irelandDateStr } from "./_lib/timeContext.js";
 import { resolveMetric } from "./_lib/metricSeries.js";
+import { getJSON } from "./_lib/kvStore.js";
+import { resolveDeviceLayout } from "./_lib/deviceLayout.js";
+import {
+  effectiveDateRange,
+  filterSeriesToRange,
+  resolveDateRange,
+  type PageDateRanges,
+  type ResolvedRange,
+  type WidgetDateRange,
+} from "./_lib/dateRange.js";
 import { fetchGoals } from "./trends-goals.js";
 import { goalInsights, paceVerdict } from "./_lib/goalInsights.js";
 import { convertValueUnit } from "./_lib/units.js";
+
+// The metric id the performance chart is stored under, matching the browser's
+// PERFORMANCE_CHART_ID.
+const PERFORMANCE_CHART_METRIC = "strava.performanceChart";
+// A phone-width image can only carry so many days legibly, whatever range is
+// chosen.
+const MAX_CHART_DAYS = 120;
 
 /**
  * Renders one widget as a PNG for WhatsApp.
@@ -255,6 +272,27 @@ async function weatherImage(system: "metric" | "imperial"): Promise<string> {
 }
 
 /** CTL/ATL/TSB from the same computation the coach's get_fitness tool uses. */
+/**
+ * The window a picture of a widget should draw.
+ *
+ * A WhatsApp image is meant to be the widget, not a lookalike, so it uses the
+ * same range the widget on the dashboard is using: that widget's own range if
+ * one was set on it, otherwise the Dashboard default from Settings. The coach
+ * asks for a metric rather than a widget id, so the saved layout is searched
+ * for a widget on that metric - if the athlete has none, the page default is
+ * still the right answer.
+ */
+async function rangeForMetric(metric: string): Promise<ResolvedRange> {
+  const [settings, layout] = await Promise.all([
+    fetchCoachingSettings().catch(() => ({}) as Record<string, unknown>),
+    getJSON<unknown>("DASHBOARD_LAYOUT").catch(() => null),
+  ]);
+  const widgets = resolveDeviceLayout<{ metric?: string; dateRange?: WidgetDateRange }>(layout, "desktop");
+  const own = widgets.find((w) => w.metric === metric)?.dateRange;
+  const pageRanges = (settings as { pageDateRanges?: PageDateRanges }).pageDateRanges;
+  return resolveDateRange(effectiveDateRange(own, "dashboard", pageRanges));
+}
+
 async function performanceImage(): Promise<string> {
   const [rides, settings] = await Promise.all([fetchStravaRides(200), fetchCoachingSettings()]);
   const dailyTssByDate = new Map<string, number>();
@@ -269,9 +307,11 @@ async function performanceImage(): Promise<string> {
   if (!earliest) return noDataImage("ATP Progress / Performance Chart", "No ride history yet.");
 
   const series = computeFitnessSeries(dailyTssByDate, earliest, today);
-  // The trailing window the dashboard shows, rather than the whole season -
-  // a year of days squeezed into a phone-width image is a smear.
-  const points = Array.from(series.values()).slice(-120);
+  // The window the dashboard's own performance chart is set to, rather than a
+  // fixed slice - a picture of the chart should cover the same days as the
+  // chart. Still capped, because a year of days at phone width is a smear.
+  const range = await rangeForMetric(PERFORMANCE_CHART_METRIC);
+  const points = filterSeriesToRange(Array.from(series.values()), range).slice(-MAX_CHART_DAYS);
   const week = getAtpWeekFor(today);
   return performanceChartSvg(points, { ctl: week?.targetCtl ?? null, tsb: week?.targetTsb ?? null });
 }
@@ -400,6 +440,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!resolved) {
         svg = noDataImage("Widget", `Nothing tracked under "${spec.metric}".`);
       } else {
+        const range = await rangeForMetric(spec.metric);
+        resolved.series = filterSeriesToRange(resolved.series, range);
         const last = resolved.series.at(-1) ?? null;
         const when = last ? dayLabel(last.date) : "";
         svg =

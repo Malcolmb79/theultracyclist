@@ -2,15 +2,25 @@
 // entry in the Apple Health catalog, since the exact field name varies by
 // export source (e.g. "weight_body_mass" vs "body_mass").
 const WEIGHT_NAME_PATTERN = /weight|body_mass/i;
+// Body mass, and nothing that merely mentions it. Apple Health also exports
+// "body_mass_index" (a unitless number around 25) and "lean_body_mass", both of
+// which match a naive /body_mass/ - and the day body_mass_index first appeared
+// the BMI widget read 25.4 as a weight in kilograms and reported a BMI of 8.9,
+// "underweight", from a figure that was already the BMI.
+const WEIGHT_EXCLUDE = /index|bmi|lean|percent/i;
+
+export function isWeightFieldName(name: string): boolean {
+  return WEIGHT_NAME_PATTERN.test(name) && !WEIGHT_EXCLUDE.test(name);
+}
 
 export function findWeightMetricName(catalog: { name: string }[]): string | null {
-  return catalog.find((entry) => WEIGHT_NAME_PATTERN.test(entry.name))?.name ?? null;
+  return catalog.find((entry) => isWeightFieldName(entry.name))?.name ?? null;
 }
 
 // MetricDef ids for Apple Health entries are "health.<catalog name>" (see
 // useDashboardData.ts) - strips that prefix before testing.
 export function isWeightMetricId(metricId: string): boolean {
-  return WEIGHT_NAME_PATTERN.test(metricId.replace(/^health\./, ""));
+  return isWeightFieldName(metricId.replace(/^health\./, ""));
 }
 
 // Single formatting rule for every place weight is rendered as text (Health

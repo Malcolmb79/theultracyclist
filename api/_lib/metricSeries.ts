@@ -4,6 +4,7 @@ import { fetchHealthHistory } from "../health-data.js";
 import { fetchCoachingSettings } from "../coaching-settings.js";
 import { irelandDateStr } from "./timeContext.js";
 import { convertValueUnit, type UnitSystem } from "./units.js";
+import { isWeightFieldName } from "./weightField.js";
 
 /**
  * Resolves a dashboard metric id to a labelled series, server-side.
@@ -99,7 +100,7 @@ export async function resolveMetric(id: string, days = 60): Promise<ResolvedMetr
     const heightM = heightCm / 100;
     const series: MetricPoint[] = [];
     for (const date of Object.keys(history).sort()) {
-      const key = Object.keys(history[date]).find((n) => /weight|body_mass/i.test(n));
+      const key = Object.keys(history[date]).find((n) => isWeightFieldName(n));
       if (!key) continue;
       const { value, unit } = history[date][key];
       const kg = convertValueUnit(value, unit, "metric").value;

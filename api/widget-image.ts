@@ -4,6 +4,7 @@ import path from "node:path";
 import { fetchHealthHistory } from "./health-data.js";
 import { fetchCoachingSettings } from "./coaching-settings.js";
 import { irelandTodayDateStr } from "./_lib/timeContext.js";
+import { isWeightFieldName } from "./_lib/weightField.js";
 import {
   bmiSvg,
   caloriesBalanceSvg,
@@ -63,20 +64,30 @@ const FONT_OPTIONS = {
 // stops working shortly anyway.
 const CACHE_CONTROL = "private, max-age=600";
 
-function latestDateWith(history: Record<string, Record<string, HealthValue>>, match: RegExp): string | null {
+// Most Apple Health fields are picked out by a pattern, but weight needs an
+// exclusion too ("body_mass_index" is not a body mass), so a matcher can be
+// either. WEIGHT_FIELD is the one shared with the dashboard.
+type NameMatch = RegExp | ((name: string) => boolean);
+const WEIGHT_FIELD: NameMatch = isWeightFieldName;
+
+function matches(match: NameMatch, name: string): boolean {
+  return typeof match === "function" ? match(name) : match.test(name);
+}
+
+function latestDateWith(history: Record<string, Record<string, HealthValue>>, match: NameMatch): string | null {
   const dates = Object.keys(history).sort();
   for (let i = dates.length - 1; i >= 0; i--) {
-    if (Object.keys(history[dates[i]]).some((name) => match.test(name))) return dates[i];
+    if (Object.keys(history[dates[i]]).some((name) => matches(match, name))) return dates[i];
   }
   return null;
 }
 
 type HealthValue = { value: number; unit?: string };
 
-function reading(day: Record<string, HealthValue> | undefined, patterns: RegExp[]): HealthValue | null {
+function reading(day: Record<string, HealthValue> | undefined, patterns: NameMatch[]): HealthValue | null {
   if (!day) return null;
   for (const pattern of patterns) {
-    const key = Object.keys(day).find((name) => pattern.test(name));
+    const key = Object.keys(day).find((name) => matches(pattern, name));
     if (key) return day[key];
   }
   return null;
@@ -135,9 +146,9 @@ async function goalImage(
   const today = irelandTodayDateStr();
 
   const weightDates = Object.keys(history)
-    .filter((d) => Object.keys(history[d]).some((n) => /weight|body_mass/i.test(n)))
+    .filter((d) => Object.keys(history[d]).some((n) => isWeightFieldName(n)))
     .sort();
-  const readingOn = (date: string) => reading(history[date], [/weight|body_mass/i]);
+  const readingOn = (date: string) => reading(history[date], [WEIGHT_FIELD]);
   const latestKg = weightDates.length ? toKg(readingOn(weightDates.at(-1) as string)!.value, readingOn(weightDates.at(-1) as string)!.unit) : null;
 
   if (metric === "goal.weight") {
@@ -326,8 +337,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let svg: string;
 
     if (spec.metric === "health.bmi") {
-      const date = latestDateWith(history, /weight|body_mass/i);
-      const raw = reading(history[date ?? ""], [/weight|body_mass/i]);
+      const date = latestDateWith(history, WEIGHT_FIELD);
+      const raw = reading(history[date ?? ""], [WEIGHT_FIELD]);
       const settings = await fetchCoachingSettings();
       const heightCm = (settings as { heightCm?: number }).heightCm;
       if (date == null || raw == null || !heightCm) {

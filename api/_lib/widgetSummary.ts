@@ -5,6 +5,7 @@ import { fetchGoals } from "../trends-goals.js";
 import { resolveMetric } from "./metricSeries.js";
 import { irelandDateStr, irelandTodayDateStr } from "./timeContext.js";
 import { convertValueUnit, type UnitSystem } from "./units.js";
+import { isWeightFieldName } from "./weightField.js";
 
 /**
  * What a widget will actually show, in words, for the model that is about to
@@ -133,10 +134,10 @@ export async function summariseWidget(metric: string, view: string): Promise<Sum
     }
     const history = await fetchHealthHistory(120);
     const dates = Object.keys(history)
-      .filter((d) => Object.keys(history[d]).some((n) => /weight|body_mass/i.test(n)))
+      .filter((d) => Object.keys(history[d]).some((n) => isWeightFieldName(n)))
       .sort();
     const readingOn = (d: string) => {
-      const key = Object.keys(history[d]).find((n) => /weight|body_mass/i.test(n));
+      const key = Object.keys(history[d]).find((n) => isWeightFieldName(n));
       return key ? history[d][key] : null;
     };
     const latest = dates.length ? readingOn(dates[dates.length - 1]) : null;

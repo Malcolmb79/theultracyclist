@@ -5,6 +5,7 @@ import { fetchGoals } from "../trends-goals.js";
 import { fetchHealthHistory } from "../health-data.js";
 import type { ChatContext } from "../coaching-chat.js";
 import { irelandDateStr, irelandTodayDateStr } from "./timeContext.js";
+import { isWeightFieldName } from "./weightField.js";
 
 // Monday-start week boundary, matching the athlete's training-week
 // convention (see ATHLETE_PROFILE in coachContext.ts) - mirrors the
@@ -44,7 +45,7 @@ async function latestWeightKg(): Promise<number | null> {
   const history = await fetchHealthHistory(60);
   for (const date of Object.keys(history).sort().reverse()) {
     const day = history[date];
-    const key = Object.keys(day).find((name) => /weight|body_mass/i.test(name));
+    const key = Object.keys(day).find((name) => isWeightFieldName(name));
     if (!key) continue;
     const { value, unit } = day[key];
     return Math.round((/^(lb|lbs|pound)/i.test(unit ?? "") ? value * LB_TO_KG : value) * 10) / 10;

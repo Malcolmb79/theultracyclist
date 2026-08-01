@@ -3,7 +3,7 @@ import { GOAL_METRIC_IDS, PROGRESS_PHOTOS_ID, type DatedGoal, type Goals } from 
 import { CALORIES_BALANCE_ID, HEALTH_CALENDAR_ID, MACRO_SPLIT_ID, PERFORMANCE_CHART_ID } from "../dashboard/types";
 import { useUnits } from "../../context/UnitsContext";
 import { convertTrendMetric, convertValueUnit } from "../../utils/units";
-import { computeBmi } from "../../utils/bmi";
+import { computeBmi, isWeightFieldName } from "../../utils/bmi";
 import { computeTss } from "../../utils/tss";
 import { computeFitnessSeries } from "../../utils/fitness";
 import { getAtpWeekFor } from "../../utils/atpPlan";
@@ -62,9 +62,13 @@ function formatMetricName(name: string): string {
     .join(" ");
 }
 
-function findHealthKey(catalog: HealthCatalogEntry[], patterns: RegExp[]): string | null {
+// A matcher is usually a pattern, but weight needs an exclusion as well
+// ("body_mass_index" is not a body mass), so it can also be a predicate.
+type NameMatch = RegExp | ((name: string) => boolean);
+
+function findHealthKey(catalog: HealthCatalogEntry[], patterns: NameMatch[]): string | null {
   for (const pattern of patterns) {
-    const match = catalog.find((c) => pattern.test(c.name));
+    const match = catalog.find((c) => (typeof pattern === "function" ? pattern(c.name) : pattern.test(c.name)));
     if (match) return match.name;
   }
   return null;
@@ -330,7 +334,7 @@ export function useTrendsData(): TrendsDataState {
         // Goal-backed metrics. Field names are looked up dynamically since
         // the exact Apple Health field name for a given nutrient can vary
         // by source app - falls back gracefully to "no data" if none match.
-        const weightKey = findHealthKey(healthCatalog, [/weight|body_mass/i]);
+        const weightKey = findHealthKey(healthCatalog, [isWeightFieldName]);
         // Apple Health may export weight in lb or kg depending on the
         // athlete's device unit settings - both metrics below need real
         // kilograms, so normalize using the catalog's own unit rather than

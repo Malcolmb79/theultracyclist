@@ -118,11 +118,18 @@ export default function PerformanceChart({ data, availableHeight }: PerformanceC
   const toYTss = (value: number) => TOP_PAD + plotHeight - (value / (tssMax || 1)) * plotHeight;
   const tssTicks = niceTicks(0, tssMax);
 
-  const linePath = (pick: (p: PerformancePoint) => number | null): string => {
+  // `only` splits the line into what happened and what is projected, so the
+  // two can be drawn with different strokes. The boundary point belongs to
+  // both, otherwise the solid line and the dashed one meet with a visible gap.
+  const linePath = (pick: (p: PerformancePoint) => number | null, only?: "actual" | "projected"): string => {
     let path = "";
     let drawing = false;
     data.forEach((p, i) => {
-      const v = pick(p);
+      const projected = p.projected === true;
+      const include =
+        only == null ||
+        (only === "actual" ? !projected : projected || data[i - 1]?.projected === false);
+      const v = include ? pick(p) : null;
       if (v == null) {
         drawing = false;
         return;
@@ -133,7 +140,12 @@ export default function PerformanceChart({ data, availableHeight }: PerformanceC
     return path.trim();
   };
 
-  const latest = data[data.length - 1];
+  // Labels describe where the athlete actually is, not where the projection
+  // ends - a forward range must not make today's CTL read as next month's.
+  const actual = data.filter((p) => p.projected !== true);
+  const latest = actual[actual.length - 1] ?? data[data.length - 1];
+  const todayIndex = data.findIndex((p) => p.projected === true) - 1;
+  const hasProjection = data.some((p) => p.projected === true);
 
   // End-of-line value labels for CTL/ATL/TSB, nudged apart vertically when
   // two of them land within MIN_LABEL_GAP of each other so the text doesn't
@@ -187,6 +199,9 @@ export default function PerformanceChart({ data, availableHeight }: PerformanceC
         <line x1={LEFT_PAD} y1={zeroY} x2={plotRightEdge} y2={zeroY} className={styles.zeroLine} />
         {data.map((p, i) => {
           if (i === 0) return null;
+          // The solid CTL band stops at today; its projection is the dashed
+          // line above.
+          if (p.projected === true) return null;
           const prev = data[i - 1];
           const x1 = toX(i - 1);
           const x2 = toX(i);
@@ -206,8 +221,26 @@ export default function PerformanceChart({ data, availableHeight }: PerformanceC
         )}
         <path d={linePath((p) => p.ctlTarget)} className={styles.targetLine} style={{ stroke: CTL_COLOR }} />
         <path d={linePath((p) => p.tsbTarget)} className={styles.targetLine} style={{ stroke: TSB_COLOR }} />
-        <path d={linePath((p) => p.atl)} className={styles.line} style={{ stroke: ATL_COLOR }} />
-        <path d={linePath((p) => p.tsb)} className={styles.line} style={{ stroke: TSB_COLOR }} />
+        <path d={linePath((p) => p.atl, "actual")} className={styles.line} style={{ stroke: ATL_COLOR }} />
+        <path d={linePath((p) => p.tsb, "actual")} className={styles.line} style={{ stroke: TSB_COLOR }} />
+        {/* Everything past today is arithmetic, not history - drawn faint and
+            dashed so it can never be mistaken for a reading. */}
+        {hasProjection && (
+          <>
+            <path d={linePath((p) => p.atl, "projected")} className={styles.projectedLine} style={{ stroke: ATL_COLOR }} />
+            <path d={linePath((p) => p.tsb, "projected")} className={styles.projectedLine} style={{ stroke: TSB_COLOR }} />
+            <path d={linePath((p) => p.ctl, "projected")} className={styles.projectedLine} style={{ stroke: CTL_COLOR }} />
+            {todayIndex >= 0 && (
+              <line
+                x1={toX(todayIndex)}
+                y1={TOP_PAD}
+                x2={toX(todayIndex)}
+                y2={TOP_PAD + plotHeight}
+                className={styles.todayMarker}
+              />
+            )}
+          </>
+        )}
         {data.map((p, i) => {
           if (i === 0) return null;
           const prev = data[i - 1];

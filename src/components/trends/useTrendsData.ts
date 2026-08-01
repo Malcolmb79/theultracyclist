@@ -7,7 +7,8 @@ import { computeBmi, isWeightFieldName } from "../../utils/bmi";
 import { computeTss } from "../../utils/tss";
 import { computeFitnessSeries } from "../../utils/fitness";
 import { getAtpWeekFor } from "../../utils/atpPlan";
-import { computePerformanceSeries, type PerformancePoint } from "../../utils/performanceSeries";
+import { computePerformanceSeries, type PerformancePoint, type PlannedTss } from "../../utils/performanceSeries";
+import { plannedWorkoutsPath } from "../../utils/useRawSources";
 import { irelandDateStr, whoopDayStr } from "../../utils/irelandDate";
 import type { PageDateRanges } from "../../utils/dateRange";
 import { today } from "./aggregate";
@@ -124,8 +125,9 @@ export function useTrendsData(): TrendsDataState {
       fetch("/api/health-data").then((r) => (r.ok ? r.json() : null)),
       fetch("/api/trends-goals").then((r) => (r.ok ? r.json() : null)),
       fetch("/api/coaching-settings").then((r) => (r.ok ? r.json() : null)),
+      fetch(plannedWorkoutsPath()).then((r) => (r.ok ? r.json() : null)),
     ])
-      .then(([whoop, strava, health, goalsBody, settingsBody]) => {
+      .then(([whoop, strava, health, goalsBody, settingsBody, plannedBody]) => {
         if (cancelled) return;
 
         const goals: Goals = goalsBody?.goals ?? {};
@@ -306,7 +308,13 @@ export function useTrendsData(): TrendsDataState {
           }
         }
 
-        const performanceSeries = computePerformanceSeries(rides, settingsBody?.settings?.ftpWatts as number | undefined, today());
+        const performanceSeries = computePerformanceSeries(
+          rides,
+          settingsBody?.settings?.ftpWatts as number | undefined,
+          today(),
+          undefined,
+          (plannedBody?.workouts as PlannedTss[] | undefined) ?? [],
+        );
         if (performanceSeries.length > 0) {
           // Performance Management Chart: a dedicated multi-line view
           // (actual CTL/ATL/TSB plus dashed ATP targets), not the day/week/

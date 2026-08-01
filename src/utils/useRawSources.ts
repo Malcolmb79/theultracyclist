@@ -1,5 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DeviceCategory } from "./useDeviceCategory";
+import { irelandTodayDateStr } from "./irelandDate";
+import { PROJECTION_DAYS, type PlannedTss } from "./performanceSeries";
+
+// Only the future matters here - the performance chart projects forward
+// through planned work, and anything already ridden comes from Strava.
+export function plannedWorkoutsPath(): string {
+  const today = irelandTodayDateStr();
+  const end = new Date(`${today}T00:00:00Z`);
+  end.setUTCDate(end.getUTCDate() + PROJECTION_DAYS);
+  return `/api/planned-workouts?from=${today}&to=${end.toISOString().slice(0, 10)}`;
+}
 
 // Upper bound on any one source. Long enough that a slow-but-working response
 // still lands, short enough that a hang doesn't strand the page.
@@ -26,6 +37,8 @@ export type RawSourcesState =
       // against a target, so they join the shared fetch rather than
       // becoming a second round-trip for the same JSON.
       goals: Record<string, unknown>;
+      /** Workouts on the calendar between today and PROJECTION_DAYS ahead. */
+      planned: PlannedTss[];
       settings: Record<string, unknown>;
       saveSettings: (next: Record<string, unknown>) => Promise<void>;
       // Re-runs the same fetches in the background (e.g. mobile pull-to-
@@ -73,7 +86,7 @@ export function useRawSources(device: DeviceCategory): RawSourcesState {
     };
 
     try {
-      const [whoop, strava, health, settingsBody, goalsBody] = await Promise.all([
+      const [whoop, strava, health, settingsBody, goalsBody, plannedBody] = await Promise.all([
         withDeadline("/api/whoop-data"),
         // A generous count (not the default 6 "recent rides" list) so the
         // Performance Chart's CTL/ATL/TSB has real ride history behind it
@@ -83,6 +96,9 @@ export function useRawSources(device: DeviceCategory): RawSourcesState {
         withDeadline("/api/health-data"),
         withDeadline(`/api/coaching-settings?device=${device}`),
         withDeadline("/api/trends-goals"),
+        // Future workouts on the calendar - what the performance chart
+        // projects CTL/ATL/TSB forward through.
+        withDeadline(plannedWorkoutsPath()),
       ]);
       if (cancelledRef.current) return;
       setState({
@@ -91,13 +107,14 @@ export function useRawSources(device: DeviceCategory): RawSourcesState {
         strava,
         health,
         goals: (goalsBody as { goals?: Record<string, unknown> } | null)?.goals ?? {},
+        planned: (plannedBody as { workouts?: PlannedTss[] } | null)?.workouts ?? [],
         settings: (settingsBody as { settings?: Record<string, unknown> } | null)?.settings ?? {},
         saveSettings,
         refetch: load,
       });
     } catch {
       if (cancelledRef.current) return;
-      setState({ status: "ready", whoop: null, strava: null, health: null, goals: {}, settings: {}, saveSettings, refetch: load });
+      setState({ status: "ready", whoop: null, strava: null, health: null, goals: {}, planned: [], settings: {}, saveSettings, refetch: load });
     }
     // `load` intentionally depends only on `device` - it reassigns itself as
     // each state's `refetch` via useCallback's own memoization, so callers

@@ -11,7 +11,28 @@ export type PerformancePoint = {
   tsb: number;
   ctlTarget: number | null;
   tsbTarget: number | null;
+  /**
+   * True for days after today - where CTL/ATL/TSB are a projection, not a
+   * record. Selecting a forward range used to widen the window onto a series
+   * that stopped at today, so the extra days were simply blank; the chart can
+   * now draw them, but it has to be able to tell them apart from what actually
+   * happened.
+   */
+  projected?: boolean;
 };
+
+/** A workout on the calendar that hasn't happened yet. */
+export type PlannedTss = { date: string; tssPlanned?: number };
+
+/**
+ * How far past today the projection runs.
+ *
+ * Matches the longest forward-looking range on offer ("Last 180 and next 45
+ * days"), so every preset has data to show. The widget's own range filter
+ * trims it back from there - projecting further would be arithmetic nobody
+ * can see.
+ */
+export const PROJECTION_DAYS = 45;
 
 type RideLike = {
   startDate: string;
@@ -20,7 +41,10 @@ type RideLike = {
   weightedAvgWatts: number | null;
 };
 
-const DEFAULT_TRAILING_DAYS = 120;
+// Enough history behind the chart for the longest trailing range on offer
+// that is worth plotting day-by-day. Was 120, which quietly truncated a
+// "Last 365 days" selection to four months of line.
+const DEFAULT_TRAILING_DAYS = 365;
 
 function addDays(dateStr: string, days: number): string {
   const d = new Date(`${dateStr}T00:00:00Z`);
@@ -40,6 +64,7 @@ export function computePerformanceSeries(
   ftpWatts: number | undefined,
   today: string,
   trailingDays = DEFAULT_TRAILING_DAYS,
+  planned: PlannedTss[] = [],
 ): PerformancePoint[] {
   const dailyTssByDate = new Map<string, number>();
   let earliest: string | null = null;
@@ -54,7 +79,20 @@ export function computePerformanceSeries(
   }
   if (!earliest) return [];
 
-  const series = computeFitnessSeries(dailyTssByDate, earliest, today);
+  // Planned workouts carry the projection. Only future ones: a planned session
+  // for a day that has already happened would be counted on top of the ride
+  // that actually recorded it.
+  const projectionEnd = addDays(today, PROJECTION_DAYS);
+  for (const workout of planned) {
+    if (workout.date <= today || workout.date > projectionEnd) continue;
+    if (workout.tssPlanned == null) continue;
+    dailyTssByDate.set(workout.date, (dailyTssByDate.get(workout.date) ?? 0) + workout.tssPlanned);
+  }
+
+  // Past days beyond a planned workout still get a point: with no TSS on the
+  // calendar the EWMA simply decays, which is the honest projection of doing
+  // nothing, and is what makes a rest week visibly bleed fitness.
+  const series = computeFitnessSeries(dailyTssByDate, earliest, projectionEnd);
   const windowStart = addDays(today, -(trailingDays - 1));
   const points: PerformancePoint[] = [];
   for (const [date, point] of series) {
@@ -68,6 +106,7 @@ export function computePerformanceSeries(
       tsb: point.tsb,
       ctlTarget: atpWeek?.ctlTarget ?? null,
       tsbTarget: atpWeek?.tsbTarget ?? null,
+      projected: date > today,
     });
   }
   return points;

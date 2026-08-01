@@ -112,6 +112,8 @@ export type WhoopHistoryResult = {
 
 const DAYS = 25; // default window for the dashboard's own GET - Whoop's collection endpoints cap `limit` at 25 per page.
 const PAGE_LIMIT = 25;
+// Per-request ceiling on any one Whoop call.
+const UPSTREAM_TIMEOUT_MS = 8000;
 
 function buildRecovery(record: WhoopRecoveryRecord | undefined): Recovery | null {
   return record?.score_state === "SCORED" && record.score
@@ -266,6 +268,7 @@ async function refreshAccessToken(): Promise<string> {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: body.toString(),
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
   });
 
   if (!response.ok) {
@@ -298,7 +301,11 @@ async function fetchCollection<T>(path: string, authHeader: HeadersInit, days: n
     url.searchParams.set("start", rangeStart);
     if (nextToken) url.searchParams.set("nextToken", nextToken);
 
-    const res = await fetch(url.toString(), { headers: authHeader });
+    // Whoop can take a long time to answer when it is rate-limiting rather
+    // than returning 429 outright, and an un-deadlined fetch turns that into a
+    // request that never comes back. Failing lets the caller serve its last
+    // good copy instead of hanging the dashboard.
+    const res = await fetch(url.toString(), { headers: authHeader, signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS) });
     if (!res.ok) throw new Error(`Whoop fetch failed: ${path}=${res.status}`);
 
     const data = (await res.json()) as WhoopCollection<T>;

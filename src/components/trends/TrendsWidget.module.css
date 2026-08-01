@@ -260,3 +260,11 @@
     font-size: 1.5rem;
   }
 }
+
+/* See DashboardWidget.module.css's .rangeRow - same row, same reasoning. */
+.rangeRow {
+  flex: none;
+  padding-bottom: var(--space-1);
+  border-bottom: 1px solid var(--color-border);
+  min-width: 0;
+}

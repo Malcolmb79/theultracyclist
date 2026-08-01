@@ -51,6 +51,7 @@ type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 function TrendsEditor() {
   const data = useTrendsData();
+  const pageDateRanges = data.status === "ready" ? data.pageDateRanges : undefined;
   const device = useDeviceCategory();
   const stacked = device === "mobile";
   const [widgets, setWidgets] = useState<TrendsWidgetConfig[] | null>(null);
@@ -177,6 +178,9 @@ function TrendsEditor() {
   const handleMove = (id: string, x: number, y: number) =>
     saveWidgets(widgets.map((w) => (w.id === id ? { ...w, x, y } : w)));
 
+  const handleDateRangeChange = (id: string, dateRange: TrendsWidgetConfig["dateRange"]) =>
+    saveWidgets(widgets.map((w) => (w.id === id ? { ...w, dateRange } : w)));
+
   const handleResize = (id: string, width: number, height: number) =>
     saveWidgets(widgets.map((w) => (w.id === id ? { ...w, width, height } : w)));
 
@@ -268,6 +272,8 @@ function TrendsEditor() {
                 onColorChange={(color) => handleColorChange(widget.id, color)}
                 onMove={(x, y) => handleMove(widget.id, x, y)}
                 onResize={(width, height) => handleResize(widget.id, width, height)}
+                onDateRangeChange={(range) => handleDateRangeChange(widget.id, range)}
+                pageDateRanges={pageDateRanges}
                 onResizingChange={setIsResizing}
                 onRemove={() => handleRemove(widget.id)}
               />
@@ -305,6 +311,8 @@ function TrendsEditor() {
                 onColorChange={(color) => handleColorChange(widget.id, color)}
                 onMove={(x, y) => handleMove(widget.id, x, y)}
                 onResize={(width, height) => handleResize(widget.id, width, height)}
+                onDateRangeChange={(range) => handleDateRangeChange(widget.id, range)}
+                pageDateRanges={pageDateRanges}
                 onResizingChange={setIsResizing}
                 onRemove={() => handleRemove(widget.id)}
               />

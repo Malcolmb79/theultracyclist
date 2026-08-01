@@ -13,6 +13,12 @@ import PasskeysSection from "../components/settings/PasskeysSection";
 import RidePhotosSection from "../components/settings/RidePhotosSection";
 import PortraitSection from "../components/settings/PortraitSection";
 import CoachKnowledgeSection from "../components/settings/CoachKnowledgeSection";
+import DateRangePicker from "../components/shared/DateRangePicker";
+import {
+  PAGE_RANGE_FALLBACK,
+  type DashboardPage as DashboardPageId,
+  type DateRangeId,
+} from "../utils/dateRange";
 import TabNav from "../components/shared/TabNav";
 import GoalsEditor from "../components/trends/GoalsEditor";
 import type { Goals } from "../components/trends/types";
@@ -25,6 +31,13 @@ const THEME_OPTIONS: { value: ThemeMode; label: string }[] = [
   { value: "light", label: "Light" },
   { value: "dark", label: "Dark" },
   { value: "auto", label: "Auto (sunrise/sunset)" },
+];
+
+// Dashboard first, matching the tab order the athlete already navigates by.
+const PAGE_RANGE_ORDER: { page: DashboardPageId; label: string }[] = [
+  { page: "dashboard", label: "Dashboard" },
+  { page: "trends", label: "Trends" },
+  { page: "coaching", label: "Coaching" },
 ];
 
 export default function SettingsPage() {
@@ -237,6 +250,11 @@ function SettingsEditor() {
     }
   };
 
+  const handleSavePageDateRange = async (page: DashboardPageId, id: DateRangeId) => {
+    if (!settings) return;
+    await persist({ ...settings, pageDateRanges: { ...settings.pageDateRanges, [page]: id } });
+  };
+
   const liveTrackerPayload = (extra?: { resetHistory: boolean }) => {
     const hours = Number(targetHoursInput) || 0;
     const minutes = Number(targetMinutesInput) || 0;
@@ -406,6 +424,25 @@ function SettingsEditor() {
               </button>
             ))}
           </div>
+        </div>
+
+        <div className={styles.section}>
+          <p className={styles.sectionTitle}>Date ranges</p>
+          <p className={styles.sectionHint}>
+            The window each page&apos;s widgets show by default. A widget can override this for itself — grab its
+            resize handle and pick a range — and anything left on &quot;Use Dashboard Settings&quot; follows the
+            page it sits on.
+          </p>
+          {PAGE_RANGE_ORDER.map(({ page, label }) => (
+            <div key={page} className={styles.field}>
+              <DateRangePicker
+                allowInherit={false}
+                label={label}
+                value={{ id: settings?.pageDateRanges?.[page] ?? PAGE_RANGE_FALLBACK[page] }}
+                onChange={(next) => handleSavePageDateRange(page, next.id)}
+              />
+            </div>
+          ))}
         </div>
 
         <div className={styles.section}>

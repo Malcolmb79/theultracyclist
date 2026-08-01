@@ -118,6 +118,8 @@ export default function ChatWidgetMessage({ content, data }: { content: string; 
               onResize={() => {}}
               onResizingChange={() => {}}
               onRemove={() => {}}
+              onDateRangeChange={() => {}}
+              page="dashboard"
             />
           </div>
         );

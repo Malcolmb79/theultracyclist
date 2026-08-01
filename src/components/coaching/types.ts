@@ -1,4 +1,5 @@
 import type { Widget } from "../dashboard/types";
+import type { PageDateRanges } from "../../utils/dateRange";
 
 export type TrainingPhase = "build" | "recovery" | "taper";
 
@@ -25,6 +26,7 @@ export type CoachingWidgetEntry = {
   width?: number;
   height?: number;
   color?: string;
+  dateRange?: Widget["dateRange"];
 };
 
 export const FIXED_CARD_LABELS: Record<FixedCardKind, string> = {
@@ -68,6 +70,12 @@ export type CoachingSettings = {
   caloriesBurnWakeTime?: string; // "HH:MM", 24h
   caloriesBurnTarget?: number; // kcal, from the athlete's coach
   caloriesBurnTargetTime?: string; // "HH:MM", 24h
+  /**
+   * The default date window for each page's widgets, chosen in Settings. A
+   * widget set to "Use Dashboard Settings" resolves to the entry for the page
+   * it sits on; PAGE_RANGE_FALLBACK covers anything unset.
+   */
+  pageDateRanges?: PageDateRanges;
 };
 
 export type ReadinessLevel = "hard" | "moderate" | "easy" | "rest";

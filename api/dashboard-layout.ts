@@ -14,6 +14,11 @@ export type Widget = {
   width?: number;
   height?: number;
   color?: string;
+  /**
+   * Per-widget date window, stored opaquely - the browser owns the preset
+   * vocabulary (src/utils/dateRange.ts) and this route only round-trips it.
+   */
+  dateRange?: { id: string; customStart?: string; customEnd?: string };
 };
 
 const KV_KEY = "DASHBOARD_LAYOUT";

@@ -1,3 +1,5 @@
+import type { WidgetDateRange } from "../../utils/dateRange";
+
 export type Widget = {
   id: string;
   source: "strava" | "whoop" | "health" | "weather" | "garmin";
@@ -9,6 +11,12 @@ export type Widget = {
   width?: number;
   height?: number;
   color?: string;
+  /**
+   * The window this widget draws. Absent, or id "inherit", means it follows
+   * the default set for its page in Settings - which is what almost every
+   * widget does, so it is stored only once a widget is given one of its own.
+   */
+  dateRange?: WidgetDateRange;
 };
 
 export const DEFAULT_WIDGET_WIDTH = 340;

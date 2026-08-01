@@ -11,6 +11,8 @@ export type TrendsWidget = {
   color?: string;
   x?: number;
   y?: number;
+  /** See dashboard-layout.ts's Widget.dateRange - same shape, round-tripped. */
+  dateRange?: { id: string; customStart?: string; customEnd?: string };
   width?: number;
   height?: number;
 };

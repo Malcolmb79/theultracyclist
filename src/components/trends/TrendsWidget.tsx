@@ -1,6 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useCanvasItem } from "../../utils/useCanvasItem";
 import { useLongPressSelect } from "../../utils/useLongPressSelect";
+import DateRangePicker from "../shared/DateRangePicker";
+import { effectiveDateRange, resolveDateRange, type PageDateRanges } from "../../utils/dateRange";
 import type { TrendMetricDef } from "./useTrendsData";
 import type { TrendsWidgetConfig, TrendsViewType } from "./types";
 import HealthCalendar from "../dashboard/HealthCalendar";
@@ -74,6 +76,8 @@ interface TrendsWidgetProps {
   onResize: (width: number, height: number) => void;
   onResizingChange: (resizing: boolean) => void;
   onRemove: () => void;
+  onDateRangeChange: (range: TrendsWidgetConfig["dateRange"]) => void;
+  pageDateRanges?: PageDateRanges;
   // Phone layout: full-width in normal document flow instead of absolutely
   // positioned at widget.x/y - see DashboardWidget's identical prop.
   stacked?: boolean;
@@ -136,7 +140,9 @@ const VIEW_SEGMENTED_HEIGHT = 38;
 export default function TrendsWidget({
   widget,
   metric,
-  days,
+  days: allDays,
+  onDateRangeChange,
+  pageDateRanges,
   whoopHistory,
   weightByDate,
   weightSeries = [],
@@ -158,6 +164,20 @@ export default function TrendsWidget({
   canMoveDown,
   onReorder,
 }: TrendsWidgetProps) {
+  // Same model as the dashboard's widgets: the window comes from this widget
+  // if it has one, otherwise from the Trends default in Settings. `days` is
+  // the universe of dates every view here aggregates over, so trimming it is
+  // all it takes for the pills, the calendar and the charts to agree.
+  const activeRange = effectiveDateRange(widget.dateRange, "trends", pageDateRanges);
+  const resolvedRange = useMemo(
+    () => resolveDateRange(activeRange),
+    [activeRange.id, activeRange.customStart, activeRange.customEnd],
+  );
+  const days = useMemo(
+    () => allDays.filter((d) => d >= resolvedRange.start && d <= resolvedRange.end),
+    [allDays, resolvedRange.start, resolvedRange.end],
+  );
+  const [rangeOpen, setRangeOpen] = useState(false);
   const isCalendar = widget.viewType === "calendar";
   const isHealthCalendar = widget.viewType === "healthCalendar";
   const isPerformanceChart = widget.viewType === "performanceChart";
@@ -280,6 +300,25 @@ export default function TrendsWidget({
 
   const { ref: widgetRef, selected, pressHandlers } = useLongPressSelect<HTMLDivElement>();
 
+  // The picker has to outlive the resize drag that opened it, so it closes on
+  // a click away or Escape rather than on pointer-up.
+  useEffect(() => {
+    if (!rangeOpen) return;
+    const handleOutside = (e: PointerEvent) => {
+      if (widgetRef.current && !widgetRef.current.contains(e.target as Node)) setRangeOpen(false);
+    };
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setRangeOpen(false);
+    };
+    document.addEventListener("pointerdown", handleOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("pointerdown", handleOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [rangeOpen, widgetRef]);
+
+
   const color = widget.color ?? DEFAULT_TRENDS_COLOR;
   const contentHeight = Math.max(
     24,
@@ -351,6 +390,17 @@ export default function TrendsWidget({
           </button>
         </div>
       </div>
+
+      {rangeOpen && (
+        <div className={styles.rangeRow}>
+          <DateRangePicker
+            compact
+            label="Range"
+            value={activeRange}
+            onChange={(next) => onDateRangeChange(next.id === "inherit" ? undefined : next)}
+          />
+        </div>
+      )}
 
       <div className={styles.content}>
         {!isHealthCalendar && !isPerformanceChart && !isProgressPhotos && !isMacroSplit && (
@@ -451,7 +501,10 @@ export default function TrendsWidget({
 
       <div
         className={styles.resizeHandle}
-        onPointerDown={handleResizePointerDown}
+        onPointerDown={(e) => {
+          setRangeOpen(true);
+          handleResizePointerDown(e);
+        }}
         role="button"
         tabIndex={0}
         aria-label="Drag to resize"

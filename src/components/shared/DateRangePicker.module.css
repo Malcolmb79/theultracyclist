@@ -1,0 +1,61 @@
+.wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.label {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.select {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 0.8rem;
+}
+
+.customDates {
+  display: flex;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+
+.date {
+  padding: 3px 5px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 0.75rem;
+  /* Safari gives date inputs an intrinsic width wider than a narrow widget,
+     which would push the whole row into a horizontal overflow. */
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* On a widget the row has to survive a 140px-wide phone tile, so the label
+   sits above rather than beside and the control takes the full width. */
+.compact {
+  gap: 4px;
+}
+
+.compact .select,
+.compact .date {
+  font-size: 0.7rem;
+  padding: 3px 4px;
+}
+
+.compact .label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}

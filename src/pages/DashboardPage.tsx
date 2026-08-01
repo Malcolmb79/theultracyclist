@@ -4,6 +4,7 @@ import DashboardWidget from "../components/dashboard/DashboardWidget";
 import { useDashboardData } from "../components/dashboard/useDashboardData";
 import { useRawSources } from "../utils/useRawSources";
 import { usePullToRefresh } from "../utils/usePullToRefresh";
+import type { PageDateRanges } from "../utils/dateRange";
 import PullToRefreshIndicator from "../components/shared/PullToRefreshIndicator";
 import {
   WHOOP_STRAIN_RECOVERY_COMBO_ID,
@@ -79,6 +80,7 @@ function DashboardEditor() {
   }, [raw]);
   const pull = usePullToRefresh(handlePullRefresh);
   const rawSettings = raw.status === "ready" ? raw.settings : {};
+  const pageDateRanges = rawSettings.pageDateRanges as PageDateRanges | undefined;
   const caloriesBurnSettings = {
     wakeTime: rawSettings.caloriesBurnWakeTime as string | undefined,
     targetKcal: rawSettings.caloriesBurnTarget as number | undefined,
@@ -176,6 +178,9 @@ function DashboardEditor() {
   const handleResize = (id: string, width: number, height: number) =>
     saveWidgets(widgets.map((w) => (w.id === id ? { ...w, width, height } : w)));
 
+  const handleDateRangeChange = (id: string, dateRange: Widget["dateRange"]) =>
+    saveWidgets(widgets.map((w) => (w.id === id ? { ...w, dateRange } : w)));
+
   // Phone-only: reordering by swapping array position rather than dragging,
   // since the stacked layout has no x/y to drag - see the `stacked` render
   // branch below.
@@ -263,6 +268,9 @@ function DashboardEditor() {
                 onResize={(width, height) => handleResize(widget.id, width, height)}
                 onResizingChange={setIsResizing}
                 onRemove={() => handleRemove(widget.id)}
+                onDateRangeChange={(range) => handleDateRangeChange(widget.id, range)}
+                page="dashboard"
+                pageDateRanges={pageDateRanges}
               />
             ))}
           </div>
@@ -294,6 +302,9 @@ function DashboardEditor() {
                 onResize={(width, height) => handleResize(widget.id, width, height)}
                 onResizingChange={setIsResizing}
                 onRemove={() => handleRemove(widget.id)}
+                onDateRangeChange={(range) => handleDateRangeChange(widget.id, range)}
+                page="dashboard"
+                pageDateRanges={pageDateRanges}
               />
             ))}
           </div>

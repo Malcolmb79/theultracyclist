@@ -66,6 +66,13 @@ export type CoachingSettings = {
   caloriesBurnWakeTime?: string;
   caloriesBurnTarget?: number;
   caloriesBurnTargetTime?: string;
+  /**
+   * Default date window per page ("dashboard" | "trends" | "coaching"), set in
+   * Settings. Shared across devices rather than per-device like the widget
+   * lists: it is a reading preference, not a layout, and an athlete who wants
+   * Trends on 90 days wants that on the phone too.
+   */
+  pageDateRanges?: Record<string, string>;
 };
 
 // KV shape: profile fields (ftpWatts, heightCm, ...) are shared across every
@@ -170,6 +177,7 @@ export async function fetchCoachingSettings(): Promise<CoachingSettings> {
     caloriesBurnWakeTime: stored.caloriesBurnWakeTime,
     caloriesBurnTarget: stored.caloriesBurnTarget,
     caloriesBurnTargetTime: stored.caloriesBurnTargetTime,
+    pageDateRanges: stored.pageDateRanges,
   };
 }
 
@@ -204,6 +212,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       caloriesBurnWakeTime: incoming.caloriesBurnWakeTime,
       caloriesBurnTarget: incoming.caloriesBurnTarget,
       caloriesBurnTargetTime: incoming.caloriesBurnTargetTime,
+      pageDateRanges: incoming.pageDateRanges,
       widgetsByDevice,
       // A save from today's client always sends an already-migrated list
       // (or a deliberately-emptied one) - either way, the array is now the
@@ -243,6 +252,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     caloriesBurnWakeTime: stored.caloriesBurnWakeTime,
     caloriesBurnTarget: stored.caloriesBurnTarget,
     caloriesBurnTargetTime: stored.caloriesBurnTargetTime,
+    pageDateRanges: stored.pageDateRanges,
     widgets,
   };
   res.status(200).json({ settings });

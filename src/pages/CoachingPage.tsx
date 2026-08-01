@@ -145,6 +145,7 @@ function CoachingView() {
   }, [raw]);
   const pull = usePullToRefresh(handlePullRefresh);
   const canvasRef = useRef<HTMLElement>(null);
+  const pageDateRanges = data.status === "ready" ? data.settings.pageDateRanges : undefined;
   const caloriesBurnSettings = {
     wakeTime: data.status === "ready" ? data.settings.caloriesBurnWakeTime : undefined,
     targetKcal: data.status === "ready" ? data.settings.caloriesBurnTarget : undefined,
@@ -208,6 +209,9 @@ function CoachingView() {
     saveWidgets(widgets.map((w) => (w.id === id ? { ...w, viewType } : w)));
 
   const handleColorChange = (id: string, color: string) => saveWidgets(widgets.map((w) => (w.id === id ? { ...w, color } : w)));
+
+  const handleDateRangeChange = (id: string, dateRange: Widget["dateRange"]) =>
+    saveWidgets(widgets.map((w) => (w.id === id ? { ...w, dateRange } : w)));
 
   const handleLabelChange = (id: string, label: string) => saveWidgets(widgets.map((w) => (w.id === id ? { ...w, label } : w)));
 
@@ -315,6 +319,9 @@ function CoachingView() {
                   onResize={(width, height) => handleResize(entry.id, width, height)}
                   onResizingChange={setIsResizing}
                   onRemove={() => handleRemove(entry.id)}
+                  onDateRangeChange={(range) => handleDateRangeChange(entry.id, range)}
+                  page="coaching"
+                  pageDateRanges={pageDateRanges}
                   {...reorderProps}
                 />
               );

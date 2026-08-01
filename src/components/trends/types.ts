@@ -1,3 +1,4 @@
+import type { WidgetDateRange } from "../../utils/dateRange";
 export type TrendsViewType =
   | "day"
   | "week"
@@ -26,6 +27,8 @@ export type TrendsWidgetConfig = {
   y?: number;
   width?: number;
   height?: number;
+  /** See Widget["dateRange"] - same model, same picker. */
+  dateRange?: WidgetDateRange;
 };
 
 export const DEFAULT_WIDGET_WIDTH = 200;

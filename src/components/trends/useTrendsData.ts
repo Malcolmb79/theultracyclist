@@ -9,6 +9,7 @@ import { computeFitnessSeries } from "../../utils/fitness";
 import { getAtpWeekFor } from "../../utils/atpPlan";
 import { computePerformanceSeries, type PerformancePoint } from "../../utils/performanceSeries";
 import { irelandDateStr, whoopDayStr } from "../../utils/irelandDate";
+import type { PageDateRanges } from "../../utils/dateRange";
 import { today } from "./aggregate";
 
 export type TrendMetricDef = {
@@ -101,6 +102,8 @@ export type TrendsDataState =
        * kg figure ends up with lb beside it.
        */
       weightSeries: { date: string; value: number }[];
+      /** The per-page date-range defaults from Settings, for the widgets' pickers. */
+      pageDateRanges?: PageDateRanges;
     };
 
 export function useTrendsData(): TrendsDataState {
@@ -658,6 +661,7 @@ export function useTrendsData(): TrendsDataState {
         setState({
           status: "ready",
           days,
+          pageDateRanges: settingsBody?.settings?.pageDateRanges as PageDateRanges | undefined,
           isTrainingDay,
           metrics,
           goals,

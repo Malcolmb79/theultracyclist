@@ -278,3 +278,14 @@
     font-size: 0.85rem;
   }
 }
+
+/* The date-range row, shown only while the widget is being shaped (see
+   DashboardWidget's rangeOpen). Sits between the header and the content so
+   it pushes the chart down rather than covering it - a popover here would
+   overlap the very data the athlete is choosing a window for. */
+.rangeRow {
+  flex: none;
+  padding-bottom: var(--space-1);
+  border-bottom: 1px solid var(--color-border);
+  min-width: 0;
+}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatDate } from "../../utils/formatDate";
 import { relativeDayLabel } from "../../utils/relativeDate";
 import { recoveryColor } from "../../utils/recoveryColor";
@@ -48,6 +48,14 @@ import {
   WIDGET_GRID_SIZE,
   type Widget,
 } from "./types";
+import DateRangePicker from "../shared/DateRangePicker";
+import {
+  effectiveDateRange,
+  filterSeriesToRange,
+  resolveDateRange,
+  type DashboardPage as DashboardPageId,
+  type PageDateRanges,
+} from "../../utils/dateRange";
 import styles from "./DashboardWidget.module.css";
 
 interface DashboardWidgetProps {
@@ -62,6 +70,14 @@ interface DashboardWidgetProps {
   onResize: (width: number, height: number) => void;
   onResizingChange: (resizing: boolean) => void;
   onRemove: () => void;
+  onDateRangeChange: (range: Widget["dateRange"]) => void;
+  /**
+   * Which page this widget sits on, so a widget set to "Use Dashboard
+   * Settings" resolves against that page's default rather than a global one.
+   */
+  page: DashboardPageId;
+  /** The per-page defaults from Settings. */
+  pageDateRanges?: PageDateRanges;
   // Phone layout: renders full-width in normal document flow instead of
   // absolutely positioned at widget.x/y (see DashboardPage's `stacked`
   // branch) - reordering happens via onReorder instead of dragging.
@@ -219,6 +235,9 @@ export default function DashboardWidget({
   onResize,
   onResizingChange,
   onRemove,
+  onDateRangeChange,
+  page,
+  pageDateRanges,
   stacked,
   canMoveUp,
   canMoveDown,
@@ -249,11 +268,35 @@ export default function DashboardWidget({
   const isGarminLiveTrack = widget.metric === GARMIN_LIVETRACK_ID;
   const detailKind = DETAIL_KIND_BY_METRIC[widget.metric];
   const [openDetail, setOpenDetail] = useState<WhoopDetailKind | null>(null);
-  const metric =
+  const fullMetric =
     isCombo || isRings || isHealthCalendar || isCaloriesBalance || isMacroSplit || isPerformanceChart || isWeather || isGarminLiveTrack
       ? undefined
       : metricById.get(widget.metric);
   const isMobile = useIsMobile();
+
+  // The window this widget draws: its own if it has been given one, otherwise
+  // the default set for this page in Settings.
+  const activeRange = effectiveDateRange(widget.dateRange, page, pageDateRanges);
+  const resolvedRange = useMemo(() => resolveDateRange(activeRange), [activeRange.id, activeRange.customStart, activeRange.customEnd]);
+  // Trimmed before anything reads it, so the stat's "latest", the ring's
+  // current value, the chart's line and the timeline's rows all describe the
+  // same window rather than the chart alone honouring it.
+  const metric = useMemo<MetricDef | undefined>(
+    () => (fullMetric ? { ...fullMetric, series: filterSeriesToRange(fullMetric.series, resolvedRange) } : undefined),
+    [fullMetric, resolvedRange.start, resolvedRange.end],
+  );
+  // A window with nothing in it is worth saying out loud - an empty chart
+  // otherwise reads as missing data rather than as a range that excludes it.
+  const rangeIsEmpty = !!fullMetric && fullMetric.series.length > 0 && metric?.series.length === 0;
+  // Only widgets that plot a span of days can honour a range. A single-day
+  // card (the rings, the macro donut, the calorie balance) or one with no
+  // series at all (weather, LiveTrack) would show the picker doing nothing,
+  // and the health calendar draws a whole month by construction.
+  const supportsDateRange = !!fullMetric || isCombo || isPerformanceChart;
+  const rangedMetric = (id: string) => {
+    const source = metricById.get(id);
+    return source ? { ...source, series: filterSeriesToRange(source.series, resolvedRange) } : undefined;
+  };
 
   // The weight widget's color is always health-semantic (matches the BMI
   // widget's own red/amber/green banding for the current BMI) rather than
@@ -483,6 +526,28 @@ export default function DashboardWidget({
   // seconds - tapping outside deselects again. See useLongPressSelect.
   const { ref: widgetRef, selected, pressHandlers } = useLongPressSelect<HTMLDivElement>();
 
+  // Reaching for the resize handle is the moment the athlete is shaping this
+  // widget rather than reading it, so that is when the range picker appears.
+  // It has to outlive the drag itself - a dropdown that vanished on pointer-up
+  // could never be opened - so it stays until they click away, the same
+  // dismiss the selection chrome already uses.
+  const [rangeOpen, setRangeOpen] = useState(false);
+  useEffect(() => {
+    if (!rangeOpen) return;
+    const handleOutside = (e: PointerEvent) => {
+      if (widgetRef.current && !widgetRef.current.contains(e.target as Node)) setRangeOpen(false);
+    };
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setRangeOpen(false);
+    };
+    document.addEventListener("pointerdown", handleOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("pointerdown", handleOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [rangeOpen, widgetRef]);
+
   const [editingLabel, setEditingLabel] = useState(false);
   const [labelDraft, setLabelDraft] = useState(widget.label);
 
@@ -636,6 +701,17 @@ export default function DashboardWidget({
           </div>}
         </div>
 
+        {!inline && rangeOpen && supportsDateRange && (
+          <div className={styles.rangeRow}>
+            <DateRangePicker
+              compact
+              label="Range"
+              value={activeRange}
+              onChange={(next) => onDateRangeChange(next.id === "inherit" ? undefined : next)}
+            />
+          </div>
+        )}
+
         <div
           ref={contentRef}
           className={`${styles.content} ${detailKind ? styles.clickable : ""}`}
@@ -645,8 +721,8 @@ export default function DashboardWidget({
         >
           {isCombo ? (
             <ComboStrainRecovery
-              strain={metricById.get("whoop.strain")}
-              recovery={metricById.get("whoop.recovery")}
+              strain={rangedMetric("whoop.strain")}
+              recovery={rangedMetric("whoop.recovery")}
               chartHeight={Math.max(24, (contentHeight - COMBO_SECTION_OVERHEAD) / 2)}
               strainColor={widget.color}
             />
@@ -686,13 +762,18 @@ export default function DashboardWidget({
               availableHeight={contentHeight}
             />
           ) : isPerformanceChart ? (
-            <PerformanceChart data={performanceSeries} availableHeight={contentHeight} />
+            <PerformanceChart
+              data={filterSeriesToRange(performanceSeries, resolvedRange)}
+              availableHeight={contentHeight}
+            />
           ) : isWeather ? (
             <WeatherCard />
           ) : isGarminLiveTrack ? (
             <GarminLiveTrackCard />
           ) : !metric || metric.series.length === 0 ? (
-            <p className={styles.empty}>No data yet for this metric.</p>
+            <p className={styles.empty}>
+              {rangeIsEmpty ? "No readings in this date range." : "No data yet for this metric."}
+            </p>
           ) : widget.viewType === "stat" ? (
             <DashboardStatTile
               value={formatValue(metric.series[metric.series.length - 1].value, metric.unit)}
@@ -717,7 +798,9 @@ export default function DashboardWidget({
                 showDates
               />
             ) : (
-              <p className={styles.empty}>Need at least 2 data points for a chart.</p>
+              <p className={styles.empty}>
+                {rangeIsEmpty ? "No readings in this date range." : "Need at least 2 data points for a chart."}
+              </p>
             )
           ) : (
             <ul className={styles.timeline}>
@@ -740,7 +823,10 @@ export default function DashboardWidget({
         {!inline && (
           <div
             className={styles.resizeHandle}
-            onPointerDown={handleResizePointerDown}
+            onPointerDown={(e) => {
+              if (supportsDateRange) setRangeOpen(true);
+              handleResizePointerDown(e);
+            }}
             role="button"
             tabIndex={0}
             aria-label="Drag to resize"

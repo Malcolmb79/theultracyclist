@@ -3,6 +3,9 @@ import { getSessionEmail } from "./_lib/session.js";
 import { getJSON, setJSON } from "./_lib/kvStore.js";
 import { fetchCoachingSettings } from "./coaching-settings.js";
 import { parseIcsEvents, type CalendarEvent } from "./_lib/icsCalendar.js";
+import { fetchStravaRides, type Ride } from "./strava-activities.js";
+import { computeTss } from "./_lib/tss.js";
+import { irelandDateStr, irelandTodayDateStr } from "./_lib/timeContext.js";
 
 /**
  * The athlete's TrainingPeaks calendar, read as a subscribed .ics feed.
@@ -99,6 +102,86 @@ export async function fetchTrainingPeaksEvents(force = false): Promise<{
   }
 }
 
+export type ReconcileRow = {
+  date: string;
+  /** What TrainingPeaks has on the calendar for that day, if anything. */
+  planned: { title: string; tss: number | null; estimated: boolean } | null;
+  /** What this app recorded from Strava for that day. */
+  recorded: { rides: number; tss: number | null; noPower: boolean } | null;
+  verdict: "match" | "missing-here" | "extra-here" | "no-power" | "none";
+};
+
+/**
+ * Why this app's CTL disagrees with the one in TrainingPeaks.
+ *
+ * TrainingPeaks had the athlete at CTL 20 on a day this app said 12. Both are
+ * 42-day averages of daily TSS, so a gap that size means the two are averaging
+ * different days - and there are only a few ways that happens: a session
+ * logged in TrainingPeaks that never reached Strava, a ride recorded without
+ * power (no power, no TSS, so it contributes nothing here), or a different
+ * FTP behind the arithmetic.
+ *
+ * This names which, per day, instead of leaving it to guesswork. It is a
+ * comparison, not a correction: nothing here changes a stored figure.
+ */
+async function reconcile(events: CalendarEvent[]): Promise<ReconcileRow[]> {
+  const [rides, settings] = await Promise.all([
+    fetchStravaRides(60).catch(() => [] as Ride[]),
+    fetchCoachingSettings().catch(() => ({}) as { ftpWatts?: number }),
+  ]);
+  const ftp = (settings as { ftpWatts?: number }).ftpWatts;
+
+  const byDay = new Map<string, { rides: number; tss: number; noPower: boolean }>();
+  for (const ride of rides) {
+    const date = irelandDateStr(new Date(ride.startDate));
+    const tss = computeTss(ride.weightedAvgWatts ?? ride.avgWatts, ride.movingTimeMinutes, ftp);
+    const entry = byDay.get(date) ?? { rides: 0, tss: 0, noPower: false };
+    entry.rides += 1;
+    if (tss == null) entry.noPower = true;
+    else entry.tss += tss;
+    byDay.set(date, entry);
+  }
+
+  const today = irelandTodayDateStr();
+  // The feed only reaches five days back, so that is the whole comparable
+  // window - claiming more would be inventing agreement for days neither side
+  // can speak about.
+  const days = [...new Set([...events.map((e) => e.date), ...byDay.keys()])]
+    .filter((d) => d <= today && d >= addDays(today, -RECONCILE_DAYS))
+    .sort();
+
+  return days.map((date) => {
+    const event = events.find((e) => e.date === date) ?? null;
+    const actual = byDay.get(date) ?? null;
+    const planned = event ? { title: event.title, tss: event.tss ?? null, estimated: !!event.tssEstimated } : null;
+    const recorded = actual
+      ? { rides: actual.rides, tss: actual.noPower && actual.tss === 0 ? null : Math.round(actual.tss), noPower: actual.noPower }
+      : null;
+
+    const verdict: ReconcileRow["verdict"] =
+      planned && !recorded
+        ? "missing-here"
+        : !planned && recorded
+          ? "extra-here"
+          : recorded?.noPower
+            ? "no-power"
+            : planned && recorded
+              ? "match"
+              : "none";
+
+    return { date, planned, recorded, verdict };
+  });
+}
+
+// Matches the feed's own five-day history window.
+const RECONCILE_DAYS = 5;
+
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!getSessionEmail(req)) {
     res.status(401).json({ error: "Unauthorized" });
@@ -106,6 +189,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const result = await fetchTrainingPeaksEvents(req.query.refresh === "1");
+  const rows = req.query.reconcile === "1" ? await reconcile(result.events).catch(() => []) : undefined;
   res.setHeader("Cache-Control", "private, max-age=300");
-  res.status(200).json(result);
+  res.status(200).json(rows ? { ...result, reconcile: rows } : result);
 }

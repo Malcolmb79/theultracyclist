@@ -41,6 +41,22 @@ const PAGE_RANGE_ORDER: { page: DashboardPageId; label: string }[] = [
 ];
 
 type TpEvent = { date: string; title: string; tss?: number; tssEstimated?: boolean };
+type TpReconcileRow = {
+  date: string;
+  planned: { title: string; tss: number | null; estimated: boolean } | null;
+  recorded: { rides: number; tss: number | null; noPower: boolean } | null;
+  verdict: "match" | "missing-here" | "extra-here" | "no-power" | "none";
+};
+
+// Why a day's training load differs between the two, in the athlete's words
+// rather than a status code.
+const RECONCILE_WORDING: Record<TpReconcileRow["verdict"], string> = {
+  match: "both have it",
+  "missing-here": "in TrainingPeaks, nothing on Strava",
+  "extra-here": "on Strava, not on the TrainingPeaks calendar",
+  "no-power": "ride recorded without power, so it adds no TSS here",
+  none: "nothing either side",
+};
 
 export default function SettingsPage() {
   useDashboardTheme();
@@ -122,7 +138,9 @@ function SettingsEditor() {
   const [garminUrlInput, setGarminUrlInput] = useState("");
   const [tpUrlInput, setTpUrlInput] = useState("");
   const [tpCheck, setTpCheck] = useState<
-    { status: "idle" } | { status: "checking" } | { status: "done"; events: TpEvent[]; error?: string }
+    | { status: "idle" }
+    | { status: "checking" }
+    | { status: "done"; events: TpEvent[]; reconcile?: TpReconcileRow[]; error?: string }
   >({ status: "idle" });
   const [gpxUrlInput, setGpxUrlInput] = useState("");
   const [positionFeedUrlInput, setPositionFeedUrlInput] = useState("");
@@ -267,9 +285,9 @@ function SettingsEditor() {
       // Read it straight back so the athlete sees what the feed actually
       // contains rather than a "Saved" that proves nothing.
       setTpCheck({ status: "checking" });
-      const res = await fetch("/api/trainingpeaks-calendar?refresh=1");
-      const body = (await res.json()) as { events?: TpEvent[]; error?: string };
-      setTpCheck({ status: "done", events: body.events ?? [], error: body.error });
+      const res = await fetch("/api/trainingpeaks-calendar?refresh=1&reconcile=1");
+      const body = (await res.json()) as { events?: TpEvent[]; reconcile?: TpReconcileRow[]; error?: string };
+      setTpCheck({ status: "done", events: body.events ?? [], reconcile: body.reconcile, error: body.error });
     } finally {
       setSaving(null);
     }
@@ -774,6 +792,30 @@ function SettingsEditor() {
                 </ul>
               </>
             )
+          )}
+          {tpCheck.status === "done" && tpCheck.reconcile && tpCheck.reconcile.length > 0 && (
+            <>
+              <p className={styles.sectionHint}>
+                Last {tpCheck.reconcile.length} days, TrainingPeaks against what this app recorded from Strava. A
+                day only TrainingPeaks knows about is a day your CTL here is missing load it has &mdash; which is
+                what makes the two numbers drift apart.
+              </p>
+              <ul className={styles.plainList}>
+                {tpCheck.reconcile.map((row) => (
+                  <li key={row.date}>
+                    {row.date} — {row.planned ? `${row.planned.title}` : "—"}
+                    {" · "}
+                    {row.recorded
+                      ? `Strava ${row.recorded.rides} ride${row.recorded.rides === 1 ? "" : "s"}${
+                          row.recorded.tss != null ? `, ${row.recorded.tss} TSS` : ""
+                        }`
+                      : "nothing on Strava"}
+                    {" · "}
+                    <strong>{RECONCILE_WORDING[row.verdict]}</strong>
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
         </div>
 

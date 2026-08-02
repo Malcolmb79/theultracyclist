@@ -199,6 +199,15 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
         power_np_w: round(normalisedPower(powers), 0),
         hr_bpm: edge?.hrBpm ?? null,
         hr_5min_bpm: round(hr5, 0),
+        // Ride-wide averages as the Edge itself computes them, taken from
+        // the newest sample carrying them rather than aggregated here.
+        // Distinct from power_avg_w / hr_5min_bpm above, which are rolling
+        // windows over recent samples - these cover the whole ride, and
+        // are the figures on the head unit's own screen.
+        avg_speed_mps: withDistance?.avgSpeedMps ?? edge?.avgSpeedMps ?? null,
+        avg_power_ride_w: withDistance?.avgPowerW ?? edge?.avgPowerW ?? null,
+        avg_hr_ride_bpm: withDistance?.avgHrBpm ?? edge?.avgHrBpm ?? null,
+        total_ascent_m: withDistance?.totalAscentM ?? edge?.totalAscentM ?? null,
         cad_rpm: edge?.cadRpm ?? null,
         // Barometric altitude, straight from the Edge. Stored since the
         // schema was written but never surfaced here - every other column

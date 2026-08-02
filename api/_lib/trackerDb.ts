@@ -35,6 +35,14 @@ export type TrackerSample = {
   hrBpm: number | null;
   cadRpm: number | null;
   battPct: number | null;
+  // Ride-wide figures as the head unit itself computes them, rather than
+  // re-derived here from the samples. Ascent especially: summing altitude
+  // deltas from 30-second samples would accumulate barometric noise, while
+  // the Edge filters it properly.
+  avgSpeedMps: number | null;
+  avgPowerW: number | null;
+  avgHrBpm: number | null;
+  totalAscentM: number | null;
 };
 
 let pool: Pool | null = null;
@@ -132,6 +140,15 @@ CREATE INDEX IF NOT EXISTS samples_device_ts_idx ON samples (device, ts DESC);
 -- Only rows with a fix are worth walking for the map track, and on a long
 -- ride the no-fix rows are a real fraction of the table.
 CREATE INDEX IF NOT EXISTS samples_track_idx ON samples (ts) WHERE lat IS NOT NULL;
+
+-- Added after the table already existed on production, so CREATE TABLE IF
+-- NOT EXISTS above will never introduce them - it does nothing at all once
+-- the table is there. ADD COLUMN IF NOT EXISTS is idempotent, so this stays
+-- safe to run on every cold start, same as the rest of this DDL.
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS avg_speed_mps  double precision;
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS avg_power_w    integer;
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS avg_hr_bpm     integer;
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS total_ascent_m double precision;
 `;
 
 /**
@@ -149,6 +166,7 @@ export async function insertSamples(samples: TrackerSample[]): Promise<number> {
   const columns = [
     "device", "seq", "ts", "lat", "lon", "alt_m", "dist_m", "elapsed_s",
     "timer_s", "speed_mps", "power_w", "hr_bpm", "cad_rpm", "batt_pct",
+    "avg_speed_mps", "avg_power_w", "avg_hr_bpm", "total_ascent_m",
   ];
   const values: unknown[] = [];
   const rows = samples.map((sample, row) => {
@@ -156,6 +174,7 @@ export async function insertSamples(samples: TrackerSample[]): Promise<number> {
       sample.device, sample.seq, sample.ts, sample.lat, sample.lon, sample.altM,
       sample.distM, sample.elapsedS, sample.timerS, sample.speedMps,
       sample.powerW, sample.hrBpm, sample.cadRpm, sample.battPct,
+      sample.avgSpeedMps, sample.avgPowerW, sample.avgHrBpm, sample.totalAscentM,
     );
     const base = row * columns.length;
     return `(${columns.map((_, i) => `$${base + i + 1}`).join(", ")})`;
@@ -351,6 +370,10 @@ function fromRow(row: Record<string, unknown>): TrackerSample & { receivedTs: nu
     hrBpm: num(row.hr_bpm),
     cadRpm: num(row.cad_rpm),
     battPct: num(row.batt_pct),
+    avgSpeedMps: num(row.avg_speed_mps),
+    avgPowerW: num(row.avg_power_w),
+    avgHrBpm: num(row.avg_hr_bpm),
+    totalAscentM: num(row.total_ascent_m),
     receivedTs: Number(row.received_ts),
   };
 }

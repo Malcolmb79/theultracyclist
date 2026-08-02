@@ -97,6 +97,17 @@ class EdgeTrackerView extends WatchUi.SimpleDataField {
             info.currentHeartRate,                                  // hr_bpm
             info.currentCadence,                                    // cad_rpm
             System.getSystemStats().battery.toNumber(),             // batt_pct
+            // Ride-wide figures straight from the head unit rather than
+            // recomputed server-side from the samples. These are the same
+            // numbers on the bars, computed the way Garmin computes them -
+            // ascent in particular is properly filtered for barometric
+            // noise, which summing altitude deltas from 30-second samples
+            // would not be. They also cost nothing: no SQL aggregate over
+            // the whole ride to answer "what's the average".
+            info.averageSpeed,                                      // avg_speed_mps
+            info.averagePower,                                      // avg_power_w
+            info.averageHeartRate,                                  // avg_hr_bpm
+            info.totalAscent,                                       // total_ascent_m
         ];
         if (!SampleBuffer.push(sample)) {
             storageFailed = true;

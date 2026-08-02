@@ -22,6 +22,10 @@ type LiveJson = {
     cad_rpm: number | null;
     alt_m: number | null;
     batt_pct: number | null;
+    avg_speed_mps: number | null;
+    avg_power_ride_w: number | null;
+    avg_hr_ride_bpm: number | null;
+    total_ascent_m: number | null;
   };
   progress: { distance_m: number | null; elapsed_s: number | null; timer_s: number | null };
 };
@@ -88,17 +92,19 @@ export default function LiveTrackerCard() {
   const { live, progress } = data;
   const noFeed = live.age_s == null;
 
+  // Same eight the /live map leads with, in the same order, so the two
+  // surfaces never disagree about what "the numbers" are. Battery is the
+  // one addition - it's an operational concern for a multi-day attempt
+  // rather than a performance one, and this is the private dashboard.
   const rows: { label: string; value: string | null }[] = [
-    { label: "Heart rate", value: live.hr_bpm == null ? null : `${live.hr_bpm} bpm` },
-    { label: "HR (5 min)", value: live.hr_5min_bpm == null ? null : `${live.hr_5min_bpm} bpm` },
-    { label: "Power (30s)", value: live.power_30s_w == null ? null : `${live.power_30s_w} W` },
-    { label: "Normalised power", value: live.power_np_w == null ? null : `${live.power_np_w} W` },
-    { label: "Cadence", value: live.cad_rpm == null ? null : `${live.cad_rpm} rpm` },
-    { label: "Speed", value: live.speed_mps == null ? null : `${(live.speed_mps * 3.6).toFixed(1)} km/h` },
-    { label: "Altitude", value: live.alt_m == null ? null : `${Math.round(live.alt_m)} m` },
     { label: "Distance", value: progress.distance_m == null ? null : `${(progress.distance_m / 1000).toFixed(1)} km` },
-    { label: "Elapsed", value: progress.elapsed_s == null ? null : clock(progress.elapsed_s) },
-    { label: "Moving", value: progress.timer_s == null ? null : clock(progress.timer_s) },
+    { label: "Elapsed time", value: progress.elapsed_s == null ? null : clock(progress.elapsed_s) },
+    { label: "Moving time", value: progress.timer_s == null ? null : clock(progress.timer_s) },
+    { label: "Average speed", value: live.avg_speed_mps == null ? null : `${(live.avg_speed_mps * 3.6).toFixed(1)} km/h` },
+    { label: "Average power", value: live.avg_power_ride_w == null ? null : `${live.avg_power_ride_w} W` },
+    { label: "Normalised power", value: live.power_np_w == null ? null : `${live.power_np_w} W` },
+    { label: "Average heart rate", value: live.avg_hr_ride_bpm == null ? null : `${live.avg_hr_ride_bpm} bpm` },
+    { label: "Altitude gained", value: live.total_ascent_m == null ? null : `${Math.round(live.total_ascent_m)} m` },
     { label: "Edge battery", value: live.batt_pct == null ? null : `${live.batt_pct}%` },
   ];
 

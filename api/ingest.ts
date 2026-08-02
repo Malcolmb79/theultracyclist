@@ -35,6 +35,10 @@ type IncomingSample = {
   hr_bpm?: number | null;
   cad_rpm?: number | null;
   batt_pct?: number | null;
+  avg_speed_mps?: number | null;
+  avg_power_w?: number | null;
+  avg_hr_bpm?: number | null;
+  total_ascent_m?: number | null;
 };
 
 function num(value: unknown): number | null {
@@ -60,6 +64,10 @@ function num(value: unknown): number | null {
 const COMPACT_FIELDS = [
   "seq", "ts", "lat", "lon", "alt_m", "dist_m", "elapsed_s",
   "timer_s", "speed_mps", "power_w", "hr_bpm", "cad_rpm", "batt_pct",
+  // Appended, never inserted - a device still running the previous build
+  // sends 13 values and simply leaves these null, which is why the order
+  // only ever grows at the end.
+  "avg_speed_mps", "avg_power_w", "avg_hr_bpm", "total_ascent_m",
 ] as const;
 
 function fromCompact(row: unknown[]): IncomingSample {
@@ -142,6 +150,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       hrBpm: num(raw.hr_bpm),
       cadRpm: num(raw.cad_rpm),
       battPct: num(raw.batt_pct),
+      avgSpeedMps: num(raw.avg_speed_mps),
+      avgPowerW: num(raw.avg_power_w),
+      avgHrBpm: num(raw.avg_hr_bpm),
+      totalAscentM: num(raw.total_ascent_m),
     });
   }
 

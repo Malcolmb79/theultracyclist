@@ -45,6 +45,12 @@ export type LiveTelemetry = {
     cad_rpm: number | null;
     alt_m: number | null;
     batt_pct: number | null;
+    // Whole-ride figures from the head unit, as opposed to the rolling
+    // windows above.
+    avg_speed_mps: number | null;
+    avg_power_ride_w: number | null;
+    avg_hr_ride_bpm: number | null;
+    total_ascent_m: number | null;
   };
   progress: {
     distance_m: number | null;
@@ -54,19 +60,26 @@ export type LiveTelemetry = {
 } | null;
 
 export type TelemetryFieldId =
-  | "speed"
-  | "avgSpeedMoving"
-  | "avgSpeedElapsed"
-  | "power"
-  | "powerAvg"
+  // The eight the athlete asked for, and the defaults.
+  | "distance"
+  | "elapsed"
+  | "moving"
+  | "avgSpeed"
+  | "avgPower"
   | "powerNp"
+  | "avgHr"
+  | "ascent"
+  // Still available under Data, off by default. Instantaneous readings are
+  // of limited use here: samples arrive in 5-minute batches, so "current"
+  // heart rate is a number from up to five minutes ago. Averages and totals
+  // don't have that problem, which is why they lead.
+  | "speed"
+  | "power"
   | "hr"
   | "hr5min"
   | "cadence"
   | "altitude"
-  | "distance"
-  | "elapsed"
-  | "moving"
+  | "avgSpeedElapsed"
   | "battery";
 
 // Age of the Edge readings, for the caption on the telemetry card. Under a
@@ -106,29 +119,43 @@ const TELEMETRY_FIELDS: {
   unit: string;
   value: (t: NonNullable<LiveTelemetry>) => number | string | null;
 }[] = [
-  { id: "speed", label: "Speed", short: "Speed", unit: "km/h", value: (t) => (t.live.speed_mps == null ? null : (t.live.speed_mps * 3.6).toFixed(1)) },
-  { id: "power", label: "Power (30s)", short: "Power", unit: "W", value: (t) => t.live.power_30s_w },
-  { id: "hr", label: "Heart rate", short: "HR", unit: "bpm", value: (t) => t.live.hr_bpm },
-  { id: "cadence", label: "Cadence", short: "Cadence", unit: "rpm", value: (t) => t.live.cad_rpm },
-  { id: "powerNp", label: "Normalised power", short: "NP", unit: "W", value: (t) => t.live.power_np_w },
-  { id: "powerAvg", label: "Power (ride avg)", short: "Avg P", unit: "W", value: (t) => t.live.power_avg_w },
-  { id: "hr5min", label: "Heart rate (5 min)", short: "HR 5m", unit: "bpm", value: (t) => t.live.hr_5min_bpm },
-  { id: "altitude", label: "Altitude", short: "Altitude", unit: "m", value: (t) => (t.live.alt_m == null ? null : Math.round(t.live.alt_m)) },
-  { id: "avgSpeedMoving", label: "Avg speed (moving)", short: "Avg mov", unit: "km/h", value: (t) => (t.live.avg_speed_moving_mps == null ? null : (t.live.avg_speed_moving_mps * 3.6).toFixed(1)) },
-  { id: "avgSpeedElapsed", label: "Avg speed (elapsed)", short: "Avg elap", unit: "km/h", value: (t) => (t.live.avg_speed_elapsed_mps == null ? null : (t.live.avg_speed_elapsed_mps * 3.6).toFixed(1)) },
-  // The Edge's own odometer, not the GPX-derived figure the Progress card
-  // shows - trackerDb.ts treats the device's distance as authoritative and
-  // never recomputes it, so the two can differ slightly. Off by default so
-  // the page doesn't put two distances on screen unless asked.
-  { id: "distance", label: "Distance (device)", short: "Distance", unit: "km", value: (t) => (t.progress.distance_m == null ? null : (t.progress.distance_m / 1000).toFixed(1)) },
-  { id: "elapsed", label: "Elapsed", short: "Elapsed", unit: "", value: (t) => (t.progress.elapsed_s == null ? null : formatClock(t.progress.elapsed_s)) },
+  // The eight defaults, in the order they're shown.
+  { id: "distance", label: "Distance", short: "Distance", unit: "km", value: (t) => (t.progress.distance_m == null ? null : (t.progress.distance_m / 1000).toFixed(1)) },
+  { id: "elapsed", label: "Elapsed time", short: "Elapsed", unit: "", value: (t) => (t.progress.elapsed_s == null ? null : formatClock(t.progress.elapsed_s)) },
   { id: "moving", label: "Moving time", short: "Moving", unit: "", value: (t) => (t.progress.timer_s == null ? null : formatClock(t.progress.timer_s)) },
+  { id: "avgSpeed", label: "Average speed", short: "Avg spd", unit: "km/h", value: (t) => (t.live.avg_speed_mps == null ? null : (t.live.avg_speed_mps * 3.6).toFixed(1)) },
+  { id: "avgPower", label: "Average power", short: "Avg pwr", unit: "W", value: (t) => t.live.avg_power_ride_w },
+  { id: "powerNp", label: "Normalised power", short: "NP", unit: "W", value: (t) => t.live.power_np_w },
+  { id: "avgHr", label: "Average heart rate", short: "Avg HR", unit: "bpm", value: (t) => t.live.avg_hr_ride_bpm },
+  { id: "ascent", label: "Altitude gained", short: "Ascent", unit: "m", value: (t) => (t.live.total_ascent_m == null ? null : Math.round(t.live.total_ascent_m)) },
+
+  // Available under Data, off by default.
+  { id: "speed", label: "Speed (current)", short: "Speed", unit: "km/h", value: (t) => (t.live.speed_mps == null ? null : (t.live.speed_mps * 3.6).toFixed(1)) },
+  { id: "power", label: "Power (30s)", short: "Power", unit: "W", value: (t) => t.live.power_30s_w },
+  { id: "hr", label: "Heart rate (current)", short: "HR", unit: "bpm", value: (t) => t.live.hr_bpm },
+  { id: "hr5min", label: "Heart rate (5 min)", short: "HR 5m", unit: "bpm", value: (t) => t.live.hr_5min_bpm },
+  { id: "cadence", label: "Cadence", short: "Cadence", unit: "rpm", value: (t) => t.live.cad_rpm },
+  { id: "altitude", label: "Altitude (current)", short: "Altitude", unit: "m", value: (t) => (t.live.alt_m == null ? null : Math.round(t.live.alt_m)) },
+  // Distance over elapsed rather than moving time - the one the record is
+  // actually judged on, since stopped time counts against it.
+  { id: "avgSpeedElapsed", label: "Avg speed (incl. stops)", short: "Avg elap", unit: "km/h", value: (t) => (t.live.avg_speed_elapsed_mps == null ? null : (t.live.avg_speed_elapsed_mps * 3.6).toFixed(1)) },
   { id: "battery", label: "Edge battery", short: "Battery", unit: "%", value: (t) => t.live.batt_pct },
 ];
 
-// The four a dot-watcher actually wants at a glance. The rest are one tap
-// away rather than crowding the map by default.
-const DEFAULT_FIELDS: TelemetryFieldId[] = ["speed", "power", "hr", "cadence"];
+// The eight asked for. Averages and totals rather than instantaneous
+// readings, which suits a feed that arrives in 5-minute batches - a
+// "current" heart rate here is a number from up to five minutes ago,
+// whereas an average is just as true whenever it was measured.
+const DEFAULT_FIELDS: TelemetryFieldId[] = [
+  "distance",
+  "elapsed",
+  "moving",
+  "avgSpeed",
+  "avgPower",
+  "powerNp",
+  "avgHr",
+  "ascent",
+];
 
 function normalizeAngle(deg: number): number {
   return ((deg % 360) + 360) % 360;

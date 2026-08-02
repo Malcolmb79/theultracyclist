@@ -75,6 +75,33 @@
   margin-top: 2px;
 }
 
+.themeToggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px var(--space-2);
+  border-radius: var(--radius);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.themeToggle:hover {
+  border-color: var(--color-accent);
+  color: var(--color-text);
+}
+
+/* The icon carries it on a narrow screen; the word is the bit that goes. */
+@media (max-width: 640px) {
+  .themeWord {
+    display: none;
+  }
+}
+
 .status {
   display: flex;
   align-items: center;

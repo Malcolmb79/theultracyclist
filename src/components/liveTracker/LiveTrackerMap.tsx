@@ -1,8 +1,19 @@
 import { useEffect, useRef, useState } from "react";
-import type { Map as LeafletMap, Polyline, CircleMarker } from "leaflet";
+import type { Map as LeafletMap, Polyline, CircleMarker, TileLayer } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { courseBearingAtKm, type RoutePoint } from "../../utils/gpxRoute";
 import { useStoredState } from "../../utils/useStoredState";
+import { useTheme } from "../../context/ThemeContext";
+
+// CARTO's matching light and dark basemaps. The dark one used to be pinned
+// regardless of the page theme, on the reasoning that a map is a legend and
+// legends don't reskin. That holds when the page is always dark; it doesn't
+// once the page can be light, because the map is the largest thing on it -
+// leaving it dark reads as a failed load rather than a deliberate choice.
+const TILES: Record<"light" | "dark", string> = {
+  dark: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+  light: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+};
 import RouteProfile from "./RouteProfile";
 import styles from "./LiveTrackerMap.module.css";
 
@@ -218,6 +229,9 @@ interface LiveTrackerMapProps {
   // as "live" at a glance - and whether the readings are captioned as
   // current, last known, or final.
   sessionState: "pending" | "live" | "stalled" | "ended";
+  // Changes when the athlete presses start again. Re-fits the map to the
+  // route rather than leaving it wherever the last ride finished.
+  sessionStartTs: number | null;
 }
 
 // Plain Leaflet (not react-leaflet) so the map instance persists across
@@ -240,9 +254,17 @@ export default function LiveTrackerMap({
   weather,
   telemetry,
   sessionState,
+  sessionStartTs,
 }: LiveTrackerMapProps) {
+  const { resolvedTheme } = useTheme();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
+  const tileLayerRef = useRef<TileLayer | null>(null);
+  // Read inside the map-creation effect, which deliberately runs once - a
+  // ref keeps it current there without making the map tear down and rebuild
+  // every time the theme changes.
+  const themeRef = useRef(resolvedTheme);
+  themeRef.current = resolvedTheme;
   const fullLineRef = useRef<Polyline | null>(null);
   const completedLineRef = useRef<Polyline | null>(null);
   const markerRef = useRef<CircleMarker | null>(null);
@@ -275,6 +297,9 @@ export default function LiveTrackerMap({
     return known;
   });
   const [expanded, setExpanded] = useState(false);
+  // Dismissed per session, not persisted: a later ride should raise its own
+  // summary rather than inherit "I already closed that one".
+  const [summaryDismissed, setSummaryDismissed] = useState<number | null>(null);
   const [zoom, setZoom] = useState(INITIAL_ZOOM);
   const [scaleKm, setScaleKm] = useState<number | null>(null);
 
@@ -297,7 +322,7 @@ export default function LiveTrackerMap({
         [53.4, -8],
         INITIAL_ZOOM,
       );
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      tileLayerRef.current = L.tileLayer(TILES[themeRef.current], {
         attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
         subdomains: "abcd",
         maxZoom: 19,
@@ -387,6 +412,30 @@ export default function LiveTrackerMap({
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [expanded]);
+
+  // Swaps the basemap in place rather than rebuilding the map, so panning,
+  // zoom and the drawn route all survive a theme change.
+  useEffect(() => {
+    tileLayerRef.current?.setUrl(TILES[resolvedTheme]);
+  }, [resolvedTheme]);
+
+  // A new session means a new ride: drop the "already fitted" latch so the
+  // route effect re-frames the map, rather than leaving it parked wherever
+  // the last ride happened to finish - or zoomed into a dot that is now
+  // hundreds of kilometres from the start.
+  useEffect(() => {
+    if (sessionStartTs == null) return;
+    hasFitBoundsRef.current = false;
+    const map = mapRef.current;
+    const line = fullLineRef.current;
+    if (map && line) {
+      const bounds = line.getBounds();
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [24, 24] });
+        hasFitBoundsRef.current = true;
+      }
+    }
+  }, [sessionStartTs]);
 
   const handleReset = () => {
     if (mapRef.current && position) {
@@ -607,6 +656,36 @@ export default function LiveTrackerMap({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Ride over. The same eight readings the card carries, but presented
+          as a result rather than a live readout - over the map, because the
+          finished route is what it's summarising. Dismissible: someone who
+          wants to look at the track shouldn't have to reload to get the
+          summary out of the way. */}
+      {sessionState === "ended" && telemetry && summaryDismissed !== sessionStartTs && (
+        <div className={styles.summaryOverlay}>
+          <div className={styles.summaryCard}>
+            <p className={styles.summaryTitle}>Ride complete</p>
+            <div className={styles.summaryGrid}>
+              {TELEMETRY_FIELDS.filter((field) => DEFAULT_FIELDS.includes(field.id)).map((field) => {
+                const value = field.value(telemetry);
+                return (
+                  <div key={field.id} className={styles.summaryItem}>
+                    <span className={styles.summaryLabel}>{field.label}</span>
+                    <span className={styles.summaryValue}>
+                      {value ?? "—"}
+                      {value != null && field.unit && <span className={styles.summaryUnit}>{field.unit}</span>}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            <button type="button" className={styles.summaryClose} onClick={() => setSummaryDismissed(sessionStartTs)}>
+              Show the map
+            </button>
+          </div>
         </div>
       )}
 

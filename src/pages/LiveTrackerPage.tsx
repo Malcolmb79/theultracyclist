@@ -7,6 +7,7 @@ import { useDeviceCategory } from "../utils/useDeviceCategory";
 import { computeCanvasHeight } from "../utils/useCanvasItem";
 import { useMeasuredWidth } from "../utils/useMeasuredWidth";
 import { useDashboardTheme } from "../utils/useDashboardTheme";
+import { useTheme, type ThemeMode } from "../context/ThemeContext";
 import styles from "./LiveTrackerPage.module.css";
 
 const POLL_INTERVAL_MS = 20_000;
@@ -50,6 +51,8 @@ type ApiResult = {
     lastSampleTs: number | null;
     ageS: number | null;
     state: "pending" | "live" | "stalled" | "ended";
+    sessionStartTs: number | null;
+    sessionEndTs: number | null;
   };
   isOwner: boolean;
 };
@@ -162,8 +165,19 @@ function currentPaceKmh(history: PositionPoint[]): number | null {
 // original bespoke "mission control" palette - this is still a standalone
 // public page with none of the private dashboard's nav/auth chrome, just
 // matching look and feel.
+// Cycles in the order a visitor would expect to find them, with auto last
+// as the "stop choosing for me" option rather than the first thing you hit.
+const THEME_CYCLE: ThemeMode[] = ["light", "dark", "auto"];
+const THEME_ICON: Record<ThemeMode, string> = { light: "☀", dark: "☾", auto: "◐" };
+const THEME_LABEL: Record<ThemeMode, string> = { light: "Light", dark: "Dark", auto: "Auto" };
+
 export default function LiveTrackerPage() {
   useDashboardTheme();
+  // Same context, same localStorage key as the rest of the site, so a
+  // visitor who set a preference on /the-cause finds it honoured here and
+  // vice versa. This page had no control of its own only because it's a
+  // standalone route with none of the site's usual chrome.
+  const { mode, setMode } = useTheme();
   const [data, setData] = useState<ApiResult | null>(null);
   const [route, setRoute] = useState<RoutePoint[]>([]);
   const [routeError, setRouteError] = useState(false);
@@ -513,6 +527,7 @@ export default function LiveTrackerPage() {
           weather={weather}
           telemetry={telemetry}
           sessionState={data.tracking?.state ?? "pending"}
+          sessionStartTs={data.tracking?.sessionStartTs ?? null}
         />
       </div>
     ),
@@ -554,6 +569,17 @@ export default function LiveTrackerPage() {
             configured start time. Before the tracker is switched on, and
             after it's switched off, this says so rather than showing a
             pulsing dot next to a position that stopped moving hours ago. */}
+        <button
+          type="button"
+          className={styles.themeToggle}
+          onClick={() => setMode(THEME_CYCLE[(THEME_CYCLE.indexOf(mode) + 1) % THEME_CYCLE.length])}
+          aria-label={`Theme: ${THEME_LABEL[mode]}. Tap to change.`}
+          title={`Theme: ${THEME_LABEL[mode]}`}
+        >
+          <span aria-hidden="true">{THEME_ICON[mode]}</span>
+          <span className={styles.themeWord}>{THEME_LABEL[mode]}</span>
+        </button>
+
         <div className={styles.status}>
           {data.tracking?.state === "live" ? (
             <>

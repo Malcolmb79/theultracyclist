@@ -41,9 +41,32 @@ class EdgeTrackerView extends WatchUi.SimpleDataField {
     // CIQ_LOG.YML over USB afterwards, which is no use while riding.
     hidden var storageFailed as Boolean = false;
 
+    //! Set by the timer callbacks below, attached to the next sample, then
+    //! cleared. 0 none, 1 start, 2 stop.
+    //!
+    //! Pressing start and stop on the Edge is what actually opens and closes
+    //! a session, so the server is told rather than left to work it out from
+    //! how long the samples have been quiet. Inference can't distinguish a
+    //! finished ride from a rider in a valley until half an hour has passed;
+    //! a stop marker says so on the very next flush.
+    hidden var pendingEvent as Number = 0;
+
     function initialize() {
         SimpleDataField.initialize();
         label = "Ultra Cyclist Tracker";
+    }
+
+    //! Timer lifecycle, from WatchUi.DataField. The flag is attached to the
+    //! next compute() rather than the sample being built here, so there's
+    //! one place that knows how to build a sample and it always has a real
+    //! Activity.Info to build it from. compute() runs about once a second
+    //! while the activity is open, so the marker is picked up promptly.
+    function onTimerStart() as Void {
+        pendingEvent = 1;
+    }
+
+    function onTimerStop() as Void {
+        pendingEvent = 2;
     }
 
     function compute(info as Activity.Info) as Numeric or Duration or String or Null {
@@ -59,10 +82,15 @@ class EdgeTrackerView extends WatchUi.SimpleDataField {
         // all. The early return is the point - the old code did a
         // read-modify-write of the entire queue on every one of these
         // ticks.
-        if (lastSampleTs != 0 && ts - lastSampleTs < SampleBuffer.SAMPLE_INTERVAL_S) {
+        // A start or stop marker bypasses the interval - the whole point of
+        // it is to be sent promptly, and waiting up to 30 seconds to record
+        // that the ride ended would defeat it.
+        if (pendingEvent == 0 && lastSampleTs != 0 && ts - lastSampleTs < SampleBuffer.SAMPLE_INTERVAL_S) {
             return status();
         }
         lastSampleTs = ts;
+        var event = pendingEvent;
+        pendingEvent = 0;
 
         var lat = null;
         var lon = null;
@@ -108,6 +136,7 @@ class EdgeTrackerView extends WatchUi.SimpleDataField {
             info.averagePower,                                      // avg_power_w
             info.averageHeartRate,                                  // avg_hr_bpm
             info.totalAscent,                                       // total_ascent_m
+            event,                                                  // event: 0 none, 1 start, 2 stop
         ];
         if (!SampleBuffer.push(sample)) {
             storageFailed = true;

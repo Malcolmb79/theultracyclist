@@ -22,15 +22,14 @@
   background: var(--color-bg);
 }
 
-/* The dark CartoDB basemap (see LiveTrackerMap.tsx) stays fixed regardless
-   of the page's light/dark theme, same as any map legend - only the
-   floating chrome on top of it (controls, weather, profile panel) follows
-   the shared theme variables. */
+/* The basemap follows the page theme now (see TILES in LiveTrackerMap.tsx),
+   so the placeholder behind the tiles has to as well - a dark slab flashing
+   behind light tiles on every pan is worse than no placeholder at all. */
 .map {
   width: 100%;
   height: 100%;
   min-height: 320px;
-  background: #0d1220;
+  background: var(--color-bg-elevated-2);
 }
 
 /* Centered at the top so it clears Leaflet's own zoom control (top-left)
@@ -361,6 +360,95 @@
   margin: 1px 0 0;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+/* Sits over the whole map, above every other overlay including the zoom
+   slider and the profile panel - it's a result, not another readout
+   competing with them. */
+.summaryOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3);
+  background: color-mix(in srgb, var(--color-bg) 72%, transparent);
+  backdrop-filter: blur(3px);
+  box-sizing: border-box;
+}
+
+.summaryCard {
+  width: 100%;
+  max-width: 420px;
+  max-height: 100%;
+  overflow-y: auto;
+  padding: var(--space-4);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-sizing: border-box;
+}
+
+.summaryTitle {
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  color: var(--color-text);
+}
+
+/* Two columns where there's room, one where there isn't - eight rows of
+   label and value is a lot of vertical space on a phone-sized map. */
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-2) var(--space-3);
+}
+
+.summaryItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.summaryLabel {
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
+.summaryValue {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  color: var(--color-text);
+}
+
+.summaryUnit {
+  font-family: var(--font-body);
+  font-size: 0.6rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  margin-left: 3px;
+}
+
+.summaryClose {
+  margin-top: var(--space-3);
+  width: 100%;
+  padding: 8px;
+  border-radius: var(--radius);
+  background: none;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.summaryClose:hover {
+  border-color: var(--color-accent);
 }
 
 .profilePanel {

@@ -43,6 +43,8 @@ export type TrackerSample = {
   avgPowerW: number | null;
   avgHrBpm: number | null;
   totalAscentM: number | null;
+  /** Timer lifecycle marker from the device: 0/null none, 1 start, 2 stop. */
+  event: number | null;
 };
 
 let pool: Pool | null = null;
@@ -149,6 +151,11 @@ ALTER TABLE samples ADD COLUMN IF NOT EXISTS avg_speed_mps  double precision;
 ALTER TABLE samples ADD COLUMN IF NOT EXISTS avg_power_w    integer;
 ALTER TABLE samples ADD COLUMN IF NOT EXISTS avg_hr_bpm     integer;
 ALTER TABLE samples ADD COLUMN IF NOT EXISTS total_ascent_m double precision;
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS event          integer;
+
+-- Session boundaries are looked up by scanning backwards for the newest
+-- start/stop marker, which without this means walking the whole ride.
+CREATE INDEX IF NOT EXISTS samples_event_idx ON samples (ts DESC) WHERE event IS NOT NULL AND event > 0;
 `;
 
 /**
@@ -166,7 +173,7 @@ export async function insertSamples(samples: TrackerSample[]): Promise<number> {
   const columns = [
     "device", "seq", "ts", "lat", "lon", "alt_m", "dist_m", "elapsed_s",
     "timer_s", "speed_mps", "power_w", "hr_bpm", "cad_rpm", "batt_pct",
-    "avg_speed_mps", "avg_power_w", "avg_hr_bpm", "total_ascent_m",
+    "avg_speed_mps", "avg_power_w", "avg_hr_bpm", "total_ascent_m", "event",
   ];
   const values: unknown[] = [];
   const rows = samples.map((sample, row) => {
@@ -175,6 +182,7 @@ export async function insertSamples(samples: TrackerSample[]): Promise<number> {
       sample.distM, sample.elapsedS, sample.timerS, sample.speedMps,
       sample.powerW, sample.hrBpm, sample.cadRpm, sample.battPct,
       sample.avgSpeedMps, sample.avgPowerW, sample.avgHrBpm, sample.totalAscentM,
+      sample.event,
     );
     const base = row * columns.length;
     return `(${columns.map((_, i) => `$${base + i + 1}`).join(", ")})`;
@@ -267,6 +275,24 @@ export function mergePosition(
   const edgeStale = edge ? nowTs - edge.ts > EDGE_STALE_S : true;
   const fresh = !edgeStale && edge?.lat != null ? edge : null;
   return fresh ?? (traccar?.lat != null ? traccar : edge?.lat != null ? edge : null);
+}
+
+/**
+ * The newest timer start/stop the device reported, if any.
+ *
+ * This is what actually opens and closes a session. Everything else here
+ * infers it from how long the samples have been quiet, which can't tell a
+ * finished ride from a rider in a valley until half an hour has passed - and
+ * for the page that means either calling a ride over while it's still going,
+ * or leaving a finished one looking live. A marker settles it on the first
+ * flush after the button was pressed.
+ */
+export async function latestSessionEvent(): Promise<{ event: number; ts: number } | null> {
+  await ensureSchema();
+  const { rows } = await getPool().query(
+    `SELECT event, ts FROM samples WHERE event IS NOT NULL AND event > 0 ORDER BY ts DESC LIMIT 1`,
+  );
+  return rows[0] ? { event: Number(rows[0].event), ts: Number(rows[0].ts) } : null;
 }
 
 /** The newest sample from each device, for the merge rule and staleness. */
@@ -374,6 +400,7 @@ function fromRow(row: Record<string, unknown>): TrackerSample & { receivedTs: nu
     avgPowerW: num(row.avg_power_w),
     avgHrBpm: num(row.avg_hr_bpm),
     totalAscentM: num(row.total_ascent_m),
+    event: num(row.event),
     receivedTs: Number(row.received_ts),
   };
 }

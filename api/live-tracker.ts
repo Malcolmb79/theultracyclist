@@ -1,7 +1,14 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getJSON, readJSON, setJSON } from "./_lib/kvStore.js";
 import { getSessionEmail } from "./_lib/session.js";
-import { SESSION_ENDED_S, TRACKING_IDLE_S, latestPerDevice, mergePosition, trackPoints } from "./_lib/trackerDb.js";
+import {
+  SESSION_ENDED_S,
+  TRACKING_IDLE_S,
+  latestPerDevice,
+  latestSessionEvent,
+  mergePosition,
+  trackPoints,
+} from "./_lib/trackerDb.js";
 import { isDeviceCategory, mergeDeviceValue, resolveDeviceValue, type DeviceCategory } from "./_lib/deviceLayout.js";
 
 /**
@@ -97,6 +104,15 @@ export type LiveTrackerPublicResult = {
      *             numbers are the final result rather than stale live data
      */
     state: "pending" | "live" | "stalled" | "ended";
+    /**
+     * When the athlete last pressed start, from the device's own timer
+     * event. The page uses it as a session identity: a value it hasn't seen
+     * before means a new ride, and the map resets rather than drawing the
+     * new one on top of the old one's track.
+     */
+    sessionStartTs: number | null;
+    /** When stop was pressed, if it has been. */
+    sessionEndTs: number | null;
   };
   // True when the request is authenticated - the /live page uses this to
   // decide whether to render its widgets as draggable/resizable (only the
@@ -177,6 +193,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const newestSampleTs = Math.max(devices.edge1040?.ts ?? 0, devices.traccar?.ts ?? 0);
   const trackingAgeS = newestSampleTs > 0 ? nowTs - newestSampleTs : null;
 
+  // The device's own start/stop beats anything inferred from silence. Only
+  // when it has told us nothing do the timeouts decide, which is still the
+  // case for a phone-only feed and for any ride recorded before the Edge
+  // learned to send markers.
+  const sessionEvent = await latestSessionEvent();
+  const sessionStopped = sessionEvent?.event === 2;
+  const sessionStartTs = sessionEvent?.event === 1 ? sessionEvent.ts : null;
+  const sessionEndTs = sessionStopped ? sessionEvent.ts : null;
+
+  const trackingState: LiveTrackerPublicResult["tracking"]["state"] = sessionStopped
+    ? "ended"
+    : trackingAgeS == null
+      ? "pending"
+      : trackingAgeS <= TRACKING_IDLE_S
+        ? "live"
+        : trackingAgeS <= SESSION_ENDED_S
+          ? "stalled"
+          : "ended";
+
   const rawHistory = await trackPoints(HISTORY_POINTS);
   const history: PositionPoint[] = rawHistory.map((p) => ({ lat: p.lat, lon: p.lon, timestamp: p.ts * 1000 }));
 
@@ -201,14 +236,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       active: trackingAgeS != null && trackingAgeS <= TRACKING_IDLE_S,
       lastSampleTs: newestSampleTs > 0 ? newestSampleTs : null,
       ageS: trackingAgeS,
-      state:
-        trackingAgeS == null
-          ? "pending"
-          : trackingAgeS <= TRACKING_IDLE_S
-            ? "live"
-            : trackingAgeS <= SESSION_ENDED_S
-              ? "stalled"
-              : "ended",
+      state: trackingState,
+      sessionStartTs,
+      sessionEndTs,
     },
     isOwner,
   };

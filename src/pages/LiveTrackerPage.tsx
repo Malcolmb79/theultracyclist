@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import LiveTrackerMap, { type LiveTelemetry } from "../components/liveTracker/LiveTrackerMap";
 import LiveTrackerWidget from "../components/liveTracker/LiveTrackerWidget";
 import FundraiserProgress from "../components/fundraiser/FundraiserProgress";
-import { fetchRoute, distanceCoveredKm, totalDistanceKm, haversineKm, type RoutePoint } from "../utils/gpxRoute";
+import { fetchRoute, totalDistanceKm, type RoutePoint } from "../utils/gpxRoute";
 import { useDeviceCategory } from "../utils/useDeviceCategory";
 import { computeCanvasHeight } from "../utils/useCanvasItem";
 import { useMeasuredWidth } from "../utils/useMeasuredWidth";
@@ -119,22 +119,13 @@ function relativeSeconds(timestampMs: number): string {
   return `${Math.round(diffSec / 3600)}h ago`;
 }
 
-// Current pace from the last two distinct position readings, rather than a
-// device-reported speed field (we don't have one - see the "no live
-// telemetry" note below) - a simple distance/time delta between the two
-// most recent points. data.simulatedKmh is always null now that position
-// comes from the real Edge 1040/Traccar pipeline rather than a simulation,
-// so the `data.simulatedKmh ?? currentPaceKmh(...)` fallback below always
-// takes this branch - kept as a fallback rather than removed outright in
-// case a simulation mode returns for testing before a future attempt.
-function currentPaceKmh(history: PositionPoint[]): number | null {
-  if (history.length < 2) return null;
-  const a = history[history.length - 2];
-  const b = history[history.length - 1];
-  const hours = (b.timestamp - a.timestamp) / 3_600_000;
-  if (hours <= 0) return null;
-  return haversineKm(a, b) / hours;
-}
+// Pace used to be derived here, from a haversine between the last two
+// position fixes, because there was no device speed to read. There is now,
+// so it isn't - see currentPace/averagePace below. Worth recording why it
+// went rather than just that it did: those fixes can be Traccar's, minutes
+// apart, and the straight-line distance between two points that far apart
+// divided by the time between them is not the speed anyone was travelling
+// at any moment in between. It also cut corners the rider didn't.
 
 // Public "dot-watching" page for the actual attempt, separate from the
 // Microsoft-gated /dashboard app - no sign-in required to view, meant to be
@@ -383,7 +374,19 @@ export default function LiveTrackerPage() {
   }
 
   const totalKm = totalDistanceKm(route);
-  const coveredKm = data.position && route.length > 0 ? distanceCoveredKm(route, data.position) : 0;
+  // The Edge's own odometer, and nothing else.
+  //
+  // This used to snap the live position to the nearest route vertex and
+  // take that vertex's distance. On a route that starts and finishes near
+  // home - or anywhere it passes close to itself - that reads the wrong
+  // vertex: sitting in the kitchen before a ride showed 74 km and 100%
+  // complete, while the device correctly reported 0.0 km. A projection
+  // that can report a finished ride before it starts is not a measurement.
+  //
+  // No fallback to the old method when the device hasn't reported yet.
+  // Zero is honest about knowing nothing; a snapped figure looks like
+  // knowledge and isn't.
+  const coveredKm = telemetry?.progress.distance_m != null ? telemetry.progress.distance_m / 1000 : 0;
   const remainingKm = Math.max(0, totalKm - coveredKm);
   const progressPct = totalKm > 0 ? Math.min(100, (coveredKm / totalKm) * 100) : 0;
   // The Edge's own activity clock, not a start time typed into Settings.
@@ -412,8 +415,16 @@ export default function LiveTrackerPage() {
       ? Math.max(0, telemetry.live.age_s + (nowMs - telemetryAt) / 1000)
       : 0;
   const elapsedSeconds = deviceElapsedS != null ? deviceElapsedS + sinceSampleS : null;
-  const currentPace = data.simulatedKmh ?? currentPaceKmh(data.history);
-  const averagePace = elapsedSeconds && elapsedSeconds > 0 ? coveredKm / (elapsedSeconds / 3600) : null;
+  // Both from the Edge. Current speed is the device's own reading rather
+  // than a haversine between the last two position fixes - those fixes can
+  // be Traccar's, minutes apart, and the distance between two points that
+  // far apart divided by the time between them is not the speed anyone was
+  // travelling at any moment in between. Average is distance over elapsed,
+  // computed server-side in live.json from the device's own odometer and
+  // clock so every viewer sees the same number.
+  const currentPace = telemetry?.live.speed_mps != null ? telemetry.live.speed_mps * 3.6 : null;
+  const averagePace =
+    telemetry?.live.avg_speed_elapsed_mps != null ? telemetry.live.avg_speed_elapsed_mps * 3.6 : null;
   const requiredPaceKmh = data.targetSeconds && totalKm > 0 ? totalKm / (data.targetSeconds / 3600) : null;
 
   const expectedElapsedAtCovered = requiredPaceKmh ? (coveredKm / requiredPaceKmh) * 3600 : null;
@@ -581,9 +592,18 @@ export default function LiveTrackerPage() {
                 hasn't loaded or carries no name of its own. */}
             <h1 className={styles.title}>{routeName ?? "World Record Attempt — Live"}</h1>
             {routeDescription && <p className={styles.subtitle}>{routeDescription}</p>}
-            {data.startTime && (
+            {/* When the athlete actually pressed start, from the device's
+                timer - not the time typed into Settings, which is a plan
+                rather than a fact and disagrees with the clock beside it
+                the moment a start slips. Nothing is shown until the device
+                has said so. */}
+            {data.tracking?.sessionStartTs != null && (
               <p className={styles.startedLine}>
-                Started {new Date(data.startTime).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+                Started{" "}
+                {new Date(data.tracking.sessionStartTs * 1000).toLocaleString(undefined, {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                })}
               </p>
             )}
           </div>

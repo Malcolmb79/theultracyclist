@@ -49,12 +49,11 @@
   height: 34px;
   border-radius: 50%;
   box-sizing: border-box;
-  /* Ring and shadow so it stays legible on both basemaps. The old plain
-     red dot had contrast against anything; a logo doesn't, and on a busy
-     light map it would otherwise disappear into the terrain. */
-  border: 2px solid #fff;
-  background: #fff;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 2px 6px rgba(0, 0, 0, 0.45);
+  /* No ring or backing plate - the logo is already a dark disc, so it
+     carries its own edge and the white ring only made it look like a
+     sticker someone had put on the map. A soft drop shadow is kept purely
+     to lift it off the basemap; it reads as depth rather than as chrome. */
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
 }
 
 /* Centered at the top so it clears Leaflet's own zoom control (top-left)

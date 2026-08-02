@@ -1,4 +1,4 @@
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
 export interface CanvasRect {
   x: number;
@@ -82,6 +82,20 @@ export function useCanvasItem({
   const liveRect = useRef(rect);
   const dragStart = useRef<{ x: number; y: number } | null>(null);
   const resizeStart = useRef<{ width: number; height: number } | null>(null);
+
+  // `initial` seeds state, so without this the rendered rect was frozen at
+  // whatever the caller passed on first mount and no later change could
+  // reach it. That's fine while the only thing moving a widget is its own
+  // drag handle, but not once the caller scales the whole canvas to fit
+  // the window (see LiveTrackerPage's fit factor) - resizing the browser
+  // would recompute every rect and none of them would move. Skipped
+  // mid-gesture so an in-flight drag isn't yanked back by a re-render.
+  useEffect(() => {
+    if (dragStart.current || resizeStart.current) return;
+    const next = { x: initial.x, y: initial.y, width: initial.width, height: initial.height };
+    liveRect.current = next;
+    setRect(next);
+  }, [initial.x, initial.y, initial.width, initial.height]);
 
   const handleDragPointerDown = (e: ReactPointerEvent) => {
     dragStart.current = { x: rect.x, y: rect.y };

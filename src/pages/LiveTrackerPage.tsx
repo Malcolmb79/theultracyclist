@@ -5,6 +5,7 @@ import FundraiserProgress from "../components/fundraiser/FundraiserProgress";
 import { fetchRoute, distanceCoveredKm, totalDistanceKm, haversineKm, type RoutePoint } from "../utils/gpxRoute";
 import { useDeviceCategory } from "../utils/useDeviceCategory";
 import { computeCanvasHeight } from "../utils/useCanvasItem";
+import { useMeasuredWidth } from "../utils/useMeasuredWidth";
 import { useDashboardTheme } from "../utils/useDashboardTheme";
 import styles from "./LiveTrackerPage.module.css";
 
@@ -154,6 +155,9 @@ export default function LiveTrackerPage() {
   const layoutSeeded = useRef(false);
   const device = useDeviceCategory();
   const stacked = device !== "desktop";
+  // Real rendered width of the canvas, so the fit factor below is computed
+  // against what's actually available rather than assumed page padding.
+  const [canvasRef, canvasWidth] = useMeasuredWidth<HTMLElement>(1400);
 
   // ?device= picks which of the saved per-device layouts to render (see
   // api/_lib/deviceLayout.ts) - phone, tablet and PC each keep their own
@@ -306,8 +310,44 @@ export default function LiveTrackerPage() {
     projectedFinishSeconds != null && data.targetSeconds != null ? data.targetSeconds - projectedFinishSeconds : null;
 
   const effectiveLayout = layout ?? DEFAULT_LAYOUT;
+
+  // The canvas is an absolutely-positioned arrangement saved in raw pixels,
+  // so a window narrower than the arrangement simply cut off whatever stuck
+  // out past the right edge - and .canvas never scrolls sideways, so the
+  // clipped part was unreachable, not just unseen. An iPad in landscape is
+  // 1366px wide and lands in the "desktop" category, which is how a layout
+  // arranged at 1480px wide left the donation card hanging 162px off the
+  // screen with no way to scroll to it.
+  //
+  // Rather than shuffling widgets around (rescueOffCanvasX's approach for
+  // the dashboard, which preserves reachability but not the arrangement),
+  // the whole thing is scaled down uniformly to fit the width available.
+  // The layout Malcolm arranged is kept exactly as designed, just smaller.
+  // On a window at least as wide as the arrangement this is 1 and nothing
+  // changes at all.
+  const naturalWidth = effectiveLayout.order.reduce(
+    (max, id) => Math.max(max, effectiveLayout.rects[id].x + effectiveLayout.rects[id].width),
+    0,
+  );
+  const fit = !stacked && naturalWidth > 0 && canvasWidth > 0 ? Math.min(1, canvasWidth / naturalWidth) : 1;
+  // Scaling is applied to the rects handed to each widget rather than as a
+  // CSS transform on the canvas: a transformed ancestor becomes the
+  // containing block for position:fixed descendants, which would trap the
+  // map's full-screen mode inside the canvas box instead of filling the
+  // viewport. It also keeps text crisp and leaves Leaflet's pointer
+  // coordinates untouched.
+  const scaleRect = (rect: LiveTrackerRect): LiveTrackerRect => ({
+    x: Math.round(rect.x * fit),
+    y: Math.round(rect.y * fit),
+    width: Math.round(rect.width * fit),
+    height: Math.round(rect.height * fit),
+  });
+
   const canvasHeight = computeCanvasHeight(
-    effectiveLayout.order.map((id) => ({ y: effectiveLayout.rects[id].y, height: effectiveLayout.rects[id].height })),
+    effectiveLayout.order.map((id) => {
+      const rect = scaleRect(effectiveLayout.rects[id]);
+      return { y: rect.y, height: rect.height };
+    }),
   );
 
   const widgetContent: Record<LiveWidgetId, React.ReactNode> = {
@@ -429,11 +469,20 @@ export default function LiveTrackerPage() {
       )}
 
       <main
+        ref={canvasRef}
         className={stacked ? styles.stackList : `${styles.canvas} ${isResizing ? styles.canvasSnap : ""}`}
         style={stacked ? undefined : { height: canvasHeight }}
       >
         {effectiveLayout.order.map((id, index) => {
-          const rect = effectiveLayout.rects[id];
+          // Scaled for rendering; the drag/resize callbacks below divide
+          // back out so what gets saved is always in the layout's own
+          // full-size coordinates, not whatever this window happened to
+          // shrink them to.
+          const rect = scaleRect(effectiveLayout.rects[id]);
+          const minSize = {
+            minWidth: Math.round(MIN_SIZE[id].minWidth * fit),
+            minHeight: Math.round(MIN_SIZE[id].minHeight * fit),
+          };
           const reorderProps = stacked
             ? {
                 stacked: true as const,
@@ -446,10 +495,10 @@ export default function LiveTrackerPage() {
             <LiveTrackerWidget
               key={id}
               {...rect}
-              {...MIN_SIZE[id]}
+              {...minSize}
               interactive={data.isOwner}
-              onMove={(x, y) => handleMove(id, x, y)}
-              onResize={(width, height) => handleResize(id, width, height)}
+              onMove={(x, y) => handleMove(id, Math.round(x / fit), Math.round(y / fit))}
+              onResize={(width, height) => handleResize(id, Math.round(width / fit), Math.round(height / fit))}
               onResizingChange={setIsResizing}
               {...reorderProps}
             >

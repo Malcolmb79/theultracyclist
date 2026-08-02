@@ -4,6 +4,24 @@
   height: 100%;
 }
 
+/* Full screen. position:fixed rather than the Fullscreen API (see the note
+   in LiveTrackerMap.tsx), which relies on no ancestor creating a
+   containing block - nothing between here and <body> sets transform,
+   filter, or contain, and LiveTrackerPage deliberately scales its canvas
+   by adjusting each widget's rect instead of transforming the canvas, for
+   exactly this reason. dvh so iOS doesn't leave a strip under the URL
+   bar. Above the widget edit chrome at 1000. */
+.expanded {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  width: 100vw;
+  width: 100dvw;
+  height: 100vh;
+  height: 100dvh;
+  background: var(--color-bg);
+}
+
 /* The dark CartoDB basemap (see LiveTrackerMap.tsx) stays fixed regardless
    of the page's light/dark theme, same as any map legend - only the
    floating chrome on top of it (controls, weather, profile panel) follows
@@ -109,6 +127,15 @@
   background: var(--color-accent-2);
   color: var(--color-bg);
   border-color: var(--color-accent-2);
+}
+
+/* Square, so the glyph doesn't sit in a button shaped for a word. */
+.expandButton {
+  width: 30px;
+  padding: 6px 0;
+  text-align: center;
+  font-size: 0.85rem;
+  line-height: 1;
 }
 
 .weatherOverlay {

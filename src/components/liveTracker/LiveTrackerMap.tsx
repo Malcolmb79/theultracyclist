@@ -99,6 +99,7 @@ export default function LiveTrackerMap({ route, position, coveredKm, totalKm, we
   const hasFitBoundsRef = useRef(false);
   const [showProfile, setShowProfile] = useState(true);
   const [showWeather, setShowWeather] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const [zoom, setZoom] = useState(INITIAL_ZOOM);
   const [scaleKm, setScaleKm] = useState<number | null>(null);
 
@@ -179,6 +180,29 @@ export default function LiveTrackerMap({ route, position, coveredKm, totalKm, we
     });
   }, [position, route, coveredKm]);
 
+  // Full screen is done by pinning .wrap to the viewport rather than
+  // through the Fullscreen API: iPhone Safari doesn't implement
+  // requestFullscreen on elements at all (only on <video>), and the phone
+  // is where a bigger map matters most. A fixed overlay behaves the same
+  // on every browser, and the map's own ResizeObserver picks up the size
+  // change and calls invalidateSize for free.
+  //
+  // The page behind it is locked while expanded - without that, dragging
+  // near the edge of the map scrolls the page underneath on touch.
+  useEffect(() => {
+    if (!expanded) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setExpanded(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [expanded]);
+
   const handleReset = () => {
     if (mapRef.current && position) {
       mapRef.current.setView([position.lat, position.lon], RESET_ZOOM);
@@ -224,7 +248,7 @@ export default function LiveTrackerMap({ route, position, coveredKm, totalKm, we
     // profileOpen is only read by the phone media query, which moves the
     // zoom slider to the bottom edge and needs to know whether the
     // elevation panel is currently occupying it.
-    <div className={`${styles.wrap} ${showProfile ? styles.profileOpen : ""}`}>
+    <div className={`${styles.wrap} ${showProfile ? styles.profileOpen : ""} ${expanded ? styles.expanded : ""}`}>
       <div ref={containerRef} className={styles.map} />
 
       <div className={styles.zoomSlider}>
@@ -283,6 +307,18 @@ export default function LiveTrackerMap({ route, position, coveredKm, totalKm, we
           aria-pressed={showWeather}
         >
           Weather
+        </button>
+        {/* Icon-only: this row has to fit alongside the weather card on a
+            ~390px phone, where a fourth worded button wouldn't. */}
+        <button
+          type="button"
+          className={`${styles.controlButton} ${styles.expandButton} ${expanded ? styles.controlButtonActive : ""}`}
+          onClick={() => setExpanded((v) => !v)}
+          aria-pressed={expanded}
+          aria-label={expanded ? "Exit full screen" : "Show map full screen"}
+          title={expanded ? "Exit full screen" : "Full screen"}
+        >
+          {expanded ? "✕" : "⛶"}
         </button>
       </div>
 

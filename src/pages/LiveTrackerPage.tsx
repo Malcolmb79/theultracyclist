@@ -528,6 +528,7 @@ export default function LiveTrackerPage() {
           telemetry={telemetry}
           sessionState={data.tracking?.state ?? "pending"}
           sessionStartTs={data.tracking?.sessionStartTs ?? null}
+          sessionEndTs={data.tracking?.sessionEndTs ?? null}
         />
       </div>
     ),

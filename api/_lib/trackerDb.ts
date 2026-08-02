@@ -287,12 +287,24 @@ export function mergePosition(
  * or leaving a finished one looking live. A marker settles it on the first
  * flush after the button was pressed.
  */
-export async function latestSessionEvent(): Promise<{ event: number; ts: number } | null> {
+export async function latestSessionEvent(): Promise<{ startTs: number | null; stopTs: number | null }> {
   await ensureSchema();
+  // Both timestamps, not just whichever happened last. Returning only the
+  // newest event loses the start the moment a stop arrives, and the start is
+  // what identifies the session - it's how the page knows a *new* ride has
+  // begun and the map should be re-framed. Losing it also made the finished
+  // ride indistinguishable from no ride at all.
   const { rows } = await getPool().query(
-    `SELECT event, ts FROM samples WHERE event IS NOT NULL AND event > 0 ORDER BY ts DESC LIMIT 1`,
+    `SELECT max(ts) FILTER (WHERE event = 1) AS start_ts,
+            max(ts) FILTER (WHERE event = 2) AS stop_ts
+       FROM samples
+      WHERE event IS NOT NULL AND event > 0`,
   );
-  return rows[0] ? { event: Number(rows[0].event), ts: Number(rows[0].ts) } : null;
+  const row = rows[0] ?? {};
+  return {
+    startTs: row.start_ts == null ? null : Number(row.start_ts),
+    stopTs: row.stop_ts == null ? null : Number(row.stop_ts),
+  };
 }
 
 /** The newest sample from each device, for the merge rule and staleness. */

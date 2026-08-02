@@ -232,6 +232,12 @@ interface LiveTrackerMapProps {
   // Changes when the athlete presses start again. Re-fits the map to the
   // route rather than leaving it wherever the last ride finished.
   sessionStartTs: number | null;
+  // Identifies which finished ride the summary belongs to, so dismissing
+  // one doesn't dismiss the next. Never null once a ride has ended, which
+  // matters: keying this on a value that can be null made "not yet
+  // dismissed" and "this session" both null, and the overlay concluded it
+  // had already been dismissed and never appeared at all.
+  sessionEndTs: number | null;
 }
 
 // Plain Leaflet (not react-leaflet) so the map instance persists across
@@ -255,6 +261,7 @@ export default function LiveTrackerMap({
   telemetry,
   sessionState,
   sessionStartTs,
+  sessionEndTs,
 }: LiveTrackerMapProps) {
   const { resolvedTheme } = useTheme();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -664,7 +671,7 @@ export default function LiveTrackerMap({
           finished route is what it's summarising. Dismissible: someone who
           wants to look at the track shouldn't have to reload to get the
           summary out of the way. */}
-      {sessionState === "ended" && telemetry && summaryDismissed !== sessionStartTs && (
+      {sessionState === "ended" && telemetry && summaryDismissed !== sessionEndTs && (
         <div className={styles.summaryOverlay}>
           <div className={styles.summaryCard}>
             <p className={styles.summaryTitle}>Ride complete</p>
@@ -682,7 +689,7 @@ export default function LiveTrackerMap({
                 );
               })}
             </div>
-            <button type="button" className={styles.summaryClose} onClick={() => setSummaryDismissed(sessionStartTs)}>
+            <button type="button" className={styles.summaryClose} onClick={() => setSummaryDismissed(sessionEndTs)}>
               Show the map
             </button>
           </div>

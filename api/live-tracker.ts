@@ -197,10 +197,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // when it has told us nothing do the timeouts decide, which is still the
   // case for a phone-only feed and for any ride recorded before the Edge
   // learned to send markers.
-  const sessionEvent = await latestSessionEvent();
-  const sessionStopped = sessionEvent?.event === 2;
-  const sessionStartTs = sessionEvent?.event === 1 ? sessionEvent.ts : null;
-  const sessionEndTs = sessionStopped ? sessionEvent.ts : null;
+  const { startTs: sessionStartTs, stopTs: sessionEndTs } = await latestSessionEvent();
+  // Stopped when there's a stop at least as recent as the start. Both
+  // timestamps are kept either way: the start still identifies the session
+  // after it has finished, which is what lets the page tell "this ride ended"
+  // from "a new ride began".
+  const sessionStopped = sessionEndTs != null && (sessionStartTs == null || sessionEndTs >= sessionStartTs);
 
   const trackingState: LiveTrackerPublicResult["tracking"]["state"] = sessionStopped
     ? "ended"

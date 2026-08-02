@@ -419,10 +419,17 @@
   box-sizing: border-box;
 }
 
+/* A route name is far longer than the "Ride complete" this replaced, and
+   arbitrary - it's whatever was typed into Ride with GPS. So it wraps
+   rather than overflowing, with a tight line-height because this sits
+   above the scrolling grid and every line it takes is a reading the
+   grid doesn't show. overflow-wrap covers a name with no spaces in it. */
 .summaryTitle {
   margin: 0 0 var(--space-3);
   font-family: var(--font-display);
   font-size: 1.15rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
   color: var(--color-text);
 }
 

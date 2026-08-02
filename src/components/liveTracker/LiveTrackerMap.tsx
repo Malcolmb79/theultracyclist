@@ -257,6 +257,9 @@ interface LiveTrackerMapProps {
   // here because it needs the route length and target time, which the map
   // has no reason to know about.
   aheadBySeconds: number | null;
+  // Titles the end-of-ride summary. Null until the route has loaded, or if
+  // it carries no name of its own.
+  routeName: string | null;
 }
 
 // Plain Leaflet (not react-leaflet) so the map instance persists across
@@ -282,6 +285,7 @@ export default function LiveTrackerMap({
   sessionStartTs,
   sessionEndTs,
   aheadBySeconds,
+  routeName,
 }: LiveTrackerMapProps) {
   const { resolvedTheme } = useTheme();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -739,7 +743,12 @@ export default function LiveTrackerMap({
       {sessionState === "ended" && telemetry && summaryDismissed !== sessionEndTs && (
         <div className={styles.summaryOverlay}>
           <div className={styles.summaryCard}>
-            <p className={styles.summaryTitle}>Ride complete</p>
+            {/* The route's name, same as the page heading. "Ride complete"
+                said nothing the numbers below didn't already say, whereas
+                the name identifies which ride this is a summary of - which
+                matters once these are screenshotted and shared. Falls back
+                only when the route carries no name. */}
+            <p className={styles.summaryTitle}>{routeName ?? "Ride complete"}</p>
 
             {/* The headline, above the grid rather than in it: on a record
                 attempt this is the number that matters, and burying it as

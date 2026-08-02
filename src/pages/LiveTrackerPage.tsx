@@ -557,6 +557,7 @@ export default function LiveTrackerPage() {
           sessionStartTs={data.tracking?.sessionStartTs ?? null}
           sessionEndTs={data.tracking?.sessionEndTs ?? null}
           aheadBySeconds={aheadBySeconds}
+          routeName={routeName}
         />
       </div>
     ),

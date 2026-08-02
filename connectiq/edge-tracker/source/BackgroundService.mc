@@ -1,3 +1,4 @@
+import Toybox.Activity;
 import Toybox.Background;
 import Toybox.Communications;
 import Toybox.Lang;
@@ -39,7 +40,29 @@ class BackgroundService extends System.ServiceDelegate {
         ServiceDelegate.initialize();
     }
 
+    //! Fired when an activity is saved, not on the 5-minute schedule.
+    //!
+    //! This is what makes the end-of-ride summary appear promptly: the final
+    //! samples - carrying the stop marker and the ride's closing totals - go
+    //! out as the ride is saved rather than waiting for the next scheduled
+    //! flush.
+    //!
+    //! One flush, not a loop: a background process gets one callback and a
+    //! small memory budget, and trying to drain a deep backlog here is how
+    //! the out-of-memory failures happened in the first place. In normal
+    //! operation the queue is shallow anyway - 10 samples produced per
+    //! window against a batch of 20 - so a single flush clears it. Only
+    //! after a long blackspot would anything remain, and that goes out on
+    //! the following temporal events as usual.
+    function onActivityCompleted(activity as { :sport as Activity.Sport, :subSport as Activity.SubSport }) as Void {
+        flush();
+    }
+
     function onTemporalEvent() as Void {
+        flush();
+    }
+
+    hidden function flush() as Void {
         var batch = SampleBuffer.peekBatch(SampleBuffer.MAX_BATCH_SIZE);
         if (batch.size() == 0) {
             Background.exit(0);

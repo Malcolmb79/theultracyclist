@@ -27,6 +27,14 @@ class EdgeTrackerApp extends Application.AppBase {
         if (Background.getTemporalEventRegisteredTime() == null) {
             Background.registerForTemporalEvent(new Time.Duration(5 * 60));
         }
+        // Fires the background service the moment an activity is saved,
+        // independent of the 5-minute temporal schedule. Without it the end
+        // of a ride waits for the next scheduled flush like everything else
+        // - up to five minutes of the page still claiming the ride is in
+        // progress, when the device already knows it isn't.
+        if (!Background.getActivityCompletedEventRegistered()) {
+            Background.registerForActivityCompletedEvent();
+        }
     }
 
     function onStop(state as Dictionary or Null) as Void {

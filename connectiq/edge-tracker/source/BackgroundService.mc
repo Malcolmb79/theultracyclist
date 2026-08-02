@@ -11,7 +11,20 @@ import Toybox.System;
 //! sample queue via SampleBuffer, which is backed by Application.Storage -
 //! the only channel shared between this and the foreground compute() that
 //! pushed the samples there.
-(:background)
+//! Deliberately NOT annotated (:background), despite the build warning that
+//! the whole app therefore loads into the background process.
+//!
+//! Annotating it builds a reduced background image, and AppBase.onStart -
+//! which runs in the background context too - then can't reach the
+//! unannotated SampleBuffer module it calls. That crashed the background
+//! process with "Illegal Access (Out of Bounds)" at every temporal event,
+//! before a single byte was ever sent. Verified on-device: 14:49:46,
+//! 14:54:46, 14:59:46, five minutes apart to the second.
+//!
+//! The annotation only ever existed to shrink background memory, and the
+//! reason that mattered is gone: the queue is a ring buffer now, so a flush
+//! holds at most MAX_BATCH_SIZE samples rather than deserialising the entire
+//! backlog. The warning is the lesser problem.
 class BackgroundService extends System.ServiceDelegate {
 
     const INGEST_URL = "https://theultracyclist.com/api/ingest";

@@ -17,7 +17,16 @@ class EdgeTrackerApp extends Application.AppBase {
     }
 
     function onStart(state as Dictionary or Null) as Void {
-        SampleBuffer.discardLegacyQueue();
+        // Housekeeping, and nothing depends on it succeeding - so it must
+        // never be the reason onStart doesn't finish. It already was once:
+        // an unreachable symbol here took down the background process at
+        // every temporal event, five minutes apart, before anything was
+        // ever sent. Registering the temporal event is the part that
+        // actually matters, and it now runs regardless.
+        try {
+            SampleBuffer.discardLegacyQueue();
+        } catch (e) {
+        }
         if (Background.getTemporalEventRegisteredTime() == null) {
             Background.registerForTemporalEvent(new Time.Duration(5 * 60));
         }
@@ -26,7 +35,7 @@ class EdgeTrackerApp extends Application.AppBase {
     function onStop(state as Dictionary or Null) as Void {
     }
 
-    (:background)
+    // Not annotated (:background) - see the note on BackgroundService.
     function getServiceDelegate() as [System.ServiceDelegate] {
         return [ new BackgroundService() ];
     }

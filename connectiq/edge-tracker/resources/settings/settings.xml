@@ -1,5 +1,0 @@
-<settings>
-    <setting propertyKey="@Properties.ingestToken" title="@Strings.IngestTokenTitle">
-        <settingConfig type="alphaNumeric"/>
-    </setting>
-</settings>

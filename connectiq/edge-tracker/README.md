@@ -28,31 +28,36 @@ not a single app, so one is enough for every app you sideload yourself).
 ## Configure the server token
 
 `api/ingest.ts` authenticates every batch with a bearer token
-(`INGEST_TOKEN` in Vercel). Garmin Connect IQ apps have no way to read an
-environment variable at build time that isn't compiled into the shipped
-`.prg` and therefore into git history if committed - so this app reads the
-token from a **Connect IQ app setting** instead, set on the phone, never
-hardcoded:
+(`INGEST_TOKEN` in Vercel). The obvious place to put a per-device secret
+is a Connect IQ app setting (`Application.Properties`) - **that doesn't
+work here**: both Garmin Connect Mobile and Garmin Express only show a
+settings UI for an app with Connect IQ Store metadata behind its App ID,
+and a purely local, never-published sideload like this one has none (no
+"..." menu appears for it in either app - compare it to an actual Store
+app like Training Edge in the same list, which does have one). There is
+no on-device or companion-app path to enter a value at all.
 
-1. On the paired phone, open Garmin Connect Mobile → the connected Edge
-   1040 → **My Device** → **Data Fields / Connect IQ Store apps** →
-   **Ultra Cyclist Tracker** → **Settings**.
-2. Enter the same value as `INGEST_TOKEN` in Vercel (Project Settings →
-   Environment Variables) into **Server token**.
+Instead the token is a compile-time constant, gitignored so it never
+reaches git:
 
-Without a token set, the field still runs and buffers samples locally (up
-to 30 minutes' worth) but never sends anything - setting the token later
-mid-ride flushes whatever's accumulated since the field was added, nothing
-is lost by configuring it late.
+1. Copy `source/Secrets.mc.example` to `source/Secrets.mc`.
+2. Set `INGEST_TOKEN` in it to the same value as Vercel's `INGEST_TOKEN`
+   (Project Settings → Environment Variables).
+3. Rebuild - the token is now baked into the `.prg`.
+
+Same "never commit the real secret" reasoning as `developer_key.der`,
+just via a gitignored source file instead of a keypair.
 
 ## Adding the field on the device
 
 On the Edge: add **Ultra Cyclist Tracker** as a field on any data page.
-It reads `SENT/BUF/HTTP` - total samples successfully sent, how many are
-currently buffered waiting to go out, and the last HTTP response code (0
-before the first flush attempt). `BUF` climbing steadily with `HTTP` stuck
-at a non-200 value means the token's wrong or the batches aren't reaching
-the server; `SENT` climbing with `BUF` staying low means it's working.
+It reads `BUF/HTTP` - how many samples are currently buffered waiting to
+go out, and the last background-send HTTP response code (0 before the
+first attempt, which won't happen until ~5 minutes into the ride - see
+below). `BUF` climbing steadily with `HTTP` stuck at 0 or a non-200 value
+means the token's wrong, there's no phone tethering, or the batches
+aren't reaching the server; `HTTP` reading 200 with `BUF` staying low
+means it's working.
 
 ## The one thing this can't fix
 

@@ -1,7 +1,0 @@
-<properties>
-    <!-- The INGEST_TOKEN api/ingest.ts checks - set via Garmin Connect
-         Mobile's app settings, never hardcoded into source, same reasoning
-         as never committing developer_key.der: a secret belongs in
-         configuration, not in code that ends up in git. -->
-    <property id="ingestToken" type="string">""</property>
-</properties>

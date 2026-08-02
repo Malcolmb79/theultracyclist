@@ -6,9 +6,13 @@ import Toybox.Time;
 import Toybox.WatchUi;
 
 //! The real thing visibility-test cleared the way for: reads position and
-//! sensor data every compute() tick and ships it to api/ingest.ts, which
-//! feeds the public /live page via the same Edge/Traccar merge rule
-//! documented in the server's trackerDb.ts.
+//! sensor data every compute() tick and buffers it for BackgroundService to
+//! ship to api/ingest.ts, which feeds the public /live page via the same
+//! Edge/Traccar merge rule documented in the server's trackerDb.ts.
+//!
+//! compute() only ever writes to SampleBuffer - it never touches
+//! Communications directly, because a data field's foreground process
+//! can't make web requests at all (see BackgroundService.mc).
 //!
 //! Field names match api/ingest.ts's IncomingSample exactly (lat/lon/alt_m/
 //! dist_m/elapsed_s/timer_s/speed_mps/power_w/hr_bpm/cad_rpm/batt_pct) -
@@ -24,14 +28,6 @@ import Toybox.WatchUi;
 //! dependency for the pre-start checklist, not something this code can
 //! route around.
 class EdgeTrackerView extends WatchUi.SimpleDataField {
-
-    hidden var buffer as SampleBuffer = new SampleBuffer();
-    hidden var tickCount as Number = 0;
-    // Flush roughly every 10 seconds rather than every compute() call - a
-    // batch per tick would be 10x the HTTP traffic for no benefit, since
-    // api/ingest.ts's ON CONFLICT DO NOTHING already makes larger, less
-    // frequent batches just as safe to retry as small frequent ones.
-    const FLUSH_EVERY_TICKS = 10;
 
     function initialize() {
         SimpleDataField.initialize();
@@ -71,17 +67,11 @@ class EdgeTrackerView extends WatchUi.SimpleDataField {
             "cad_rpm" => info.currentCadence,
             "batt_pct" => System.getSystemStats().battery.toNumber(),
         };
-        buffer.push(sample);
+        SampleBuffer.push(sample);
 
-        tickCount += 1;
-        if (tickCount >= FLUSH_EVERY_TICKS) {
-            tickCount = 0;
-            buffer.flush();
-        }
-
-        // One line, read as: total sent / currently buffered / last HTTP
-        // status - a live sanity signal for whoever's glancing at the
-        // field, same terse spirit as visibility-test's readout.
-        return buffer.sentTotal().format("%d") + "/" + buffer.bufferedCount().format("%d") + "/" + buffer.lastHttpStatus().format("%d");
+        // One line, read as: currently buffered / last background-send
+        // HTTP status (0 before the first attempt) - a live sanity signal
+        // for whoever's glancing at the field.
+        return SampleBuffer.bufferedCount().format("%d") + "/" + SampleBuffer.lastStatus().format("%d");
     }
 }

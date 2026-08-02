@@ -1,3 +1,6 @@
 # Build output
 bin/
 *.prg
+
+# Real ingest token - see Secrets.mc.example
+source/Secrets.mc

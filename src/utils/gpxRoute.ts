@@ -21,25 +21,58 @@ export function haversineKm(a: { lat: number; lon: number }, b: { lat: number; l
 //   meters), so no local haversine summation is needed.
 // - A plain public GPX file (<trk>/<trkpt> or <rte>/<rtept>), for any other
 //   route source.
-export async function fetchRoute(url: string): Promise<RoutePoint[]> {
+// The route's own name and description travel with its points, so the page
+// can title itself after whatever the athlete called the route rather than
+// carrying a hardcoded heading that has to be edited separately every time
+// the route changes.
+export type Route = {
+  points: RoutePoint[];
+  name: string | null;
+  description: string | null;
+};
+
+// Trims, and treats blank as absent - an empty description field should
+// leave no subheading behind rather than an empty line the layout still
+// makes room for.
+function text(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed === "" ? null : trimmed;
+}
+
+export async function fetchRoute(url: string): Promise<Route> {
   return url.includes(".json") ? fetchRideWithGpsJsonRoute(url) : fetchGpxRoute(url);
 }
 
-async function fetchRideWithGpsJsonRoute(url: string): Promise<RoutePoint[]> {
+type RwgpsRoute = {
+  name?: unknown;
+  description?: unknown;
+  track_points?: { x?: number; y?: number; d?: number; e?: number }[];
+};
+
+async function fetchRideWithGpsJsonRoute(url: string): Promise<Route> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Route request failed (${res.status})`);
-  const data = (await res.json()) as { track_points?: { x?: number; y?: number; d?: number; e?: number }[] };
+  const body = (await res.json()) as RwgpsRoute & { route?: RwgpsRoute };
+  // Ride with GPS has returned this both flat and wrapped in a "route" key
+  // depending on the endpoint, so accept either rather than depending on
+  // which one they serve today.
+  const data = body.route ?? body;
   const trackPoints = data.track_points ?? [];
-  return trackPoints
-    .filter((p): p is { x: number; y: number; d?: number; e?: number } => typeof p.x === "number" && typeof p.y === "number")
-    .map((p) => ({ lat: p.y, lon: p.x, distanceKm: (p.d ?? 0) / 1000, elevationM: typeof p.e === "number" ? p.e : undefined }));
+  return {
+    name: text(data.name),
+    description: text(data.description),
+    points: trackPoints
+      .filter((p): p is { x: number; y: number; d?: number; e?: number } => typeof p.x === "number" && typeof p.y === "number")
+      .map((p) => ({ lat: p.y, lon: p.x, distanceKm: (p.d ?? 0) / 1000, elevationM: typeof p.e === "number" ? p.e : undefined })),
+  };
 }
 
-async function fetchGpxRoute(url: string): Promise<RoutePoint[]> {
+async function fetchGpxRoute(url: string): Promise<Route> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`GPX request failed (${res.status})`);
-  const text = await res.text();
-  const doc = new DOMParser().parseFromString(text, "application/xml");
+  const text_ = await res.text();
+  const doc = new DOMParser().parseFromString(text_, "application/xml");
   if (doc.querySelector("parsererror")) throw new Error("Couldn't parse GPX file");
 
   const points: RoutePoint[] = [];
@@ -55,7 +88,17 @@ async function fetchGpxRoute(url: string): Promise<RoutePoint[]> {
     const elevationM = eleText != null ? Number(eleText) : undefined;
     points.push({ lat, lon, distanceKm: cumulative, elevationM: Number.isFinite(elevationM) ? elevationM : undefined });
   }
-  return points;
+
+  // GPX puts these in <metadata> or on the <trk>/<rte> itself, and exporters
+  // disagree about which - so try metadata first, then the track. Scoped
+  // queries rather than a bare querySelector("name"), which would happily
+  // match the <name> of a waypoint halfway down the file.
+  const trackOrRoute = doc.querySelector("trk, rte");
+  return {
+    points,
+    name: text(doc.querySelector("metadata > name")?.textContent ?? trackOrRoute?.querySelector(":scope > name")?.textContent),
+    description: text(doc.querySelector("metadata > desc")?.textContent ?? trackOrRoute?.querySelector(":scope > desc")?.textContent),
+  };
 }
 
 // Snaps a live position to the nearest route vertex and returns the

@@ -180,6 +180,8 @@ export default function LiveTrackerPage() {
   const { mode, setMode } = useTheme();
   const [data, setData] = useState<ApiResult | null>(null);
   const [route, setRoute] = useState<RoutePoint[]>([]);
+  const [routeName, setRouteName] = useState<string | null>(null);
+  const [routeDescription, setRouteDescription] = useState<string | null>(null);
   const [routeError, setRouteError] = useState(false);
   const [weather, setWeather] = useState<WeatherState>(null);
   const [telemetry, setTelemetry] = useState<LiveTelemetry>(null);
@@ -264,7 +266,10 @@ export default function LiveTrackerPage() {
     setRouteError(false);
     fetchRoute(data.gpxUrl)
       .then((r) => {
-        if (!cancelled) setRoute(r);
+        if (cancelled) return;
+        setRoute(r.points);
+        setRouteName(r.name);
+        setRouteDescription(r.description);
       })
       .catch(() => {
         if (!cancelled) setRouteError(true);
@@ -308,6 +313,17 @@ export default function LiveTrackerPage() {
   // stored per-device record and leaves the others alone, so rearranging
   // the page on a phone during the attempt can't flatten the desktop view
   // that everyone on a laptop is watching.
+  // The browser tab and any shared link carry the route's name too - a tab
+  // reading "The Ultra Cyclist" among twenty others says less than one
+  // naming the ride being watched.
+  useEffect(() => {
+    const base = document.title;
+    if (routeName) document.title = `${routeName} — Live`;
+    return () => {
+      document.title = base;
+    };
+  }, [routeName]);
+
   // Drives the elapsed clock while a session is running. Only while running:
   // once the tracker stops there is nothing to count, and a page left open
   // overnight shouldn't re-render every second forever.
@@ -559,9 +575,14 @@ export default function LiveTrackerPage() {
         <div className={styles.titleRow}>
           <img src="/logo.png" alt="" className={styles.logo} />
           <div>
-            <h1 className={styles.title}>World Record Attempt — Live</h1>
+            {/* Named after the route itself, so renaming it in Ride with
+                GPS renames this page - no second place to remember to
+                edit. Falls back to the generic heading only when the route
+                hasn't loaded or carries no name of its own. */}
+            <h1 className={styles.title}>{routeName ?? "World Record Attempt — Live"}</h1>
+            {routeDescription && <p className={styles.subtitle}>{routeDescription}</p>}
             {data.startTime && (
-              <p className={styles.subtitle}>
+              <p className={styles.startedLine}>
                 Started {new Date(data.startTime).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
               </p>
             )}

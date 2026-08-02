@@ -126,6 +126,56 @@ repeats.
   a flush drains more than an interval produces; if it happens, the two
   constants in `SampleBuffer.mc` have drifted apart.
 
+## Pre-start checklist
+
+Most of this was learned by losing an evening to it, so it is worth
+running through before the attempt rather than diagnosing at the roadside.
+
+**On the Edge**
+
+- [ ] **Ultra Cyclist Tracker is on a data page.** Without this the app
+      never runs, and a missing field looks exactly like a dead app.
+- [ ] The field reads something like `2/0P` shortly after starting. Any
+      `!` means storage writes are failing; a frozen `BUF` means the app
+      has died - see the crash log section below.
+- [ ] Battery Saver **off** - it disables Bluetooth outright.
+
+**On the phone** - the Edge has no internet of its own. Every batch is
+proxied by Garmin Connect Mobile over Bluetooth, so the phone is the only
+route off the bike:
+
+- [ ] Garmin Connect installed, signed in, and **running** - backgrounded
+      is fine, force-closed is not.
+- [ ] Auto-Lock **Never**, and the phone **on power**. Background apps get
+      throttled hard once the screen locks; both this feed and the phone's
+      own Traccar position feed were seen to stop together while idle and
+      resume the moment the phone was touched.
+- [ ] Low Power Mode **off**.
+- [ ] Background App Refresh and Location **Always** granted to Connect.
+- [ ] Phone paired and *the Edge itself* says so - Settings → Connectivity
+      → Phone. Garmin Connect showing "Connected" is not the same claim,
+      and the two were observed disagreeing for hours. If in doubt, remove
+      the pairing on both sides and pair fresh; that is what finally fixed
+      it.
+
+**Server side**
+
+- [ ] `INGEST_TOKEN` in Vercel matches `source/Secrets.mc` exactly. A
+      mismatch returns 401 on every batch and cannot be seen from the
+      device, because a batch that never reaches the server is never
+      rejected by it. Check it by POSTing a sample directly.
+- [ ] Old test data cleared from `samples` if a clean slate is wanted.
+
+## During the ride
+
+- The first flush lands about **30 seconds** after pressing start, then
+  every **5 minutes** - that interval is a Connect IQ floor, not a
+  setting. Readings on the site are therefore up to five minutes old, by
+  design.
+- **Press Save at the end, not Discard.** Saving fires the
+  activity-completed event, which flushes immediately and triggers the
+  end-of-ride summary. Discarding leaves it to the next scheduled flush.
+
 ## The one thing this can't fix
 
 Sending HTTP mid-ride depends on the Edge tethering to a **phone running

@@ -56,10 +56,32 @@ module SampleBuffer {
     //! 10s at 30km/h is 83m.
     const SAMPLE_INTERVAL_S = 10;
 
-    //! 30 minutes at SAMPLE_INTERVAL_S. Deliberately modest: every slot is
-    //! a separate Storage key holding a whole sample, and an app's
-    //! persisted storage is a limited, device-specific budget.
-    const CAPACITY = 180;
+    //! 10 minutes at SAMPLE_INTERVAL_S, and no more, because every slot is
+    //! a separate Storage key holding a whole sample and an app's persisted
+    //! storage is a small device-specific budget.
+    //!
+    //! This was 180 (30 minutes) and that was too much. At roughly 600
+    //! bytes a sample - measured, not guessed: the old single-array queue
+    //! reached 1.1MB at 1800 samples - 180 slots is ~108KB, and on top of
+    //! a legacy blob that hadn't been cleared it put the app over its
+    //! quota. Storage.setValue then failed with "Illegal Access (Out of
+    //! Bounds)" inside push(), killing the data field. 60 slots is ~36KB.
+    //!
+    //! Losing buffer depth costs little: a flush drains MAX_BATCH_SIZE = 60
+    //! anyway, so the ring holds exactly one batch, and position during a
+    //! dropout is covered by the phone's Traccar feed regardless (see
+    //! mergePosition in the server's trackerDb.ts).
+    const CAPACITY = 60;
+
+    //! Bumped whenever the shape of what's kept in Storage changes. On a
+    //! mismatch everything is cleared, which is the only reliable way to be
+    //! rid of a previous layout - deleting known keys one by one can't
+    //! touch what it doesn't know about, and this app has already
+    //! accumulated two dead layouts: the original 1.1MB "sampleQueue"
+    //! array, and slot keys s60..s179 orphaned by the CAPACITY change
+    //! above. Both would otherwise sit in the quota forever.
+    const SCHEMA_KEY = "schemaV";
+    const SCHEMA_VERSION = 2;
 
     //! Kept at 60 - the same batch the previous version sent, so the
     //! background process's memory footprint per flush is unchanged. The
@@ -82,20 +104,49 @@ module SampleBuffer {
         return "s" + (index % CAPACITY).toString();
     }
 
-    function push(sample as Dictionary) as Void {
-        var head = counter(HEAD_KEY);
-        var tail = counter(TAIL_KEY);
+    //! Returns false if the sample couldn't be stored, rather than throwing.
+    //!
+    //! This runs inside the data field's compute(), so an exception escaping
+    //! here doesn't lose one sample - it kills the field for the rest of the
+    //! ride. That is exactly what happened when storage filled up: a failed
+    //! setValue took the whole app down mid-ride. A dropped sample is a
+    //! rounding error against a 570km attempt; a dead tracker is not.
+    function push(sample as Dictionary) as Boolean {
+        try {
+            var head = counter(HEAD_KEY);
+            var tail = counter(TAIL_KEY);
 
-        Storage.setValue(slotKey(tail), sample);
-        tail += 1;
+            Storage.setValue(slotKey(tail), sample);
+            tail += 1;
 
-        // Full: the write above has already landed on the oldest slot, so
-        // head has to move with it rather than pointing at a sample that
-        // no longer exists.
-        if (tail - head > CAPACITY) {
-            Storage.setValue(HEAD_KEY, tail - CAPACITY);
+            // Full: the write above has already landed on the oldest slot,
+            // so head has to move with it rather than pointing at a sample
+            // that no longer exists.
+            if (tail - head > CAPACITY) {
+                Storage.setValue(HEAD_KEY, tail - CAPACITY);
+            }
+            Storage.setValue(TAIL_KEY, tail);
+            return true;
+        } catch (e) {
+            return false;
         }
-        Storage.setValue(TAIL_KEY, tail);
+    }
+
+    //! Clears everything if the stored layout isn't the current one.
+    //!
+    //! Storage.clearValues() rather than deleting the keys this version
+    //! happens to know the names of - the whole problem is the keys it
+    //! doesn't. Called from onStart, and safe to call every time: after the
+    //! first run the version matches and this does nothing.
+    function resetIfSchemaChanged() as Void {
+        try {
+            var stored = Storage.getValue(SCHEMA_KEY);
+            if (stored == null || !(stored instanceof Lang.Number) || stored != SCHEMA_VERSION) {
+                Storage.clearValues();
+                Storage.setValue(SCHEMA_KEY, SCHEMA_VERSION);
+            }
+        } catch (e) {
+        }
     }
 
     function bufferedCount() as Number {
@@ -156,16 +207,6 @@ module SampleBuffer {
             Storage.deleteValue(slotKey(i));
         }
         Storage.setValue(HEAD_KEY, next);
-    }
-
-    //! Drops the single-array queue the previous version wrote under
-    //! "sampleQueue". Nothing reads that key any more, so whatever the last
-    //! ride left in it - potentially hundreds of samples - would otherwise
-    //! sit in the device's storage budget forever, competing with the ring
-    //! buffer for the space it needs. Deleting a key that isn't there is a
-    //! no-op, so this is safe to call on every start.
-    function discardLegacyQueue() as Void {
-        Storage.deleteValue("sampleQueue");
     }
 
     function nextBatchSeq() as Number {

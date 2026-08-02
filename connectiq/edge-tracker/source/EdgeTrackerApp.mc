@@ -22,11 +22,8 @@ class EdgeTrackerApp extends Application.AppBase {
         // an unreachable symbol here took down the background process at
         // every temporal event, five minutes apart, before anything was
         // ever sent. Registering the temporal event is the part that
-        // actually matters, and it now runs regardless.
-        try {
-            SampleBuffer.discardLegacyQueue();
-        } catch (e) {
-        }
+        // actually matters, and it runs regardless.
+        SampleBuffer.resetIfSchemaChanged();
         if (Background.getTemporalEventRegisteredTime() == null) {
             Background.registerForTemporalEvent(new Time.Duration(5 * 60));
         }

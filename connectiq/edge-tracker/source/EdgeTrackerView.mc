@@ -36,6 +36,10 @@ class EdgeTrackerView extends WatchUi.SimpleDataField {
     // five-minute temporal event could ever send, so it could only ever
     // fall behind.
     hidden var lastSampleTs as Number = 0;
+    // Sticky: once a write has failed the field says so for the rest of the
+    // ride. Storage problems were previously only visible by pulling
+    // CIQ_LOG.YML over USB afterwards, which is no use while riding.
+    hidden var storageFailed as Boolean = false;
 
     function initialize() {
         SimpleDataField.initialize();
@@ -84,7 +88,9 @@ class EdgeTrackerView extends WatchUi.SimpleDataField {
             "cad_rpm" => info.currentCadence,
             "batt_pct" => System.getSystemStats().battery.toNumber(),
         };
-        SampleBuffer.push(sample);
+        if (!SampleBuffer.push(sample)) {
+            storageFailed = true;
+        }
         return status();
     }
 
@@ -94,6 +100,10 @@ class EdgeTrackerView extends WatchUi.SimpleDataField {
     // has stopped running, which is the symptom the old unbounded
     // per-tick Storage rewrite produced within a couple of minutes.
     hidden function status() as String {
-        return SampleBuffer.bufferedCount().format("%d") + "/" + SampleBuffer.lastStatus().format("%d");
+        var line = SampleBuffer.bufferedCount().format("%d") + "/" + SampleBuffer.lastStatus().format("%d");
+        // Trailing "!" means a sample couldn't be stored - almost always
+        // storage full. Worth seeing on the bars rather than discovering
+        // afterwards.
+        return storageFailed ? line + "!" : line;
     }
 }

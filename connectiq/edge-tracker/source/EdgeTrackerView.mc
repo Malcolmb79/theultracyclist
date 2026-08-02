@@ -141,6 +141,17 @@ class EdgeTrackerView extends WatchUi.SimpleDataField {
             line += "?";
         }
 
+        // And what the link was doing when the flush itself ran, which is
+        // the reading that actually explains the status beside it.
+        // "C" connected, "d" disconnected, nothing at all before the first
+        // flush has happened.
+        var atFlush = SampleBuffer.lastFlushPhone();
+        if (atFlush == 1) {
+            line += "C";
+        } else if (atFlush == 2) {
+            line += "d";
+        }
+
         // Trailing "!" means a sample couldn't be stored - almost always
         // storage full. Worth seeing on the bars rather than discovering
         // afterwards.

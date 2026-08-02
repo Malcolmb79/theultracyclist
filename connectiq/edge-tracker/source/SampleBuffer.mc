@@ -119,6 +119,7 @@ module SampleBuffer {
     const HEAD_KEY = "qHead";
     const TAIL_KEY = "qTail";
     const STATUS_KEY = "lastFlushStatus";
+    const FLUSH_PHONE_KEY = "lastFlushPhone";
     const SEQ_KEY = "batchSeq";
 
     function counter(key as String) as Number {
@@ -185,6 +186,25 @@ module SampleBuffer {
 
     function setLastStatus(code as Number) as Void {
         Storage.setValue(STATUS_KEY, code);
+    }
+
+    //! Whether the device saw a phone at the moment the last flush ran.
+    //!
+    //! The status line's own P/p is read in compute(), i.e. right now - which
+    //! is a different question from the one that matters. A flush firing
+    //! into a momentary dropout and a flush being refused while the link was
+    //! up both leave "-104" on screen next to whatever the link happens to be
+    //! doing when you look. Recording it at flush time is the only way to
+    //! tell those apart, and they point at completely different causes:
+    //! flaky Bluetooth versus the request being rejected for another reason
+    //! entirely.
+    //! 0 unknown, 1 connected, 2 not connected.
+    function lastFlushPhone() as Number {
+        return counter(FLUSH_PHONE_KEY);
+    }
+
+    function setLastFlushPhone(state as Number) as Void {
+        Storage.setValue(FLUSH_PHONE_KEY, state);
     }
 
     //! Reads up to maxSize samples WITHOUT removing them - the queue only

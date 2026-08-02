@@ -47,6 +47,17 @@ class BackgroundService extends System.ServiceDelegate {
         }
         pendingCount = batch.size();
 
+        // Recorded before the attempt, not after, and from inside the
+        // background process - this is the link state makeWebRequest is
+        // about to act on. A -104 next to "phone was connected" means the
+        // request was refused with the link up, which is a different
+        // problem from a flush that fired into a dropout.
+        try {
+            SampleBuffer.setLastFlushPhone(System.getDeviceSettings().phoneConnected ? 1 : 2);
+        } catch (e) {
+            SampleBuffer.setLastFlushPhone(0);
+        }
+
         // format v2 tells api/ingest.ts the samples are positional arrays
         // rather than field-keyed objects. Absent it, the server reads the
         // old shape - which is what keeps a device still running an older

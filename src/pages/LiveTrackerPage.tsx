@@ -529,6 +529,7 @@ export default function LiveTrackerPage() {
           sessionState={data.tracking?.state ?? "pending"}
           sessionStartTs={data.tracking?.sessionStartTs ?? null}
           sessionEndTs={data.tracking?.sessionEndTs ?? null}
+          aheadBySeconds={aheadBySeconds}
         />
       </div>
     ),

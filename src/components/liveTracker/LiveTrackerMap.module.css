@@ -397,6 +397,53 @@
   color: var(--color-text);
 }
 
+/* The headline figure. Green ahead, red behind - the same two tokens the
+   rest of the page uses for good and bad, including the ETA card's own
+   under/over target colouring, so the meaning carries across without
+   relearning. */
+.summaryVerdict {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  border-left: 3px solid;
+}
+
+.verdictAhead {
+  background: color-mix(in srgb, var(--color-accent-2) 12%, transparent);
+  border-left-color: var(--color-accent-2);
+}
+
+.verdictAhead .verdictValue {
+  color: var(--color-accent-2);
+}
+
+.verdictBehind {
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  border-left-color: var(--color-accent);
+}
+
+.verdictBehind .verdictValue {
+  color: var(--color-accent);
+}
+
+.verdictValue {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  line-height: 1.1;
+}
+
+.verdictLabel {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
 /* Two columns where there's room, one where there isn't - eight rows of
    label and value is a lot of vertical space on a phone-sized map. */
 .summaryGrid {

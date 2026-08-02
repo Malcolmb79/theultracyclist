@@ -104,6 +104,20 @@ function formatAge(seconds: number): string {
   return `${Math.round(minutes / 60)}h ago`;
 }
 
+// A margin against target, not a clock reading - so "1h 05m" rather than
+// "1:05", which next to the elapsed time above it would be easy to misread
+// as another absolute time. Under an hour it drops to minutes, and under a
+// minute to seconds, because "0h 00m" reads as no data rather than as a
+// dead heat.
+function formatMargin(seconds: number): string {
+  const total = Math.abs(Math.round(seconds));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  if (h > 0) return `${h}h ${String(m).padStart(2, "0")}m`;
+  if (m > 0) return `${m}m`;
+  return `${total}s`;
+}
+
 function formatClock(seconds: number): string {
   const total = Math.max(0, Math.round(seconds));
   const h = Math.floor(total / 3600);
@@ -238,6 +252,12 @@ interface LiveTrackerMapProps {
   // dismissed" and "this session" both null, and the overlay concluded it
   // had already been dismissed and never appeared at all.
   sessionEndTs: number | null;
+  // Seconds ahead of the target pace at the distance covered - positive
+  // ahead, negative behind, null when no target time is configured or
+  // there's no route to measure against. Computed on the page rather than
+  // here because it needs the route length and target time, which the map
+  // has no reason to know about.
+  aheadBySeconds: number | null;
 }
 
 // Plain Leaflet (not react-leaflet) so the map instance persists across
@@ -262,6 +282,7 @@ export default function LiveTrackerMap({
   sessionState,
   sessionStartTs,
   sessionEndTs,
+  aheadBySeconds,
 }: LiveTrackerMapProps) {
   const { resolvedTheme } = useTheme();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -675,6 +696,20 @@ export default function LiveTrackerMap({
         <div className={styles.summaryOverlay}>
           <div className={styles.summaryCard}>
             <p className={styles.summaryTitle}>Ride complete</p>
+
+            {/* The headline, above the grid rather than in it: on a record
+                attempt this is the number that matters, and burying it as
+                the ninth cell of eight equals would be an odd way to
+                present it. Absent entirely when no target is configured,
+                rather than showing a dash - there's nothing to be ahead
+                of. */}
+            {aheadBySeconds != null && (
+              <div className={`${styles.summaryVerdict} ${aheadBySeconds >= 0 ? styles.verdictAhead : styles.verdictBehind}`}>
+                <span className={styles.verdictValue}>{formatMargin(aheadBySeconds)}</span>
+                <span className={styles.verdictLabel}>{aheadBySeconds >= 0 ? "ahead of target" : "behind target"}</span>
+              </div>
+            )}
+
             <div className={styles.summaryGrid}>
               {TELEMETRY_FIELDS.filter((field) => DEFAULT_FIELDS.includes(field.id)).map((field) => {
                 const value = field.value(telemetry);

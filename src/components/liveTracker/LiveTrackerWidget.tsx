@@ -5,6 +5,12 @@ import styles from "./LiveTrackerWidget.module.css";
 
 export const LIVE_TRACKER_GRID_SIZE = 20;
 
+// Matches .stacked's max-height in the stylesheet, which is what actually
+// caps the rendered size - this is only so a resize done on a phone saves
+// the height it ended up showing rather than one the viewport will
+// silently clamp on every future load.
+const STACKED_MAX_HEIGHT_FRACTION = 0.78;
+
 interface LiveTrackerWidgetProps {
   x: number;
   y: number;
@@ -56,18 +62,29 @@ export default function LiveTrackerWidget({
     minHeight,
     gridSize: LIVE_TRACKER_GRID_SIZE,
     onMove,
-    onResize,
+    onResize: (nextWidth, nextHeight) =>
+      onResize(
+        nextWidth,
+        stacked
+          ? Math.max(minHeight, Math.min(nextHeight, Math.round(window.innerHeight * STACKED_MAX_HEIGHT_FRACTION)))
+          : nextHeight,
+      ),
     onDraggingChange: onResizingChange,
   });
 
-  // Same 3-second hold-to-select as Dashboard/Trends/Coaching's widgets
-  // (see useLongPressSelect) - drag/resize/reorder chrome only appears
-  // once the widget is actually selected, not on every plain tap.
+  // Same hold-to-select as Dashboard/Trends/Coaching's widgets (see
+  // useLongPressSelect) - drag/resize/reorder chrome only appears once the
+  // widget is actually selected, not on every plain tap.
   const { ref: widgetRef, selected, pressHandlers } = useLongPressSelect<HTMLDivElement>();
 
   const effective = interactive ? rect : { x, y, width, height };
+  // Stacked mode is a single column (see .stackList), so a saved width
+  // can't buy anything there - honouring it only ever produced a card
+  // narrower than the screen for no reason. Height is the one dimension
+  // worth keeping, and .stacked's max-height caps that against the
+  // viewport.
   const positionStyle = stacked
-    ? { width: effective.width, height: effective.height }
+    ? { width: "100%", height: effective.height }
     : { position: "absolute" as const, left: effective.x, top: effective.y, width: effective.width, height: effective.height };
 
   if (!interactive) {

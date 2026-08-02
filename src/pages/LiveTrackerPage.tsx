@@ -155,10 +155,16 @@ export default function LiveTrackerPage() {
   const device = useDeviceCategory();
   const stacked = device !== "desktop";
 
+  // ?device= picks which of the saved per-device layouts to render (see
+  // api/_lib/deviceLayout.ts) - phone, tablet and PC each keep their own
+  // widget sizes, so the desktop map's rect isn't what a phone visitor
+  // gets. Re-seeds when the category changes (rotating a tablet, dragging
+  // a desktop window narrow) rather than keeping the first one loaded.
   useEffect(() => {
     let cancelled = false;
+    layoutSeeded.current = false;
     const load = () => {
-      fetch("/api/live-tracker")
+      fetch(`/api/live-tracker?device=${device}`)
         .then((r) => (r.ok ? r.json() : Promise.reject(new Error("Request failed"))))
         .then((body: ApiResult) => {
           if (cancelled) return;
@@ -181,7 +187,7 @@ export default function LiveTrackerPage() {
       cancelled = true;
       clearInterval(interval);
     };
-  }, []);
+  }, [device]);
 
   useEffect(() => {
     if (!data?.gpxUrl) return;
@@ -229,12 +235,16 @@ export default function LiveTrackerPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.position?.lat, data?.position?.lon]);
 
+  // Saves against this device category only - the server merges it into the
+  // stored per-device record and leaves the others alone, so rearranging
+  // the page on a phone during the attempt can't flatten the desktop view
+  // that everyone on a laptop is watching.
   const persistLayout = (next: LiveTrackerLayout) => {
     setLayout(next);
     fetch("/api/live-tracker", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ layout: next }),
+      body: JSON.stringify({ layout: next, device }),
     }).catch(() => {});
   };
 

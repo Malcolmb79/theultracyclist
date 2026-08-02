@@ -221,7 +221,10 @@ export default function LiveTrackerMap({ route, position, coveredKm, totalKm, we
   const arrowRotation = windFrom != null ? normalizeAngle(windFrom + 180) : 0;
 
   return (
-    <div className={styles.wrap}>
+    // profileOpen is only read by the phone media query, which moves the
+    // zoom slider to the bottom edge and needs to know whether the
+    // elevation panel is currently occupying it.
+    <div className={`${styles.wrap} ${showProfile ? styles.profileOpen : ""}`}>
       <div ref={containerRef} className={styles.map} />
 
       <div className={styles.zoomSlider}>

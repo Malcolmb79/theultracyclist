@@ -173,3 +173,52 @@
   box-sizing: border-box;
   backdrop-filter: blur(2px);
 }
+
+/* Phone. The desktop arrangement puts the zoom slider centred along the
+   top and the Reset/Profile/Weather buttons top-right; at ~390px wide
+   those two are about 220px and 175px, so they overlap each other and the
+   weather card sits on top of the lot. Rearranged rather than shrunk:
+   weather to the top-left, buttons stay top-right, and the zoom slider
+   moves down out of their way - above the elevation profile when it's
+   open, otherwise to the bottom edge. */
+@media (max-width: 640px) {
+  .zoomSlider {
+    top: auto;
+    bottom: 10px;
+  }
+
+  .profileOpen .zoomSlider {
+    bottom: 120px;
+  }
+
+  .zoomSlider input[type="range"] {
+    width: 110px;
+  }
+
+  .controls {
+    top: 8px;
+    right: 8px;
+    gap: 4px;
+  }
+
+  .controlButton {
+    padding: 6px 8px;
+  }
+
+  .weatherOverlay {
+    top: 8px;
+    left: 8px;
+    right: auto;
+    min-width: 0;
+    padding: var(--space-1) var(--space-2);
+  }
+
+  .weatherTemp {
+    font-size: 1.05rem;
+  }
+
+  .profilePanel {
+    height: 100px;
+    padding: var(--space-1) var(--space-2);
+  }
+}

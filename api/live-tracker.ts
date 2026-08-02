@@ -1,7 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getJSON, setJSON } from "./_lib/kvStore.js";
+import { getJSON, readJSON, setJSON } from "./_lib/kvStore.js";
 import { getSessionEmail } from "./_lib/session.js";
 import { latestPerDevice, mergePosition, trackPoints } from "./_lib/trackerDb.js";
+import { isDeviceCategory, mergeDeviceValue, resolveDeviceValue, type DeviceCategory } from "./_lib/deviceLayout.js";
 
 /**
  * Position now comes from the real Edge 1040 / Traccar pipeline
@@ -24,11 +25,20 @@ type LiveTrackerConfig = {
   targetSeconds?: number;
   startTime?: string; // ISO
   // Owner-set widget layout for the public page itself (drag/resize while
-  // signed in) - same shape/positions for every visitor, since this is
-  // Malcolm arranging how the public page looks, not a per-visitor
-  // preference. Public GET always returns it; only an authenticated POST
-  // can change it.
-  layout?: LiveTrackerLayout;
+  // signed in) - same positions for every visitor on a given device class,
+  // since this is Malcolm arranging how the public page looks, not a
+  // per-visitor preference. Public GET always returns it; only an
+  // authenticated POST can change it.
+  //
+  // Stored per device category, like dashboard/trends/coaching. It was a
+  // single layout for every screen, which meant the phone rendered the
+  // desktop rects verbatim: the map, sized 1160x1360 on a monitor, came
+  // out 1360px tall on an ~870px-tall phone with its zoom slider scrolled
+  // off the top and the elevation profile off the bottom. Worse, any
+  // drag/resize done on the phone to fix that overwrote the desktop
+  // arrangement. The bare LiveTrackerLayout is the pre-split shape and is
+  // still read (and promoted to the desktop entry on the next save).
+  layout?: LiveTrackerLayout | Partial<Record<DeviceCategory, LiveTrackerLayout>>;
   // Settings' "Show live page to visitors" toggle - lets the owner hide
   // the public page (e.g. before the attempt starts, or once it's over)
   // without losing gpxUrl/targetSeconds/etc, unlike clearing those fields
@@ -71,25 +81,55 @@ export type LiveTrackerPublicResult = {
 
 const CONFIG_KEY = "LIVE_TRACKER_CONFIG";
 
+// Both the pre-split single layout and the per-device record are plain
+// objects, so they're told apart by shape rather than by Array.isArray -
+// only the single layout has `order`/`rects`.
+function isSingleLayout(value: unknown): boolean {
+  return Boolean(value && typeof value === "object" && "rects" in (value as Record<string, unknown>));
+}
+
+function deviceFrom(req: VercelRequest): DeviceCategory {
+  const value = (req.query.device as string | undefined) ?? (req.body as { device?: string } | undefined)?.device;
+  return isDeviceCategory(value) ? value : "desktop";
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === "POST") {
     if (!getSessionEmail(req)) {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
-    const body = (req.body ?? {}) as LiveTrackerConfig;
+    // A POST carries the layout for one device only - the sender's - which
+    // gets merged into the stored per-device record below.
+    const body = (req.body ?? {}) as Omit<LiveTrackerConfig, "layout"> & { layout?: LiveTrackerLayout };
     // Merge onto the existing stored config rather than replacing it
     // wholesale - the /live page now POSTs layout-only updates on every
     // drag/resize, and a full replace would silently wipe gpxUrl/
     // targetSeconds/startTime on every one of those. "field" in body
     // distinguishes "not sent" from "explicitly cleared to undefined",
     // same pattern as PATCH /api/transactions/:id.
-    const existing = (await getJSON<LiveTrackerConfig>(CONFIG_KEY)) ?? {};
+    //
+    // readJSON (not getJSON) so an unreachable Redis surfaces instead of
+    // reading as an empty config: this is a read-modify-write, and treating
+    // a transient blip as "nothing stored" would write a record holding
+    // only whatever this one request sent - wiping the route URL, the
+    // target time, and every other device's layout. Same guard as
+    // dashboard-layout.ts.
+    let existing: LiveTrackerConfig;
+    try {
+      existing = (await readJSON<LiveTrackerConfig>(CONFIG_KEY)) ?? {};
+    } catch (error) {
+      console.error("Refusing to save live tracker config - could not read current state", error);
+      res.status(503).json({ error: "Storage is unavailable right now - nothing was saved." });
+      return;
+    }
     const config: LiveTrackerConfig = { ...existing };
     if ("gpxUrl" in body) config.gpxUrl = body.gpxUrl;
     if ("targetSeconds" in body) config.targetSeconds = body.targetSeconds;
     if ("startTime" in body) config.startTime = body.startTime;
-    if ("layout" in body) config.layout = body.layout;
+    if ("layout" in body && body.layout) {
+      config.layout = mergeDeviceValue<LiveTrackerLayout>(existing.layout, deviceFrom(req), body.layout, isSingleLayout);
+    }
     if ("visible" in body) config.visible = body.visible;
     await setJSON(CONFIG_KEY, config);
     res.status(200).json({ ok: true });
@@ -125,9 +165,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     history,
     simulatedKmh: null,
     visible: isVisible,
-    layout: config.layout ?? null,
+    layout: resolveDeviceValue<LiveTrackerLayout>(config.layout, deviceFrom(req), isSingleLayout),
     isOwner,
   };
+  // The response now varies by ?device=, so the shared cache keys on the
+  // full URL rather than the path - a phone's layout can't be served to a
+  // desktop visitor from an edge cache entry.
   res.setHeader("Cache-Control", isOwner ? "private, no-store" : "public, s-maxage=15, stale-while-revalidate=30");
   res.status(200).json(result);
 }

@@ -13,18 +13,44 @@
   user-select: none;
 }
 
+/* Phone/tablet: one full-width column, and never taller than the screen.
+   max-width alone used to be the only clamp here, which caught an
+   oversized saved width but let an oversized saved *height* through - a
+   map sized 1360px tall on a monitor rendered 1360px tall on a phone,
+   pushing its own zoom slider off the top of the viewport and its
+   elevation profile off the bottom, so all you could see was a wall of
+   map with no controls. 78vh leaves the next card peeking below, which
+   also makes it obvious the page scrolls.
+
+   Applied at render rather than written back to storage, same as
+   rescueOffCanvasX's x clamp (see useCanvasItem.ts) - opening the same
+   layout on a taller screen shows it at its real size instead of one
+   permanently flattened by the smallest screen it was ever viewed on.
+   A resize done here does clamp what it saves, so the stored number
+   still matches what's on screen. */
 .stacked {
   position: relative;
+  width: 100%;
   max-width: 100%;
+  /* dvh, not vh: on iOS Safari vh resolves against the viewport with the
+     URL bar hidden, so a vh-only cap still leaves the card taller than
+     what's actually on screen while the bar is showing - which is the
+     state the page is in when you first open it. vh first as the fallback
+     for anything without dvh support. */
+  max-height: 78vh;
+  max-height: 78dvh;
 }
 
+/* Same z-index reasoning as .resizeHandle below - this floats over the
+   widget's top-left corner, which on the map widget is exactly where
+   Leaflet parks its own zoom control. */
 .dragHandle {
   position: absolute;
-  top: -12px;
+  top: -14px;
   left: 8px;
-  z-index: 2;
-  width: 26px;
-  height: 26px;
+  z-index: 1000;
+  width: 40px;
+  height: 40px;
   display: none;
   align-items: center;
   justify-content: center;
@@ -46,11 +72,13 @@
   cursor: grabbing;
 }
 
+/* Top-right, i.e. straight over the map's own Reset/Profile/Weather
+   buttons (z-index 500) - so this needs to sit above them too. */
 .controls {
   position: absolute;
-  top: -12px;
+  top: -14px;
   right: 8px;
-  z-index: 2;
+  z-index: 1000;
   display: none;
   align-items: center;
   gap: var(--space-1);
@@ -60,9 +88,11 @@
   display: flex;
 }
 
+/* These are the only way to rearrange the page on a phone, so they get a
+   real touch target rather than the 26px they had. */
 .iconButton {
-  width: 26px;
-  height: 26px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -98,23 +128,36 @@
   box-sizing: border-box;
 }
 
+/* This handle used to be a bare 32px glyph pinned flush into the corner at
+   z-index 2, which made it all but unusable over the map widget. Leaflet
+   renders its own floating chrome inside the same stacking context - the
+   attribution and zoom controls sit at z-index 400-1000, and the live
+   map's elevation-profile panel at 500 - so all of the handle except a
+   ~4px sliver at the very corner was painted over and swallowed the tap.
+   Now: a high z-index so nothing embedded in the widget can cover it, a
+   44px touch target, and a visible chip background so it reads as
+   something to grab rather than a stray character on top of the map.
+   Mirrored in DashboardWidget/TrendsWidget/CoachingWidget - anything
+   embedding a map or an iframe has the same problem. */
 .resizeHandle {
   position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 32px;
-  height: 32px;
+  right: 2px;
+  bottom: 2px;
+  width: 44px;
+  height: 44px;
+  z-index: 1000;
   display: none;
-  align-items: flex-end;
-  justify-content: flex-end;
-  padding: 0 4px 4px 0;
-  color: var(--color-text-muted);
-  font-size: 0.9rem;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-bg-elevated-2) 92%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 1rem;
   line-height: 1;
   cursor: nwse-resize;
   touch-action: none;
   overscroll-behavior: none;
-  z-index: 2;
 }
 
 .widget[data-selected] .resizeHandle {

@@ -40,10 +40,43 @@ not a single app, so one is enough for every app you sideload yourself).
    declares `edge1040` as a product, there's nothing to pick - it just
    builds. (Or from the command line:
    `monkeyc -f monkey.jungle -d edge1040 -o bin/EdgeTracker.prg -y ../visibility-test/developer_key.der`.)
-3. Connect the Edge by USB. It mounts as an MTP device (not a drive
-   letter), so copying the `.prg` needs File Explorer's GUI, not a shell
-   `cp` - drag it into `Internal Storage/Garmin/Apps/`.
+3. Connect the Edge by USB. It mounts as an MTP device with no drive
+   letter, so a shell `cp` can't reach it - but File Explorer's GUI isn't
+   the only option either. PowerShell's `Shell.Application` COM object
+   works, which is worth knowing because it makes sideloading scriptable:
+
+   ```powershell
+   $src   = "bin\EdgeTracker.prg"
+   $shell = New-Object -ComObject Shell.Application
+   $dev   = $shell.NameSpace(0x11).Items() | Where-Object { $_.Name -eq 'Edge 1040' }
+   $apps  = $dev.GetFolder.Items() |
+            Where-Object { $_.Name -like 'Internal*' } |
+            ForEach-Object { $_.GetFolder.Items() | Where-Object { $_.Name -eq 'Garmin' } } |
+            ForEach-Object { $_.GetFolder.Items() | Where-Object { $_.Name -eq 'Apps' } }
+   $apps.GetFolder.CopyHere($src, 0x14)
+   ```
+
+   Avoid `InvokeVerb("delete")` on anything - it blocks on a confirmation
+   dialog with no way to answer it.
 4. Unplug - MTP devices don't need a formal eject.
+5. **Restart the Edge.** The `.prg` sits in `Garmin/Apps/` until then and
+   the old build keeps running. You can confirm it installed by listing
+   that folder again: the device consumes the file on boot, so the `.prg`
+   disappearing is the signal it took.
+
+## Reading crash logs
+
+`Garmin/Apps/LOGS/CIQ_LOG.YML` is the first place to look when the field
+stops updating or `HTTP` never reaches 200. It gives the error and a real
+stack with file and line numbers, and it found every bug in this app
+faster than reasoning from the on-screen status did - an out-of-memory in
+`takeBatch`, an illegal access in `onStart`, another out-of-memory in
+`peekBatch`. Pull it the same way as above but with `CopyHere` on a local
+folder's namespace, or just drag it off in Explorer.
+
+Sizes worth sanity-checking while you're in there: `Garmin/Apps/DATA/
+EdgeTracker.DAT` is the app's persisted storage. It should be tens of KB.
+If it's approaching a megabyte, something is writing without bound.
 
 ## Configure the server token
 

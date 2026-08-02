@@ -55,10 +55,31 @@ class BackgroundService extends System.ServiceDelegate {
     //! after a long blackspot would anything remain, and that goes out on
     //! the following temporal events as usual.
     function onActivityCompleted(activity as { :sport as Activity.Sport, :subSport as Activity.SubSport }) as Void {
+        // Clear the schedule as the ride ends, so the next ride's 30-second
+        // first flush is actually allowed - the five-minute floor counts
+        // from the last event that occurred, and a schedule left running
+        // between rides would refuse it every time. Nothing is sampling
+        // once the activity is saved, so there is nothing to schedule for.
+        //
+        // Deleted before the flush is started, not after: the request
+        // already in flight is unaffected, and doing it in the callback
+        // would mean skipping it whenever the send fails - exactly when the
+        // device is least able to tell us.
+        try {
+            Background.deleteTemporalEvent();
+        } catch (e) {
+        }
         flush();
     }
 
     function onTemporalEvent() as Void {
+        // Re-arm. The 30-second first flush is registered as a one-shot
+        // Moment, and only one temporal event exists at a time, so without
+        // this the ride would send once and never again.
+        try {
+            Background.registerForTemporalEvent(new Time.Duration(5 * 60));
+        } catch (e) {
+        }
         flush();
     }
 

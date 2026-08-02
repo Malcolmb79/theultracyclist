@@ -24,9 +24,15 @@ class EdgeTrackerApp extends Application.AppBase {
         // ever sent. Registering the temporal event is the part that
         // actually matters, and it runs regardless.
         SampleBuffer.resetIfSchemaChanged();
-        if (Background.getTemporalEventRegisteredTime() == null) {
-            Background.registerForTemporalEvent(new Time.Duration(5 * 60));
-        }
+        // Deliberately no temporal event here. The schedule is armed when a
+        // ride starts and cleared when it's saved (see EdgeTrackerView's
+        // onTimerStart and BackgroundService's onActivityCompleted),
+        // because the five-minute floor is measured from the last event
+        // that occurred - leaving one repeating forever would mean the
+        // 30-second first flush is refused every single time. Nothing needs
+        // sending between rides anyway, and EdgeTrackerView's
+        // ensureFlushScheduled is the backstop if a ride somehow starts
+        // without one.
         // Fires the background service the moment an activity is saved,
         // independent of the 5-minute temporal schedule. Without it the end
         // of a ride waits for the next scheduled flush like everything else

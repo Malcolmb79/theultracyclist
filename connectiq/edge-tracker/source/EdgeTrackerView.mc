@@ -1,4 +1,5 @@
 import Toybox.Activity;
+import Toybox.Background;
 import Toybox.Lang;
 import Toybox.Position;
 import Toybox.System;
@@ -63,6 +64,44 @@ class EdgeTrackerView extends WatchUi.SimpleDataField {
     //! while the activity is open, so the marker is picked up promptly.
     function onTimerStart() as Void {
         pendingEvent = 1;
+
+        // Ask for a flush 30 seconds in, rather than waiting up to five
+        // minutes for the regular one. That first batch carries the start
+        // marker, so it's also what tells the page to reset the map for a
+        // new ride - five minutes of the previous ride's framing is a long
+        // time to look at when you've just rolled out.
+        //
+        // Only possible because no temporal event is left running between
+        // rides (see onActivityCompleted). The five-minute floor is measured
+        // from the last event that *occurred*, so a permanently repeating
+        // schedule would guarantee this is refused every time.
+        //
+        // It is still refused if the last ride ended under five minutes ago
+        // - a restart after a mechanical, say. Nothing is lost when that
+        // happens: ensureFlushScheduled below puts the normal cadence back,
+        // and the start marker goes out with it.
+        try {
+            Background.registerForTemporalEvent(Time.now().add(new Time.Duration(30)));
+        } catch (e) {
+            ensureFlushScheduled();
+        }
+    }
+
+    //! Guarantees something is scheduled whenever there are samples to send.
+    //!
+    //! The schedule is managed rather than left permanently registered, so
+    //! this is the backstop against every way that could go wrong: a
+    //! refused 30-second request, the field being added part-way through an
+    //! activity so onTimerStart never fired, or a registration lost to a
+    //! crash. Without it a bad path means no flushes at all for the rest of
+    //! the ride, which is worse than any battery saved.
+    hidden function ensureFlushScheduled() as Void {
+        try {
+            if (Background.getTemporalEventRegisteredTime() == null) {
+                Background.registerForTemporalEvent(new Time.Duration(5 * 60));
+            }
+        } catch (e) {
+        }
     }
 
     function onTimerStop() as Void {
@@ -141,6 +180,9 @@ class EdgeTrackerView extends WatchUi.SimpleDataField {
         if (!SampleBuffer.push(sample)) {
             storageFailed = true;
         }
+        // Checked here rather than every tick: this only matters when there
+        // is something queued, and that only changes when a sample is taken.
+        ensureFlushScheduled();
         return status();
     }
 

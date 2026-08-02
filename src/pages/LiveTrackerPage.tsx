@@ -37,6 +37,15 @@ type ApiResult = {
   simulatedKmh: number | null;
   visible: boolean;
   layout: LiveTrackerLayout | null;
+  // Whether samples are arriving right now, from the ingest feed itself
+  // rather than the configured start time - starting the tracker is what
+  // actually begins the attempt. See api/live-tracker.ts.
+  //
+  // Optional because the GET is edge-cached for 15 seconds for anonymous
+  // visitors, so for a few seconds after a deploy a new bundle can be handed
+  // a response body from before this field existed. Reading `.active` off an
+  // absent object there would blank the whole page over a cosmetic badge.
+  tracking?: { active: boolean; lastSampleTs: number | null; ageS: number | null };
   isOwner: boolean;
 };
 
@@ -457,6 +466,7 @@ export default function LiveTrackerPage() {
           totalKm={totalKm}
           weather={weather}
           telemetry={telemetry}
+          trackingActive={data.tracking?.active ?? false}
         />
       </div>
     ),
@@ -494,9 +504,27 @@ export default function LiveTrackerPage() {
             )}
           </div>
         </div>
+        {/* Driven by whether samples are actually arriving, not by the
+            configured start time. Before the tracker is switched on, and
+            after it's switched off, this says so rather than showing a
+            pulsing dot next to a position that stopped moving hours ago. */}
         <div className={styles.status}>
-          <span className={styles.liveDot} />
-          {data.position ? `Updated ${relativeSeconds(data.position.timestamp)}` : "Waiting for position…"}
+          {data.tracking?.active ? (
+            <>
+              <span className={styles.liveDot} />
+              <span className={styles.liveWord}>Live</span>
+              {data.position && <span>· Updated {relativeSeconds(data.position.timestamp)}</span>}
+            </>
+          ) : (
+            <>
+              <span className={styles.idleDot} />
+              <span>
+                {data.tracking?.lastSampleTs == null
+                  ? "Tracker hasn't started"
+                  : `Tracker offline · last seen ${relativeSeconds(data.tracking.lastSampleTs * 1000)}`}
+              </span>
+            </>
+          )}
         </div>
       </div>
 

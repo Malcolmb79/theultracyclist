@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getJSON, readJSON, setJSON } from "./_lib/kvStore.js";
 import { getSessionEmail } from "./_lib/session.js";
-import { latestPerDevice, mergePosition, trackPoints } from "./_lib/trackerDb.js";
+import { TRACKING_IDLE_S, latestPerDevice, mergePosition, trackPoints } from "./_lib/trackerDb.js";
 import { isDeviceCategory, mergeDeviceValue, resolveDeviceValue, type DeviceCategory } from "./_lib/deviceLayout.js";
 
 /**
@@ -73,6 +73,19 @@ export type LiveTrackerPublicResult = {
   // state without needing to special-case "never set" vs "explicitly on".
   visible: boolean;
   layout: LiveTrackerLayout | null;
+  /**
+   * Whether samples are arriving right now, derived from the ingest feed
+   * itself rather than from the configured start time. Starting the Edge is
+   * what actually begins the attempt, and stopping it is what ends it, so the
+   * page follows that instead of a time typed in beforehand - which is only
+   * ever a prediction, and one nobody wants to be editing from the roadside
+   * when the start slips by an hour.
+   */
+  tracking: {
+    active: boolean;
+    lastSampleTs: number | null;
+    ageS: number | null;
+  };
   // True when the request is authenticated - the /live page uses this to
   // decide whether to render its widgets as draggable/resizable (only the
   // owner can rearrange the public page) or as plain positioned cards.
@@ -146,6 +159,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const merged = mergePosition(devices.edge1040 ?? null, devices.traccar ?? null, nowTs);
   const position: PositionPoint | null = merged != null ? { lat: merged.lat, lon: merged.lon, timestamp: merged.ts * 1000 } : null;
 
+  // Newest sample from either device, not just whichever one won the position
+  // merge: Traccar alone still means the tracker is running, and so does the
+  // Edge alone. Only silence from both is a stopped tracker.
+  const newestSampleTs = Math.max(devices.edge1040?.ts ?? 0, devices.traccar?.ts ?? 0);
+  const trackingAgeS = newestSampleTs > 0 ? nowTs - newestSampleTs : null;
+
   const rawHistory = await trackPoints(HISTORY_POINTS);
   const history: PositionPoint[] = rawHistory.map((p) => ({ lat: p.lat, lon: p.lon, timestamp: p.ts * 1000 }));
 
@@ -166,6 +185,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     simulatedKmh: null,
     visible: isVisible,
     layout: resolveDeviceValue<LiveTrackerLayout>(config.layout, deviceFrom(req), isSingleLayout),
+    tracking: {
+      active: trackingAgeS != null && trackingAgeS <= TRACKING_IDLE_S,
+      lastSampleTs: newestSampleTs > 0 ? newestSampleTs : null,
+      ageS: trackingAgeS,
+    },
     isOwner,
   };
   // The response now varies by ?device=, so the shared cache keys on the

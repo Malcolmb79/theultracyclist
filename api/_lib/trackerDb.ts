@@ -195,6 +195,24 @@ export const EDGE_STALE_S = 180;
 export const TELEMETRY_STALE_S = 420;
 
 /**
+ * No sample from *any* device for this long and the tracker counts as stopped.
+ *
+ * This is what "is the attempt underway right now" should be answered with, in
+ * preference to a hand-set start time in config: the tracker starting and
+ * stopping is the actual event, and a start time typed in beforehand is only a
+ * prediction of it. A ride that starts late, pauses, or ends early is then
+ * described correctly without anyone editing anything mid-attempt.
+ *
+ * Same 7 minutes as TELEMETRY_STALE_S, for the same underlying reason - the
+ * Edge cannot flush more often than every 5 minutes, so any shorter window
+ * would declare a perfectly healthy tracker "stopped" in the gap between two
+ * batches. Traccar normally reports far more often than that and will usually
+ * be what keeps this true, but it can't be depended on: it's a phone app that
+ * can be killed, and the Edge is the device that's actually bolted to the bike.
+ */
+export const TRACKING_IDLE_S = TELEMETRY_STALE_S;
+
+/**
  * One source per segment, never interleaved: whichever is chosen supplies
  * the position. Prefers a fresh Edge fix; falls back to Traccar, then to
  * the Edge's own last fix even if stale (a rider in a valley is not a

@@ -184,6 +184,10 @@ interface LiveTrackerMapProps {
   totalKm: number;
   weather: WeatherState;
   telemetry: LiveTelemetry;
+  // Samples arriving right now. Drives the LIVE badge, which is deliberately
+  // absent rather than greyed when nothing is coming in - a permanent badge
+  // that only changes colour still reads as "live" at a glance.
+  trackingActive: boolean;
 }
 
 // Plain Leaflet (not react-leaflet) so the map instance persists across
@@ -198,7 +202,15 @@ interface LiveTrackerMapProps {
 // optional elevation-profile panel, both rendered as plain HTML siblings of
 // the Leaflet container rather than Leaflet controls, since they need
 // React state/props anyway.
-export default function LiveTrackerMap({ route, position, coveredKm, totalKm, weather, telemetry }: LiveTrackerMapProps) {
+export default function LiveTrackerMap({
+  route,
+  position,
+  coveredKm,
+  totalKm,
+  weather,
+  telemetry,
+  trackingActive,
+}: LiveTrackerMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const fullLineRef = useRef<Polyline | null>(null);
@@ -410,6 +422,12 @@ export default function LiveTrackerMap({ route, position, coveredKm, totalKm, we
           offsets - the picker's height depends on how many chips wrap, so
           anything below it can't be placed with a magic number. */}
       <div className={styles.rightStack}>
+      {trackingActive && (
+        <div className={styles.liveBadge}>
+          <span className={styles.liveBadgeDot} />
+          Live
+        </div>
+      )}
       <div className={styles.controls}>
         <button
           type="button"

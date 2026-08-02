@@ -83,12 +83,31 @@
   color: var(--color-text-muted);
 }
 
+/* Red and pulsing only while samples are actually arriving. It used to be
+   green and pulsing unconditionally, which meant the page looked live
+   before the tracker had ever been switched on. */
 .liveDot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--color-accent-2);
+  background: var(--color-accent);
   animation: pulse 2s infinite;
+}
+
+.liveWord {
+  color: var(--color-accent);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Static and muted - nothing is arriving, so nothing should be animating. */
+.idleDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+  opacity: 0.6;
 }
 
 @keyframes pulse {

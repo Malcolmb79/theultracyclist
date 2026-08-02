@@ -424,6 +424,17 @@
    rather than overflowing, with a tight line-height because this sits
    above the scrolling grid and every line it takes is a reading the
    grid doesn't show. overflow-wrap covers a name with no spaces in it. */
+/* Small and muted above the route name - it's the status, not the
+   heading, and shouldn't compete with the name for attention. */
+.summaryEyebrow {
+  margin: 0 0 2px;
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+}
+
 .summaryTitle {
   margin: 0 0 var(--space-3);
   font-family: var(--font-display);

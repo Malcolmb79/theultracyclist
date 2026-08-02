@@ -743,11 +743,14 @@ export default function LiveTrackerMap({
       {sessionState === "ended" && telemetry && summaryDismissed !== sessionEndTs && (
         <div className={styles.summaryOverlay}>
           <div className={styles.summaryCard}>
-            {/* The route's name, same as the page heading. "Ride complete"
-                said nothing the numbers below didn't already say, whereas
-                the name identifies which ride this is a summary of - which
-                matters once these are screenshotted and shared. Falls back
-                only when the route carries no name. */}
+            {/* Both, not one or the other. The route name says which ride
+                this summarises, which matters once a screenshot of it is
+                shared; the caption says the ride is over, which nothing
+                else here does - the telemetry card's "FINAL" is behind
+                this overlay. Dropped only when the route has no name, in
+                which case the caption becomes the title rather than
+                leaving the card untitled. */}
+            {routeName && <p className={styles.summaryEyebrow}>Ride complete</p>}
             <p className={styles.summaryTitle}>{routeName ?? "Ride complete"}</p>
 
             {/* The headline, above the grid rather than in it: on a record

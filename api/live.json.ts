@@ -183,6 +183,11 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
         hr_bpm: edge?.hrBpm ?? null,
         hr_5min_bpm: round(hr5, 0),
         cad_rpm: edge?.cadRpm ?? null,
+        // Barometric altitude, straight from the Edge. Stored since the
+        // schema was written but never surfaced here - every other column
+        // the Connect IQ app sends was already exposed, so this was the
+        // only gap, and the /live map's per-field readouts want it.
+        alt_m: edge?.altM ?? null,
         batt_pct: edge?.battPct ?? null,
       },
     });

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import LiveTrackerMap from "../components/liveTracker/LiveTrackerMap";
+import LiveTrackerMap, { type LiveTelemetry } from "../components/liveTracker/LiveTrackerMap";
 import LiveTrackerWidget from "../components/liveTracker/LiveTrackerWidget";
 import FundraiserProgress from "../components/fundraiser/FundraiserProgress";
 import { fetchRoute, distanceCoveredKm, totalDistanceKm, haversineKm, type RoutePoint } from "../utils/gpxRoute";
@@ -126,12 +126,16 @@ function currentPaceKmh(history: PositionPoint[]): number | null {
 // export, and weather from Open-Meteo at the athlete's current position
 // (not the visitor's own location, unlike the dashboard's Weather widget).
 //
-// Deliberately has no live power/HR/cadence tiles - there's no channel
-// available for that (Garmin's Connect API is suspended for new signups
-// and isn't real-time even when open; LiveTrack's own page doesn't surface
-// performance data either). Showing fabricated numbers there would
-// actively mislead real followers watching a real attempt, so those tiles
-// are left out entirely rather than faked.
+// Live power/HR/cadence used to be left out entirely: Garmin's Connect API
+// is suspended for new signups and isn't real-time even when open, and
+// LiveTrack's own page doesn't surface performance data - so rather than
+// fake numbers at real followers watching a real attempt, there were no
+// tiles at all. The Edge 1040 Connect IQ app in connectiq/edge-tracker
+// closed that gap by sending the sensor data itself, so those readings are
+// now real and available as per-field toggles on the map (see
+// TELEMETRY_FIELDS in LiveTrackerMap). The original principle still holds:
+// every field offered there is one the device actually measures, and a
+// missing reading shows "—" rather than a plausible-looking substitute.
 //
 // Widgets are drag/resize-able exactly like Dashboard/Trends/Coaching, but
 // only for the signed-in owner (api/live-tracker.ts's isOwner, from the
@@ -150,6 +154,7 @@ export default function LiveTrackerPage() {
   const [route, setRoute] = useState<RoutePoint[]>([]);
   const [routeError, setRouteError] = useState(false);
   const [weather, setWeather] = useState<WeatherState>(null);
+  const [telemetry, setTelemetry] = useState<LiveTelemetry>(null);
   const [layout, setLayout] = useState<LiveTrackerLayout | null>(null);
   const [isResizing, setIsResizing] = useState(false);
   const layoutSeeded = useRef(false);
@@ -192,6 +197,32 @@ export default function LiveTrackerPage() {
       clearInterval(interval);
     };
   }, [device]);
+
+  // Ride telemetry comes from /api/live.json rather than /api/live-tracker:
+  // that endpoint already computes every reading the Edge 1040 Connect IQ
+  // app sends, plus the rolling averages (30s power, normalised power,
+  // 5-minute heart rate) which are deliberately server-side - "a thousand
+  // phones each deriving a projection from a raw sample list is a thousand
+  // chances to disagree". Polled on the same cadence as the position feed;
+  // it's edge-cached for 10s, so a crowd of dot-watchers still costs one
+  // database read per ten seconds.
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      fetch("/api/live.json")
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error("Request failed"))))
+        .then((body: NonNullable<LiveTelemetry>) => {
+          if (!cancelled) setTelemetry(body);
+        })
+        .catch(() => {});
+    };
+    load();
+    const interval = setInterval(load, POLL_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
 
   useEffect(() => {
     if (!data?.gpxUrl) return;
@@ -377,10 +408,11 @@ export default function LiveTrackerPage() {
             </p>
           </div>
         </div>
-        <p className={styles.noTelemetryNote}>
-          Live power, heart rate, and cadence aren&apos;t shown - Garmin has no real-time data channel available for a
-          personal project like this one.
-        </p>
+        {/* This card used to carry a note explaining that live power, heart
+            rate and cadence weren't shown because Garmin had no real-time
+            channel for a personal project. That stopped being true when the
+            Edge 1040 Connect IQ app in connectiq/edge-tracker started
+            sending them: they're on the map now, under Data. */}
       </div>
     ),
     progress: (
@@ -418,7 +450,14 @@ export default function LiveTrackerPage() {
     map: (
       <div className={styles.mapWrap}>
         {routeError && <p className={styles.empty}>Couldn&apos;t load the route GPX file.</p>}
-        <LiveTrackerMap route={route} position={data.position} coveredKm={coveredKm} totalKm={totalKm} weather={weather} />
+        <LiveTrackerMap
+          route={route}
+          position={data.position}
+          coveredKm={coveredKm}
+          totalKm={totalKm}
+          weather={weather}
+          telemetry={telemetry}
+        />
       </div>
     ),
     eta: (

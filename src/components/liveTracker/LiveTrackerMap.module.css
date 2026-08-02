@@ -93,12 +93,32 @@
   cursor: default;
 }
 
-.controls {
+/* The whole right-hand column: control row, then the field picker when
+   it's open, then the weather card. A flex column rather than three
+   absolutely-positioned boxes at hand-tuned offsets, because the picker
+   wraps to a different number of lines depending on width and how many
+   fields exist - anything below it can't be placed with a fixed top. */
+.rightStack {
   position: absolute;
   top: 10px;
   right: 10px;
   z-index: 500;
   display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+  /* Reserves the left-hand column for the telemetry card. The two widths
+     are deliberately complementary: 10px margin + .telemetryCard's
+     max-width + a 10px gap. The card grows with its content - "AVG ELAP
+     26.7km/h" is a lot wider than "HR 142bpm" - so leaving it uncapped
+     and guessing a reserve here doesn't hold once every field is on. */
+  max-width: min(360px, calc(100% - 152px));
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: var(--space-1);
 }
 
@@ -138,11 +158,128 @@
   line-height: 1;
 }
 
-.weatherOverlay {
+/* Sits under the control row on the right, wrapping across as many lines
+   as it needs. Deliberately not part of .controls: twelve more buttons in
+   that row would push it to four lines across the top of a phone map. */
+.fieldPicker {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: var(--space-1);
+  background: color-mix(in srgb, var(--color-bg-elevated) 92%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  backdrop-filter: blur(2px);
+}
+
+.fieldChip {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text-muted);
+  padding: 4px 8px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.fieldChip:hover {
+  border-color: var(--color-accent);
+  color: var(--color-text);
+}
+
+.fieldChipOn {
+  background: var(--color-accent-2);
+  border-color: var(--color-accent-2);
+  color: var(--color-bg);
+}
+
+/* Top-left, which is only free because Leaflet's own zoom control is
+   disabled (see LiveTrackerMap.tsx) - it used to own that corner at a
+   z-index above every overlay here. */
+.telemetryCard {
   position: absolute;
-  top: 54px;
-  right: 10px;
+  top: 10px;
+  left: 10px;
   z-index: 500;
+  min-width: 108px;
+  /* Paired with .rightStack's max-width so the two columns can never
+     meet, however many fields are switched on. */
+  max-width: 132px;
+  padding: var(--space-2);
+  background: color-mix(in srgb, var(--color-bg-elevated) 90%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  backdrop-filter: blur(2px);
+}
+
+/* The Edge has gone quiet: these are the last known numbers, not current
+   ones. Dimmed and labelled rather than blanked - a rider in a valley is
+   not a missing rider, same reasoning as trackerDb.ts's merge rule. */
+.telemetryStale {
+  opacity: 0.6;
+  border-style: dashed;
+}
+
+.telemetryStaleNote {
+  margin: 0 0 var(--space-1);
+  font-size: 0.55rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--color-amber);
+}
+
+.telemetryRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.telemetryRow + .telemetryRow {
+  margin-top: 2px;
+}
+
+/* Shrinks before the value does, and truncates rather than wrapping - a
+   two-line label would make rows different heights and the card jump
+   around as readings change. */
+.telemetryLabel {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.55rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
+.telemetryValue {
+  flex: none;
+}
+
+.telemetryValue {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.telemetryUnit {
+  font-family: var(--font-body);
+  font-size: 0.55rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  margin-left: 2px;
+}
+
+.weatherOverlay {
   background: color-mix(in srgb, var(--color-bg-elevated) 90%, transparent);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
@@ -202,12 +339,12 @@
 }
 
 /* Phone. The desktop arrangement puts the zoom slider centred along the
-   top and the Reset/Profile/Weather buttons top-right; at ~390px wide
-   those two are about 220px and 175px, so they overlap each other and the
-   weather card sits on top of the lot. Rearranged rather than shrunk:
-   weather to the top-left, buttons stay top-right, and the zoom slider
-   moves down out of their way - above the elevation profile when it's
-   open, otherwise to the bottom edge. */
+   top and the control buttons top-right; at ~390px wide those two are
+   about 220px and 175px, so they overlap. Rearranged rather than shrunk:
+   the right-hand stack keeps the top-right and wraps, the telemetry card
+   keeps the top-left, and the zoom slider moves down out of their way -
+   above the elevation profile when it's open, otherwise to the bottom
+   edge. */
 @media (max-width: 640px) {
   .zoomSlider {
     top: auto;
@@ -222,9 +359,16 @@
     width: 110px;
   }
 
-  .controls {
+  .rightStack {
     top: 8px;
     right: 8px;
+    gap: 4px;
+    /* 8px margin + .telemetryCard's 124px cap + an 8px gap - same pairing
+       as the desktop rule, at the phone's tighter margins. */
+    max-width: calc(100% - 148px);
+  }
+
+  .controls {
     gap: 4px;
   }
 
@@ -233,15 +377,24 @@
   }
 
   .weatherOverlay {
-    top: 8px;
-    left: 8px;
-    right: auto;
     min-width: 0;
     padding: var(--space-1) var(--space-2);
   }
 
   .weatherTemp {
     font-size: 1.05rem;
+  }
+
+  .telemetryCard {
+    top: 8px;
+    left: 8px;
+    min-width: 92px;
+    max-width: 124px;
+    padding: var(--space-1) var(--space-2);
+  }
+
+  .telemetryValue {
+    font-size: 0.85rem;
   }
 
   .profilePanel {

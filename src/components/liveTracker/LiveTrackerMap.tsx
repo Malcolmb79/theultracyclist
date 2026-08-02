@@ -22,6 +22,97 @@ const MAX_ZOOM = 18;
 type WeatherState = { temp: number; windSpeed: number; windDirection: number; code: number } | null;
 type WindClass = "headwind" | "tailwind" | "crosswind";
 
+// Mirrors the parts of api/live.json.ts's response the map reads -
+// duplicated per this project's api/src decoupling convention, same as
+// LiveTrackerPage does for api/live-tracker.ts.
+export type LiveTelemetry = {
+  live: {
+    stale: boolean;
+    speed_mps: number | null;
+    avg_speed_elapsed_mps: number | null;
+    avg_speed_moving_mps: number | null;
+    power_30s_w: number | null;
+    power_avg_w: number | null;
+    power_np_w: number | null;
+    hr_bpm: number | null;
+    hr_5min_bpm: number | null;
+    cad_rpm: number | null;
+    alt_m: number | null;
+    batt_pct: number | null;
+  };
+  progress: {
+    distance_m: number | null;
+    elapsed_s: number | null;
+    timer_s: number | null;
+  };
+} | null;
+
+export type TelemetryFieldId =
+  | "speed"
+  | "avgSpeedMoving"
+  | "avgSpeedElapsed"
+  | "power"
+  | "powerAvg"
+  | "powerNp"
+  | "hr"
+  | "hr5min"
+  | "cadence"
+  | "altitude"
+  | "distance"
+  | "elapsed"
+  | "moving"
+  | "battery";
+
+function formatClock(seconds: number): string {
+  const total = Math.max(0, Math.round(seconds));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  return `${h}:${String(m).padStart(2, "0")}`;
+}
+
+// Every field the Edge 1040 Connect IQ app actually sends, and nothing
+// else - the app's compute() writes lat/lon/alt_m/dist_m/elapsed_s/
+// timer_s/speed_mps/power_w/hr_bpm/cad_rpm/batt_pct (see
+// connectiq/edge-tracker/source/EdgeTrackerView.mc), and the rolling
+// averages here are derived from those same columns server-side in
+// api/live.json.ts rather than in the browser. Nothing is shown that the
+// device doesn't measure.
+//
+// `value` returns null whenever the reading is missing - a dropped HR
+// strap or a cadence sensor that never paired shows "—" rather than
+// being silently dropped from the card, so an enabled field never just
+// vanishes without explanation.
+const TELEMETRY_FIELDS: {
+  id: TelemetryFieldId;
+  label: string;
+  short: string;
+  unit: string;
+  value: (t: NonNullable<LiveTelemetry>) => number | string | null;
+}[] = [
+  { id: "speed", label: "Speed", short: "Speed", unit: "km/h", value: (t) => (t.live.speed_mps == null ? null : (t.live.speed_mps * 3.6).toFixed(1)) },
+  { id: "power", label: "Power (30s)", short: "Power", unit: "W", value: (t) => t.live.power_30s_w },
+  { id: "hr", label: "Heart rate", short: "HR", unit: "bpm", value: (t) => t.live.hr_bpm },
+  { id: "cadence", label: "Cadence", short: "Cadence", unit: "rpm", value: (t) => t.live.cad_rpm },
+  { id: "powerNp", label: "Normalised power", short: "NP", unit: "W", value: (t) => t.live.power_np_w },
+  { id: "powerAvg", label: "Power (ride avg)", short: "Avg P", unit: "W", value: (t) => t.live.power_avg_w },
+  { id: "hr5min", label: "Heart rate (5 min)", short: "HR 5m", unit: "bpm", value: (t) => t.live.hr_5min_bpm },
+  { id: "altitude", label: "Altitude", short: "Altitude", unit: "m", value: (t) => (t.live.alt_m == null ? null : Math.round(t.live.alt_m)) },
+  { id: "avgSpeedMoving", label: "Avg speed (moving)", short: "Avg mov", unit: "km/h", value: (t) => (t.live.avg_speed_moving_mps == null ? null : (t.live.avg_speed_moving_mps * 3.6).toFixed(1)) },
+  { id: "avgSpeedElapsed", label: "Avg speed (elapsed)", short: "Avg elap", unit: "km/h", value: (t) => (t.live.avg_speed_elapsed_mps == null ? null : (t.live.avg_speed_elapsed_mps * 3.6).toFixed(1)) },
+  // The Edge's own odometer, not the GPX-derived figure the Progress card
+  // shows - trackerDb.ts treats the device's distance as authoritative and
+  // never recomputes it, so the two can differ slightly. Off by default so
+  // the page doesn't put two distances on screen unless asked.
+  { id: "distance", label: "Distance (device)", short: "Distance", unit: "km", value: (t) => (t.progress.distance_m == null ? null : (t.progress.distance_m / 1000).toFixed(1)) },
+  { id: "elapsed", label: "Elapsed", short: "Elapsed", unit: "", value: (t) => (t.progress.elapsed_s == null ? null : formatClock(t.progress.elapsed_s)) },
+  { id: "moving", label: "Moving time", short: "Moving", unit: "", value: (t) => (t.progress.timer_s == null ? null : formatClock(t.progress.timer_s)) },
+  { id: "battery", label: "Edge battery", short: "Battery", unit: "%", value: (t) => t.live.batt_pct },
+];
+
+// The four a dot-watcher actually wants at a glance. The rest are one tap
+// away rather than crowding the map by default.
+const DEFAULT_FIELDS: TelemetryFieldId[] = ["speed", "power", "hr", "cadence"];
+
 function normalizeAngle(deg: number): number {
   return ((deg % 360) + 360) % 360;
 }
@@ -76,6 +167,7 @@ interface LiveTrackerMapProps {
   coveredKm: number;
   totalKm: number;
   weather: WeatherState;
+  telemetry: LiveTelemetry;
 }
 
 // Plain Leaflet (not react-leaflet) so the map instance persists across
@@ -90,7 +182,7 @@ interface LiveTrackerMapProps {
 // optional elevation-profile panel, both rendered as plain HTML siblings of
 // the Leaflet container rather than Leaflet controls, since they need
 // React state/props anyway.
-export default function LiveTrackerMap({ route, position, coveredKm, totalKm, weather }: LiveTrackerMapProps) {
+export default function LiveTrackerMap({ route, position, coveredKm, totalKm, weather, telemetry }: LiveTrackerMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const fullLineRef = useRef<Polyline | null>(null);
@@ -99,6 +191,11 @@ export default function LiveTrackerMap({ route, position, coveredKm, totalKm, we
   const hasFitBoundsRef = useRef(false);
   const [showProfile, setShowProfile] = useState(true);
   const [showWeather, setShowWeather] = useState(true);
+  // Whether the per-field chip row is open, kept separate from whether any
+  // fields are on: closing the picker shouldn't switch off the readings
+  // you just chose, and the card stays up on its own.
+  const [showFieldPicker, setShowFieldPicker] = useState(false);
+  const [fields, setFields] = useState<TelemetryFieldId[]>(DEFAULT_FIELDS);
   const [expanded, setExpanded] = useState(false);
   const [zoom, setZoom] = useState(INITIAL_ZOOM);
   const [scaleKm, setScaleKm] = useState<number | null>(null);
@@ -111,7 +208,17 @@ export default function LiveTrackerMap({ route, position, coveredKm, totalKm, we
 
     import("leaflet").then((L) => {
       if (cancelled || !containerRef.current || mapRef.current) return;
-      const map = L.map(containerRef.current, { minZoom: MIN_ZOOM, maxZoom: MAX_ZOOM }).setView([53.4, -8], INITIAL_ZOOM);
+      // zoomControl: false because this map already has its own −/slider/+
+      // with a km scale readout, so Leaflet's default control was a second
+      // way to do the same thing - and a harmful one: Leaflet renders its
+      // controls at z-index 1000, above every overlay here (all 500), so
+      // the top-left corner it occupies silently swallowed taps meant for
+      // anything placed there. Freeing that corner is what makes room for
+      // the telemetry card, and on a phone for the weather card too.
+      const map = L.map(containerRef.current, { minZoom: MIN_ZOOM, maxZoom: MAX_ZOOM, zoomControl: false }).setView(
+        [53.4, -8],
+        INITIAL_ZOOM,
+      );
       L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
         attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
         subdomains: "abcd",
@@ -282,6 +389,11 @@ export default function LiveTrackerMap({ route, position, coveredKm, totalKm, we
         {scaleKm != null && <span className={styles.scaleValue}>{formatScaleKm(scaleKm)}</span>}
       </div>
 
+      {/* Controls, the field picker and the weather card share one
+          right-hand column so they stack instead of being pinned at fixed
+          offsets - the picker's height depends on how many chips wrap, so
+          anything below it can't be placed with a magic number. */}
+      <div className={styles.rightStack}>
       <div className={styles.controls}>
         <button
           type="button"
@@ -308,8 +420,18 @@ export default function LiveTrackerMap({ route, position, coveredKm, totalKm, we
         >
           Weather
         </button>
-        {/* Icon-only: this row has to fit alongside the weather card on a
-            ~390px phone, where a fourth worded button wouldn't. */}
+        <button
+          type="button"
+          className={`${styles.controlButton} ${showFieldPicker ? styles.controlButtonActive : ""}`}
+          onClick={() => setShowFieldPicker((v) => !v)}
+          aria-pressed={showFieldPicker}
+          aria-label="Choose which ride data to show"
+        >
+          Data
+        </button>
+        {/* Icon-only: the row already carries four worded buttons, and a
+            fifth wouldn't fit beside the telemetry card on a ~390px
+            phone. */}
         <button
           type="button"
           className={`${styles.controlButton} ${styles.expandButton} ${expanded ? styles.controlButtonActive : ""}`}
@@ -321,6 +443,33 @@ export default function LiveTrackerMap({ route, position, coveredKm, totalKm, we
           {expanded ? "✕" : "⛶"}
         </button>
       </div>
+
+      {/* One chip per field the Edge sends. Wraps, and sits below the
+          control row rather than in it - twelve more buttons in that row
+          would take four lines across the top of a phone-sized map. */}
+      {showFieldPicker && (
+        <div className={styles.fieldPicker}>
+          {TELEMETRY_FIELDS.map((field) => {
+            const on = fields.includes(field.id);
+            return (
+              <button
+                key={field.id}
+                type="button"
+                className={`${styles.fieldChip} ${on ? styles.fieldChipOn : ""}`}
+                aria-pressed={on}
+                title={field.label}
+                onClick={() =>
+                  setFields((current) =>
+                    current.includes(field.id) ? current.filter((f) => f !== field.id) : [...current, field.id],
+                  )
+                }
+              >
+                {field.short}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {showWeather && weather && (
         <div className={styles.weatherOverlay}>
@@ -341,6 +490,28 @@ export default function LiveTrackerMap({ route, position, coveredKm, totalKm, we
               <p className={styles.windClass}>{windClass ? WIND_CLASS_LABEL[windClass] : "Wind"}</p>
             </div>
           </div>
+        </div>
+      )}
+      </div>
+
+      {/* Left-hand column, opposite the controls. Rendered in
+          TELEMETRY_FIELDS order rather than the order fields were switched
+          on, so the card doesn't reshuffle itself as you toggle. */}
+      {fields.length > 0 && telemetry && (
+        <div className={`${styles.telemetryCard} ${telemetry.live.stale ? styles.telemetryStale : ""}`}>
+          {telemetry.live.stale && <p className={styles.telemetryStaleNote}>Last known</p>}
+          {TELEMETRY_FIELDS.filter((field) => fields.includes(field.id)).map((field) => {
+            const value = field.value(telemetry);
+            return (
+              <div key={field.id} className={styles.telemetryRow}>
+                <span className={styles.telemetryLabel}>{field.short}</span>
+                <span className={styles.telemetryValue}>
+                  {value ?? "—"}
+                  {value != null && field.unit && <span className={styles.telemetryUnit}>{field.unit}</span>}
+                </span>
+              </div>
+            );
+          })}
         </div>
       )}
 

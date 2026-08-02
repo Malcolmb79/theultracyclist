@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { Map as LeafletMap, Polyline, CircleMarker, TileLayer } from "leaflet";
+import type { Map as LeafletMap, Polyline, Marker, TileLayer } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { courseBearingAtKm, type RoutePoint } from "../../utils/gpxRoute";
 import { useStoredState } from "../../utils/useStoredState";
@@ -19,7 +19,6 @@ import styles from "./LiveTrackerMap.module.css";
 
 const ROUTE_COLOR = "#3b82f6";
 const COMPLETED_COLOR = "#22c55e";
-const LIVE_COLOR = "#ef4444";
 // Close enough to see local roads/towns around the live position without
 // needing to manually zoom back in after panning or zooming away - matches
 // roughly what "recenter" implies for a dot-watching page like this.
@@ -295,7 +294,7 @@ export default function LiveTrackerMap({
   themeRef.current = resolvedTheme;
   const fullLineRef = useRef<Polyline | null>(null);
   const completedLineRef = useRef<Polyline | null>(null);
-  const markerRef = useRef<CircleMarker | null>(null);
+  const markerRef = useRef<Marker | null>(null);
   const hasFitBoundsRef = useRef(false);
   // Persisted per browser - these reset to defaults on every refresh
   // otherwise, which meant re-picking your fields each time the page
@@ -312,6 +311,16 @@ export default function LiveTrackerMap({
   // fields are on: closing the picker shouldn't switch off the readings
   // you just chose, and the card stays up on its own.
   const [showFieldPicker, setShowFieldPicker] = useState(false);
+  // Off by default: switching it on is a choice, whereas a map that
+  // silently drags itself back every time you try to look somewhere else
+  // is just broken behaviour you didn't ask for.
+  const [follow, setFollow] = useStoredState<boolean>("liveMap.follow", false, (v) =>
+    typeof v === "boolean" ? v : null,
+  );
+  // Read inside the position effect, which shouldn't re-run just because
+  // the toggle changed - it would replay the marker update for no reason.
+  const followRef = useRef(follow);
+  followRef.current = follow;
   // Validated against the current field list on the way back in: a saved id
   // that no longer exists would otherwise render a permanently empty row,
   // and there'd be no way to clear it short of emptying site data.
@@ -357,12 +366,23 @@ export default function LiveTrackerMap({
       }).addTo(map);
       fullLineRef.current = L.polyline([], { color: ROUTE_COLOR, weight: 4, opacity: 0.6 }).addTo(map);
       completedLineRef.current = L.polyline([], { color: COMPLETED_COLOR, weight: 5, opacity: 0.9 }).addTo(map);
-      markerRef.current = L.circleMarker([0, 0], {
-        radius: 8,
-        color: "#fff",
-        weight: 2,
-        fillColor: LIVE_COLOR,
-        fillOpacity: 1,
+      // divIcon rather than a plain image icon so the logo can be clipped
+      // round and given a ring in CSS. Without it a square logo on a busy
+      // basemap reads as a piece of page furniture that happens to overlap
+      // the map, not as the rider's position.
+      //
+      // riseOnHover and a high zIndexOffset keep it above the route line
+      // where the track doubles back on itself, which this one does.
+      markerRef.current = L.marker([0, 0], {
+        icon: L.divIcon({
+          className: styles.liveMarkerIcon,
+          html: `<img src="/logo.png" alt="" class="${styles.liveMarkerImg}" />`,
+          iconSize: [34, 34],
+          iconAnchor: [17, 17],
+        }),
+        keyboard: false,
+        riseOnHover: true,
+        zIndexOffset: 1000,
       }).addTo(map);
       // Keeps the slider and the km scale readout in sync with zooming/
       // panning/resizing done any other way (scroll wheel, pinch, double-
@@ -415,8 +435,22 @@ export default function LiveTrackerMap({
       const completed = route.filter((p) => p.distanceKm <= coveredKm).map((p) => L.latLng(p.lat, p.lon));
       completedLineRef.current.setLatLngs(completed);
       markerRef.current.setLatLng([position.lat, position.lon]);
+      // panTo, not setView: following should keep whatever zoom the viewer
+      // chose. Someone who has zoomed in on a climb wants to stay there and
+      // have the map track along, not be yanked back to a fixed level.
+      if (followRef.current) {
+        mapRef.current?.panTo([position.lat, position.lon]);
+      }
     });
   }, [position, route, coveredKm]);
+
+  // Switching follow on shouldn't leave the map wherever it was until the
+  // next position arrives - which, at 5-minute batches, could be a long
+  // wait for something that looks like a broken button.
+  useEffect(() => {
+    if (!follow || !position) return;
+    mapRef.current?.panTo([position.lat, position.lon]);
+  }, [follow, position]);
 
   // Full screen is done by pinning .wrap to the viewport rather than
   // through the Fullscreen API: iPhone Safari doesn't implement
@@ -564,6 +598,16 @@ export default function LiveTrackerMap({
           aria-label="Recenter on live position"
         >
           ◎ Reset
+        </button>
+        <button
+          type="button"
+          className={`${styles.controlButton} ${follow ? styles.controlButtonActive : ""}`}
+          onClick={() => setFollow((v) => !v)}
+          aria-pressed={follow}
+          disabled={!position}
+          title={follow ? "Stop centring on the rider" : "Keep the rider centred"}
+        >
+          Follow
         </button>
         <button
           type="button"

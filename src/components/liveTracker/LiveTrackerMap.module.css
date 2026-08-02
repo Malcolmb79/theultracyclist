@@ -32,6 +32,31 @@
   background: var(--color-bg-elevated-2);
 }
 
+/* The live position marker. Leaflet builds this element outside React, so
+   the hashed class names are handed to divIcon explicitly - see
+   LiveTrackerMap.tsx. The :global part targets Leaflet's own class, which
+   CSS Modules would otherwise rename and never match. */
+:global(.leaflet-div-icon).liveMarkerIcon {
+  /* Leaflet's default divIcon is a white box with a border, which would
+     frame the logo in a square. */
+  background: none;
+  border: none;
+}
+
+.liveMarkerImg {
+  display: block;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  box-sizing: border-box;
+  /* Ring and shadow so it stays legible on both basemaps. The old plain
+     red dot had contrast against anything; a logo doesn't, and on a busy
+     light map it would otherwise disappear into the terrain. */
+  border: 2px solid #fff;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 2px 6px rgba(0, 0, 0, 0.45);
+}
+
 /* Centered at the top so it clears Leaflet's own zoom control (top-left)
    and the reset/profile buttons + weather card (top-right). */
 .zoomSlider {

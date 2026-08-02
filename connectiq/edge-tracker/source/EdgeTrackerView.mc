@@ -29,6 +29,14 @@ import Toybox.WatchUi;
 //! route around.
 class EdgeTrackerView extends WatchUi.SimpleDataField {
 
+    // Timestamp of the last sample actually buffered. compute() still runs
+    // every second - it has to, to keep returning the status line - but
+    // only one tick in SampleBuffer.SAMPLE_INTERVAL_S is kept. See that
+    // constant for why: at 1Hz the queue produced five times what a
+    // five-minute temporal event could ever send, so it could only ever
+    // fall behind.
+    hidden var lastSampleTs as Number = 0;
+
     function initialize() {
         SimpleDataField.initialize();
         label = "Ultra Cyclist Tracker";
@@ -42,6 +50,15 @@ class EdgeTrackerView extends WatchUi.SimpleDataField {
         // persistence to "survive app restarts" the way trackerDb.ts's
         // schema comment requires - it already does, for free.
         var ts = Time.now().value();
+
+        // Not due yet: return the status line without touching Storage at
+        // all. The early return is the point - the old code did a
+        // read-modify-write of the entire queue on every one of these
+        // ticks.
+        if (lastSampleTs != 0 && ts - lastSampleTs < SampleBuffer.SAMPLE_INTERVAL_S) {
+            return status();
+        }
+        lastSampleTs = ts;
 
         var lat = null;
         var lon = null;
@@ -68,10 +85,15 @@ class EdgeTrackerView extends WatchUi.SimpleDataField {
             "batt_pct" => System.getSystemStats().battery.toNumber(),
         };
         SampleBuffer.push(sample);
+        return status();
+    }
 
-        // One line, read as: currently buffered / last background-send
-        // HTTP status (0 before the first attempt) - a live sanity signal
-        // for whoever's glancing at the field.
+    // One line, read as: currently buffered / last background-send HTTP
+    // status (0 before the first attempt) - a live sanity signal for
+    // whoever's glancing at the field. If this stops changing, compute()
+    // has stopped running, which is the symptom the old unbounded
+    // per-tick Storage rewrite produced within a couple of minutes.
+    hidden function status() as String {
         return SampleBuffer.bufferedCount().format("%d") + "/" + SampleBuffer.lastStatus().format("%d");
     }
 }

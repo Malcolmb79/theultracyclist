@@ -176,6 +176,25 @@ export async function insertSamples(samples: TrackerSample[]): Promise<number> {
 export const EDGE_STALE_S = 180;
 
 /**
+ * How old the Edge's sensor readings have to be before they stop counting as
+ * current. Deliberately NOT EDGE_STALE_S.
+ *
+ * That 180s threshold is the right answer for position, where the question is
+ * "should Traccar take over?" and switching early is cheap. It is the wrong
+ * answer for telemetry, because there is no second source to switch to and the
+ * Edge cannot physically report more often than every 5 minutes: Connect IQ
+ * won't fire a background temporal event on a shorter interval, and a data
+ * field can't make web requests from the foreground at all. Judging a 5-minute
+ * pipeline against a 3-minute deadline marks a perfectly healthy feed stale for
+ * two minutes out of every five.
+ *
+ * 7 minutes: comfortably past one flush interval, so a single missed or slow
+ * flush doesn't cry wolf, but well short of the point where nobody would call
+ * the numbers live.
+ */
+export const TELEMETRY_STALE_S = 420;
+
+/**
  * One source per segment, never interleaved: whichever is chosen supplies
  * the position. Prefers a fresh Edge fix; falls back to Traccar, then to
  * the Edge's own last fix even if stale (a rider in a valley is not a

@@ -17,6 +17,7 @@ class EdgeTrackerApp extends Application.AppBase {
     }
 
     function onStart(state as Dictionary or Null) as Void {
+        SampleBuffer.discardLegacyQueue();
         if (Background.getTemporalEventRegisteredTime() == null) {
             Background.registerForTemporalEvent(new Time.Duration(5 * 60));
         }
@@ -25,6 +26,7 @@ class EdgeTrackerApp extends Application.AppBase {
     function onStop(state as Dictionary or Null) as Void {
     }
 
+    (:background)
     function getServiceDelegate() as [System.ServiceDelegate] {
         return [ new BackgroundService() ];
     }

@@ -224,13 +224,21 @@
   border-style: dashed;
 }
 
-.telemetryStaleNote {
+.telemetryStaleNote,
+.telemetryAge {
   margin: 0 0 var(--space-1);
   font-size: 0.55rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.07em;
+}
+
+.telemetryStaleNote {
   color: var(--color-amber);
+}
+
+.telemetryAge {
+  color: var(--color-text-muted);
 }
 
 .telemetryRow {

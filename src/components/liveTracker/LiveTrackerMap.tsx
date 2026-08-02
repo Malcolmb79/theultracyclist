@@ -28,6 +28,11 @@ type WindClass = "headwind" | "tailwind" | "crosswind";
 export type LiveTelemetry = {
   live: {
     stale: boolean;
+    // Seconds since the Edge's newest sample. Never near zero in normal
+    // operation: Connect IQ won't fire the background temporal event that
+    // sends them more often than every 5 minutes, so these readings cycle
+    // between fresh and ~5 minutes old and the card says which.
+    age_s: number | null;
     speed_mps: number | null;
     avg_speed_elapsed_mps: number | null;
     avg_speed_moving_mps: number | null;
@@ -62,6 +67,17 @@ export type TelemetryFieldId =
   | "elapsed"
   | "moving"
   | "battery";
+
+// Age of the Edge readings, for the caption on the telemetry card. Under a
+// minute reads as "now" rather than a jittery second count - the underlying
+// feed arrives in 5-minute batches, so second-level precision here would be
+// false precision.
+function formatAge(seconds: number): string {
+  if (seconds < 60) return "now";
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} min ago`;
+  return `${Math.round(minutes / 60)}h ago`;
+}
 
 function formatClock(seconds: number): string {
   const total = Math.max(0, Math.round(seconds));
@@ -499,7 +515,15 @@ export default function LiveTrackerMap({ route, position, coveredKm, totalKm, we
           on, so the card doesn't reshuffle itself as you toggle. */}
       {fields.length > 0 && telemetry && (
         <div className={`${styles.telemetryCard} ${telemetry.live.stale ? styles.telemetryStale : ""}`}>
-          {telemetry.live.stale && <p className={styles.telemetryStaleNote}>Last known</p>}
+          {/* Always captioned, not just when stale. These numbers arrive in
+              5-minute batches, so a card that only ever says something when
+              things go wrong reads as "current" the rest of the time - when
+              what it means is "as of a few minutes ago". */}
+          {telemetry.live.age_s != null && (
+            <p className={telemetry.live.stale ? styles.telemetryStaleNote : styles.telemetryAge}>
+              {telemetry.live.stale ? "Last known" : formatAge(telemetry.live.age_s)}
+            </p>
+          )}
           {TELEMETRY_FIELDS.filter((field) => fields.includes(field.id)).map((field) => {
             const value = field.value(telemetry);
             return (

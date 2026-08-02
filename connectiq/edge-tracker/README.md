@@ -1,11 +1,31 @@
 # Edge 1040 tracker
 
 Reads position, altitude, distance, speed, power, heart rate, and cadence
-once a second and ships it to `theultracyclist.com/api/ingest`, which feeds
-the public `/live` page. Built after `../visibility-test` answered the one
-question that mattered first: `compute()` keeps running whether or not this
-field's page is the one on screen (see that project's README), so there's
-no "leave this page displayed" requirement here.
+every 10 seconds and ships it to `theultracyclist.com/api/ingest`, which
+feeds the public `/live` page. Built after `../visibility-test` answered the
+one question that mattered first: `compute()` keeps running whether or not
+this field's page is the one on screen (see that project's README), so
+there's no "leave this page displayed" requirement here.
+
+## Why 10 seconds, and why the numbers on the site lag
+
+Connect IQ will not fire a background temporal event more often than every
+5 minutes, and a data field cannot make web requests from its foreground at
+all - so the *only* way data leaves this device mid-ride is one batch every
+5 minutes. Two consequences worth knowing before reading the site:
+
+- **Sensor readings on `/live` are up to 5 minutes old.** That is a
+  platform floor, not something the code can improve. The map's telemetry
+  card is captioned with the age for that reason. Position is separate and
+  much fresher, because the phone's Traccar feed carries it.
+- **The sampling rate has to fit through that batch.** One flush must carry
+  everything produced in 300 seconds, so `SAMPLE_INTERVAL_S` and
+  `MAX_BATCH_SIZE` in `SampleBuffer.mc` are a matched pair - see the
+  comments there. The first version sampled at 1Hz and sent 60 per flush,
+  which produced 240 more samples than it could send every five minutes,
+  forever, and drained oldest-first - so the site sat on the opening
+  minute's heart rate and power and fell further behind as the ride went
+  on.
 
 ## Build and sideload
 
@@ -54,10 +74,24 @@ On the Edge: add **Ultra Cyclist Tracker** as a field on any data page.
 It reads `BUF/HTTP` - how many samples are currently buffered waiting to
 go out, and the last background-send HTTP response code (0 before the
 first attempt, which won't happen until ~5 minutes into the ride - see
-below). `BUF` climbing steadily with `HTTP` stuck at 0 or a non-200 value
-means the token's wrong, there's no phone tethering, or the batches
-aren't reaching the server; `HTTP` reading 200 with `BUF` staying low
-means it's working.
+below).
+
+What to expect on a healthy ride: `BUF` climbs to about 30 over five
+minutes, `HTTP` flips to `200`, and `BUF` drops back to near zero. Then it
+repeats.
+
+- **`BUF` stops changing entirely** - `compute()` has stopped running, i.e.
+  the app has died. This is what the first test ride hit, from an unbounded
+  per-tick rewrite of the whole queue in `Application.Storage`; it is fixed,
+  but the symptom is worth recognising.
+- **`BUF` climbs past ~60 and keeps going, `HTTP` at 0 or non-200** - the
+  batches aren't landing. Wrong token, no phone tethering, or the server is
+  unreachable. Nothing is lost while this persists: samples stay queued
+  until the server confirms it stored them, and the buffer holds 30 minutes
+  before it starts dropping the oldest.
+- **`HTTP` is 200 but `BUF` never falls** - shouldn't be possible now that
+  a flush drains more than an interval produces; if it happens, the two
+  constants in `SampleBuffer.mc` have drifted apart.
 
 ## The one thing this can't fix
 

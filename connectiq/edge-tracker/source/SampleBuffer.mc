@@ -9,8 +9,18 @@ import Toybox.Lang;
 //! all - see BackgroundService.mc), so this module is the queue compute()
 //! writes into and the periodic background event drains from.
 //!
+//! A ring buffer addressed by slot, not one stored array. The first version
+//! kept the whole queue under a single key, so every push was
+//! getValue(whole array) -> add -> setValue(whole array): O(n) flash I/O
+//! and two full copies of the queue live in RAM, once per second, with n
+//! growing by one every second. On a data field's memory budget that dies
+//! within a couple of minutes, which is exactly what the first test ride
+//! showed - the field updated for a few seconds and then stopped. Each
+//! push is now two small fixed-size writes regardless of how much is
+//! queued.
+//!
 //! Bounded rather than unbounded: a long connectivity blackspot must not
-//! grow memory without limit on a device that has to keep recording for a
+//! grow storage without limit on a device that has to keep recording for a
 //! multi-day attempt. The oldest samples are dropped once the buffer fills -
 //! an acceptable trade, not a silent one, because the live tracker's own
 //! merge rule (see mergePosition in the server's trackerDb.ts) already
@@ -21,93 +31,146 @@ import Toybox.Lang;
 //! reconstructed from this buffer.
 module SampleBuffer {
 
-    // 30 minutes at ~1Hz. Generous relative to the 3-minute Traccar
-    // fallback above, while still bounded.
-    const MAX_BUFFERED = 1800;
-    // Kept comfortably under api/ingest.ts's 256KB batch limit - each
-    // sample serializes to roughly 120-180 bytes as JSON.
+    //! How often compute() actually buffers a sample. compute() still runs
+    //! at 1Hz; this is the subset that gets kept.
+    //!
+    //! This number is not free to change on its own. Connect IQ won't fire
+    //! a temporal event more often than every 5 minutes (see
+    //! EdgeTrackerApp), so one flush has to carry everything produced in
+    //! 300 seconds or the queue grows forever:
+    //!
+    //!     produced per flush = 300 / SAMPLE_INTERVAL_S
+    //!     MAX_BATCH_SIZE must be comfortably greater than that
+    //!
+    //! At 1Hz that was 300 produced against a 60-sample batch - a deficit
+    //! of 240 every five minutes, permanently. Because the queue drains
+    //! oldest-first, the server was therefore always being sent the START
+    //! of the ride, and the "live" heart rate and power on the site sat on
+    //! the first minute's values and fell further behind at five times real
+    //! time. That is the second half of what the test ride showed.
+    //!
+    //! At 10s: 30 produced per flush against a batch of 60, so a flush
+    //! clears the backlog and has 2x headroom to catch up after a
+    //! blackspot. 10s is finer than anything downstream consumes anyway -
+    //! the map decimates the whole ride to 2000 points (~285m apart), and
+    //! 10s at 30km/h is 83m.
+    const SAMPLE_INTERVAL_S = 10;
+
+    //! 30 minutes at SAMPLE_INTERVAL_S. Deliberately modest: every slot is
+    //! a separate Storage key holding a whole sample, and an app's
+    //! persisted storage is a limited, device-specific budget.
+    const CAPACITY = 180;
+
+    //! Kept at 60 - the same batch the previous version sent, so the
+    //! background process's memory footprint per flush is unchanged. The
+    //! deficit is fixed by producing less, not by sending more, because a
+    //! background service has a far smaller memory budget than the
+    //! foreground and is the wrong place to get ambitious.
     const MAX_BATCH_SIZE = 60;
 
-    const QUEUE_KEY = "sampleQueue";
+    const HEAD_KEY = "qHead";
+    const TAIL_KEY = "qTail";
     const STATUS_KEY = "lastFlushStatus";
     const SEQ_KEY = "batchSeq";
 
+    function counter(key as String) as Number {
+        var value = Storage.getValue(key) as Number or Null;
+        return value == null ? 0 : value;
+    }
+
+    function slotKey(index as Number) as String {
+        return "s" + (index % CAPACITY).toString();
+    }
+
     function push(sample as Dictionary) as Void {
-        var queue = Storage.getValue(QUEUE_KEY) as Array or Null;
-        if (queue == null) {
-            queue = [] as Array;
+        var head = counter(HEAD_KEY);
+        var tail = counter(TAIL_KEY);
+
+        Storage.setValue(slotKey(tail), sample);
+        tail += 1;
+
+        // Full: the write above has already landed on the oldest slot, so
+        // head has to move with it rather than pointing at a sample that
+        // no longer exists.
+        if (tail - head > CAPACITY) {
+            Storage.setValue(HEAD_KEY, tail - CAPACITY);
         }
-        queue.add(sample);
-        if (queue.size() > MAX_BUFFERED) {
-            queue = dropFront(queue, queue.size() - MAX_BUFFERED);
-        }
-        Storage.setValue(QUEUE_KEY, queue);
+        Storage.setValue(TAIL_KEY, tail);
     }
 
     function bufferedCount() as Number {
-        var queue = Storage.getValue(QUEUE_KEY) as Array or Null;
-        return queue == null ? 0 : queue.size();
+        return counter(TAIL_KEY) - counter(HEAD_KEY);
     }
 
     function lastStatus() as Number {
-        var status = Storage.getValue(STATUS_KEY) as Number or Null;
-        return status == null ? 0 : status;
+        return counter(STATUS_KEY);
     }
 
     function setLastStatus(code as Number) as Void {
         Storage.setValue(STATUS_KEY, code);
     }
 
-    // Removes and returns up to maxSize samples from the front of the
-    // queue, atomically (the caller - BackgroundService - owns the batch
-    // from this point; requeueFront puts it back if the send fails).
-    function takeBatch(maxSize as Number) as Array {
-        var queue = Storage.getValue(QUEUE_KEY) as Array or Null;
-        if (queue == null) {
-            queue = [] as Array;
+    //! Reads up to maxSize samples WITHOUT removing them - the queue only
+    //! moves when commitBatch() is called after the server has confirmed
+    //! it stored them.
+    //!
+    //! The previous version removed the batch up front and relied on the
+    //! HTTP callback to put it back on failure. That silently lost 60
+    //! samples every single time the callback never ran at all - which is
+    //! precisely what happens with no phone tethered, the one failure mode
+    //! the README calls out as most likely. Nothing is deleted here until
+    //! it is known to be safely stored.
+    function peekBatch(maxSize as Number) as Array {
+        var head = counter(HEAD_KEY);
+        var tail = counter(TAIL_KEY);
+        var count = tail - head;
+        if (count > maxSize) {
+            count = maxSize;
         }
-        var size = maxSize < queue.size() ? maxSize : queue.size();
-        var batch = takeFront(queue, size);
-        Storage.setValue(QUEUE_KEY, dropFront(queue, size));
+
+        var batch = [] as Array;
+        for (var i = 0; i < count; i++) {
+            var sample = Storage.getValue(slotKey(head + i));
+            // A slot can be empty if the ring wrapped past it while this
+            // was being read - skip rather than sending a null the server
+            // would only reject.
+            if (sample != null) {
+                batch.add(sample);
+            }
+        }
         return batch;
     }
 
-    function requeueFront(batch as Array) as Void {
-        var queue = Storage.getValue(QUEUE_KEY) as Array or Null;
-        if (queue == null) {
-            queue = [] as Array;
+    //! Advances past a batch the server has acknowledged, freeing its
+    //! slots. Resending anything already stored is harmless anyway -
+    //! api/ingest.ts upserts with ON CONFLICT DO NOTHING - so erring
+    //! towards retaining is always the safe direction here.
+    function commitBatch(count as Number) as Void {
+        var head = counter(HEAD_KEY);
+        var tail = counter(TAIL_KEY);
+        var next = head + count;
+        if (next > tail) {
+            next = tail;
         }
-        var merged = [] as Array;
-        merged.addAll(batch);
-        merged.addAll(queue);
-        if (merged.size() > MAX_BUFFERED) {
-            merged = dropFront(merged, merged.size() - MAX_BUFFERED);
+        for (var i = head; i < next; i++) {
+            Storage.deleteValue(slotKey(i));
         }
-        Storage.setValue(QUEUE_KEY, merged);
+        Storage.setValue(HEAD_KEY, next);
+    }
+
+    //! Drops the single-array queue the previous version wrote under
+    //! "sampleQueue". Nothing reads that key any more, so whatever the last
+    //! ride left in it - potentially hundreds of samples - would otherwise
+    //! sit in the device's storage budget forever, competing with the ring
+    //! buffer for the space it needs. Deleting a key that isn't there is a
+    //! no-op, so this is safe to call on every start.
+    function discardLegacyQueue() as Void {
+        Storage.deleteValue("sampleQueue");
     }
 
     function nextBatchSeq() as Number {
-        var seq = Storage.getValue(SEQ_KEY) as Number or Null;
-        var next = (seq == null ? 0 : seq) + 1;
+        var next = counter(SEQ_KEY) + 1;
         Storage.setValue(SEQ_KEY, next);
         return next;
-    }
-
-    function takeFront(arr as Array, n as Number) as Array {
-        var count = n < arr.size() ? n : arr.size();
-        var out = [] as Array;
-        for (var i = 0; i < count; i++) {
-            out.add(arr[i]);
-        }
-        return out;
-    }
-
-    function dropFront(arr as Array, n as Number) as Array {
-        var count = n < arr.size() ? n : arr.size();
-        var out = [] as Array;
-        for (var i = count; i < arr.size(); i++) {
-            out.add(arr[i]);
-        }
-        return out;
     }
 }

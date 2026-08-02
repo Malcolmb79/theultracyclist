@@ -1,5 +1,13 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { EDGE_STALE_S, latestPerDevice, latestWithDistance, mergePosition, sampleNearTimestamp, samplesSince } from "./_lib/trackerDb.js";
+import {
+  EDGE_STALE_S,
+  TELEMETRY_STALE_S,
+  latestPerDevice,
+  latestWithDistance,
+  mergePosition,
+  sampleNearTimestamp,
+  samplesSince,
+} from "./_lib/trackerDb.js";
 import { computeRecord } from "./_lib/recordMaths.js";
 import { recordConfig, recordIsConfigured } from "./_lib/recordConfig.js";
 
@@ -173,7 +181,16 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
       live: {
         // Sensor values are only meaningful while the Edge is current; after a
         // dropout the page keeps showing them greyed, so it needs to know.
-        stale: edgeStale,
+        // Judged against TELEMETRY_STALE_S rather than the position feed's
+        // EDGE_STALE_S - see the note on that constant for why a 3-minute
+        // deadline permanently libels a feed that can only flush every 5.
+        stale: edgeAge > TELEMETRY_STALE_S,
+        // How old these readings actually are. The Edge batches over a
+        // background temporal event, which Connect IQ won't run more often
+        // than every 5 minutes, so "live" here means minutes-fresh rather
+        // than seconds-fresh - and the page says so rather than implying
+        // the numbers are instantaneous.
+        age_s: Number.isFinite(edgeAge) ? edgeAge : null,
         speed_mps: edge?.speedMps ?? null,
         avg_speed_elapsed_mps: round(avgElapsed),
         avg_speed_moving_mps: round(avgMoving),

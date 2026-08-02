@@ -11,23 +11,28 @@ import Toybox.System;
 //! sample queue via SampleBuffer, which is backed by Application.Storage -
 //! the only channel shared between this and the foreground compute() that
 //! pushed the samples there.
+(:background)
 class BackgroundService extends System.ServiceDelegate {
 
     const INGEST_URL = "https://theultracyclist.com/api/ingest";
 
-    hidden var pendingBatch as Array or Null = null;
+    // Only the count, not the samples: the batch stays in the queue until
+    // the server acknowledges it (see SampleBuffer.peekBatch), so there is
+    // nothing here that needs putting back on failure - and nothing that
+    // gets lost if this process is killed before the callback ever runs.
+    hidden var pendingCount as Number = 0;
 
     function initialize() {
         ServiceDelegate.initialize();
     }
 
     function onTemporalEvent() as Void {
-        var batch = SampleBuffer.takeBatch(SampleBuffer.MAX_BATCH_SIZE);
+        var batch = SampleBuffer.peekBatch(SampleBuffer.MAX_BATCH_SIZE);
         if (batch.size() == 0) {
             Background.exit(0);
             return;
         }
-        pendingBatch = batch;
+        pendingCount = batch.size();
 
         var body = {
             "device" => "edge1040",
@@ -48,14 +53,16 @@ class BackgroundService extends System.ServiceDelegate {
 
     function onReceive(responseCode as Number, data as Dictionary or String or Null) as Void {
         SampleBuffer.setLastStatus(responseCode);
-        if (responseCode != 200 && pendingBatch != null) {
-            // Failed - put the batch back at the front of the queue rather
-            // than losing it. api/ingest.ts's ON CONFLICT DO NOTHING means
-            // resending anything that actually did land server-side before
-            // the failure is harmless.
-            SampleBuffer.requeueFront(pendingBatch);
+        // Only a confirmed store advances the queue. Anything else - a
+        // non-200, or this callback never firing because there was no
+        // phone to send through - leaves the batch exactly where it was
+        // for the next temporal event to try again. Resending something
+        // that did land is harmless: api/ingest.ts upserts with ON
+        // CONFLICT DO NOTHING and reports the duplicates.
+        if (responseCode == 200) {
+            SampleBuffer.commitBatch(pendingCount);
         }
-        pendingBatch = null;
+        pendingCount = 0;
         Background.exit(responseCode);
     }
 }

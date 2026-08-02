@@ -75,8 +75,15 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
 
     // One source per segment, never interleaved: whichever is chosen supplies
     // the position, and the page is told which so it can say so.
-    const positionSource = !edgeStale && edge?.lat != null ? "edge" : traccar?.lat != null ? "traccar" : null;
-    const positionFrom = positionSource === "edge" ? edge : positionSource === "traccar" ? traccar : null;
+    //
+    // The last resort is the Edge's own last fix even when it is stale. A
+    // rider in a valley is not a missing rider, and returning nothing here
+    // blanks the map marker - the page would look broken at precisely the
+    // moment people are refreshing it hardest. Stale position with its
+    // timestamp is the honest answer; null is not.
+    const fresh = !edgeStale && edge?.lat != null ? edge : null;
+    const positionFrom = fresh ?? (traccar?.lat != null ? traccar : (edge?.lat != null ? edge : null));
+    const positionSource = positionFrom == null ? null : positionFrom === traccar ? "traccar" : "edge";
 
     const newestTs = Math.max(edge?.ts ?? 0, traccar?.ts ?? 0);
     const noFeed = newestTs === 0 || nowTs - newestTs > FEED_STALE_S;
@@ -153,7 +160,16 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
       },
       position:
         positionFrom?.lat != null
-          ? { lat: positionFrom.lat, lon: positionFrom.lon, source: positionSource, ts: positionFrom.ts }
+          ? {
+              lat: positionFrom.lat,
+              lon: positionFrom.lon,
+              source: positionSource,
+              ts: positionFrom.ts,
+              // Distinguishes "here they are" from "here they were" without
+              // making the page compute an age from two timestamps.
+              stale: nowTs - positionFrom.ts > EDGE_STALE_S,
+              age_s: nowTs - positionFrom.ts,
+            }
           : null,
       progress: {
         distance_m: coveredM,

@@ -238,6 +238,21 @@ export async function trackPoints(limit = 2000): Promise<{ lat: number; lon: num
   return rows.map((row) => ({ lat: Number(row.lat), lon: Number(row.lon), ts: Number(row.ts), device: String(row.device) }));
 }
 
+/**
+ * Samples since a timestamp, for the rolling windows the live tiles need.
+ *
+ * Bounded by time rather than by row count so the window means the same thing
+ * whatever the sample rate - "the last 30 minutes" has to survive the Edge
+ * flushing at 1Hz and Traccar trickling at 0.1Hz.
+ */
+export async function samplesSince(ts: number, device?: TrackerDevice): Promise<(TrackerSample & { receivedTs: number })[]> {
+  await ensureSchema();
+  const { rows } = device
+    ? await getPool().query(`SELECT * FROM samples WHERE ts >= $1 AND device = $2 ORDER BY ts`, [ts, device])
+    : await getPool().query(`SELECT * FROM samples WHERE ts >= $1 ORDER BY ts`, [ts]);
+  return rows.map(fromRow);
+}
+
 function fromRow(row: Record<string, unknown>): TrackerSample & { receivedTs: number } {
   const num = (value: unknown): number | null => (value == null ? null : Number(value));
   return {

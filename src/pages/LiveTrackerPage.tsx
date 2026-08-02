@@ -45,7 +45,12 @@ type ApiResult = {
   // visitors, so for a few seconds after a deploy a new bundle can be handed
   // a response body from before this field existed. Reading `.active` off an
   // absent object there would blank the whole page over a cosmetic badge.
-  tracking?: { active: boolean; lastSampleTs: number | null; ageS: number | null };
+  tracking?: {
+    active: boolean;
+    lastSampleTs: number | null;
+    ageS: number | null;
+    state: "pending" | "live" | "stalled" | "ended";
+  };
   isOwner: boolean;
 };
 
@@ -164,6 +169,10 @@ export default function LiveTrackerPage() {
   const [routeError, setRouteError] = useState(false);
   const [weather, setWeather] = useState<WeatherState>(null);
   const [telemetry, setTelemetry] = useState<LiveTelemetry>(null);
+  // When that telemetry landed, so the elapsed clock can be advanced from it
+  // between polls rather than stepping 20 seconds at a time.
+  const [telemetryAt, setTelemetryAt] = useState(0);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const [layout, setLayout] = useState<LiveTrackerLayout | null>(null);
   const [isResizing, setIsResizing] = useState(false);
   const layoutSeeded = useRef(false);
@@ -221,7 +230,9 @@ export default function LiveTrackerPage() {
       fetch("/api/live.json")
         .then((r) => (r.ok ? r.json() : Promise.reject(new Error("Request failed"))))
         .then((body: NonNullable<LiveTelemetry>) => {
-          if (!cancelled) setTelemetry(body);
+          if (cancelled) return;
+          setTelemetry(body);
+          setTelemetryAt(Date.now());
         })
         .catch(() => {});
     };
@@ -283,6 +294,16 @@ export default function LiveTrackerPage() {
   // stored per-device record and leaves the others alone, so rearranging
   // the page on a phone during the attempt can't flatten the desktop view
   // that everyone on a laptop is watching.
+  // Drives the elapsed clock while a session is running. Only while running:
+  // once the tracker stops there is nothing to count, and a page left open
+  // overnight shouldn't re-render every second forever.
+  const sessionIsLive = data?.tracking?.state === "live";
+  useEffect(() => {
+    if (!sessionIsLive) return;
+    const interval = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [sessionIsLive]);
+
   const persistLayout = (next: LiveTrackerLayout) => {
     setLayout(next);
     fetch("/api/live-tracker", {
@@ -335,7 +356,32 @@ export default function LiveTrackerPage() {
   const coveredKm = data.position && route.length > 0 ? distanceCoveredKm(route, data.position) : 0;
   const remainingKm = Math.max(0, totalKm - coveredKm);
   const progressPct = totalKm > 0 ? Math.min(100, (coveredKm / totalKm) * 100) : 0;
-  const elapsedSeconds = data.startTime ? (Date.now() - Date.parse(data.startTime)) / 1000 : null;
+  // The Edge's own activity clock, not a start time typed into Settings.
+  // Pressing start on the device is what begins the session, so elapsed
+  // starts from zero there - previously it counted from the configured time
+  // whether or not the tracker was even on, so a start that slipped by an
+  // hour showed an hour already gone.
+  //
+  // Samples arrive in 5-minute batches, so the stored value is up to five
+  // minutes behind. While the session is live that gap is real elapsed time
+  // and gets added, which keeps the clock ticking second by second instead
+  // of jumping in five-minute steps. Once it isn't live the value stands
+  // exactly as the device last reported it - that's the finalisation: no
+  // extrapolating a clock for a bike that stopped.
+  //
+  // Only elapsed is extrapolated, never timerS: elapsed advances with the
+  // wall clock, moving time only advances while actually moving, and
+  // guessing at the difference is how a stopped rider accrues moving time.
+  const deviceElapsedS = telemetry?.progress.elapsed_s ?? null;
+  // age_s is how old the reading was when the server answered; the rest is
+  // how long ago that answer arrived here. Together they carry the clock
+  // forward from the device's last known value, once a second, instead of
+  // standing still for five minutes and then jumping.
+  const sinceSampleS =
+    sessionIsLive && telemetry?.live.age_s != null
+      ? Math.max(0, telemetry.live.age_s + (nowMs - telemetryAt) / 1000)
+      : 0;
+  const elapsedSeconds = deviceElapsedS != null ? deviceElapsedS + sinceSampleS : null;
   const currentPace = data.simulatedKmh ?? currentPaceKmh(data.history);
   const averagePace = elapsedSeconds && elapsedSeconds > 0 ? coveredKm / (elapsedSeconds / 3600) : null;
   const requiredPaceKmh = data.targetSeconds && totalKm > 0 ? totalKm / (data.targetSeconds / 3600) : null;
@@ -466,7 +512,7 @@ export default function LiveTrackerPage() {
           totalKm={totalKm}
           weather={weather}
           telemetry={telemetry}
-          trackingActive={data.tracking?.active ?? false}
+          sessionState={data.tracking?.state ?? "pending"}
         />
       </div>
     ),
@@ -509,7 +555,7 @@ export default function LiveTrackerPage() {
             after it's switched off, this says so rather than showing a
             pulsing dot next to a position that stopped moving hours ago. */}
         <div className={styles.status}>
-          {data.tracking?.active ? (
+          {data.tracking?.state === "live" ? (
             <>
               <span className={styles.liveDot} />
               <span className={styles.liveWord}>Live</span>
@@ -519,9 +565,11 @@ export default function LiveTrackerPage() {
             <>
               <span className={styles.idleDot} />
               <span>
-                {data.tracking?.lastSampleTs == null
-                  ? "Tracker hasn't started"
-                  : `Tracker offline · last seen ${relativeSeconds(data.tracking.lastSampleTs * 1000)}`}
+                {data.tracking?.state === "ended"
+                  ? "Ride finished"
+                  : data.tracking?.state === "stalled"
+                    ? `Signal lost · last seen ${relativeSeconds((data.tracking.lastSampleTs ?? 0) * 1000)}`
+                    : "Tracker hasn't started"}
               </span>
             </>
           )}

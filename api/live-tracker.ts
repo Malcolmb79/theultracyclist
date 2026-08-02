@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getJSON, readJSON, setJSON } from "./_lib/kvStore.js";
 import { getSessionEmail } from "./_lib/session.js";
-import { TRACKING_IDLE_S, latestPerDevice, mergePosition, trackPoints } from "./_lib/trackerDb.js";
+import { SESSION_ENDED_S, TRACKING_IDLE_S, latestPerDevice, mergePosition, trackPoints } from "./_lib/trackerDb.js";
 import { isDeviceCategory, mergeDeviceValue, resolveDeviceValue, type DeviceCategory } from "./_lib/deviceLayout.js";
 
 /**
@@ -85,6 +85,18 @@ export type LiveTrackerPublicResult = {
     active: boolean;
     lastSampleTs: number | null;
     ageS: number | null;
+    /**
+     * The session's lifecycle, which the page renders rather than deciding
+     * for itself:
+     *
+     *   pending - the tracker has never sent anything
+     *   live    - samples arriving now
+     *   stalled - quiet, but not long enough to call it over. Probably a
+     *             dropout; the numbers stand as the last known ones
+     *   ended   - quiet long enough that the ride is finished, and the
+     *             numbers are the final result rather than stale live data
+     */
+    state: "pending" | "live" | "stalled" | "ended";
   };
   // True when the request is authenticated - the /live page uses this to
   // decide whether to render its widgets as draggable/resizable (only the
@@ -189,6 +201,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       active: trackingAgeS != null && trackingAgeS <= TRACKING_IDLE_S,
       lastSampleTs: newestSampleTs > 0 ? newestSampleTs : null,
       ageS: trackingAgeS,
+      state:
+        trackingAgeS == null
+          ? "pending"
+          : trackingAgeS <= TRACKING_IDLE_S
+            ? "live"
+            : trackingAgeS <= SESSION_ENDED_S
+              ? "stalled"
+              : "ended",
     },
     isOwner,
   };

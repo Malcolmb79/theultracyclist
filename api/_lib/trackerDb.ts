@@ -213,6 +213,27 @@ export const TELEMETRY_STALE_S = 420;
 export const TRACKING_IDLE_S = TELEMETRY_STALE_S;
 
 /**
+ * Silence for this long and the session is treated as over, not merely quiet.
+ *
+ * Deliberately far longer than TRACKING_IDLE_S, because the two answer
+ * different questions and getting them confused is expensive in opposite
+ * directions. "Is it live right now" wants a short fuse - seven minutes, one
+ * flush interval plus slack. "Has the attempt finished" must not fire on a
+ * dropout, and a 570km ride through rural Ireland will have dropouts far
+ * longer than seven minutes.
+ *
+ * So a gap under 30 minutes reads as lost signal and the last numbers stand
+ * as the last known ones; beyond that the page calls the session finished and
+ * freezes them as the result.
+ *
+ * This is inference, not a signal from the device. The Edge doesn't currently
+ * report its timer state, so pressing stop and riding into a valley look
+ * identical from here until enough time passes. Sending Activity.Info's
+ * timerState would make it definite, at the cost of another app build.
+ */
+export const SESSION_ENDED_S = 1800;
+
+/**
  * One source per segment, never interleaved: whichever is chosen supplies
  * the position. Prefers a fresh Edge fix; falls back to Traccar, then to
  * the Edge's own last fix even if stale (a rider in a valley is not a

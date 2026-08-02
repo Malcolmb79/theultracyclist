@@ -185,10 +185,12 @@ interface LiveTrackerMapProps {
   totalKm: number;
   weather: WeatherState;
   telemetry: LiveTelemetry;
-  // Samples arriving right now. Drives the LIVE badge, which is deliberately
-  // absent rather than greyed when nothing is coming in - a permanent badge
-  // that only changes colour still reads as "live" at a glance.
-  trackingActive: boolean;
+  // Where the ride is in its lifecycle, from api/live-tracker.ts. Drives the
+  // LIVE badge - deliberately absent rather than greyed when nothing is
+  // arriving, since a permanent badge that only changes colour still reads
+  // as "live" at a glance - and whether the readings are captioned as
+  // current, last known, or final.
+  sessionState: "pending" | "live" | "stalled" | "ended";
 }
 
 // Plain Leaflet (not react-leaflet) so the map instance persists across
@@ -210,7 +212,7 @@ export default function LiveTrackerMap({
   totalKm,
   weather,
   telemetry,
-  trackingActive,
+  sessionState,
 }: LiveTrackerMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
@@ -443,7 +445,7 @@ export default function LiveTrackerMap({
           offsets - the picker's height depends on how many chips wrap, so
           anything below it can't be placed with a magic number. */}
       <div className={styles.rightStack}>
-      {trackingActive && (
+      {sessionState === "live" && (
         <div className={styles.liveBadge}>
           <span className={styles.liveBadgeDot} />
           Live
@@ -553,14 +555,17 @@ export default function LiveTrackerMap({
           TELEMETRY_FIELDS order rather than the order fields were switched
           on, so the card doesn't reshuffle itself as you toggle. */}
       {fields.length > 0 && telemetry && (
-        <div className={`${styles.telemetryCard} ${telemetry.live.stale ? styles.telemetryStale : ""}`}>
-          {/* Always captioned, not just when stale. These numbers arrive in
-              5-minute batches, so a card that only ever says something when
-              things go wrong reads as "current" the rest of the time - when
-              what it means is "as of a few minutes ago". */}
+        <div className={`${styles.telemetryCard} ${sessionState !== "live" ? styles.telemetryStale : ""}`}>
+          {/* Always captioned, not just when something is wrong. These
+              numbers arrive in 5-minute batches, so a card that only speaks
+              up on failure reads as "current" the rest of the time - when
+              what it means is "as of a few minutes ago". "Final" once the
+              ride is over: the same numbers mean a different thing then,
+              and calling a finished result "last known" implies it might
+              still change. */}
           {telemetry.live.age_s != null && (
-            <p className={telemetry.live.stale ? styles.telemetryStaleNote : styles.telemetryAge}>
-              {telemetry.live.stale ? "Last known" : formatAge(telemetry.live.age_s)}
+            <p className={sessionState === "live" ? styles.telemetryAge : styles.telemetryStaleNote}>
+              {sessionState === "ended" ? "Final" : sessionState === "stalled" ? "Last known" : formatAge(telemetry.live.age_s)}
             </p>
           )}
           {TELEMETRY_FIELDS.filter((field) => fields.includes(field.id)).map((field) => {

@@ -54,7 +54,19 @@ module SampleBuffer {
     //! blackspot. 10s is finer than anything downstream consumes anyway -
     //! the map decimates the whole ride to 2000 points (~285m apart), and
     //! 10s at 30km/h is 83m.
-    const SAMPLE_INTERVAL_S = 10;
+    //! 30s, giving 10 samples per five-minute flush window against a batch
+    //! of 20 - so a flush clears the backlog twice over.
+    //!
+    //! This started at 1Hz, went to 10s when the queue couldn't drain, and
+    //! is now 30s because the background process kept running out of memory
+    //! assembling the batch even after samples became positional arrays.
+    //! Each step was a real, logged failure rather than caution.
+    //!
+    //! What 30s costs is close to nothing: the map decimates the whole ride
+    //! to 2000 points, about 285m apart, and 30s at 30km/h is 250m. The
+    //! sensor readouts only refresh every 5 minutes regardless, because
+    //! that's how often the device can send at all.
+    const SAMPLE_INTERVAL_S = 30;
 
     //! 10 minutes at SAMPLE_INTERVAL_S, and no more, because every slot is
     //! a separate Storage key holding a whole sample and an app's persisted
@@ -67,11 +79,11 @@ module SampleBuffer {
     //! quota. Storage.setValue then failed with "Illegal Access (Out of
     //! Bounds)" inside push(), killing the data field. 60 slots is ~36KB.
     //!
-    //! Losing buffer depth costs little: a flush drains MAX_BATCH_SIZE = 60
+    //! Losing buffer depth costs little: a flush drains MAX_BATCH_SIZE
     //! anyway, so the ring holds exactly one batch, and position during a
     //! dropout is covered by the phone's Traccar feed regardless (see
     //! mergePosition in the server's trackerDb.ts).
-    const CAPACITY = 60;
+    const CAPACITY = 40;
 
     //! Bumped whenever the shape of what's kept in Storage changes. On a
     //! mismatch everything is cleared, which is the only reliable way to be
@@ -84,19 +96,25 @@ module SampleBuffer {
     //! buffer written by version 2 would be sent to the server in the
     //! wrong shape entirely, so the bump matters - it isn't only about
     //! reclaiming space.
+    //! 4: CAPACITY dropped from 60 to 40, which orphans slots s40..s59 -
+    //! nothing reads them and nothing would ever delete them by name.
     const SCHEMA_KEY = "schemaV";
-    const SCHEMA_VERSION = 3;
+    const SCHEMA_VERSION = 4;
 
     //! The background process's memory budget is the binding constraint
-    //! here, not the server's 256KB body limit or anything on the wire.
+    //! here - not the server's 256KB body limit, and nothing on the wire.
     //!
-    //! 60 samples of dictionaries ran it out of memory inside peekBatch at
-    //! every temporal event - roughly 21KB of dictionaries plus the JSON
-    //! serialization on top. Samples are positional arrays now (see
-    //! EdgeTrackerView), which is around a third of that, and the batch is
-    //! 40, which still drains the 30 a five-minute window produces with
-    //! headroom to spare.
-    const MAX_BATCH_SIZE = 40;
+    //! It is also far smaller than estimated. 60 dictionaries ran it out of
+    //! memory in peekBatch at every temporal event. Samples became
+    //! positional arrays, roughly a third the size, and 40 of those still
+    //! did - same function, same crash, logged at 15:50:55Z. Two failed
+    //! estimates is enough: 20 is chosen to be obviously, unarguably under
+    //! the limit rather than shaved to what should fit.
+    //!
+    //! Still twice what a five-minute window produces at
+    //! SAMPLE_INTERVAL_S, so the queue drains completely on every flush and
+    //! has headroom to catch up after a blackspot.
+    const MAX_BATCH_SIZE = 20;
 
     const HEAD_KEY = "qHead";
     const TAIL_KEY = "qTail";

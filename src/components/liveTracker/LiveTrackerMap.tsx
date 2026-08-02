@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Map as LeafletMap, Polyline, CircleMarker } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { courseBearingAtKm, type RoutePoint } from "../../utils/gpxRoute";
+import { useStoredState } from "../../utils/useStoredState";
 import RouteProfile from "./RouteProfile";
 import styles from "./LiveTrackerMap.module.css";
 
@@ -217,13 +218,33 @@ export default function LiveTrackerMap({
   const completedLineRef = useRef<Polyline | null>(null);
   const markerRef = useRef<CircleMarker | null>(null);
   const hasFitBoundsRef = useRef(false);
-  const [showProfile, setShowProfile] = useState(true);
-  const [showWeather, setShowWeather] = useState(true);
+  // Persisted per browser - these reset to defaults on every refresh
+  // otherwise, which meant re-picking your fields each time the page
+  // reloaded. Full screen and the picker's own open/closed state are
+  // deliberately not persisted: reloading straight into a full-screen map,
+  // or into an open picker, is not what anyone means by "remember this".
+  const [showProfile, setShowProfile] = useStoredState<boolean>("liveMap.showProfile", true, (v) =>
+    typeof v === "boolean" ? v : null,
+  );
+  const [showWeather, setShowWeather] = useStoredState<boolean>("liveMap.showWeather", true, (v) =>
+    typeof v === "boolean" ? v : null,
+  );
   // Whether the per-field chip row is open, kept separate from whether any
   // fields are on: closing the picker shouldn't switch off the readings
   // you just chose, and the card stays up on its own.
   const [showFieldPicker, setShowFieldPicker] = useState(false);
-  const [fields, setFields] = useState<TelemetryFieldId[]>(DEFAULT_FIELDS);
+  // Validated against the current field list on the way back in: a saved id
+  // that no longer exists would otherwise render a permanently empty row,
+  // and there'd be no way to clear it short of emptying site data.
+  const [fields, setFields] = useStoredState<TelemetryFieldId[]>("liveMap.fields", DEFAULT_FIELDS, (stored) => {
+    if (!Array.isArray(stored)) return null;
+    const known = stored.filter((id): id is TelemetryFieldId =>
+      TELEMETRY_FIELDS.some((field) => field.id === id),
+    );
+    // An empty array is a real choice - every field switched off - so it is
+    // kept, and only a value that wasn't an array at all falls back.
+    return known;
+  });
   const [expanded, setExpanded] = useState(false);
   const [zoom, setZoom] = useState(INITIAL_ZOOM);
   const [scaleKm, setScaleKm] = useState<number | null>(null);

@@ -307,6 +307,24 @@ export async function latestSessionEvent(): Promise<{ startTs: number | null; st
   };
 }
 
+/**
+ * Empties the samples table.
+ *
+ * Every figure the live page shows is derived from these rows - position,
+ * distance, the clocks, the session start/stop markers - so removing them is
+ * what puts the page back to "nothing has happened yet" rather than showing
+ * the last training ride to whoever opens it on the morning of the attempt.
+ *
+ * DELETE rather than TRUNCATE: it reports how many rows went, which is worth
+ * having as confirmation that the thing actually did something, and it needs
+ * no additional table privileges.
+ */
+export async function clearSamples(): Promise<number> {
+  await ensureSchema();
+  const result = await getPool().query(`DELETE FROM samples`);
+  return result.rowCount ?? 0;
+}
+
 /** The newest sample from each device, for the merge rule and staleness. */
 export async function latestPerDevice(): Promise<Record<string, TrackerSample & { receivedTs: number }>> {
   await ensureSchema();

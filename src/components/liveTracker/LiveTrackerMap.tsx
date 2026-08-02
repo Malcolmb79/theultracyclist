@@ -753,6 +753,23 @@ export default function LiveTrackerMap({
             {routeName && <p className={styles.summaryEyebrow}>Ride complete</p>}
             <p className={styles.summaryTitle}>{routeName ?? "Ride complete"}</p>
 
+            {/* When the ride actually finished, from the device's own stop
+                marker rather than when this page happened to notice - the
+                two differ by however long the final flush took, and a
+                summary that says a ride ended when the server heard about
+                it would be wrong by up to five minutes. Rendered in the
+                viewer's own locale and timezone, since dot-watchers aren't
+                all in Ireland. */}
+            {sessionEndTs != null && (
+              <p className={styles.summaryFinished}>
+                Finished{" "}
+                {new Date(sessionEndTs * 1000).toLocaleString(undefined, {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                })}
+              </p>
+            )}
+
             {/* The headline, above the grid rather than in it: on a record
                 attempt this is the number that matters, and burying it as
                 the ninth cell of eight equals would be an odd way to

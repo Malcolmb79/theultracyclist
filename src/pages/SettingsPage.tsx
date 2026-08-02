@@ -130,7 +130,17 @@ function SettingsEditor() {
   );
   const [caloriesBurnTargetTimeInput, setCaloriesBurnTargetTimeInput] = useState(DEFAULT_CALORIE_BURN_ESTIMATE.targetTime);
   const [saving, setSaving] = useState<
-    "ftp" | "height" | "targets" | "garmin" | "liveTracker" | "caloriesBurn" | "trainingPeaks" | null
+    | "ftp"
+    | "height"
+    | "targets"
+    | "garmin"
+    | "liveTracker"
+    | "caloriesBurn"
+    | "trainingPeaks"
+    // Not a save - the one destructive action on this page. It shares this
+    // state so it can't run while a save is in flight, and vice versa.
+    | "clearRideData"
+    | null
   >(
     null,
   );
@@ -323,6 +333,35 @@ function SettingsEditor() {
       startTime: startTimeInput ? new Date(startTimeInput).toISOString() : undefined,
       visible: showLivePageInput,
     };
+  };
+
+  // Irreversible, so it asks first. The confirmation belongs here rather
+  // than in the endpoint: a server that asks "are you sure?" over HTTP has
+  // only moved the problem, and this is the one destructive control on the
+  // page - everything else either saves or toggles.
+  const handleClearRideData = async () => {
+    const confirmed = window.confirm(
+      "Clear all tracker data?\n\n" +
+        "Every recorded position and reading is deleted permanently, and the public live page goes back to blank. " +
+        "This cannot be undone.",
+    );
+    if (!confirmed) return;
+
+    setSaving("clearRideData");
+    setLiveTrackerStatus(null);
+    try {
+      const res = await fetch("/api/tracker-reset", { method: "POST" });
+      const body = (await res.json().catch(() => null)) as { deleted?: number; error?: string } | null;
+      setLiveTrackerStatus(
+        res.ok
+          ? `Cleared ${body?.deleted ?? 0} recorded ${body?.deleted === 1 ? "sample" : "samples"}. The live page is blank.`
+          : (body?.error ?? "Couldn't clear the data."),
+      );
+    } catch {
+      setLiveTrackerStatus("Couldn't reach the server - nothing was cleared.");
+    } finally {
+      setSaving(null);
+    }
   };
 
   const handleSaveLiveTracker = async () => {
@@ -919,7 +958,21 @@ function SettingsEditor() {
             >
               {saving === "liveTracker" ? "Saving…" : "Save"}
             </button>
+            {/* Set apart from Save, and styled as destructive, because the
+                two do opposite things and sit a few pixels apart. */}
+            <button
+              type="button"
+              className={styles.dangerButton}
+              onClick={handleClearRideData}
+              disabled={saving === "clearRideData"}
+            >
+              {saving === "clearRideData" ? "Clearing…" : "Clear ride data"}
+            </button>
           </div>
+          <p className={styles.fieldHint}>
+            Deletes every recorded position and reading, so the live page starts blank for the attempt. Can&apos;t be
+            undone.
+          </p>
         </div>
       </div>
 

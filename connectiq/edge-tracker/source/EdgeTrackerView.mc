@@ -73,21 +73,31 @@ class EdgeTrackerView extends WatchUi.SimpleDataField {
             lon = degrees[1].toFloat();
         }
 
-        var sample = {
-            "seq" => ts,
-            "ts" => ts,
-            "lat" => lat,
-            "lon" => lon,
-            "alt_m" => info.altitude,
-            "dist_m" => info.elapsedDistance,
-            "elapsed_s" => info.elapsedTime != null ? (info.elapsedTime / 1000) : null,
-            "timer_s" => info.timerTime != null ? (info.timerTime / 1000) : null,
-            "speed_mps" => info.currentSpeed,
-            "power_w" => info.currentPower,
-            "hr_bpm" => info.currentHeartRate,
-            "cad_rpm" => info.currentCadence,
-            "batt_pct" => System.getSystemStats().battery.toNumber(),
-        };
+        // Positional array, not a dictionary keyed by field name. A
+        // dictionary carries its 13 string keys per sample, in RAM and
+        // again in the serialized JSON, and the background process that
+        // has to hold a whole batch of these has a far smaller memory
+        // budget than the foreground: a 60-sample batch of dictionaries
+        // ran it out of memory inside peekBatch at every single temporal
+        // event, so nothing was ever sent.
+        //
+        // Order is the contract with api/ingest.ts's COMPACT_FIELDS - it
+        // must not be reordered on one side only.
+        var sample = [
+            ts,                                                     // seq
+            ts,                                                     // ts
+            lat,
+            lon,
+            info.altitude,                                          // alt_m
+            info.elapsedDistance,                                   // dist_m
+            info.elapsedTime != null ? (info.elapsedTime / 1000) : null,   // elapsed_s
+            info.timerTime != null ? (info.timerTime / 1000) : null,       // timer_s
+            info.currentSpeed,                                      // speed_mps
+            info.currentPower,                                      // power_w
+            info.currentHeartRate,                                  // hr_bpm
+            info.currentCadence,                                    // cad_rpm
+            System.getSystemStats().battery.toNumber(),             // batt_pct
+        ];
         if (!SampleBuffer.push(sample)) {
             storageFailed = true;
         }
@@ -100,7 +110,24 @@ class EdgeTrackerView extends WatchUi.SimpleDataField {
     // has stopped running, which is the symptom the old unbounded
     // per-tick Storage rewrite produced within a couple of minutes.
     hidden function status() as String {
-        var line = SampleBuffer.bufferedCount().format("%d") + "/" + SampleBuffer.lastStatus().format("%d");
+        var buffered = SampleBuffer.bufferedCount();
+        var line = buffered.format("%d") + "/" + SampleBuffer.lastStatus().format("%d");
+
+        // "F" once the ring is full. Without it a capped buffer and a dead
+        // app look identical - both just stop changing - which is exactly
+        // how a working buffer got mistaken for a stalled one.
+        if (buffered >= SampleBuffer.CAPACITY) {
+            line += "F";
+        }
+
+        // What the device itself thinks of the phone link, which is not the
+        // same thing as what Garmin Connect Mobile shows: the app reported
+        // "Edge 1040 - Connected" while every send failed -104, "no BLE
+        // connection is available". This is the runtime's own view, the one
+        // makeWebRequest actually acts on. "P" phone connected, "p" not.
+        var settings = System.getDeviceSettings();
+        line += (settings has :phoneConnected && settings.phoneConnected) ? "P" : "p";
+
         // Trailing "!" means a sample couldn't be stored - almost always
         // storage full. Worth seeing on the bars rather than discovering
         // afterwards.

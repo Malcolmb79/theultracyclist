@@ -80,15 +80,23 @@ module SampleBuffer {
     //! accumulated two dead layouts: the original 1.1MB "sampleQueue"
     //! array, and slot keys s60..s179 orphaned by the CAPACITY change
     //! above. Both would otherwise sit in the quota forever.
+    //! 3: samples became positional arrays rather than dictionaries. A
+    //! buffer written by version 2 would be sent to the server in the
+    //! wrong shape entirely, so the bump matters - it isn't only about
+    //! reclaiming space.
     const SCHEMA_KEY = "schemaV";
-    const SCHEMA_VERSION = 2;
+    const SCHEMA_VERSION = 3;
 
-    //! Kept at 60 - the same batch the previous version sent, so the
-    //! background process's memory footprint per flush is unchanged. The
-    //! deficit is fixed by producing less, not by sending more, because a
-    //! background service has a far smaller memory budget than the
-    //! foreground and is the wrong place to get ambitious.
-    const MAX_BATCH_SIZE = 60;
+    //! The background process's memory budget is the binding constraint
+    //! here, not the server's 256KB body limit or anything on the wire.
+    //!
+    //! 60 samples of dictionaries ran it out of memory inside peekBatch at
+    //! every temporal event - roughly 21KB of dictionaries plus the JSON
+    //! serialization on top. Samples are positional arrays now (see
+    //! EdgeTrackerView), which is around a third of that, and the batch is
+    //! 40, which still drains the 30 a five-minute window produces with
+    //! headroom to spare.
+    const MAX_BATCH_SIZE = 40;
 
     const HEAD_KEY = "qHead";
     const TAIL_KEY = "qTail";
@@ -111,7 +119,7 @@ module SampleBuffer {
     //! ride. That is exactly what happened when storage filled up: a failed
     //! setValue took the whole app down mid-ride. A dropped sample is a
     //! rounding error against a 570km attempt; a dead tracker is not.
-    function push(sample as Dictionary) as Boolean {
+    function push(sample as Array) as Boolean {
         try {
             var head = counter(HEAD_KEY);
             var tail = counter(TAIL_KEY);

@@ -41,6 +41,35 @@ function num(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+/**
+ * Field order for `format: "v2"` batches, where each sample is a positional
+ * array instead of an object.
+ *
+ * The Edge sends this shape because a dictionary carries its 13 key strings
+ * per sample - in the device's RAM and again in the serialized JSON - and the
+ * Connect IQ background process that has to hold a whole batch has a very
+ * small memory budget. It ran out of it on every single flush, which is why
+ * nothing arrived here at all. Positional arrays are roughly a third of the
+ * size.
+ *
+ * This must stay in lockstep with the array built in
+ * connectiq/edge-tracker/source/EdgeTrackerView.mc. Reordering it on one side
+ * only would not fail loudly - it would silently record heart rate as cadence.
+ * Append new fields at the end, never insert.
+ */
+const COMPACT_FIELDS = [
+  "seq", "ts", "lat", "lon", "alt_m", "dist_m", "elapsed_s",
+  "timer_s", "speed_mps", "power_w", "hr_bpm", "cad_rpm", "batt_pct",
+] as const;
+
+function fromCompact(row: unknown[]): IncomingSample {
+  const out: Record<string, number | null> = {};
+  COMPACT_FIELDS.forEach((field, i) => {
+    out[field] = num(row[i]);
+  });
+  return out as IncomingSample;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
@@ -66,7 +95,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const body = (req.body ?? {}) as { device?: string; batch_seq?: number; samples?: IncomingSample[] };
+  const body = (req.body ?? {}) as {
+    device?: string;
+    batch_seq?: number;
+    format?: string;
+    samples?: (IncomingSample | unknown[])[];
+  };
   const device = body.device as TrackerDevice | undefined;
   if (!device || !KNOWN_DEVICES.has(device)) {
     res.status(400).json({ error: "Unknown device" });
@@ -82,7 +116,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // sample may legitimately be missing.
   const samples: TrackerSample[] = [];
   let skipped = 0;
-  for (const raw of body.samples) {
+  for (const entry of body.samples) {
+    // Either shape is accepted per-sample rather than per-batch, so a
+    // mixed or mislabelled batch still lands instead of being rejected
+    // wholesale - the same forgiveness the rest of this endpoint applies.
+    const raw: IncomingSample = Array.isArray(entry) ? fromCompact(entry) : entry;
     const seq = num(raw.seq);
     const ts = num(raw.ts);
     if (seq == null || ts == null) {

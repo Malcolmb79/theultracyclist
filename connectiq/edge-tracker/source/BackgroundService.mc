@@ -47,9 +47,14 @@ class BackgroundService extends System.ServiceDelegate {
         }
         pendingCount = batch.size();
 
+        // format v2 tells api/ingest.ts the samples are positional arrays
+        // rather than field-keyed objects. Absent it, the server reads the
+        // old shape - which is what keeps a device still running an older
+        // build working against the same endpoint.
         var body = {
             "device" => "edge1040",
             "batch_seq" => SampleBuffer.nextBatchSeq(),
+            "format" => "v2",
             "samples" => batch,
         };
         var options = {

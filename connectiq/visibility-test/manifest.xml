@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<!--
+  Deliberately minimal. This build only has to answer whether compute() runs
+  while the field is off-screen, so it asks for no permissions at all - no
+  Communications, no Positions. Anything it did request would be one more
+  install prompt between you and the answer, and one more thing that could
+  fail for a reason unrelated to the question.
+-->
+<iq:manifest xmlns:iq="http://www.garmin.com/xml/connectiq" version="3">
+    <iq:application
+        id="d51830332ee244a1a2b6adeff2c5ad0c"
+        type="datafield"
+        name="@Strings.AppName"
+        entry="VisibilityTestApp"
+        launcherIcon="@Drawables.LauncherIcon"
+        minApiLevel="3.1.0">
+        <iq:products>
+            <iq:product id="edge1040"/>
+        </iq:products>
+        <iq:permissions/>
+        <iq:languages>
+            <iq:language>eng</iq:language>
+        </iq:languages>
+    </iq:application>
+</iq:manifest>

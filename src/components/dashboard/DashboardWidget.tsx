@@ -18,6 +18,7 @@ import MacroSplitCard from "./MacroSplitCard";
 import PerformanceChart from "./PerformanceChart";
 import WeatherCard from "./WeatherCard";
 import GarminLiveTrackCard from "./GarminLiveTrackCard";
+import LiveTrackerCard from "./LiveTrackerCard";
 import AllActivityCard from "./AllActivityCard";
 import type { PerformancePoint } from "../../utils/performanceSeries";
 import { bmiCategoryColor, isWeightMetricId } from "../../utils/bmi";
@@ -35,6 +36,7 @@ import {
   PERFORMANCE_CHART_ID,
   WEATHER_ID,
   GARMIN_LIVETRACK_ID,
+  LIVE_TRACKER_ID,
   ALL_ACTIVITY_ID,
   DEFAULT_WIDGET_WIDTH,
   DEFAULT_WIDGET_HEIGHT,
@@ -209,6 +211,14 @@ const MIN_GARMIN_WIDTH = 340;
 const DEFAULT_GARMIN_WIDTH = 440;
 const DEFAULT_GARMIN_HEIGHT = 400;
 
+// Eleven label/value rows. Narrower than the LiveTrack embed above since
+// it's a text list rather than a map, but tall enough that a useful number
+// of rows are visible before the list starts scrolling.
+const MIN_LIVE_TRACKER_HEIGHT = 220;
+const MIN_LIVE_TRACKER_WIDTH = 240;
+const DEFAULT_LIVE_TRACKER_WIDTH = 300;
+const DEFAULT_LIVE_TRACKER_HEIGHT = 360;
+
 function formatValue(value: number, unit: string): string {
   const rounded = Number.isInteger(value) ? value : Math.round(value * 10) / 10;
   return unit ? `${rounded.toLocaleString("en-GB")} ${unit}` : rounded.toLocaleString("en-GB");
@@ -274,11 +284,12 @@ export default function DashboardWidget({
   const isPerformanceChart = widget.metric === PERFORMANCE_CHART_ID;
   const isWeather = widget.metric === WEATHER_ID;
   const isGarminLiveTrack = widget.metric === GARMIN_LIVETRACK_ID;
+  const isLiveTracker = widget.metric === LIVE_TRACKER_ID;
   const isAllActivity = widget.metric === ALL_ACTIVITY_ID;
   const detailKind = DETAIL_KIND_BY_METRIC[widget.metric];
   const [openDetail, setOpenDetail] = useState<WhoopDetailKind | null>(null);
   const fullMetric =
-    isCombo || isRings || isHealthCalendar || isCaloriesBalance || isMacroSplit || isPerformanceChart || isWeather || isGarminLiveTrack || isAllActivity
+    isCombo || isRings || isHealthCalendar || isCaloriesBalance || isMacroSplit || isPerformanceChart || isWeather || isGarminLiveTrack || isLiveTracker || isAllActivity
       ? undefined
       : metricById.get(widget.metric);
   const isMobile = useIsMobile();
@@ -446,9 +457,11 @@ export default function DashboardWidget({
                 ? MIN_WEATHER_HEIGHT
                 : isGarminLiveTrack
                   ? MIN_GARMIN_HEIGHT
-                  : isMobile
-                    ? MOBILE_MIN_WIDGET_HEIGHT
-                    : MIN_WIDGET_HEIGHT;
+                  : isLiveTracker
+                    ? MIN_LIVE_TRACKER_HEIGHT
+                    : isMobile
+                      ? MOBILE_MIN_WIDGET_HEIGHT
+                      : MIN_WIDGET_HEIGHT;
   const minWidth = isAllActivity
     ? MIN_ALL_ACTIVITY_WIDTH
     : isRings
@@ -467,9 +480,11 @@ export default function DashboardWidget({
               ? MIN_WEATHER_WIDTH
               : isGarminLiveTrack
                 ? MIN_GARMIN_WIDTH
-                : isMobile
-                  ? MOBILE_MIN_WIDGET_WIDTH
-                  : MIN_WIDGET_WIDTH;
+                : isLiveTracker
+                  ? MIN_LIVE_TRACKER_WIDTH
+                  : isMobile
+                    ? MOBILE_MIN_WIDGET_WIDTH
+                    : MIN_WIDGET_WIDTH;
   const defaultWidth = isAllActivity
     ? DEFAULT_ALL_ACTIVITY_WIDTH
     : isHealthCalendar
@@ -480,6 +495,8 @@ export default function DashboardWidget({
       ? DEFAULT_PERFORMANCE_WIDTH
       : isGarminLiveTrack
         ? DEFAULT_GARMIN_WIDTH
+        : isLiveTracker
+          ? DEFAULT_LIVE_TRACKER_WIDTH
         : isWeather
           ? DEFAULT_WEATHER_WIDTH
           : isMobile
@@ -495,6 +512,8 @@ export default function DashboardWidget({
       ? DEFAULT_PERFORMANCE_HEIGHT
       : isGarminLiveTrack
         ? DEFAULT_GARMIN_HEIGHT
+        : isLiveTracker
+          ? DEFAULT_LIVE_TRACKER_HEIGHT
         : isWeather
           ? DEFAULT_WEATHER_HEIGHT
           : isMobile
@@ -509,7 +528,7 @@ export default function DashboardWidget({
   // it back down on every reload and making the resize look like it never
   // saved.
   const capWidth =
-    isMobile && !stacked && !isRings && !isHealthCalendar && !isPerformanceChart && !isGarminLiveTrack && !isWeather
+    isMobile && !stacked && !isRings && !isHealthCalendar && !isPerformanceChart && !isGarminLiveTrack && !isLiveTracker && !isWeather
       ? MOBILE_CAP_WIDTH
       : Infinity;
   const capHeight =
@@ -520,6 +539,9 @@ export default function DashboardWidget({
     !isHealthCalendar &&
     !isPerformanceChart &&
     !isGarminLiveTrack &&
+    // Exempt for the same reason as the others: capped to 200px the row
+    // list would show about three of its eleven readings.
+    !isLiveTracker &&
     !isWeather
       ? MOBILE_CAP_HEIGHT
       : Infinity;
@@ -689,6 +711,7 @@ export default function DashboardWidget({
               !isPerformanceChart &&
               !isWeather &&
               !isGarminLiveTrack &&
+              !isLiveTracker &&
               !isAllActivity && (
               <select
                 className={styles.select}
@@ -790,6 +813,8 @@ export default function DashboardWidget({
             <WeatherCard />
           ) : isGarminLiveTrack ? (
             <GarminLiveTrackCard />
+          ) : isLiveTracker ? (
+            <LiveTrackerCard />
           ) : isAllActivity ? (
             <AllActivityCard range={resolvedRange} />
           ) : !metric || metric.series.length === 0 ? (

@@ -5,7 +5,7 @@ export type Widget = {
   source: "strava" | "whoop" | "health" | "weather" | "garmin";
   metric: string;
   label: string;
-  viewType: "stat" | "chart" | "timeline" | "ring" | "combo" | "rings" | "healthCalendar" | "caloriesBalance" | "macroSplit" | "allActivity";
+  viewType: "stat" | "chart" | "timeline" | "ring" | "combo" | "rings" | "healthCalendar" | "caloriesBalance" | "macroSplit" | "allActivity" | "liveTracker";
   x?: number;
   y?: number;
   width?: number;
@@ -81,6 +81,15 @@ export const MACRO_SPLIT_ID = "health.macroSplit";
 // session, embedded directly (see GarminLiveTrackCard.tsx and Settings) -
 // no per-metric series, always offered regardless of connected data sources.
 export const GARMIN_LIVETRACK_ID = "garmin.liveTrack";
+
+// Special catalog entry: live ride telemetry from the athlete's own Edge
+// 1040 Connect IQ app (see connectiq/edge-tracker), read from the same
+// /api/live.json the public /live page uses - no per-metric series, and
+// unrelated to the Strava/Whoop/Health fetches, which only see this ride
+// after it has been saved and synced. Distinct from GARMIN_LIVETRACK_ID
+// above, which embeds Garmin's own hosted LiveTrack page in an iframe and
+// carries no performance data at all.
+export const LIVE_TRACKER_ID = "garmin.liveTracker";
 
 // Special catalog entry: every recorded session from every source, not just
 // the bike rides the rest of the dashboard is built on - see

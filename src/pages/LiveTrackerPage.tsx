@@ -104,12 +104,11 @@ function relativeSeconds(timestampMs: number): string {
 // Current pace from the last two distinct position readings, rather than a
 // device-reported speed field (we don't have one - see the "no live
 // telemetry" note below) - a simple distance/time delta between the two
-// most recent points. Only valid for a real feed: history[].timestamp is
-// real wall-clock time, but api/live-tracker.ts's simulation advances
-// distance ~120x faster than that real time suggests, so this same math
-// would report a wildly inflated speed during a test run - see
-// data.simulatedKmh, which the caller uses instead whenever a simulation
-// is active.
+// most recent points. data.simulatedKmh is always null now that position
+// comes from the real Edge 1040/Traccar pipeline rather than a simulation,
+// so the `data.simulatedKmh ?? currentPaceKmh(...)` fallback below always
+// takes this branch - kept as a fallback rather than removed outright in
+// case a simulation mode returns for testing before a future attempt.
 function currentPaceKmh(history: PositionPoint[]): number | null {
   if (history.length < 2) return null;
   const a = history[history.length - 2];

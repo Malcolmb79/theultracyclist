@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { latestPerDevice, latestWithDistance, sampleNearTimestamp, samplesSince } from "./_lib/trackerDb.js";
+import { EDGE_STALE_S, latestPerDevice, latestWithDistance, mergePosition, sampleNearTimestamp, samplesSince } from "./_lib/trackerDb.js";
 import { computeRecord } from "./_lib/recordMaths.js";
 import { recordConfig, recordIsConfigured } from "./_lib/recordConfig.js";
 
@@ -16,10 +16,6 @@ import { recordConfig, recordIsConfigured } from "./_lib/recordConfig.js";
  * viewer per poll.
  */
 
-// No Connect IQ sample for this long and position falls back to Traccar, with
-// every sensor-derived tile marked stale. Three minutes is long enough to ride
-// through a blackspot without the page flickering between sources.
-const EDGE_STALE_S = 180;
 // No feed at all for this long and the whole page is stale.
 const FEED_STALE_S = 300;
 // Rolling windows for the live tiles.
@@ -74,15 +70,10 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
     const edgeStale = edgeAge > EDGE_STALE_S;
 
     // One source per segment, never interleaved: whichever is chosen supplies
-    // the position, and the page is told which so it can say so.
-    //
-    // The last resort is the Edge's own last fix even when it is stale. A
-    // rider in a valley is not a missing rider, and returning nothing here
-    // blanks the map marker - the page would look broken at precisely the
-    // moment people are refreshing it hardest. Stale position with its
-    // timestamp is the honest answer; null is not.
-    const fresh = !edgeStale && edge?.lat != null ? edge : null;
-    const positionFrom = fresh ?? (traccar?.lat != null ? traccar : (edge?.lat != null ? edge : null));
+    // the position, and the page is told which so it can say so (see
+    // mergePosition in trackerDb.ts for the fallback order, shared with
+    // api/live-tracker.ts so the two never disagree about what's stale).
+    const positionFrom = mergePosition(edge, traccar, nowTs);
     const positionSource = positionFrom == null ? null : positionFrom === traccar ? "traccar" : "edge";
 
     const newestTs = Math.max(edge?.ts ?? 0, traccar?.ts ?? 0);

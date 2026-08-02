@@ -169,6 +169,29 @@ export async function insertSamples(samples: TrackerSample[]): Promise<number> {
   return result.rowCount ?? 0;
 }
 
+// No Connect IQ sample for this long and position falls back to Traccar -
+// shared by every consumer of the merge rule (api/live.json.ts and
+// api/live-tracker.ts) so the two can't quietly drift out of sync with each
+// other about what counts as stale.
+export const EDGE_STALE_S = 180;
+
+/**
+ * One source per segment, never interleaved: whichever is chosen supplies
+ * the position. Prefers a fresh Edge fix; falls back to Traccar, then to
+ * the Edge's own last fix even if stale (a rider in a valley is not a
+ * missing rider - returning null here would blank the map marker at
+ * exactly the moment people are refreshing hardest).
+ */
+export function mergePosition(
+  edge: (TrackerSample & { receivedTs: number }) | null,
+  traccar: (TrackerSample & { receivedTs: number }) | null,
+  nowTs: number,
+): (TrackerSample & { receivedTs: number }) | null {
+  const edgeStale = edge ? nowTs - edge.ts > EDGE_STALE_S : true;
+  const fresh = !edgeStale && edge?.lat != null ? edge : null;
+  return fresh ?? (traccar?.lat != null ? traccar : edge?.lat != null ? edge : null);
+}
+
 /** The newest sample from each device, for the merge rule and staleness. */
 export async function latestPerDevice(): Promise<Record<string, TrackerSample & { receivedTs: number }>> {
   await ensureSchema();

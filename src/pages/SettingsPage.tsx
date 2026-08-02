@@ -5,7 +5,6 @@ import { useTheme, type ThemeMode } from "../context/ThemeContext";
 import { useDashboardTheme } from "../utils/useDashboardTheme";
 import { convertValueUnit, type UnitSystem } from "../utils/units";
 import { readImageFile } from "../utils/resizeImage";
-import { fetchRoute } from "../utils/gpxRoute";
 import { DEFAULT_CALORIE_BURN_ESTIMATE } from "../utils/estimateCalorieBurn";
 import type { CoachingSettings } from "../components/coaching/types";
 import SignInGate from "../components/shared/SignInGate";
@@ -149,7 +148,6 @@ function SettingsEditor() {
     | { status: "done"; events: TpEvent[]; reconcile?: TpReconcileRow[]; error?: string }
   >({ status: "idle" });
   const [gpxUrlInput, setGpxUrlInput] = useState("");
-  const [positionFeedUrlInput, setPositionFeedUrlInput] = useState("");
   const [targetHoursInput, setTargetHoursInput] = useState("18");
   const [targetMinutesInput, setTargetMinutesInput] = useState("0");
   const [startTimeInput, setStartTimeInput] = useState("");
@@ -209,14 +207,12 @@ function SettingsEditor() {
       .then(
         (body: {
           gpxUrl: string | null;
-          positionFeedUrl?: string;
           targetSeconds: number | null;
           startTime: string | null;
           visible?: boolean;
         }) => {
           if (cancelled) return;
           setGpxUrlInput(body.gpxUrl ?? "");
-          setPositionFeedUrlInput(body.positionFeedUrl ?? "");
           setTargetHoursInput(body.targetSeconds != null ? Math.floor(body.targetSeconds / 3600).toString() : "");
           setTargetMinutesInput(body.targetSeconds != null ? Math.floor((body.targetSeconds % 3600) / 60).toString() : "");
           setStartTimeInput(body.startTime ? toDatetimeLocalValue(body.startTime) : "");
@@ -318,16 +314,14 @@ function SettingsEditor() {
     await persist({ ...settings, pageDateRanges: { ...settings.pageDateRanges, [page]: id } });
   };
 
-  const liveTrackerPayload = (extra?: { resetHistory: boolean }) => {
+  const liveTrackerPayload = () => {
     const hours = Number(targetHoursInput) || 0;
     const minutes = Number(targetMinutesInput) || 0;
     return {
       gpxUrl: gpxUrlInput.trim() || undefined,
-      positionFeedUrl: positionFeedUrlInput.trim() || undefined,
       targetSeconds: hours || minutes ? hours * 3600 + minutes * 60 : undefined,
       startTime: startTimeInput ? new Date(startTimeInput).toISOString() : undefined,
       visible: showLivePageInput,
-      ...extra,
     };
   };
 
@@ -341,60 +335,6 @@ function SettingsEditor() {
         body: JSON.stringify(liveTrackerPayload()),
       });
       setLiveTrackerStatus("Saved.");
-    } finally {
-      setSaving(null);
-    }
-  };
-
-  const handleResetLiveTrackerHistory = async () => {
-    setSaving("liveTracker");
-    setLiveTrackerStatus(null);
-    try {
-      await fetch("/api/live-tracker", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(liveTrackerPayload({ resetHistory: true })),
-      });
-      setLiveTrackerStatus("Position history cleared - ready for a fresh start.");
-    } finally {
-      setSaving(null);
-    }
-  };
-
-  // Starts a live-advancing simulation for testing /live before a real
-  // inReach device/feed exists - the server (api/live-tracker.ts) computes
-  // an actually-moving position on every poll from this config, sped up
-  // 120x real time so an ~18h ride finishes in about 9 real minutes. Paced
-  // at the target pace itself (not artificially faster) so the simulated
-  // run takes close to the full target duration, matching what a real
-  // ~18h attempt would look like. "Reset position history" stops it.
-  const handleSimulateTestRun = async () => {
-    if (!gpxUrlInput.trim()) {
-      setLiveTrackerStatus("Add a route GPX URL first.");
-      return;
-    }
-    setSaving("liveTracker");
-    setLiveTrackerStatus(null);
-    try {
-      const route = await fetchRoute(gpxUrlInput.trim());
-      const totalKm = route.length > 0 ? route[route.length - 1].distanceKm : 0;
-      if (totalKm === 0) throw new Error("empty route");
-
-      const targetSeconds = (Number(targetHoursInput) || 18) * 3600 + (Number(targetMinutesInput) || 0) * 60;
-      const simulatedKmh = totalKm / (targetSeconds / 3600);
-
-      await fetch("/api/live-tracker", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...liveTrackerPayload(),
-          targetSeconds,
-          simulation: { startedAtMs: Date.now(), kmh: simulatedKmh },
-        }),
-      });
-      setLiveTrackerStatus("Simulation running - open /live and watch it advance (sped up ~120x, finishes in a few minutes).");
-    } catch {
-      setLiveTrackerStatus("Couldn't start the simulation - make sure the route URL is public and valid.");
     } finally {
       setSaving(null);
     }
@@ -919,7 +859,7 @@ function SettingsEditor() {
             Show live page to visitors
           </label>
           <p className={styles.sectionHint}>
-            Turn off to hide /live from everyone but you - your route, target, and feed stay saved, so you can turn
+            Turn off to hide /live from everyone but you - your route and target stay saved, so you can turn
             it back on later without re-entering anything. You can still preview the real page yourself while it&apos;s
             hidden.
           </p>
@@ -935,17 +875,6 @@ function SettingsEditor() {
             value={gpxUrlInput}
             onChange={(e) => setGpxUrlInput(e.target.value)}
             placeholder="https://ridewithgps.com/routes/XXXXXXX.json"
-          />
-
-          <p className={styles.sectionHint} style={{ marginTop: "var(--space-2)" }}>
-            Garmin inReach MapShare KML feed URL (Explore/inReach account &rarr; Social &rarr; MapShare &rarr; Feeds)
-          </p>
-          <input
-            type="text"
-            className={`${styles.input} ${styles.inputWide}`}
-            value={positionFeedUrlInput}
-            onChange={(e) => setPositionFeedUrlInput(e.target.value)}
-            placeholder="https://share.garmin.com/Feed/Share/..."
           />
 
           <p className={styles.sectionHint} style={{ marginTop: "var(--space-2)" }}>
@@ -989,22 +918,6 @@ function SettingsEditor() {
               disabled={saving === "liveTracker"}
             >
               {saving === "liveTracker" ? "Saving…" : "Save"}
-            </button>
-            <button
-              type="button"
-              className={styles.removeButton}
-              onClick={handleSimulateTestRun}
-              disabled={saving === "liveTracker"}
-            >
-              Simulate a test run
-            </button>
-            <button
-              type="button"
-              className={styles.removeButton}
-              onClick={handleResetLiveTrackerHistory}
-              disabled={saving === "liveTracker"}
-            >
-              Reset position history
             </button>
           </div>
         </div>

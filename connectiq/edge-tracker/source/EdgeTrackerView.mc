@@ -124,9 +124,22 @@ class EdgeTrackerView extends WatchUi.SimpleDataField {
         // same thing as what Garmin Connect Mobile shows: the app reported
         // "Edge 1040 - Connected" while every send failed -104, "no BLE
         // connection is available". This is the runtime's own view, the one
-        // makeWebRequest actually acts on. "P" phone connected, "p" not.
-        var settings = System.getDeviceSettings();
-        line += (settings has :phoneConnected && settings.phoneConnected) ? "P" : "p";
+        // makeWebRequest actually acts on.
+        //
+        // Read directly rather than behind `has`. DeviceSettings is a native
+        // object and `has` is for testing symbols on Monkey C ones, so the
+        // guard could report the property missing whatever its value - which
+        // would print "no phone" forever and send anyone reading it off
+        // chasing a Bluetooth fault that isn't there. A try/catch gives the
+        // same protection without the false negative, and "?" distinguishes
+        // "couldn't read it" from "read it, and it's false".
+        //
+        // "P" connected, "p" not, "?" unavailable on this device.
+        try {
+            line += System.getDeviceSettings().phoneConnected ? "P" : "p";
+        } catch (e) {
+            line += "?";
+        }
 
         // Trailing "!" means a sample couldn't be stored - almost always
         // storage full. Worth seeing on the bars rather than discovering

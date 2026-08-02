@@ -1,0 +1,7 @@
+# Private signing key - generated locally, never shared. See README.md.
+developer_key.der
+developer_key.pem
+
+# Build output
+bin/
+*.prg

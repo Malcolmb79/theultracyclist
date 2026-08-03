@@ -84,17 +84,38 @@
      is the frame's width divided by the image's, so narrowing this is what
      limits the view to the west coast and the middle of the island instead of
      running on to the east side. */
-  left: 68%;
+  left: 62%;
   right: 0;
   overflow: hidden;
   pointer-events: none;
-  /* The left blend runs a long way in, reaching full strength around the
-     middle of the map rather than just past its edge. That puts the solid
-     half of the island on the right of the frame and lets the west coast
-     dissolve behind the headline instead of ending beside it. The right edge
-     fades too, so neither side meets the page with a hard cut. */
-  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 30%, #000 84%, transparent 100%);
-  mask-image: linear-gradient(to right, transparent 0%, #000 30%, #000 84%, transparent 100%);
+  /* A long blend on both sides, eased rather than linear. A straight ramp from
+     transparent to opaque still shows where it begins and ends, because the
+     eye picks up the change in slope at each end; the extra stops round those
+     corners off so the map appears out of the page instead of starting at a
+     line. The right side gets the same treatment, shorter, since the map is
+     already running out of frame there. */
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(0, 0, 0, 0.12) 14%,
+    rgba(0, 0, 0, 0.42) 27%,
+    rgba(0, 0, 0, 0.78) 39%,
+    #000 52%,
+    #000 74%,
+    rgba(0, 0, 0, 0.6) 87%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(0, 0, 0, 0.12) 14%,
+    rgba(0, 0, 0, 0.42) 27%,
+    rgba(0, 0, 0, 0.78) 39%,
+    #000 52%,
+    #000 74%,
+    rgba(0, 0, 0, 0.6) 87%,
+    transparent 100%
+  );
 }
 
 .island {
@@ -115,14 +136,38 @@
   /* Beats the global img { max-width: 100% }, which would otherwise stop it
      growing past the frame it is meant to overflow. */
   max-width: none;
-  /* The frame fades the sides; this fades the top and bottom, where the crop
-     would otherwise run into the source image's lighter background.
-     Deliberately shallow: the island fills roughly 4% to 93% of the image
-     height, so a wide fade here eats Donegal at one end and the southwest
-     peninsulas at the other. These stops sit in the margin either side of
-     the landmass. */
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 5%, #000 94%, transparent 100%);
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 5%, #000 94%, transparent 100%);
+  /* Knocks back the source's diagonal hatching, which is the brightest thing
+     in the image and the main reason the picture read as a pasted rectangle
+     rather than part of the page. */
+  filter: brightness(0.82) contrast(1.06);
+  /* The frame fades the sides; this fades the top and bottom. The 5% stops
+     that were here left a visible horizontal edge at each end, because the
+     source has a lighter vignette exactly there. These reach full strength
+     more gradually, which costs a little of the northern tip and the
+     southwest peninsulas but removes the two straight lines that gave the
+     rectangle away. */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(0, 0, 0, 0.35) 5%,
+    rgba(0, 0, 0, 0.8) 11%,
+    #000 18%,
+    #000 82%,
+    rgba(0, 0, 0, 0.8) 89%,
+    rgba(0, 0, 0, 0.35) 95%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(0, 0, 0, 0.35) 5%,
+    rgba(0, 0, 0, 0.8) 11%,
+    #000 18%,
+    #000 82%,
+    rgba(0, 0, 0, 0.8) 89%,
+    rgba(0, 0, 0, 0.35) 95%,
+    transparent 100%
+  );
 }
 
 /* The map is a dark image made for a dark page. On the light theme it would

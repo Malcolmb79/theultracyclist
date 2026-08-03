@@ -627,12 +627,25 @@ export default function DashboardWidget({
   const [contentRef, measuredContentWidth] = useMeasuredWidth(minWidth);
   const ringSize = Math.max(60, Math.min(measuredContentWidth, contentHeight) - 20);
 
+  /**
+   * Whether this widget has been shaped down far enough that the chrome has
+   * to give way to the reading.
+   *
+   * Driven by the widget's own box rather than a viewport media query: the
+   * existing compact styling keys off a 640px screen, which does nothing for
+   * a 130px-wide widget sitting on a monitor. Read from `rect` rather than
+   * the saved widget size so the type reflows while the resize is happening,
+   * not a frame after it ends.
+   */
+  const dense = !inline && (rect.width < 190 || rect.height < 130);
+
   return (
     <>
       <div
         ref={widgetRef}
         style={positionStyle}
-        className={`${styles.widget} ${stacked ? styles.stacked : ""}`}
+        className={`${styles.widget} ${stacked ? styles.stacked : ""} ${dense ? styles.dense : ""}`}
+        data-dense={dense || undefined}
         data-selected={inline ? undefined : selected || undefined}
         {...(inline ? {} : pressHandlers)}
       >

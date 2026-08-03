@@ -21,8 +21,13 @@ export type Widget = {
 
 export const DEFAULT_WIDGET_WIDTH = 340;
 export const DEFAULT_WIDGET_HEIGHT = 240;
-export const MIN_WIDGET_WIDTH = 240;
-export const MIN_WIDGET_HEIGHT = 160;
+// A stat widget is a label, a number and a date. At 240x160 that left a lot
+// of empty card around three short lines, and there was no way to trim it.
+// The floor is now roughly the size of the content itself; the chrome
+// shrinks to match below about 190x130 (see the dense class in
+// DashboardWidget).
+export const MIN_WIDGET_WIDTH = 120;
+export const MIN_WIDGET_HEIGHT = 80;
 
 // Smaller sizing used when useIsMobile() is true, so widgets default to
 // something that fits a phone screen without excessive scrolling, and can
@@ -41,7 +46,11 @@ export const MOBILE_CAP_WIDTH = 220;
 export const MOBILE_CAP_HEIGHT = 200;
 
 export const DEFAULT_WIDGET_COLOR = "#2ee6a6";
-export const WIDGET_GRID_SIZE = 20;
+// Halved along with the minimums. At 20px a widget near the 120px floor
+// jumped nearly a fifth of its own width per step, which made fine sizing
+// impossible. Existing layouts are unaffected because every multiple of 20
+// is still a multiple of 10.
+export const WIDGET_GRID_SIZE = 10;
 
 // Special catalog entry: a preset combining whoop.strain + whoop.recovery
 // into one widget, rather than a single real metric series.

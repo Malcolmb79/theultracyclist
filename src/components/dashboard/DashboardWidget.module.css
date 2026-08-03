@@ -270,6 +270,38 @@
   margin-bottom: var(--space-1);
 }
 
+/* Dense: a widget shaped down small enough that the card's own furniture is
+   competing with the number it exists to show. Applied from the widget's
+   measured box in DashboardWidget, not from a viewport width, so it works on
+   a monitor as well as a phone.
+
+   Everything here is chrome. The value and its date keep their contrast and
+   only lose size, because a widget too small to read is worse than one that
+   is merely plain. */
+.dense {
+  padding: var(--space-1) var(--space-2);
+  gap: 0;
+}
+
+.dense .label {
+  font-size: 0.72rem;
+}
+
+.dense .header {
+  gap: var(--space-1);
+}
+
+/* The 44px handle is a touch target, and at this size it covers a third of
+   the card. Shrunk only where there is a mouse: a finger still needs the
+   full target, and the phone minimums are larger anyway. */
+@media (pointer: fine) {
+  .dense .resizeHandle {
+    width: 30px;
+    height: 30px;
+    font-size: 0.8rem;
+  }
+}
+
 /* Compact mode: tighter padding/gaps/text so more widgets fit without
    excess chrome eating into a phone's limited width. Actual widget
    width/height compression happens in DashboardWidget.tsx via

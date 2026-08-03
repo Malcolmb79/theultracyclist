@@ -27,3 +27,17 @@
     font-size: 0.7rem;
   }
 }
+
+/* Set by DashboardWidget when the widget itself has been shaped down small,
+   which a media query cannot see. :global reaches the attribute on the
+   widget wrapper; the class beside it stays scoped to this file.
+   The 5vw term goes: it is the viewport talking, and on a wide monitor it
+   pins the number to the 2.5rem cap regardless of how small the card is. */
+:global([data-dense]) .value {
+  font-size: 1.35rem;
+}
+
+:global([data-dense]) .label {
+  margin-top: 2px;
+  font-size: 0.7rem;
+}

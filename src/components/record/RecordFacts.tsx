@@ -8,12 +8,11 @@ export default function RecordFacts() {
     <div>
       <div className={styles.grid}>
         <StatTile value={`${record.distanceKm} km`} label="Distance" />
-        <StatTile
-          value={record.currentRecordTime}
-          subValue={`${record.recordAvgKmh} km/h average`}
-          label="Record to beat"
-        />
-        <StatTile value={record.currentRecordHolder} subValue={`Set ${record.recordSetOn}`} label="Current holder" />
+        <StatTile value={record.currentRecordTime} label="Record to beat" />
+        {/* The third tile is the pace that time implies rather than the name
+            of the rider who set it - it's the number that actually governs a
+            ride, and it keeps the grid at three across. */}
+        <StatTile value={`${record.recordAvgKmh} km/h`} label="Average to beat" />
       </div>
       <p>
         <strong>Route:</strong> {record.route}
@@ -22,7 +21,7 @@ export default function RecordFacts() {
         <strong>Discipline:</strong> {record.discipline}
       </p>
       <p>
-        <strong>Verified by:</strong> {record.sanctionedBy}
+        <strong>Standing record:</strong> set {record.recordSetOn}, verified by {record.sanctionedBy}
       </p>
       <p className={styles.note}>
         Rules and the official ledger are maintained by the World UltraCycling

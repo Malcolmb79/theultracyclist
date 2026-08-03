@@ -160,21 +160,21 @@
      in the image and the main reason the picture read as a pasted rectangle
      rather than part of the page. */
   filter: brightness(0.82) contrast(1.06);
-  /* The frame fades the sides; this fades the top and bottom. The 5% stops
-     that were here left a visible horizontal edge at each end, because the
-     source has a lighter vignette exactly there. These reach full strength
-     more gradually, which costs a little of the northern tip and the
-     southwest peninsulas but removes the two straight lines that gave the
-     rectangle away. */
+  /* The frame fades the sides; this fades the top and bottom. Short stops
+     here leave a visible horizontal edge at each end, because the source has
+     a lighter vignette exactly there, so these reach full strength
+     gradually. It costs a little of the northern tip and the southwest
+     peninsulas, which is the trade: holding those longer puts the straight
+     lines back. */
   -webkit-mask-image: linear-gradient(
     to bottom,
     transparent 0%,
     rgba(0, 0, 0, 0.35) 5%,
     rgba(0, 0, 0, 0.8) 11%,
     #000 18%,
-    #000 89%,
-    rgba(0, 0, 0, 0.72) 94%,
-    rgba(0, 0, 0, 0.3) 97%,
+    #000 82%,
+    rgba(0, 0, 0, 0.8) 89%,
+    rgba(0, 0, 0, 0.35) 95%,
     transparent 100%
   );
   mask-image: linear-gradient(
@@ -183,9 +183,9 @@
     rgba(0, 0, 0, 0.35) 5%,
     rgba(0, 0, 0, 0.8) 11%,
     #000 18%,
-    #000 89%,
-    rgba(0, 0, 0, 0.72) 94%,
-    rgba(0, 0, 0, 0.3) 97%,
+    #000 82%,
+    rgba(0, 0, 0, 0.8) 89%,
+    rgba(0, 0, 0, 0.35) 95%,
     transparent 100%
   );
 }

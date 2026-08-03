@@ -1,7 +1,6 @@
 import { Link } from "react-router-dom";
 import { home } from "../../data/home";
 import { fundraiser } from "../../data/fundraiser";
-import { ISLAND_PATH } from "../record/IrelandRouteMap";
 import Button, { buttonClassName } from "../shared/Button";
 import { useSitePhotos } from "../../utils/useSitePhotos";
 import styles from "./Hero.module.css";
@@ -28,14 +27,7 @@ export default function Hero() {
           <div className={styles.scrim} aria-hidden="true" />
         </>
       ) : (
-        <svg
-          className={styles.watermark}
-          viewBox="-20 -10 260 420"
-          xmlns="http://www.w3.org/2000/svg"
-          aria-hidden="true"
-        >
-          <path d={ISLAND_PATH} />
-        </svg>
+        <img className={styles.island} src="/images/ireland-relief.jpg" alt="" aria-hidden="true" />
       )}
 
       <div className={["container", styles.inner].join(" ")}>

@@ -7,7 +7,20 @@
      page they muddied into brown rather than reading as colour. The display
      type and the island outline carry the panel on their own. */
   background: var(--color-bg);
-  border-bottom: 1px solid var(--color-border);
+}
+
+/* The divider under the hero, drawn as a gradient rather than a border so it
+   can stop before it reaches the map. A full-width rule ran straight across
+   the island and read as a line drawn on top of the picture. */
+.hero::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(to right, var(--color-border) 0%, var(--color-border) 26%, transparent 56%);
+  pointer-events: none;
 }
 
 /* With a photograph the hero stops being a band of colour and becomes an
@@ -60,8 +73,15 @@
   color: rgba(245, 246, 247, 0.7);
 }
 
-.withPhoto .facts {
-  border-top-color: rgba(255, 255, 255, 0.22);
+/* Over a photograph the rule needs to be brighter to be seen at all, and it
+   has no map to avoid, so it runs further before fading. */
+.withPhoto .facts::before {
+  background: linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0.22) 0%,
+    rgba(255, 255, 255, 0.22) 55%,
+    transparent 100%
+  );
 }
 
 .inner {
@@ -204,12 +224,25 @@ html[data-theme="light"] .island {
 }
 
 .facts {
+  position: relative;
   margin: var(--space-5) 0 0;
   padding-top: var(--space-4);
-  border-top: 1px solid var(--color-border);
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-5);
+}
+
+/* Same treatment as the hero divider: a gradient instead of a border-top, so
+   the rule above the figures fades out well before the island rather than
+   running into it. */
+.facts::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(to right, var(--color-border) 0%, var(--color-border) 22%, transparent 52%);
 }
 
 .fact {

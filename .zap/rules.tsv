@@ -1,0 +1,13 @@
+# ZAP baseline rule overrides.
+#
+# Format: rule id <TAB> action (WARN | IGNORE | FAIL) <TAB> reason
+#
+# Only rules that are genuinely not applicable here are downgraded, each
+# with the reason beside it. Anything without an entry keeps ZAP's own
+# default, so a new class of finding still shows up rather than being
+# silently swallowed by a blanket ignore.
+
+10015	IGNORE	Re-examine Cache-control - the tracker endpoints set caching deliberately (see the Cache-Control headers in api/live.json.ts and api/live-tracker.ts, which are what let a crowd of dot-watchers cost one database read per ten seconds). Static assets are content-hashed and immutable by design.
+10063	IGNORE	Permissions Policy header - a static SPA with no embedded third-party frames other than the athlete's own Garmin LiveTrack page, which is same-purpose and deliberate.
+10109	IGNORE	Modern web application - informational, flags that the site is JavaScript-driven. It is; that is the architecture, not a finding.
+90005	IGNORE	Sec-Fetch headers - informational, and not something a static host controls.

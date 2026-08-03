@@ -1,0 +1,48 @@
+# DAST: ZAP's baseline scan against the deployed public site.
+#
+# Deliberately separate from security.yml and deliberately not on every
+# push. This one sends real traffic to the real site, so it runs on a
+# schedule and by hand - and never during the record attempt, when the
+# thing it would be probing is a live page a few hundred people are
+# watching.
+#
+# Baseline, not full. Baseline spiders and passively inspects responses:
+# headers, cookies, disclosure. A full scan sends attack payloads, and the
+# public endpoints here write to the tracker database - api/ingest.ts is
+# bearer-token protected, but pointing an active scanner at a project's own
+# record is a poor trade for findings a baseline already surfaces.
+name: DAST
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Monthly. The attack surface is a static SPA plus a handful of
+    # serverless routes; it changes when the code changes, and CodeQL
+    # already watches that.
+    - cron: "0 7 1 * *"
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  zap:
+    name: ZAP baseline
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ZAP baseline scan
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          target: https://theultracyclist.com
+          # Rules that are noise for this site are downgraded rather than
+          # the scan being made to pass - see .zap/rules.tsv for which and
+          # why. An ignored rule with a reason beside it is a decision; a
+          # green tick with no findings file is just a scan nobody read.
+          rules_file_name: .zap/rules.tsv
+          cmd_options: "-a"
+          # Opens an issue with the findings rather than failing a run
+          # nobody is watching at 07:00 on the first of the month.
+          allow_issue_writing: true
+          fail_action: false

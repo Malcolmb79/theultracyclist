@@ -1,0 +1,29 @@
+# Dependabot: the other half of SCA. The scanners in security.yml report
+# what is vulnerable; this is what actually closes it.
+#
+# Free on every repository, public or private.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    # A cap, because the failure mode of this tool is twenty open PRs
+    # nobody reads, which is indistinguishable from having it switched off.
+    open-pull-requests-limit: 5
+    groups:
+      # Patch and minor bumps as one PR. Individually they are noise; as a
+      # batch they are a single weekly review that either passes CI or
+      # doesn't.
+      routine:
+        update-types: [minor, patch]
+    labels: [dependencies]
+
+  # The workflows above pin actions by tag, and a tag can move. Dependabot
+  # is what notices when one has.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    labels: [dependencies]

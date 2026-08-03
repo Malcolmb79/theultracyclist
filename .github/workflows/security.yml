@@ -1,0 +1,103 @@
+# Static analysis, dependency scanning and secret detection.
+#
+# Everything here is free for this repository. CodeQL is free because the
+# repo is public - on a private repo it needs GitHub Advanced Security, and
+# the Semgrep job below is what would carry SAST instead.
+#
+# Nothing here blocks a push. This is a one-person project mid-way through
+# preparing a record attempt, and a scanner that fails the build over a
+# moderate advisory in a transitive dependency would get switched off within
+# a week. Findings go to the Security tab, where they can be read when
+# there's time to act on them.
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly, so new advisories against unchanged code still surface -
+    # most vulnerabilities arrive by being discovered, not by being written.
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  # SAST. Tracks data from sources (request bodies, query params) to sinks
+  # (SQL, HTML, filesystem), which is the class of bug review misses - this
+  # codebase builds SQL by hand in api/_lib/trackerDb.ts and writes stored
+  # strings into <img src> in the progress photos.
+  codeql:
+    name: CodeQL (SAST)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          # Adds the audit rules on top of the default set: the extra
+          # findings are worth reading on a project handling an ingest
+          # token and a public write endpoint.
+          queries: security-and-quality
+      - uses: github/codeql-action/analyze@v3
+
+  # SCA. npm audit for the advisory database, OSV for the wider one - they
+  # disagree often enough that running both is worth the thirty seconds.
+  dependencies:
+    name: Dependencies (SCA)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # continue-on-error because a transitive dev-only advisory should be
+      # visible, not fatal. The summary below is what gets read.
+      - name: npm audit
+        continue-on-error: true
+        run: npm audit --audit-level=moderate
+      - name: npm audit summary
+        if: always()
+        run: |
+          echo '### npm audit' >> "$GITHUB_STEP_SUMMARY"
+          npm audit --json > audit.json 2>/dev/null || true
+          node -e '
+            const a = require("./audit.json");
+            const v = a.metadata?.vulnerabilities ?? {};
+            const total = Object.values(v).reduce((s, n) => s + n, 0);
+            const line = total === 0
+              ? "No known vulnerabilities."
+              : Object.entries(v).filter(([, n]) => n > 0).map(([k, n]) => `**${n}** ${k}`).join(", ");
+            require("fs").appendFileSync(process.env.GITHUB_STEP_SUMMARY, line + "\n");
+          ' >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo "audit summary unavailable" >> "$GITHUB_STEP_SUMMARY"
+      - name: OSV-Scanner
+        continue-on-error: true
+        uses: google/osv-scanner-action/osv-scanner-action@v1.9.2
+        with:
+          scan-args: |-
+            --lockfile=package-lock.json
+
+  # Secret detection. The most directly earned job here: this project keeps
+  # its ingest token in a gitignored Secrets.mc and its Connect IQ signing
+  # key in a gitignored .der, on a public repository. Both are one careless
+  # `git add -f` from being world-readable, and the token authorises writes
+  # to the record's own database.
+  secrets:
+    name: Secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: a secret committed and later removed is still in
+          # the history, and still valid until it's rotated.
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

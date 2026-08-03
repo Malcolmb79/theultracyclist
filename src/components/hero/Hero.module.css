@@ -2,9 +2,13 @@
   position: relative;
   overflow: hidden;
   padding: var(--space-6) 0;
+  /* Both washes are warm now - the bottom-left one was a green that fought
+     the orange rather than supporting it. Written against the theme
+     variables so the amber tracks light and dark rather than being a fixed
+     rgba tuned for the dark palette only. */
   background:
-    radial-gradient(ellipse at top right, rgba(255, 77, 46, 0.18), transparent 60%),
-    radial-gradient(ellipse at bottom left, rgba(46, 230, 166, 0.12), transparent 55%);
+    radial-gradient(ellipse at top right, color-mix(in srgb, var(--color-accent) 18%, transparent), transparent 60%),
+    radial-gradient(ellipse at bottom left, color-mix(in srgb, var(--color-amber) 14%, transparent), transparent 55%);
   border-bottom: 1px solid var(--color-border);
 }
 

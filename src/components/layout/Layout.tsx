@@ -13,12 +13,12 @@ import styles from "./Layout.module.css";
 export default function Layout() {
   useDashboardTheme();
   return (
-    <>
+    <div className={styles.publicSite}>
       <Header />
       <main className={styles.main}>
         <Outlet />
       </main>
       <Footer />
-    </>
+    </div>
   );
 }

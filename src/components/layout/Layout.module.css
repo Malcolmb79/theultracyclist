@@ -1,3 +1,35 @@
+/**
+ * The public site's secondary accent is amber; the dashboard's is green.
+ *
+ * Set once here as a variable override rather than edited into each
+ * component, because several of them - JourneyCard, StravaFeed, the
+ * fundraiser bar, StatTile - render on both sides. Overriding the variable
+ * means each picks up the right colour from wherever it happens to be, with
+ * no component knowing which site it is on.
+ *
+ * Green stays on the dashboard, trends and the live tracker on purpose: there
+ * it means ahead of the record, or a trend going the right way. A colour
+ * carrying meaning shouldn't be reassigned for taste.
+ *
+ * Plain custom-property declarations only - no transform, filter or contain -
+ * so this wrapper doesn't become a containing block and break the sticky
+ * header inside it.
+ */
+.publicSite {
+  --color-accent-2: var(--color-amber);
+}
+
+/* In light mode the shared --color-amber (#f59e0b) is tuned to still look
+   amber rather than brown, which puts it around 2:1 against a white card -
+   fine for a progress bar, not fine for the journey dates and Strava figures
+   that now use this variable as text. This is the same hue taken down to
+   roughly 5:1, which passes AA at body size. It does read closer to burnt
+   orange on white; that is the trade orange hues force at readable
+   lightness, and unreadable is the worse end of it. */
+html[data-theme="light"] .publicSite {
+  --color-accent-2: #b45309;
+}
+
 .main {
   min-height: 60vh;
 }

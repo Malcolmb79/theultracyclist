@@ -24,8 +24,8 @@ export default function RecordFacts() {
         <strong>Standing record:</strong> set {record.recordSetOn}, verified by {record.sanctionedBy}
       </p>
       <p className={styles.note}>
-        Rules and the official ledger are maintained by the World UltraCycling
-        Association — <ExternalLink href={record.rulesUrl}>view the records list</ExternalLink>.
+        The World Ultracycling Association keeps the rules and the official ledger.{" "}
+        <ExternalLink href={record.rulesUrl}>View the records list</ExternalLink>.
       </p>
     </div>
   );

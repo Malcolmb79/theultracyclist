@@ -11,7 +11,7 @@ export default function PreviousRecordPage() {
         <SectionHeading
           eyebrow="Previous record"
           title={previousRecord.title}
-          subtitle={`${previousRecord.subtitle} — ${previousRecord.start.name} to ${previousRecord.finish.name}, ${formatDate(previousRecord.date)}`}
+          subtitle={`${previousRecord.subtitle}: ${previousRecord.start.name} to ${previousRecord.finish.name}, ${formatDate(previousRecord.date)}`}
         />
 
         <img
@@ -21,10 +21,10 @@ export default function PreviousRecordPage() {
         />
 
         <p>
-          Before setting his sights on Ireland's full length, Malcolm broke the world record cycling
-          from the easternmost point of Ireland to the westernmost — Wicklow Head Lighthouse to Slea
-          Head, {previousRecord.distanceKm}km in {previousRecord.totalTime} — once again in support of
-          The Maboneng Foundation.
+          In 2022, before taking on the full length of the country, Malcolm broke the world record
+          for crossing Ireland east to west. Wicklow Head Lighthouse to Slea Head is{" "}
+          {previousRecord.distanceKm}km, and he rode it in {previousRecord.totalTime}. That one was
+          for The Maboneng Foundation too.
         </p>
 
         <div className={styles.stats}>

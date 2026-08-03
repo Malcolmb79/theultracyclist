@@ -8,8 +8,7 @@ export default function Footer() {
     <footer className={styles.footer}>
       <div className={["container", styles.inner].join(" ")}>
         <span>
-          &copy; {new Date().getFullYear()} {site.athleteName} &mdash; raising funds for{" "}
-          {site.charityName}
+          &copy; {new Date().getFullYear()} {site.athleteName}, raising funds for {site.charityName}
         </span>
         <nav className={styles.links}>
           <ExternalLink href={site.instagramUrl}>Instagram</ExternalLink>

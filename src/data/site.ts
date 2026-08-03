@@ -1,7 +1,7 @@
 export const site = {
   name: "The Ultra Cyclist",
   athleteName: "Malcolm Barske",
-  tagline: "Chasing the Ireland North–South record — for the kids of the Maboneng Foundation.",
+  tagline: "Chasing the Ireland north to south record, for the kids of the Maboneng Foundation.",
   charityName: "The Maboneng Foundation",
   instagramUrl: "https://www.instagram.com/the_ultra_cyclist/",
   stravaUrl: "https://www.strava.com/athletes/256427",

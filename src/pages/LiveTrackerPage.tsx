@@ -309,7 +309,7 @@ export default function LiveTrackerPage() {
   // naming the ride being watched.
   useEffect(() => {
     const base = document.title;
-    if (routeName) document.title = `${routeName} — Live`;
+    if (routeName) document.title = `${routeName} | Live`;
     return () => {
       document.title = base;
     };
@@ -591,7 +591,7 @@ export default function LiveTrackerPage() {
                 GPS renames this page - no second place to remember to
                 edit. Falls back to the generic heading only when the route
                 hasn't loaded or carries no name of its own. */}
-            <h1 className={styles.title}>{routeName ?? "World Record Attempt — Live"}</h1>
+            <h1 className={styles.title}>{routeName ?? "World Record Attempt"}</h1>
             {routeDescription && <p className={styles.subtitle}>{routeDescription}</p>}
             {/* When the athlete actually pressed start, from the device's
                 timer - not the time typed into Settings, which is a plan

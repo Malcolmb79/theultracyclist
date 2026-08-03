@@ -13,7 +13,7 @@ import type { RecordFacts } from "../types/content";
  * api/_lib/recordConfig.ts). Both have to be right, and they have to agree.
  */
 export const record: RecordFacts = {
-  discipline: "Solo, unsupported — Ireland North to South",
+  discipline: "Solo and unsupported, Ireland north to south",
   route: "Malin Head to Mizen Head (traditional Irish end-to-end route)",
   distanceKm: 567.6,
   currentRecordHolder: "Mervyn Kinkade (Ireland)",

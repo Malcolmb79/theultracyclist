@@ -71,33 +71,57 @@
 }
 
 /* The rendered relief map, in place of the line drawing that was here.
-   It ships as a rectangle with its own vignette and diagonal hatching, which
-   would show a hard edge against the flat hero. The radial mask dissolves
-   that frame so the island reads as floating on the panel rather than pasted
-   onto it. */
-.island {
+   The frame starts at the middle of the hero and the map is anchored by its
+   own midpoint, so the visible half runs from the centre of the island out to
+   the right edge rather than showing the whole rectangle. Its left edge is
+   faded rather than cut, or the crop would read as a mistake. */
+.islandFrame {
   position: absolute;
   z-index: 0;
-  top: 50%;
-  right: -80px;
-  transform: translateY(-50%);
-  width: min(720px, 55%);
-  height: auto;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  right: 0;
+  overflow: hidden;
   pointer-events: none;
-  -webkit-mask-image: radial-gradient(ellipse at 55% 50%, #000 45%, transparent 78%);
-  mask-image: radial-gradient(ellipse at 55% 50%, #000 45%, transparent 78%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 26%);
+  mask-image: linear-gradient(to right, transparent 0%, #000 26%);
+}
+
+.island {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  /* translate rather than a negative offset: the percentage is of the image's
+     own width, so it sets which point of the map lands on the frame's left
+     edge whatever size the image renders at. 35% starts the crop a third of
+     the way across and pushes the landmass right, letting the map's own empty
+     background bleed off the screen instead of sitting beside the text. */
+  transform: translate(-35%, -50%);
+  /* Twice the frame is the minimum that reaches the right edge: the image is
+     centred on the frame's left edge, so only half of it is ever on screen.
+     Anything less and the crop ends in mid-air short of the viewport. */
+  width: 200%;
+  height: auto;
+  /* Beats the global img { max-width: 100% }, which would otherwise stop it
+     growing past the frame it is meant to overflow. */
+  max-width: none;
+  /* The frame fades the left edge; this fades the top and bottom, where the
+     crop would otherwise run into the source image's lighter background. */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 16%, #000 84%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 16%, #000 84%, transparent 100%);
 }
 
 /* The map is a dark image made for a dark page. On the light theme it would
-   sit on the page as a black slab, so it lightens and drops back to being a
+   sit on the page as a black slab, so it inverts and drops back to being a
    faint texture rather than a picture. */
 html[data-theme="light"] .island {
-  opacity: 0.28;
+  opacity: 0.3;
   filter: invert(1) grayscale(1) contrast(0.8);
 }
 
 @media (max-width: 900px) {
-  .island {
+  .islandFrame {
     display: none;
   }
 }

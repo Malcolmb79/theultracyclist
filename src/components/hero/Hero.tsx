@@ -27,7 +27,9 @@ export default function Hero() {
           <div className={styles.scrim} aria-hidden="true" />
         </>
       ) : (
-        <img className={styles.island} src="/images/ireland-relief.jpg" alt="" aria-hidden="true" />
+        <div className={styles.islandFrame} aria-hidden="true">
+          <img className={styles.island} src="/images/ireland-relief.jpg" alt="" />
+        </div>
       )}
 
       <div className={["container", styles.inner].join(" ")}>

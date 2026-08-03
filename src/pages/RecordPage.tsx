@@ -15,7 +15,7 @@ export default function RecordPage() {
         <RouteJourneyPoster />
         <RecordFacts />
         <p style={{ marginTop: "1.5rem" }}>
-          Not the first record attempt — <Link to="/previous-record">see the 2022 East-to-West record &rarr;</Link>
+          Not the first record attempt. <Link to="/previous-record">See the 2022 east to west record &rarr;</Link>
         </p>
       </div>
     </section>

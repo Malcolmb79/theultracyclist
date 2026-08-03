@@ -7,14 +7,13 @@ export default function CausePage() {
       <div className="container">
         <SectionHeading eyebrow="The cause" title="The Maboneng Foundation" />
         <p>
-          In South Africa, 10,000 babies are born with a Congenital Heart Defect (CHD) every
-          single year. But only 700 will receive the life-changing surgery they need to make it
-          to adulthood.
+          In South Africa, 10,000 babies are born with a congenital heart defect every year.
+          Around 700 get the operation they need to reach adulthood. The rest go without, mostly
+          because their families cannot pay for it.
         </p>
         <p>
-          This ride is raising funds for The Maboneng Foundation to help close that gap — every
-          donation goes toward life-saving heart surgeries for children who would otherwise not
-          get the chance.
+          This ride raises money for The Maboneng Foundation, which pays for those operations.
+          Donations go to surgery for children who would otherwise not get it.
         </p>
         <div style={{ marginTop: "2rem" }}>
           <FundraiserProgress />

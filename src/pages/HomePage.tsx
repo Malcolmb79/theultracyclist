@@ -28,8 +28,8 @@ export default function HomePage() {
         <div className="container">
           <SectionHeading
             eyebrow="The cause"
-            title="Every kilometre funds a heart surgery"
-            subtitle="10,000 babies are born with a Congenital Heart Defect in South Africa every year — only 700 receive the surgery they need. This ride is raising money for The Maboneng Foundation to help change that."
+            title="Where the money goes"
+            subtitle="The Maboneng Foundation pays for heart operations for South African children whose families can't. Everything raised through this ride goes to them."
           />
           <FundraiserProgress compact />
         </div>

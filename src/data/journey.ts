@@ -16,7 +16,7 @@ export const journeyEntries: JourneyEntry[] = [
     slug: "the-attempt-begins",
     title: "TODO: replace with your first real update",
     date: "2026-07-01",
-    excerpt: "Placeholder excerpt — swap for a real training/prep update.",
+    excerpt: "Placeholder excerpt. Swap this for a real training update.",
     body: [
       "This is placeholder body text for the first journey entry.",
       "Replace this with a real update once training is underway.",

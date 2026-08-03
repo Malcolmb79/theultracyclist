@@ -37,7 +37,7 @@ export const home = {
     paragraphs: [
       "In August 2018 our three-month-old daughter was diagnosed with Tetralogy of Fallot, a combination of heart defects she was born with. She needed open-heart surgery before her first birthday. At the angiogram the day before the operation we found out she also had five holes in her heart. She was in theatre for six hours on 7 February 2019. She is fine now.",
       "We were lucky, and we knew it, because of the four days we spent in ICU beside families who weren't. Some had lost babies in theatre. Others were facing a lifetime of medical debt, or simply couldn't pay. Without medical cover we would have had to find close to a million Rand before anyone agreed to operate on our daughter.",
-      "I wanted to help one of those families and couldn't, not then. Cycling turned out to be the way I could. In July 2022 I rode 382 km from Wicklow Head to Slea Head, the fastest anyone has crossed Ireland east to west. There have been UK end to end rides since, all of them raising money for the Maboneng Foundation, who pay for these operations.",
+      "I wanted to help one of those families. At the time, with our move to Ireland and what it was doing to our finances, I wasn't in a position to. Cycling became the way I could. In July 2022 I rode 382 km from Wicklow Head to Slea Head, the fastest anyone has crossed Ireland east to west, raising money for the Maboneng Foundation, who pay for these operations.",
       "Next is the full length of the country, Malin Head to Mizen Head, solo. The record stands at 19 hours 30 minutes.",
     ],
     // Sits under the story, before the link out.

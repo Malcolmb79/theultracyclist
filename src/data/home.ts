@@ -28,7 +28,7 @@ export const home = {
 
   story: {
     eyebrow: "Why this ride",
-    title: "The families who couldn't pay",
+    title: "For those who can't afford it",
     // The heading names strangers, so the lead has to say how Malcolm ends up
     // riding for them. Without the last clause the heading hangs unanswered
     // until the second paragraph, which is a long way to ask a reader to wait.

@@ -28,6 +28,66 @@ function formatDate(iso: string): string {
   return new Date(`${iso}T00:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 }
 
+function shortDate(iso: string): string {
+  return new Date(`${iso}T00:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "short", timeZone: "UTC" });
+}
+
+/**
+ * Two photos in one frame, with a draggable divider.
+ *
+ * Side by side is honest but hard to read: the eye has to travel between two
+ * images and hold the first in memory to judge the second, and any small
+ * difference in how they were framed reads as a change in the subject. Wiping
+ * one over the other puts the same pixels in the same place, so what moves is
+ * what actually changed.
+ *
+ * The handle is a range input rather than pointer handlers. It gets touch,
+ * mouse, keyboard arrows and screen-reader semantics for free, and the
+ * alternative is reimplementing all four badly.
+ */
+function PhotoCompareSlider({
+  before,
+  after,
+  beforeLabel,
+  afterLabel,
+  angle,
+}: {
+  before: string;
+  after: string;
+  beforeLabel: string;
+  afterLabel: string;
+  angle: Angle;
+}) {
+  const [percent, setPercent] = useState(50);
+
+  return (
+    <div className={styles.sliderWrap}>
+      {/* The later photo underneath, the earlier one clipped over it, so
+          dragging right reveals the past - the direction that reads as
+          "what did I look like before". */}
+      <img src={after} alt={`${angle}, ${afterLabel}`} className={styles.sliderImage} />
+      <div className={styles.sliderOverlay} style={{ clipPath: `inset(0 ${100 - percent}% 0 0)` }}>
+        <img src={before} alt={`${angle}, ${beforeLabel}`} className={styles.sliderImage} />
+      </div>
+
+      <span className={styles.sliderDivider} style={{ left: `${percent}%` }} aria-hidden="true" />
+
+      <span className={`${styles.sliderTag} ${styles.sliderTagLeft}`}>{beforeLabel}</span>
+      <span className={`${styles.sliderTag} ${styles.sliderTagRight}`}>{afterLabel}</span>
+
+      <input
+        type="range"
+        min={0}
+        max={100}
+        value={percent}
+        onChange={(e) => setPercent(Number(e.target.value))}
+        className={styles.sliderInput}
+        aria-label={`${angle}: reveal ${beforeLabel} over ${afterLabel}`}
+      />
+    </div>
+  );
+}
+
 export default function ProgressPhotos({ latestWeightKg, weightUnitLabel }: { latestWeightKg?: number | null; weightUnitLabel?: string }) {
   const [sessions, setSessions] = useState<PhotoSession[] | null>(null);
   const [uploadDate, setUploadDate] = useState(() => irelandTodayDateStr());
@@ -35,6 +95,10 @@ export default function ProgressPhotos({ latestWeightKg, weightUnitLabel }: { la
   const [error, setError] = useState<string | null>(null);
   const [leftDate, setLeftDate] = useState<string>("");
   const [rightDate, setRightDate] = useState<string>("");
+  // Slider first. It's the view that actually answers "has anything
+  // changed" - see PhotoCompareSlider - and side by side stays available
+  // for when both photos want looking at whole.
+  const [compareMode, setCompareMode] = useState<"slider" | "sideBySide">("slider");
 
   useEffect(() => {
     fetch("/api/progress-photos")
@@ -154,6 +218,52 @@ export default function ProgressPhotos({ latestWeightKg, weightUnitLabel }: { la
         <p className={styles.muted}>No photos yet. Add a front, side and back to start the record.</p>
       ) : (
         <>
+          {/* The two comparisons actually wanted, without going through the
+              date pickers: how far you've come overall, and what the last
+              check-in changed. The selects below still reach any pair. */}
+          <div className={styles.compareControls}>
+            <button
+              type="button"
+              className={styles.presetButton}
+              disabled={sessions.length < 2}
+              onClick={() => {
+                setLeftDate(sessions[0].date);
+                setRightDate(sessions[sessions.length - 1].date);
+              }}
+            >
+              Baseline vs latest
+            </button>
+            <button
+              type="button"
+              className={styles.presetButton}
+              disabled={sessions.length < 2}
+              onClick={() => {
+                setLeftDate(sessions[sessions.length - 2].date);
+                setRightDate(sessions[sessions.length - 1].date);
+              }}
+            >
+              Previous vs latest
+            </button>
+            <div className={styles.modeToggle} role="group" aria-label="Comparison style">
+              <button
+                type="button"
+                className={compareMode === "slider" ? styles.modeButtonOn : styles.modeButton}
+                onClick={() => setCompareMode("slider")}
+                aria-pressed={compareMode === "slider"}
+              >
+                Slider
+              </button>
+              <button
+                type="button"
+                className={compareMode === "sideBySide" ? styles.modeButtonOn : styles.modeButton}
+                onClick={() => setCompareMode("sideBySide")}
+                aria-pressed={compareMode === "sideBySide"}
+              >
+                Side by side
+              </button>
+            </div>
+          </div>
+
           <div className={styles.compareControls}>
             <select value={leftDate} onChange={(e) => setLeftDate(e.target.value)} aria-label="Compare from">
               {sessions.map((s) => (
@@ -186,6 +296,23 @@ export default function ProgressPhotos({ latestWeightKg, weightUnitLabel }: { la
             const before = left?.[angle];
             const after = right?.[angle];
             if (!before && !after) return null;
+            // The slider needs both halves in the same frame; with only one
+            // photo there is nothing to wipe between, so that angle falls
+            // back to the pair view rather than showing an empty slider.
+            if (compareMode === "slider" && before && after && left && right && left.date !== right.date) {
+              return (
+                <div key={angle} className={styles.angleRow}>
+                  <span className={styles.angleLabel}>{angle}</span>
+                  <PhotoCompareSlider
+                    before={before}
+                    after={after}
+                    beforeLabel={shortDate(left.date)}
+                    afterLabel={shortDate(right.date)}
+                    angle={angle}
+                  />
+                </div>
+              );
+            }
             return (
               <div key={angle} className={styles.angleRow}>
                 <span className={styles.angleLabel}>{angle}</span>

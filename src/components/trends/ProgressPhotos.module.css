@@ -124,6 +124,167 @@
   align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
+  margin-top: var(--space-2);
+}
+
+.presetButton {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 5px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.presetButton:hover:not(:disabled) {
+  border-color: var(--color-accent);
+}
+
+.presetButton:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* One control, two halves - so it reads as a choice between two views
+   rather than two independent buttons that might both be off. */
+.modeToggle {
+  display: flex;
+  margin-left: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.modeButton,
+.modeButtonOn {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 5px 10px;
+  border: none;
+  cursor: pointer;
+}
+
+.modeButton {
+  background: none;
+  color: var(--color-text-muted);
+}
+
+.modeButtonOn {
+  background: var(--color-accent-2);
+  color: var(--color-bg);
+}
+
+/* Both photos occupy the same box at the same size, which is the point -
+   anything that moves between them is a real change rather than a
+   difference in how the shot was framed. */
+.sliderWrap {
+  position: relative;
+  width: 100%;
+  max-width: 340px;
+  aspect-ratio: 3 / 4;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+  touch-action: pan-y;
+}
+
+.sliderImage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.sliderOverlay {
+  position: absolute;
+  inset: 0;
+}
+
+.sliderDivider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+
+.sliderTag {
+  position: absolute;
+  bottom: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.sliderTagLeft {
+  left: 8px;
+}
+
+.sliderTagRight {
+  right: 8px;
+}
+
+/* The range input covers the whole frame so the image can be dragged
+   anywhere on it, but its track is invisible - the white divider above is
+   the thing that looks draggable. Only the thumb is drawn. */
+.sliderInput {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 1;
+  background: none;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: ew-resize;
+}
+
+.sliderInput::-webkit-slider-runnable-track {
+  background: none;
+  height: 100%;
+}
+
+.sliderInput::-moz-range-track {
+  background: none;
+  height: 100%;
+}
+
+.sliderInput::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid rgba(0, 0, 0, 0.35);
+  cursor: ew-resize;
+}
+
+.sliderInput::-moz-range-thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid rgba(0, 0, 0, 0.35);
+  cursor: ew-resize;
+}
+
+.sliderInput:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
 }
 
 .delta {

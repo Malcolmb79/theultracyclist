@@ -102,18 +102,23 @@
      past the fade and runs the island off the right of the screen, so the
      crop takes the eastern side rather than the western one. */
   transform: translate(-10%, -50%);
-  /* Zoomed back so more of the island is in frame. The floor is about 111% of
-     the frame: anchored at 10%, the image only extends 0.9 of its width to
-     the right of the fade, and below that it stops short of the viewport. */
-  width: 160%;
+  /* Zoomed back so the whole island is in frame, top and bottom. The floor is
+     about 111% of the frame: anchored at 10%, the image only extends 0.9 of
+     its width to the right of the fade, and below that it stops short of the
+     viewport. */
+  width: 135%;
   height: auto;
   /* Beats the global img { max-width: 100% }, which would otherwise stop it
      growing past the frame it is meant to overflow. */
   max-width: none;
-  /* The frame fades the left edge; this fades the top and bottom, where the
-     crop would otherwise run into the source image's lighter background. */
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 16%, #000 84%, transparent 100%);
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 16%, #000 84%, transparent 100%);
+  /* The frame fades the sides; this fades the top and bottom, where the crop
+     would otherwise run into the source image's lighter background.
+     Deliberately shallow: the island fills roughly 4% to 93% of the image
+     height, so a wide fade here eats Donegal at one end and the southwest
+     peninsulas at the other. These stops sit in the margin either side of
+     the landmass. */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 5%, #000 94%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 5%, #000 94%, transparent 100%);
 }
 
 /* The map is a dark image made for a dark page. On the light theme it would

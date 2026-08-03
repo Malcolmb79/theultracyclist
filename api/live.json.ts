@@ -10,6 +10,7 @@ import {
 } from "./_lib/trackerDb.js";
 import { computeRecord } from "./_lib/recordMaths.js";
 import { recordConfig, recordIsConfigured } from "./_lib/recordConfig.js";
+import { liveAccess, liveCacheControl } from "./_lib/liveVisibility.js";
 
 /**
  * Everything the tracker page renders, computed here.
@@ -64,9 +65,20 @@ function normalisedPower(powers: { ts: number; w: number }[]): Nullable {
   return mean4 ** 0.25;
 }
 
-export default async function handler(_req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   const config = recordConfig();
   const nowTs = Math.floor(Date.now() / 1000);
+
+  // Hidden means hidden, including here. The page swallows a failed telemetry
+  // fetch and simply shows nothing, which is the correct outcome: without this
+  // the toggle hid the page while this endpoint carried on answering with the
+  // rider's live coordinates to anyone, from any origin.
+  const { isOwner, allowed } = await liveAccess(req);
+  if (!allowed) {
+    res.setHeader("Cache-Control", "public, max-age=10, s-maxage=10");
+    res.status(403).json({ status: "hidden", updated_ts: nowTs, error: "The live page is not public right now" });
+    return;
+  }
 
   try {
     const [devices, withDistance] = await Promise.all([latestPerDevice(), latestWithDistance()]);
@@ -136,7 +148,10 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
     const avgElapsed = coveredM != null && elapsedS ? coveredM / elapsedS : null;
     const avgMoving = coveredM != null && timerS ? coveredM / timerS : null;
 
-    res.setHeader("Cache-Control", "public, max-age=10, s-maxage=10, stale-while-revalidate=30");
+    res.setHeader(
+      "Cache-Control",
+      liveCacheControl(isOwner, "public, max-age=10, s-maxage=10, stale-while-revalidate=30"),
+    );
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.status(200).json({
       status,
@@ -221,7 +236,7 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
     console.error("live.json", error);
     // Short cache on the error too, so a database blip does not get pinned at
     // the edge for the length of a normal cache lifetime.
-    res.setHeader("Cache-Control", "public, max-age=5");
+    res.setHeader("Cache-Control", liveCacheControl(isOwner, "public, max-age=5"));
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.status(503).json({ status: "stale", updated_ts: nowTs, error: "Tracker data unavailable" });
   }

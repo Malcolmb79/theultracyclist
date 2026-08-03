@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getJSON, readJSON, setJSON } from "./_lib/kvStore.js";
+import { readJSON, setJSON } from "./_lib/kvStore.js";
 import { getSessionEmail } from "./_lib/session.js";
 import {
   SESSION_ENDED_S,
@@ -180,7 +180,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // GET is intentionally public (no auth check) - this is the data source
   // for the public /live page, which followers view without signing in.
   const isOwner = Boolean(getSessionEmail(req));
-  const config = (await getJSON<LiveTrackerConfig>(CONFIG_KEY)) ?? {};
+  // readJSON, not getJSON: an unreachable Redis returning null would read as
+  // "no config saved, so visible" and hand out position data during an outage.
+  // Failing closed loses nothing, because the same failed read leaves gpxUrl
+  // null and the page has nothing to draw either way.
+  let config: LiveTrackerConfig;
+  try {
+    config = (await readJSON<LiveTrackerConfig>(CONFIG_KEY)) ?? {};
+  } catch (error) {
+    console.error("Live tracker config unreadable - treating the page as hidden", error);
+    config = { visible: false };
+  }
   const nowTs = Math.floor(Date.now() / 1000);
 
   const devices = await latestPerDevice();
@@ -221,27 +231,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // existed are unaffected. Only gates the public view - the owner sees
   // the real page regardless, so they can preview/test it while hidden.
   const isVisible = config.visible !== false;
+  // Hiding the page has to mean the payload stops carrying the position too,
+  // not just that the page declines to draw it. It previously returned the
+  // live coordinates and three thousand track points regardless, relying on
+  // `configured: false` to keep them off the screen - which stops a browser
+  // rendering them and stops nothing else.
+  const showRide = isOwner || isVisible;
 
   const result: LiveTrackerPublicResult = {
     // A position isn't required for the page to be worth showing - it
     // already handles position: null gracefully ("Waiting for position…").
-    configured: Boolean(config.gpxUrl && config.targetSeconds && (isOwner || isVisible)),
-    gpxUrl: config.gpxUrl ?? null,
-    targetSeconds: config.targetSeconds ?? null,
-    startTime: config.startTime ?? null,
-    position,
-    history,
+    configured: Boolean(config.gpxUrl && config.targetSeconds && showRide),
+    gpxUrl: showRide ? (config.gpxUrl ?? null) : null,
+    targetSeconds: showRide ? (config.targetSeconds ?? null) : null,
+    startTime: showRide ? (config.startTime ?? null) : null,
+    position: showRide ? position : null,
+    history: showRide ? history : [],
     simulatedKmh: null,
     visible: isVisible,
     layout: resolveDeviceValue<LiveTrackerLayout>(config.layout, deviceFrom(req), isSingleLayout),
-    tracking: {
-      active: trackingAgeS != null && trackingAgeS <= TRACKING_IDLE_S,
-      lastSampleTs: newestSampleTs > 0 ? newestSampleTs : null,
-      ageS: trackingAgeS,
-      state: trackingState,
-      sessionStartTs,
-      sessionEndTs,
-    },
+    tracking: showRide
+      ? {
+          active: trackingAgeS != null && trackingAgeS <= TRACKING_IDLE_S,
+          lastSampleTs: newestSampleTs > 0 ? newestSampleTs : null,
+          ageS: trackingAgeS,
+          state: trackingState,
+          sessionStartTs,
+          sessionEndTs,
+        }
+      : // Whether he is out on the road right now is itself worth withholding.
+        { active: false, lastSampleTs: null, ageS: null, state: "pending", sessionStartTs: null, sessionEndTs: null },
     isOwner,
   };
   // The response now varies by ?device=, so the shared cache keys on the

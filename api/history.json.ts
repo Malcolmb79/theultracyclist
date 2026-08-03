@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { trackPoints } from "./_lib/trackerDb.js";
+import { liveAccess, liveCacheControl } from "./_lib/liveVisibility.js";
 
 /**
  * The map track, decimated to at most 2000 points however long the ride runs.
@@ -16,9 +17,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const requested = Number(req.query.points);
   const limit = Number.isFinite(requested) ? Math.min(Math.max(requested, 100), MAX_POINTS) : MAX_POINTS;
 
+  // The most revealing endpoint of the three - a whole day's movements in one
+  // response, including wherever the ride started and finished - so it follows
+  // the same toggle as the page it feeds.
+  const { isOwner, allowed } = await liveAccess(req);
+  if (!allowed) {
+    res.setHeader("Cache-Control", "public, max-age=60, s-maxage=60");
+    res.status(403).json({ count: 0, lat: [], lon: [], ts: [], source: [], error: "The live page is not public right now" });
+    return;
+  }
+
   try {
     const points = await trackPoints(limit);
-    res.setHeader("Cache-Control", "public, max-age=60, s-maxage=60, stale-while-revalidate=120");
+    res.setHeader(
+      "Cache-Control",
+      liveCacheControl(isOwner, "public, max-age=60, s-maxage=60, stale-while-revalidate=120"),
+    );
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.status(200).json({
       // Flat arrays rather than objects per point: at 2000 points the object
@@ -35,7 +49,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   } catch (error) {
     console.error("history.json", error);
-    res.setHeader("Cache-Control", "public, max-age=5");
+    res.setHeader("Cache-Control", liveCacheControl(isOwner, "public, max-age=5"));
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.status(503).json({ count: 0, lat: [], lon: [], ts: [], source: [], error: "Track unavailable" });
   }

@@ -26,20 +26,27 @@ application logic is exploitable as written.
 
 ## HIGH — "Show live page to visitors" doesn't hide the position feeds
 
-Settings has a toggle that hides the public `/live` page. `api/live-tracker.ts`
-honours it: with `visible: false`, `configured` comes back false for anyone who
-isn't the owner and the page renders nothing.
+**Fixed in `1f9e802`.** Detail kept below because the shape of the mistake is
+worth remembering.
 
-**Two other endpoints serve the same data and ignore it entirely.**
+Settings has a toggle that hides the public `/live` page. Three endpoints can
+answer "where is he", and the toggle reached none of them properly.
 
-| Endpoint | Respects toggle | Exposes |
+| Endpoint | Respected toggle | Exposed |
 |---|---|---|
-| `api/live-tracker.ts` | yes | position, layout |
+| `api/live-tracker.ts` | partly — see below | position, 3000 track points |
 | `api/live.json.ts` | **no** | live lat/lon, speed, HR, power, distance, clocks |
 | `api/history.json.ts` | **no** | the full decimated GPS track, up to 2000 points |
 
-Both also send `Access-Control-Allow-Origin: *`, so any site can read them from
-a browser.
+The last two also send `Access-Control-Allow-Origin: *`, so any site could read
+them from a visitor's browser.
+
+`live-tracker.ts` was the one I first read as correct, and it wasn't. It sets
+`configured: false` when hidden, which stops the page drawing anything — but it
+went on returning `position` and the full `history` array in the same response.
+That hides the map from a browser and from nothing else. The lesson is the
+usual one: hiding is a rendering decision, and the payload is the actual
+boundary.
 
 Why it matters here specifically: this is a real person's live location, and
 the route begins and ends near home — established earlier when the
@@ -50,15 +57,30 @@ the toggle is switched off, and the interface says otherwise.
 The toggle is most likely to be used exactly when this matters: before the
 attempt, after it, or to take the page down mid-ride.
 
-**Fix:** apply the same `visible` check in both routes — read the config,
-return an empty or "hidden" payload for non-owners. Roughly ten lines, mirroring
-what `live-tracker.ts` already does.
+**What was done:** one helper, `api/_lib/liveVisibility.ts`, used by all three.
+It reads the toggle with `readJSON` rather than `getJSON`, so an unreachable
+Redis fails closed instead of reading as "no config, therefore visible" —
+which would have served position data during exactly the outage nobody is
+watching. That costs nothing real, because the same failed read already leaves
+the page with no route to draw.
+
+Hidden now means: `live.json` and `history.json` return 403, and
+`live-tracker.ts` withholds position, history, route URL and the tracking state
+(whether he is on the road right now is itself worth not publishing). The owner
+still sees everything, so the page can be previewed while hidden.
+
+One subtlety that came with the fix: these responses now vary by session, and
+they were edge-cached by URL. Without care, a single owner request while the
+page was hidden would be cached and then handed to every visitor — the fix
+becoming the leak. Owner responses are therefore `private, no-store`.
 
 ---
 
 ## MEDIUM — No security response headers
 
-`vercel.json` sets rewrites, functions and crons, but no `headers` block. The
+**Fixed in `1f9e802`.**
+
+`vercel.json` set rewrites, functions and crons, but no `headers` block. The
 site therefore sends no CSP, HSTS, `X-Content-Type-Options`, `Referrer-Policy`
 or frame-ancestors policy.
 
@@ -75,10 +97,29 @@ Consequences, in order of how much they matter here:
   `/live` path.
 - **No `X-Content-Type-Options: nosniff`.**
 
-Note the tension worth resolving deliberately: `GarminLiveTrackCard` embeds
-Garmin's LiveTrack page in an iframe, so a `frame-src` policy has to permit
-`livetrack.garmin.com`, and the map loads CARTO tiles, so `img-src` must allow
-those. A copy-pasted strict CSP will break both.
+**The policy, and where it is deliberately loose.** It was written against
+what the site actually loads, not copied:
+
+- `script-src 'self' https://www.instagram.com https://*.cdninstagram.com` —
+  the only third-party script is the Instagram embed, injected by
+  `useInstagramEmbedProcess`. `index.html` has no inline script, so no
+  `'unsafe-inline'` is needed here, which is the whole point of the exercise.
+- `style-src` keeps `'unsafe-inline'`. Leaflet positions everything by writing
+  to `element.style`; without it the map does not work at all.
+- `frame-src` lists `livetrack.garmin.com` (the LiveTrack card) and
+  `www.instagram.com` (embeds).
+- `img-src ... https:` and `connect-src 'self' https:` are the loose ones, on
+  purpose. `gpxUrl` is a URL you paste into Settings and the browser fetches it
+  directly, so pinning the list would break the day you use a route host I
+  didn't predict — during the attempt, silently. Weather, reverse geocoding and
+  FX are three more hosts on the same argument.
+- `geolocation=(self)` in `Permissions-Policy`, because `ThemeContext` and
+  `WeatherCard` both ask for position.
+
+Two things to eyeball on the deployed site, since neither can be verified from
+a local build: the **Instagram section** on the home page, and the **Garmin
+LiveTrack card** on the dashboard. If either is blank, the browser console will
+name the blocked host, and it's a one-line addition to the policy.
 
 ---
 
@@ -95,6 +136,13 @@ No endpoint implements rate limiting. Assessed as low rather than ignored:
 
 The residual risk is cost rather than compromise — an uncached route being
 hammered bills Vercel and Neon.
+
+## LOW — `api/history.json.ts` has no consumer
+
+Nothing in the repository fetches it; the map track comes from
+`live-tracker.ts`. It is a public endpoint serving the whole GPS track that
+exists only for third parties. Now behind the visibility toggle, but worth
+deciding whether it should exist at all.
 
 ## LOW — `api/strava-activities.ts` is unauthenticated
 
@@ -138,10 +186,11 @@ session was silently upgraded.
 
 ---
 
-## Recommended order
+## Status
 
-1. Close the visibility gap in `live.json` and `history.json` — it's the only
-   finding where the interface currently tells you something untrue.
-2. Add security headers, with `frame-src` and `img-src` written against what the
-   site actually loads.
-3. Leave rate limiting unless the bill says otherwise.
+1. ~~Close the visibility gap~~ — done, across all three endpoints.
+2. ~~Add security headers~~ — done; verify the two embeds on the deployed site.
+3. Rate limiting: left alone. Revisit if the bill says otherwise.
+
+Unrelated to the review, still outstanding: the ingest token was pasted into a
+chat transcript and should be rotated in both Vercel and `Secrets.mc`.

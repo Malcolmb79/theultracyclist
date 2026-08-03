@@ -37,14 +37,14 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@v4
-      - uses: github/codeql-action/init@v3
+      - uses: github/codeql-action/init@v4
         with:
           languages: javascript-typescript
           # Adds the audit rules on top of the default set: the extra
           # findings are worth reading on a project handling an ingest
           # token and a public write endpoint.
           queries: security-and-quality
-      - uses: github/codeql-action/analyze@v3
+      - uses: github/codeql-action/analyze@v4
 
   # SCA. npm audit for the advisory database, OSV for the wider one - they
   # disagree often enough that running both is worth the thirty seconds.

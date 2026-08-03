@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { photoToDataUrl, readImageFile } from "../../utils/resizeImage";
 import { irelandTodayDateStr } from "../../utils/irelandDate";
 import styles from "./ProgressPhotos.module.css";
@@ -16,11 +16,31 @@ import styles from "./ProgressPhotos.module.css";
 const ANGLES = ["front", "side", "back"] as const;
 type Angle = (typeof ANGLES)[number];
 
+/** Zoom and offset applied when a photo is displayed - see api/progress-photos.ts. */
+interface PhotoFit {
+  s: number;
+  x: number;
+  y: number;
+}
+
+const NO_FIT: PhotoFit = { s: 1, x: 0, y: 0 };
+
+// translate before scale, so the offset stays in frame percentages rather
+// than being multiplied by the zoom - dragging moves the photo by the same
+// visible amount whatever it's zoomed to.
+function fitStyle(fit: PhotoFit | undefined): React.CSSProperties {
+  const f = fit ?? NO_FIT;
+  return { transform: `translate(${f.x}%, ${f.y}%) scale(${f.s})` };
+}
+
 interface PhotoSession {
   date: string;
   front?: string;
   side?: string;
   back?: string;
+  frontFit?: PhotoFit;
+  sideFit?: PhotoFit;
+  backFit?: PhotoFit;
   weightKg?: number;
 }
 
@@ -48,42 +68,139 @@ function shortDate(iso: string): string {
 function PhotoCompareSlider({
   before,
   after,
+  beforeFit,
+  afterFit,
   beforeLabel,
   afterLabel,
   angle,
+  onAlign,
 }: {
   before: string;
   after: string;
+  beforeFit?: PhotoFit;
+  afterFit?: PhotoFit;
   beforeLabel: string;
   afterLabel: string;
   angle: Angle;
+  onAlign: (fit: PhotoFit) => void;
 }) {
   const [percent, setPercent] = useState(50);
+  const [aligning, setAligning] = useState(false);
+  const [draft, setDraft] = useState<PhotoFit>(beforeFit ?? NO_FIT);
+  const dragRef = useRef<{ x: number; y: number; startX: number; startY: number } | null>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
+
+  // Aligning nudges the earlier photo onto the later one, so the most recent
+  // photo stays the reference - it's the one every future comparison will be
+  // against, and moving it would misalign everything already lined up.
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (!aligning) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragRef.current = { x: draft.x, y: draft.y, startX: e.clientX, startY: e.clientY };
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    const drag = dragRef.current;
+    const frame = frameRef.current;
+    if (!drag || !frame) return;
+    const rect = frame.getBoundingClientRect();
+    // Percentages of the frame, so a drag moves the photo by the distance the
+    // finger actually travelled regardless of how big the frame is on screen.
+    const nextX = drag.x + ((e.clientX - drag.startX) / rect.width) * 100;
+    const nextY = drag.y + ((e.clientY - drag.startY) / rect.height) * 100;
+    setDraft((d) => ({ ...d, x: Math.max(-50, Math.min(50, nextX)), y: Math.max(-50, Math.min(50, nextY)) }));
+  };
+
+  const endDrag = () => {
+    dragRef.current = null;
+  };
+
+  const shownBeforeFit = aligning ? draft : beforeFit;
 
   return (
-    <div className={styles.sliderWrap}>
-      {/* The later photo underneath, the earlier one clipped over it, so
-          dragging right reveals the past - the direction that reads as
-          "what did I look like before". */}
-      <img src={after} alt={`${angle}, ${afterLabel}`} className={styles.sliderImage} />
-      <div className={styles.sliderOverlay} style={{ clipPath: `inset(0 ${100 - percent}% 0 0)` }}>
-        <img src={before} alt={`${angle}, ${beforeLabel}`} className={styles.sliderImage} />
+    <div className={styles.sliderBlock}>
+      <div className={styles.sliderWrap} ref={frameRef}>
+        {/* The later photo underneath, the earlier one clipped over it, so
+            dragging right reveals the past - the direction that reads as
+            "what did I look like before". */}
+        <img src={after} alt={`${angle}, ${afterLabel}`} className={styles.sliderImage} style={fitStyle(afterFit)} />
+        <div
+          className={styles.sliderOverlay}
+          style={{ clipPath: aligning ? undefined : `inset(0 ${100 - percent}% 0 0)`, opacity: aligning ? 0.5 : 1 }}
+        >
+          <img src={before} alt={`${angle}, ${beforeLabel}`} className={styles.sliderImage} style={fitStyle(shownBeforeFit)} />
+        </div>
+
+        {!aligning && <span className={styles.sliderDivider} style={{ left: `${percent}%` }} aria-hidden="true" />}
+
+        <span className={`${styles.sliderTag} ${styles.sliderTagLeft}`}>{beforeLabel}</span>
+        <span className={`${styles.sliderTag} ${styles.sliderTagRight}`}>{afterLabel}</span>
+
+        {aligning ? (
+          // Half-opacity overlay plus drag, so the two can be registered
+          // against each other directly - a doorframe or skirting board
+          // lines up far more reliably than a body does.
+          <div
+            className={styles.alignSurface}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
+          />
+        ) : (
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={percent}
+            onChange={(e) => setPercent(Number(e.target.value))}
+            className={styles.sliderInput}
+            aria-label={`${angle}: reveal ${beforeLabel} over ${afterLabel}`}
+          />
+        )}
       </div>
 
-      <span className={styles.sliderDivider} style={{ left: `${percent}%` }} aria-hidden="true" />
-
-      <span className={`${styles.sliderTag} ${styles.sliderTagLeft}`}>{beforeLabel}</span>
-      <span className={`${styles.sliderTag} ${styles.sliderTagRight}`}>{afterLabel}</span>
-
-      <input
-        type="range"
-        min={0}
-        max={100}
-        value={percent}
-        onChange={(e) => setPercent(Number(e.target.value))}
-        className={styles.sliderInput}
-        aria-label={`${angle}: reveal ${beforeLabel} over ${afterLabel}`}
-      />
+      {aligning ? (
+        <div className={styles.alignBar}>
+          <label className={styles.alignZoom}>
+            Zoom
+            <input
+              type="range"
+              min={50}
+              max={250}
+              value={Math.round(draft.s * 100)}
+              onChange={(e) => setDraft((d) => ({ ...d, s: Number(e.target.value) / 100 }))}
+            />
+          </label>
+          <button type="button" className={styles.presetButton} onClick={() => setDraft(NO_FIT)}>
+            Reset
+          </button>
+          <button
+            type="button"
+            className={styles.presetButton}
+            onClick={() => {
+              setDraft(beforeFit ?? NO_FIT);
+              setAligning(false);
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className={styles.alignSave}
+            onClick={() => {
+              onAlign(draft);
+              setAligning(false);
+            }}
+          >
+            Save alignment
+          </button>
+        </div>
+      ) : (
+        <button type="button" className={styles.presetButton} onClick={() => { setDraft(beforeFit ?? NO_FIT); setAligning(true); }}>
+          Align {beforeLabel}
+        </button>
+      )}
     </div>
   );
 }
@@ -137,6 +254,25 @@ export default function ProgressPhotos({ latestWeightKg, weightUnitLabel }: { la
       setError(err instanceof Error ? err.message : "Could not save that photo.");
     } finally {
       setBusy(null);
+    }
+  }
+
+  // Alignment carries no image - the photo it adjusts is already stored, so
+  // resending several hundred KB of base64 to move it 3% left would be
+  // absurd. The endpoint merges by date (see api/progress-photos.ts).
+  async function saveFit(date: string, angle: Angle, fit: PhotoFit) {
+    setError(null);
+    try {
+      const response = await fetch("/api/progress-photos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date, [`${angle}Fit`]: fit }),
+      });
+      if (!response.ok) throw new Error((await response.json().catch(() => null))?.error ?? "Could not save alignment");
+      const body = await response.json();
+      setSessions(body.sessions ?? []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save that alignment.");
     }
   }
 
@@ -306,9 +442,12 @@ export default function ProgressPhotos({ latestWeightKg, weightUnitLabel }: { la
                   <PhotoCompareSlider
                     before={before}
                     after={after}
+                    beforeFit={left[`${angle}Fit`]}
+                    afterFit={right[`${angle}Fit`]}
                     beforeLabel={shortDate(left.date)}
                     afterLabel={shortDate(right.date)}
                     angle={angle}
+                    onAlign={(fit) => saveFit(left.date, angle, fit)}
                   />
                 </div>
               );
@@ -318,11 +457,11 @@ export default function ProgressPhotos({ latestWeightKg, weightUnitLabel }: { la
                 <span className={styles.angleLabel}>{angle}</span>
                 <div className={styles.pair}>
                   <figure className={styles.figure}>
-                    {before ? <img src={before} alt={`${angle}, ${formatDate(left!.date)}`} className={styles.photo} /> : <div className={styles.missing}>none</div>}
+                    {before ? <div className={styles.photoFrame}><img src={before} alt={`${angle}, ${formatDate(left!.date)}`} className={styles.photoFitted} style={fitStyle(left![`${angle}Fit`])} /></div> : <div className={styles.missing}>none</div>}
                     <figcaption className={styles.caption}>{left ? label(left.date) : ""}</figcaption>
                   </figure>
                   <figure className={styles.figure}>
-                    {after ? <img src={after} alt={`${angle}, ${formatDate(right!.date)}`} className={styles.photo} /> : <div className={styles.missing}>none</div>}
+                    {after ? <div className={styles.photoFrame}><img src={after} alt={`${angle}, ${formatDate(right!.date)}`} className={styles.photoFitted} style={fitStyle(right![`${angle}Fit`])} /></div> : <div className={styles.missing}>none</div>}
                     <figcaption className={styles.caption}>{right ? label(right.date) : ""}</figcaption>
                   </figure>
                 </div>

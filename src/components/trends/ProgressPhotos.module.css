@@ -179,6 +179,78 @@
 /* Both photos occupy the same box at the same size, which is the point -
    anything that moves between them is a real change rather than a
    difference in how the shot was framed. */
+.sliderBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+/* The side-by-side view frames its photos the same way the slider does, so
+   an alignment set in one is visible in the other rather than looking like
+   it did nothing. */
+.photoFrame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  border-radius: var(--radius-sm, 4px);
+}
+
+.photoFitted {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Covers the frame while aligning, taking the drag. The slider's range
+   input is removed in this mode rather than layered under it - two things
+   competing for the same pointer is how a drag ends up doing both. */
+.alignSurface {
+  position: absolute;
+  inset: 0;
+  cursor: grab;
+  touch-action: none;
+}
+
+.alignSurface:active {
+  cursor: grabbing;
+}
+
+.alignBar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.alignZoom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
+
+.alignZoom input {
+  width: 110px;
+  accent-color: var(--color-accent-2);
+}
+
+.alignSave {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 5px 10px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--color-accent-2);
+  color: var(--color-bg);
+  cursor: pointer;
+}
+
 .sliderWrap {
   position: relative;
   width: 100%;

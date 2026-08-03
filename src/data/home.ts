@@ -28,9 +28,12 @@ export const home = {
 
   story: {
     eyebrow: "Why this ride",
-    title: "Our daughter was three months old",
+    title: "The families who couldn't pay",
+    // The heading names strangers, so the lead has to say how Malcolm ends up
+    // riding for them. Without the last clause the heading hangs unanswered
+    // until the second paragraph, which is a long way to ask a reader to wait.
     lead:
-      "I'm Malcolm Barske. I set the Ireland east to west record in 2022 and I'm going after the north to south one next. The reason hasn't changed since the first ride.",
+      "I'm Malcolm Barske. I set the Ireland east to west record in 2022 and I'm going after the north to south one next. Both rides are for the same reason, and it started with our own daughter.",
     paragraphs: [
       "In August 2018 our three-month-old daughter was diagnosed with Tetralogy of Fallot, a combination of heart defects she was born with. She needed open-heart surgery before her first birthday. At the angiogram the day before the operation we found out she also had five holes in her heart. She was in theatre for six hours on 7 February 2019. She is fine now.",
       "We were lucky, and we knew it, because of the four days we spent in ICU beside families who weren't. Some had lost babies in theatre. Others were facing a lifetime of medical debt, or simply couldn't pay. Without medical cover we would have had to find close to a million Rand before anyone agreed to operate on our daughter.",

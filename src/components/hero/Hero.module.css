@@ -94,10 +94,10 @@
   top: 50%;
   /* translate rather than a negative offset: the percentage is of the image's
      own width, so it sets which point of the map lands on the frame's left
-     edge whatever size the image renders at. 35% starts the crop a third of
-     the way across and pushes the landmass right, letting the map's own empty
-     background bleed off the screen instead of sitting beside the text. */
-  transform: translate(-35%, -50%);
+     edge whatever size the image renders at. 10% puts the west coast just
+     past the fade and runs the island off the right of the screen, so the
+     crop takes the eastern side rather than the western one. */
+  transform: translate(-10%, -50%);
   /* Twice the frame is the minimum that reaches the right edge: the image is
      centred on the frame's left edge, so only half of it is ever on screen.
      Anything less and the crop ends in mid-air short of the viewport. */

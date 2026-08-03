@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { VercelRequest } from "@vercel/node";
-import { getJSON, setJSON } from "./kvStore.js";
+import { getJSON, readJSON, setJSON } from "./kvStore.js";
 import { parseCookies } from "./session.js";
 
 /**
@@ -36,6 +36,37 @@ export type StoredCredential = {
 
 export async function listCredentials(): Promise<StoredCredential[]> {
   return (await getJSON<StoredCredential[]>(KV_KEY)) ?? [];
+}
+
+/**
+ * Whether signing in with a passkey is actually possible right now.
+ *
+ * PASSKEY_ONLY turns off Microsoft sign-in. If the credential list is ever
+ * empty while that flag is set, there is no way into the dashboard at all -
+ * recovery means editing Vercel's environment and redeploying, which is a poor
+ * position to be in the night before an attempt. The delete route already
+ * refuses to remove the last passkey, but that doesn't cover a lost phone, a
+ * wiped KV, or credentials invalidated by a change of domain.
+ *
+ * So the callers below only enforce passkey-only when a passkey could actually
+ * be used. Falling back to Microsoft is a downgrade to the previous
+ * authentication method - still allowlisted, still a real Microsoft account -
+ * not an open door.
+ *
+ * readJSON rather than listCredentials, and false on error, because getJSON
+ * turns an unreachable Redis into an empty list. Treating that as "no
+ * passkeys" would drop the dashboard back to Microsoft sign-in for the length
+ * of a transient outage - a security control switching itself off precisely
+ * when something is already wrong.
+ */
+export async function passkeySignInPossible(): Promise<boolean> {
+  try {
+    const stored = await readJSON<StoredCredential[]>(KV_KEY);
+    return Array.isArray(stored) && stored.length > 0;
+  } catch {
+    // Couldn't read. Assume credentials exist and keep passkey-only on.
+    return true;
+  }
 }
 
 export async function saveCredentials(credentials: StoredCredential[]): Promise<void> {

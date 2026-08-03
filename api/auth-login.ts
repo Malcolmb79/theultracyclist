@@ -1,13 +1,17 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { randomBytes } from "node:crypto";
 import { OAUTH_STATE_COOKIE_NAME } from "./_lib/session.js";
+import { passkeySignInPossible } from "./_lib/passkeys.js";
 
 export default async function handler(_req: VercelRequest, res: VercelResponse) {
   // Refused outright when passkeys are the only permitted login, so the OAuth
   // flow can't be started just by visiting this URL. auth-callback.ts refuses
   // too: blocking only the entry point would leave the callback usable on its
   // own, which is the half-measure this replaces.
-  if (process.env.PASSKEY_ONLY === "true") {
+  // Only enforced while a passkey could actually be used - see
+  // passkeySignInPossible. With the flag set and no credentials registered,
+  // refusing here would leave no way in at all.
+  if (process.env.PASSKEY_ONLY === "true" && (await passkeySignInPossible())) {
     res.status(403).send("Microsoft sign-in is disabled - this dashboard uses passkeys.");
     return;
   }

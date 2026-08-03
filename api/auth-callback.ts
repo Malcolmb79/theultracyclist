@@ -6,6 +6,7 @@ import {
   isAllowedEmail,
   parseCookies,
 } from "./_lib/session.js";
+import { passkeySignInPossible } from "./_lib/passkeys.js";
 
 function redirectTo(res: VercelResponse, path: string) {
   res.writeHead(302, { Location: path });
@@ -17,7 +18,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // issued sessions left Microsoft OAuth as a second, unadvertised way in.
   // Recovery is clearing PASSKEY_ONLY in Vercel and redeploying - see
   // .env.example.
-  if (process.env.PASSKEY_ONLY === "true") {
+  // Same condition as auth-login: enforced only while a passkey could
+  // actually be used, so an empty credential store can't lock the dashboard.
+  if (process.env.PASSKEY_ONLY === "true" && (await passkeySignInPossible())) {
     redirectTo(res, "/dashboard?auth=passkey-only");
     return;
   }

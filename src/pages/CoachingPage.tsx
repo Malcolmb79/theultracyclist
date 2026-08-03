@@ -30,6 +30,7 @@ import { useRawSources } from "../utils/useRawSources";
 import { usePullToRefresh } from "../utils/usePullToRefresh";
 import { computeCanvasHeight, rescueOffCanvasX, usableCanvasWidth } from "../utils/useCanvasItem";
 import SignInGate from "../components/shared/SignInGate";
+import PasskeyStepUp from "../components/shared/PasskeyStepUp";
 import TabNav from "../components/shared/TabNav";
 import PageHeader from "../components/shared/PageHeader";
 import ProfileMenu from "../components/shared/ProfileMenu";
@@ -120,6 +121,13 @@ export default function CoachingPage() {
 
   if (auth.status === "signed-out") {
     return <SignInGate title="Coaching" />;
+  }
+
+  // Signed in, but not with a passkey. The server refuses the coaching
+  // endpoints in that state (see requirePasskeySession), so asking here is
+  // what turns a wall of 403s into one prompt that fixes them.
+  if (auth.amr !== "passkey") {
+    return <PasskeyStepUp title="Coaching" />;
   }
 
   return <CoachingView />;

@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getSessionEmail } from "./_lib/session.js";
+import { requirePasskeySession } from "./_lib/session.js";
 import { addDocument, documentChunks, listDocuments, removeDocument, searchKnowledge } from "./_lib/coachKnowledge.js";
 
 /**
@@ -12,10 +12,10 @@ import { addDocument, documentChunks, listDocuments, removeDocument, searchKnowl
  * rather than through HTTP.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (!getSessionEmail(req)) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
+  // Coaching is passkey-gated, unlike the rest of the dashboard - see
+  // requirePasskeySession. It answers on failure, including the code the
+  // client needs to offer a passkey prompt rather than a sign-in page.
+  if (!requirePasskeySession(req, res)) return;
 
   try {
     if (req.method === "POST") {

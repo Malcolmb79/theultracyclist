@@ -71,7 +71,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   res.setHeader("Set-Cookie", [
-    sessionCookieHeader(email, sessionSecret),
+    sessionCookieHeader(email, sessionSecret, "microsoft"),
     `${OAUTH_STATE_COOKIE_NAME}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`,
   ]);
   redirectTo(res, "/dashboard");

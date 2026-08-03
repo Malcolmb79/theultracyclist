@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getJSON, readJSON, setJSON } from "./_lib/kvStore.js";
-import { getSessionEmail } from "./_lib/session.js";
+import { requirePasskeySession } from "./_lib/session.js";
 import { isDeviceCategory, mergeDeviceLayout, resolveDeviceLayout, type DeviceCategory } from "./_lib/deviceLayout.js";
 
 // Mirrors the client-side CoachingWidgetEntry (src/components/coaching/types.ts) -
@@ -185,10 +185,10 @@ export async function fetchCoachingSettings(): Promise<CoachingSettings> {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (!getSessionEmail(req)) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
+  // Coaching is passkey-gated, unlike the rest of the dashboard - see
+  // requirePasskeySession. It answers on failure, including the code the
+  // client needs to offer a passkey prompt rather than a sign-in page.
+  if (!requirePasskeySession(req, res)) return;
 
   const device = deviceFrom(req);
 

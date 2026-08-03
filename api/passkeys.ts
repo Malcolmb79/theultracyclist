@@ -166,7 +166,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         await touchCredential(stored.id, verification.authenticationInfo.newCounter);
 
-        res.setHeader("Set-Cookie", [sessionCookieHeader(stored.email, sessionSecret), CLEAR_CHALLENGE_COOKIE]);
+        res.setHeader("Set-Cookie", [sessionCookieHeader(stored.email, sessionSecret, "passkey"), CLEAR_CHALLENGE_COOKIE]);
         res.status(200).json({ ok: true, email: stored.email });
         return;
       }

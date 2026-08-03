@@ -63,3 +63,13 @@
   text-align: center;
   margin: 0;
 }
+
+/* Explains why a signed-in visitor is being asked for anything at all -
+   without it the passkey prompt looks like the sign-in having failed. */
+.stepUpBody {
+  margin: 0 0 var(--space-3);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  max-width: 42ch;
+}

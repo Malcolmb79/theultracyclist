@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getSessionEmail, renewedSessionCookie } from "./_lib/session.js";
+import { getSession, renewedSessionCookie } from "./_lib/session.js";
 
 /**
  * Reports auth state, and keeps an in-use session alive while doing it.
@@ -16,7 +16,8 @@ import { getSessionEmail, renewedSessionCookie } from "./_lib/session.js";
  * data.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const email = getSessionEmail(req);
+  const session = getSession(req);
+  const email = session?.email ?? null;
 
   if (email) {
     const refreshed = renewedSessionCookie(req);
@@ -26,5 +27,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Never cached: a stored "authenticated: true" would outlive the session it
   // describes, and this is the answer the whole dashboard gates on.
   res.setHeader("Cache-Control", "no-store");
-  res.status(200).json(email ? { authenticated: true, email } : { authenticated: false });
+  // amr travels to the client so the coaching page can tell a session that
+  // needs a passkey from one that isn't signed in at all - those want very
+  // different screens.
+  res.status(200).json(
+    session ? { authenticated: true, email: session.email, amr: session.amr } : { authenticated: false },
+  );
 }

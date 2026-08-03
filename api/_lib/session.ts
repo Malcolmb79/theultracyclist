@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import type { VercelRequest } from "@vercel/node";
+import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 export const SESSION_COOKIE_NAME = "dash_session";
 export const OAUTH_STATE_COOKIE_NAME = "oauth_state";
@@ -53,16 +53,32 @@ function sessionAbsoluteMs(): number {
   return hours * 60 * 60 * 1000;
 }
 
+/**
+ * How the session was authenticated.
+ *
+ * Recorded because the two are not equivalent. A Microsoft sign-in completes
+ * silently whenever that session is still live in the browser, so it proves
+ * the browser was once signed in; a passkey proves someone was present and
+ * authenticated on this device, just now. The coaching side requires the
+ * second - see requirePasskeySession.
+ */
+export type AuthMethod = "passkey" | "microsoft";
+
 function sign(value: string, secret: string): string {
   return createHmac("sha256", secret).update(value).digest("base64url");
 }
 
-export function createSessionCookieValue(email: string, secret: string, issuedAt = Date.now()): string {
+export function createSessionCookieValue(
+  email: string,
+  secret: string,
+  amr: AuthMethod,
+  issuedAt = Date.now(),
+): string {
   // iat is carried so the absolute cap survives renewal - without it, each
   // slide forward would forget when the session actually started and the
   // ceiling could never be reached.
   const payload = Buffer.from(
-    JSON.stringify({ email, iat: issuedAt, exp: Date.now() + sessionTtlMs() }),
+    JSON.stringify({ email, amr, iat: issuedAt, exp: Date.now() + sessionTtlMs() }),
   ).toString("base64url");
   return `${payload}.${sign(payload, secret)}`;
 }
@@ -73,11 +89,16 @@ export function createSessionCookieValue(email: string, secret: string, issuedAt
  * cookie flags, which is exactly the kind of difference that turns into "it
  * logs out on my phone but not my laptop".
  */
-export function sessionCookieHeader(email: string, secret: string, issuedAt = Date.now()): string {
-  return `${SESSION_COOKIE_NAME}=${createSessionCookieValue(email, secret, issuedAt)}; Path=/; HttpOnly; Secure; SameSite=Lax`;
+export function sessionCookieHeader(
+  email: string,
+  secret: string,
+  amr: AuthMethod,
+  issuedAt = Date.now(),
+): string {
+  return `${SESSION_COOKIE_NAME}=${createSessionCookieValue(email, secret, amr, issuedAt)}; Path=/; HttpOnly; Secure; SameSite=Lax`;
 }
 
-function verifySessionToken(token: string, secret: string): { email: string; iat: number } | null {
+function verifySessionToken(token: string, secret: string): { email: string; amr: AuthMethod; iat: number } | null {
   const [payload, sig] = token.split(".");
   if (!payload || !sig) return null;
 
@@ -89,6 +110,7 @@ function verifySessionToken(token: string, secret: string): { email: string; iat
   try {
     const data = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as {
       email?: string;
+      amr?: string;
       iat?: number;
       exp?: number;
     };
@@ -98,7 +120,11 @@ function verifySessionToken(token: string, secret: string): { email: string; iat
     // than signing everyone out mid-use for a field they couldn't have had.
     const iat = typeof data.iat === "number" ? data.iat : Date.now();
     if (Date.now() - iat > sessionAbsoluteMs()) return null;
-    return { email: data.email, iat };
+    // A cookie from before amr existed is treated as the weaker method. It
+    // grants what it always granted and no more - inferring "passkey" from
+    // its absence would hand coaching access to every session already issued.
+    const amr: AuthMethod = data.amr === "passkey" ? "passkey" : "microsoft";
+    return { email: data.email, amr, iat };
   } catch {
     return null;
   }
@@ -113,6 +139,15 @@ export function parseCookies(header?: string): Record<string, string> {
     out[part.slice(0, idx).trim()] = decodeURIComponent(part.slice(idx + 1).trim());
   }
   return out;
+}
+
+export function getSession(req: VercelRequest): { email: string; amr: AuthMethod } | null {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) return null;
+  const token = parseCookies(req.headers.cookie)[SESSION_COOKIE_NAME];
+  if (!token) return null;
+  const session = verifySessionToken(token, secret);
+  return session ? { email: session.email, amr: session.amr } : null;
 }
 
 export function getSessionEmail(req: VercelRequest): string | null {
@@ -146,7 +181,9 @@ export function renewedSessionCookie(req: VercelRequest): string | null {
   if (!token) return null;
   const session = verifySessionToken(token, secret);
   if (!session) return null;
-  return sessionCookieHeader(session.email, secret, session.iat);
+  // amr is carried through renewal: sliding a session forward must not
+  // quietly upgrade how it was authenticated.
+  return sessionCookieHeader(session.email, secret, session.amr, session.iat);
 }
 
 // The id_token here comes from a direct server-to-server exchange with
@@ -173,4 +210,31 @@ export function isAllowedEmail(email: string): boolean {
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
   return allowlist.includes(email.toLowerCase());
+}
+
+/**
+ * Gate for the coaching side, which is held to a higher bar than the rest of
+ * the dashboard.
+ *
+ * Everything else is happy with a Microsoft session. Coaching is not: it holds
+ * the athlete's own coaching notes and drives an assistant that reads their
+ * whole training history, so it asks for proof that someone is present on this
+ * device now, rather than that this browser signed in at some point.
+ *
+ * Returns true when the request may proceed. When it returns false it has
+ * already answered - 401 for no session at all, 403 with a code the client
+ * uses to offer a passkey prompt instead of a sign-in page, since the session
+ * itself is perfectly valid and being signed out would be wrong.
+ */
+export function requirePasskeySession(req: VercelRequest, res: VercelResponse): boolean {
+  const session = getSession(req);
+  if (!session) {
+    res.status(401).json({ error: "Unauthorized" });
+    return false;
+  }
+  if (session.amr !== "passkey") {
+    res.status(403).json({ error: "Coaching needs a passkey.", code: "passkey-required" });
+    return false;
+  }
+  return true;
 }

@@ -3,7 +3,9 @@ import { useEffect, useState } from "react";
 export type AuthState =
   | { status: "loading" }
   | { status: "signed-out" }
-  | { status: "signed-in"; email: string };
+  // amr is how the session was authenticated. Coaching requires "passkey";
+  // everywhere else is content with either.
+  | { status: "signed-in"; email: string; amr: "passkey" | "microsoft" };
 
 /**
  * Comfortably inside the server's idle timeout, so an open dashboard is always
@@ -21,10 +23,12 @@ export function useAuthSession(): AuthState {
     const check = () => {
       fetch("/api/auth-session")
         .then((res) => res.json())
-        .then((body: { authenticated: boolean; email?: string }) => {
+        .then((body: { authenticated: boolean; email?: string; amr?: "passkey" | "microsoft" }) => {
           if (cancelled) return;
           setState(
-            body.authenticated && body.email ? { status: "signed-in", email: body.email } : { status: "signed-out" },
+            body.authenticated && body.email
+              ? { status: "signed-in", email: body.email, amr: body.amr ?? "microsoft" }
+              : { status: "signed-out" },
           );
         })
         .catch(() => {

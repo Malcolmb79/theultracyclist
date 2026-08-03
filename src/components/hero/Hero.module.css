@@ -2,6 +2,11 @@
   position: relative;
   overflow: hidden;
   padding: var(--space-6) 0;
+  /* The container's own geometry, so things outside it can still line up with
+     it. Used by the map below, which has to bleed to the viewport edge and so
+     cannot simply live inside the container. */
+  --hero-container: min(var(--max-width), 100vw);
+  --hero-container-left: calc((100vw - var(--hero-container)) / 2);
   /* Flat, not washed. This was two radial gradients - orange from the top
      right, amber from the bottom left - and at low opacity over a near-black
      page they muddied into brown rather than reading as colour. The display
@@ -100,11 +105,16 @@
   z-index: 0;
   top: 0;
   bottom: 0;
-  /* A narrow column rather than the whole right half. The window onto the map
-     is the frame's width divided by the image's, so narrowing this is what
-     limits the view to the west coast and the middle of the island instead of
-     running on to the east side. */
-  left: 62%;
+  /* Anchored to the container rather than the viewport. At 62% of the screen
+     the map sat tight against the text on a laptop and drifted a long way off
+     it on a wide monitor, because the text stops at the container edge while
+     the percentage kept going. Two thirds across the container holds the same
+     relationship at any width.
+
+     The window onto the map is this frame's width divided by the image's, so
+     the frame is also what limits the view to the west coast and the middle
+     of the island instead of running on to the east side. */
+  left: calc(var(--hero-container-left) + var(--hero-container) * 0.66);
   right: 0;
   overflow: hidden;
   pointer-events: none;

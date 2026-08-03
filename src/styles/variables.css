@@ -22,9 +22,37 @@
   --space-6: 4rem;
 
   --radius: 10px;
+  /* Steps up on big monitors instead of holding at 1140px. A fixed measure
+     that suits a laptop leaves a 27-inch screen with 400px of dead margin
+     either side, which reads as a page that has failed to load rather than
+     one that is deliberately narrow. Reading measure is protected separately,
+     by the ch-based max-widths on the paragraphs themselves, so the wider
+     container adds columns and air rather than longer lines. */
   --max-width: 1140px;
 
   color-scheme: dark;
+}
+
+@media (min-width: 1500px) {
+  :root {
+    --max-width: 1320px;
+  }
+}
+
+@media (min-width: 1800px) {
+  :root {
+    --max-width: 1460px;
+  }
+}
+
+/* Ultrawide and scaled-down 4K. Stops here rather than tracking the viewport
+   forever: past about 1600px the page stops looking generous and starts
+   looking stretched, and the eye has to travel too far from the end of one
+   column to the start of the next. */
+@media (min-width: 2200px) {
+  :root {
+    --max-width: 1600px;
+  }
 }
 
 /* Light-mode overrides, applied via a data-theme attribute set on <html>

@@ -18,6 +18,12 @@ export interface RecordFacts {
   distanceKm: number;
   currentRecordHolder: string;
   currentRecordTime: string;
+  /** When the standing record was set, e.g. "24 July 2023". */
+  recordSetOn: string;
+  /** The standing record's average speed, derived from its own distance and time. */
+  recordAvgKmh: number;
+  /** Who verified it. */
+  sanctionedBy: string;
   rulesUrl: string;
 }
 

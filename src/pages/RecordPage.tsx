@@ -10,7 +10,7 @@ export default function RecordPage() {
         <SectionHeading
           eyebrow="The record"
           title="Ireland, North to South"
-          subtitle="An unsupported ride the length of Ireland, chasing a new benchmark for the route."
+          subtitle="An unsupported ride the length of Ireland, against a standing record of 19 hours 30 minutes."
         />
         <RouteJourneyPoster />
         <RecordFacts />

@@ -15,15 +15,15 @@ export const home = {
     eyebrow: "New world record attempt",
     title: "Cycling Ireland, North to South.",
     subtitle:
-      "570 kilometres, solo, from Malin Head to Mizen Head — raising money for children born with heart defects who can't afford the surgery that would save them.",
-    // Shown as a strip beneath the hero. Deliberately not the record time:
-    // there's no confirmed solo time on file for this route yet (see
-    // data/record.ts), and a made-up target on the front page is the kind of
-    // thing a governing body reads.
+      "568 kilometres, solo and unsupported, from Malin Head to Mizen Head — raising money for children born with heart defects who can't afford the surgery that would save them.",
+    // The target is the front page's most interesting number now that there is
+    // a real one to print: Mervyn Kinkade's 19h 30m, set 24 July 2023 and
+    // verified by WUCA. Distance is rounded here and exact on the record page,
+    // since a hero strip is read at a glance and 567.6 invites arithmetic.
     facts: [
-      { label: "Distance", value: "570 km" },
+      { label: "Distance", value: "568 km" },
+      { label: "Record to beat", value: "19h 30m" },
       { label: "Route", value: "Malin Head → Mizen Head" },
-      { label: "Format", value: "Solo, unsupported" },
     ],
   },
 

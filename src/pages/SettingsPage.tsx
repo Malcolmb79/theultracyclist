@@ -11,6 +11,7 @@ import SignInGate from "../components/shared/SignInGate";
 import PasskeysSection from "../components/settings/PasskeysSection";
 import RidePhotosSection from "../components/settings/RidePhotosSection";
 import PortraitSection from "../components/settings/PortraitSection";
+import SitePhotosSection from "../components/settings/SitePhotosSection";
 import CoachKnowledgeSection from "../components/settings/CoachKnowledgeSection";
 import DateRangePicker from "../components/shared/DateRangePicker";
 import {
@@ -504,6 +505,15 @@ function SettingsEditor() {
             above, which only appears in your own menu. Leave it unset to keep the placeholder illustration.
           </p>
           <PortraitSection />
+        </div>
+
+        <div className={styles.section}>
+          <p className={styles.sectionTitle}>Home page photos</p>
+          <p className={styles.sectionHint}>
+            The two photographs on the public home page. Both are published the moment you save them. They're resized
+            in the browser before upload, so pick the best version you have rather than a small one.
+          </p>
+          <SitePhotosSection />
         </div>
 
         <div className={styles.section}>

@@ -1,0 +1,89 @@
+.wrap {
+  display: grid;
+  gap: var(--space-5);
+}
+
+/* Only becomes two columns when there is something to put in the second one.
+   The photo column is narrower than the text: a portrait shot at half the
+   width of the page dwarfs the words beside it. */
+@media (min-width: 900px) {
+  .withPhoto {
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    align-items: start;
+    gap: var(--space-6);
+  }
+}
+
+.body {
+  min-width: 0;
+}
+
+/* Without a photo the paragraphs' own measure (62ch) leaves the right half of
+   a desktop page empty, which reads as a layout that failed to load rather
+   than a deliberate column. Centring the block makes it look chosen. */
+@media (min-width: 900px) {
+  .wrap:not(.withPhoto) .body {
+    max-width: 68ch;
+    margin-inline: auto;
+  }
+}
+
+.title {
+  font-size: clamp(2rem, 4vw, 3rem);
+  max-width: 18ch;
+}
+
+/* Slightly larger than the body copy and not muted - this is the sentence
+   that has to earn the next four. */
+.lead {
+  margin-top: var(--space-3);
+  font-size: 1.15rem;
+  max-width: 60ch;
+}
+
+.paragraph {
+  color: var(--color-text-muted);
+  max-width: 62ch;
+}
+
+.quote {
+  margin: var(--space-4) 0;
+  padding-left: var(--space-3);
+  border-left: 3px solid var(--color-accent);
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  max-width: 34ch;
+}
+
+.more {
+  margin: 0;
+}
+
+.figure {
+  margin: 0;
+  position: sticky;
+  /* Clears the sticky header: 48px logo plus its var(--space-3) padding. */
+  top: calc(80px + var(--space-4));
+}
+
+.photo {
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+}
+
+@media (max-width: 899px) {
+  .figure {
+    position: static;
+  }
+
+  .photo {
+    /* Landscape on a phone: an upright photo at full width pushes everything
+       below it off the screen. */
+    aspect-ratio: 3 / 2;
+  }
+}

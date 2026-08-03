@@ -8,6 +8,66 @@
   border-bottom: 1px solid var(--color-border);
 }
 
+/* With a photograph the hero stops being a band of colour and becomes an
+   image, so it earns real height - but capped against the viewport, because a
+   hero taller than the screen means a visitor never sees that anything
+   follows it. */
+.withPhoto {
+  min-height: min(74vh, 680px);
+  display: flex;
+  align-items: flex-end;
+  padding-top: var(--space-6);
+  padding-bottom: var(--space-5);
+  background: var(--color-bg-elevated);
+}
+
+.photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Favours the upper-middle of the frame, which is where a rider on a
+     time-trial bike sits in most landscape shots - a centre crop tends to cut
+     the head off and keep the road. */
+  object-position: 50% 35%;
+}
+
+.scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to top, rgba(6, 8, 10, 0.92) 0%, rgba(6, 8, 10, 0.72) 38%, rgba(6, 8, 10, 0.18) 72%, rgba(6, 8, 10, 0.05) 100%),
+    linear-gradient(to right, rgba(6, 8, 10, 0.55), transparent 65%);
+}
+
+/* The scrim is dark in both themes on purpose. It exists to make white text
+   legible over an unknown photograph, and a light scrim in light mode would
+   defeat that - so the hero text stays light-on-dark whichever theme the rest
+   of the page is in. */
+.withPhoto .inner {
+  position: relative;
+  color: #f5f6f7;
+}
+
+.withPhoto .subtitle {
+  color: rgba(245, 246, 247, 0.86);
+}
+
+.withPhoto .factLabel {
+  color: rgba(245, 246, 247, 0.7);
+}
+
+.withPhoto .facts {
+  border-top-color: rgba(255, 255, 255, 0.22);
+}
+
+.inner {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+}
+
 .watermark {
   position: absolute;
   z-index: -1;
@@ -39,7 +99,7 @@
 
 .subtitle {
   margin-top: var(--space-3);
-  max-width: 55ch;
+  max-width: 52ch;
   color: var(--color-text-muted);
   font-size: 1.1rem;
 }
@@ -49,4 +109,45 @@
   display: flex;
   gap: var(--space-3);
   flex-wrap: wrap;
+}
+
+.facts {
+  margin: var(--space-5) 0 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+}
+
+.fact {
+  margin: 0;
+}
+
+.factLabel {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--color-text-muted);
+}
+
+.factValue {
+  margin: var(--space-1) 0 0;
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  letter-spacing: 0.03em;
+}
+
+@media (max-width: 640px) {
+  .withPhoto {
+    min-height: min(80vh, 560px);
+  }
+
+  .facts {
+    gap: var(--space-4);
+  }
+
+  .factValue {
+    font-size: 1.25rem;
+  }
 }

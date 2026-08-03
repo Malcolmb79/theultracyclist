@@ -51,12 +51,27 @@ const PHOTO_QUALITY = 0.72;
  * one separately is how two photos stop being comparable.
  */
 export function photoToDataUrl(img: HTMLImageElement): string {
-  const scale = Math.min(1, PHOTO_MAX_EDGE / Math.max(img.naturalWidth, img.naturalHeight));
+  return scaleToDataUrl(img, PHOTO_MAX_EDGE, PHOTO_QUALITY);
+}
+
+// A home-page hero spans the full width of a desktop monitor, where the 900px
+// a progress photo is happy at reads as visibly soft. Quality drops slightly to
+// pay for the extra pixels, which is the right trade at this size - detail in a
+// landscape shot survives compression far better than it survives upscaling.
+const HERO_MAX_EDGE = 1600;
+const HERO_QUALITY = 0.68;
+
+export function heroPhotoToDataUrl(img: HTMLImageElement): string {
+  return scaleToDataUrl(img, HERO_MAX_EDGE, HERO_QUALITY);
+}
+
+function scaleToDataUrl(img: HTMLImageElement, maxEdge: number, quality: number): string {
+  const scale = Math.min(1, maxEdge / Math.max(img.naturalWidth, img.naturalHeight));
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(img.naturalWidth * scale);
   canvas.height = Math.round(img.naturalHeight * scale);
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas is not supported in this browser");
   ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL("image/jpeg", PHOTO_QUALITY);
+  return canvas.toDataURL("image/jpeg", quality);
 }

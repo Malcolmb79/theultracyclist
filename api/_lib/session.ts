@@ -28,14 +28,42 @@ function sessionTtlMs(): number {
   return minutes * 60 * 1000;
 }
 
+/**
+ * The longest a session can live no matter how much it is used.
+ *
+ * The TTL above is an *idle* timeout now - it slides forward while the
+ * dashboard is open (see renewedSessionCookie), because being asked for a
+ * passkey mid-ride while watching a page is the kind of friction that gets a
+ * security control switched off. This is the ceiling that stops sliding from
+ * meaning "forever": a tab left open on a spare screen is not a good reason to
+ * hold an authenticated session indefinitely.
+ *
+ * Measured from first sign-in, not last use. Once it passes, the next request
+ * needs a real passkey gesture again.
+ */
+const DEFAULT_SESSION_ABSOLUTE_HOURS = 12;
+const MAX_SESSION_ABSOLUTE_HOURS = 24 * 7;
+
+function sessionAbsoluteMs(): number {
+  const configured = Number(process.env.SESSION_ABSOLUTE_HOURS);
+  const hours =
+    Number.isFinite(configured) && configured > 0
+      ? Math.min(configured, MAX_SESSION_ABSOLUTE_HOURS)
+      : DEFAULT_SESSION_ABSOLUTE_HOURS;
+  return hours * 60 * 60 * 1000;
+}
+
 function sign(value: string, secret: string): string {
   return createHmac("sha256", secret).update(value).digest("base64url");
 }
 
-export function createSessionCookieValue(email: string, secret: string): string {
-  const payload = Buffer.from(JSON.stringify({ email, exp: Date.now() + sessionTtlMs() })).toString(
-    "base64url",
-  );
+export function createSessionCookieValue(email: string, secret: string, issuedAt = Date.now()): string {
+  // iat is carried so the absolute cap survives renewal - without it, each
+  // slide forward would forget when the session actually started and the
+  // ceiling could never be reached.
+  const payload = Buffer.from(
+    JSON.stringify({ email, iat: issuedAt, exp: Date.now() + sessionTtlMs() }),
+  ).toString("base64url");
   return `${payload}.${sign(payload, secret)}`;
 }
 
@@ -45,11 +73,11 @@ export function createSessionCookieValue(email: string, secret: string): string 
  * cookie flags, which is exactly the kind of difference that turns into "it
  * logs out on my phone but not my laptop".
  */
-export function sessionCookieHeader(email: string, secret: string): string {
-  return `${SESSION_COOKIE_NAME}=${createSessionCookieValue(email, secret)}; Path=/; HttpOnly; Secure; SameSite=Lax`;
+export function sessionCookieHeader(email: string, secret: string, issuedAt = Date.now()): string {
+  return `${SESSION_COOKIE_NAME}=${createSessionCookieValue(email, secret, issuedAt)}; Path=/; HttpOnly; Secure; SameSite=Lax`;
 }
 
-function verifySessionToken(token: string, secret: string): { email: string } | null {
+function verifySessionToken(token: string, secret: string): { email: string; iat: number } | null {
   const [payload, sig] = token.split(".");
   if (!payload || !sig) return null;
 
@@ -61,10 +89,16 @@ function verifySessionToken(token: string, secret: string): { email: string } | 
   try {
     const data = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as {
       email?: string;
+      iat?: number;
       exp?: number;
     };
     if (!data.email || typeof data.exp !== "number" || data.exp < Date.now()) return null;
-    return { email: data.email };
+    // Cookies issued before iat existed are treated as starting now. That
+    // extends one session's absolute window once, on the changeover, rather
+    // than signing everyone out mid-use for a field they couldn't have had.
+    const iat = typeof data.iat === "number" ? data.iat : Date.now();
+    if (Date.now() - iat > sessionAbsoluteMs()) return null;
+    return { email: data.email, iat };
   } catch {
     return null;
   }
@@ -87,6 +121,32 @@ export function getSessionEmail(req: VercelRequest): string | null {
   const token = parseCookies(req.headers.cookie)[SESSION_COOKIE_NAME];
   if (!token) return null;
   return verifySessionToken(token, secret)?.email ?? null;
+}
+
+/**
+ * A refreshed cookie for a session that is still valid, or null.
+ *
+ * This is what makes the idle timeout slide: while the dashboard is open it
+ * checks in periodically, each check pushes the expiry out, and an active
+ * session is never interrupted to ask for a passkey again. Stop using it and
+ * it lapses on the normal timeout.
+ *
+ * Renewal cannot extend a session past its absolute cap, because the original
+ * iat is carried through unchanged - verifySessionToken has already refused
+ * anything beyond it by the time this runs, and the new cookie is stamped with
+ * the same start rather than a fresh one.
+ *
+ * Returns null rather than throwing when there is no valid session: the caller
+ * is reporting auth state, and a missing cookie is an answer, not an error.
+ */
+export function renewedSessionCookie(req: VercelRequest): string | null {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) return null;
+  const token = parseCookies(req.headers.cookie)[SESSION_COOKIE_NAME];
+  if (!token) return null;
+  const session = verifySessionToken(token, secret);
+  if (!session) return null;
+  return sessionCookieHeader(session.email, secret, session.iat);
 }
 
 // The id_token here comes from a direct server-to-server exchange with

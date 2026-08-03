@@ -84,12 +84,13 @@
   right: 0;
   overflow: hidden;
   pointer-events: none;
-  /* Fades on both sides now. The left edge was always masked, or the crop
-     would read as a mistake; the right edge used to run off the screen, which
-     left a hard vertical cut against the page. Both ends dissolve into the
-     hero's own near-black instead. */
-  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 24%, #000 62%, transparent 100%);
-  mask-image: linear-gradient(to right, transparent 0%, #000 24%, #000 62%, transparent 100%);
+  /* The left blend runs a long way in, reaching full strength around the
+     middle of the map rather than just past its edge. That puts the solid
+     half of the island on the right of the frame and lets the west coast
+     dissolve behind the headline instead of ending beside it. The right edge
+     fades too, so neither side meets the page with a hard cut. */
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 46%, #000 82%, transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0%, #000 46%, #000 82%, transparent 100%);
 }
 
 .island {

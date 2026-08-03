@@ -104,20 +104,45 @@ export default function ProgressPhotos({ latestWeightKg, weightUnitLabel }: { la
           Date
           <input type="date" value={uploadDate} onChange={(e) => setUploadDate(e.target.value)} className={styles.dateInput} />
         </label>
-        {ANGLES.map((angle) => (
-          <label key={angle} className={styles.uploadButton}>
-            {busy === angle ? "…" : todaySession?.[angle] ? `Replace ${angle}` : angle}
-            <input
-              type="file"
-              accept="image/*"
-              className={styles.hiddenInput}
-              onChange={(e) => {
-                upload(angle, e.target.files?.[0]);
-                e.target.value = "";
-              }}
-            />
-          </label>
-        ))}
+      </div>
+
+      {/* Three slots that show what's in them, rather than three buttons
+          that say what they'd do. The whole point of these photos is
+          consistent framing between sessions, and you can only match the
+          framing you can see - a row reading "Replace front / side / back"
+          tells you a photo exists without letting you check it's the right
+          one. It also answers "what have I already done today" at a glance,
+          which the buttons couldn't. Each tile is still a <label> wrapping
+          a hidden file input, so it stays keyboard-reachable and needs no
+          click handler. */}
+      <div className={styles.slotGrid}>
+        {ANGLES.map((angle) => {
+          const existing = todaySession?.[angle];
+          return (
+            <label key={angle} className={styles.slot}>
+              <span className={`${styles.slotFrame} ${existing ? "" : styles.slotFrameEmpty}`}>
+                {existing ? (
+                  <img src={existing} alt={`${angle}, ${formatDate(uploadDate)}`} className={styles.slotImage} />
+                ) : (
+                  <span className={styles.slotPlaceholder} aria-hidden="true">
+                    +
+                  </span>
+                )}
+                {busy === angle && <span className={styles.slotBusy}>Uploading…</span>}
+              </span>
+              <span className={styles.slotLabel}>{angle}</span>
+              <input
+                type="file"
+                accept="image/*"
+                className={styles.hiddenInput}
+                onChange={(e) => {
+                  upload(angle, e.target.files?.[0]);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+          );
+        })}
       </div>
       <p className={styles.muted}>
         Same three angles each time, same spot and same light if you can — the comparison is only worth as much as the

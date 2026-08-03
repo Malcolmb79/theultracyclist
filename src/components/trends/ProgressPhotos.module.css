@@ -35,14 +35,84 @@
 
 /* A label styled as a button wrapping a hidden input: the native file input
    can't be restyled, and three of them side by side is the whole control. */
-.uploadButton {
-  font-size: 0.78rem;
-  text-transform: capitalize;
-  padding: 5px 10px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm, 4px);
+/* Three equal slots. Always three columns, never wrapping to two-and-one:
+   the set is front/side/back and it should read as a set at any width, so
+   they shrink together rather than breaking the row. */
+.slotGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.slot {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   cursor: pointer;
+  min-width: 0;
+}
+
+/* 3:4 so the frame matches the shape of a standing photo taken on a
+   phone - a square would crop the top or bottom off exactly the thing
+   being compared. */
+.slotFrame {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 3 / 4;
+  border-radius: var(--radius);
+  overflow: hidden;
   background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+}
+
+.slotFrameEmpty {
+  border-style: dashed;
+}
+
+.slot:hover .slotFrame {
+  border-color: var(--color-accent);
+}
+
+/* cover, so a portrait photo fills the frame rather than sitting letter-
+   boxed in it. Consistency of framing is the whole point of these, and a
+   thumbnail with bars down the sides is harder to compare against the
+   next one. */
+.slotImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.slotPlaceholder {
+  font-size: 1.6rem;
+  line-height: 1;
+  color: var(--color-text-muted);
+}
+
+/* Over the frame rather than replacing the label, so the tile doesn't
+   change size mid-upload and shift the two beside it. */
+.slotBusy {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--color-bg) 70%, transparent);
+  color: var(--color-text);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.slotLabel {
+  text-align: center;
+  text-transform: capitalize;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text);
 }
 
 .hiddenInput {

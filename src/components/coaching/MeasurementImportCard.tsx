@@ -121,11 +121,20 @@ export default function MeasurementImportCard() {
           })),
         }),
       });
-      const body = (await res.json()) as { error?: string; inserted?: number; updated?: number };
+      const body = (await res.json()) as {
+        error?: string;
+        inserted?: number;
+        updated?: number;
+        collapsed?: number;
+      };
       if (!res.ok) throw new Error(body.error ?? "Could not save those measurements");
       const parts = [
         body.inserted ? `${body.inserted} added` : null,
         body.updated ? `${body.updated} updated` : null,
+        // Reported rather than hidden: an identical repeat is safe to collapse,
+        // but the count should still explain why fewer rows landed than were
+        // ticked.
+        body.collapsed ? `${body.collapsed} identical repeat${body.collapsed === 1 ? "" : "s"} merged` : null,
       ].filter(Boolean);
       setDone(parts.length ? parts.join(", ") + "." : "Nothing changed.");
       setRows(null);
@@ -143,6 +152,29 @@ export default function MeasurementImportCard() {
   };
 
   const undated = rows?.some((r) => r.include && !r.measuredOn) ?? false;
+
+  /**
+   * Ticked rows that would land on the same row in the table.
+   *
+   * One screenshot can easily produce two of these: a screen showing the same
+   * figure twice, two labels normalising to one metric, or several undated
+   * rows all inheriting the fallback date. The server refuses a batch where
+   * they disagree, but finding that out after pressing Import is late. This
+   * marks them while there is still something to click.
+   */
+  const collisions = new Set<string>();
+  if (rows) {
+    const seen = new Map<string, number>();
+    rows.forEach((r) => {
+      if (!r.include) return;
+      const key = `${r.measuredOn ?? fallbackDate}|${r.metric}`;
+      seen.set(key, (seen.get(key) ?? 0) + 1);
+    });
+    seen.forEach((count, key) => {
+      if (count > 1) collisions.add(key);
+    });
+  }
+  const collidesAt = (r: Row) => r.include && collisions.has(`${r.measuredOn ?? fallbackDate}|${r.metric}`);
 
   return (
     <div className={styles.wrap}>
@@ -189,7 +221,12 @@ export default function MeasurementImportCard() {
 
           <ul className={styles.rows}>
             {rows.map((r, i) => (
-              <li key={i} className={r.include ? styles.row : `${styles.row} ${styles.rowOff}`}>
+              <li
+                key={i}
+                className={[styles.row, r.include ? "" : styles.rowOff, collidesAt(r) ? styles.rowClash : ""]
+                  .filter(Boolean)
+                  .join(" ")}
+              >
                 <input
                   type="checkbox"
                   checked={r.include}
@@ -225,6 +262,11 @@ export default function MeasurementImportCard() {
                   </div>
                   {r.confidence === "low" && (
                     <span className={styles.lowFlag}>Unsure of this one - check it against the screenshot</span>
+                  )}
+                  {collidesAt(r) && (
+                    <span className={styles.clashFlag}>
+                      Same metric and date as another ticked row. They would overwrite each other.
+                    </span>
                   )}
                 </div>
               </li>

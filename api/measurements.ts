@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getSessionEmail } from "./_lib/session.js";
 import {
+  DuplicateKeyError,
   deleteMeasurement,
   listMeasurementMetrics,
   listMeasurements,
@@ -72,8 +73,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         res.status(400).json({ error });
         return;
       }
-      const result = await saveMeasurements(rows);
-      res.status(200).json({ ok: true, ...result });
+      try {
+        const result = await saveMeasurements(rows);
+        res.status(200).json({ ok: true, ...result });
+      } catch (error) {
+        // Refused rather than resolved: two different values for the same
+        // metric on the same day is a question only the athlete can answer,
+        // and picking one would hide the fact that a value was dropped.
+        if (error instanceof DuplicateKeyError) {
+          const detail = error.conflicts
+            .map((c) => `${c.key} (${c.values.join(" and ")})`)
+            .join("; ");
+          res.status(409).json({
+            error: `Two different values for the same reading: ${detail}. Fix or untick one before importing.`,
+          });
+          return;
+        }
+        throw error;
+      }
       return;
     }
 

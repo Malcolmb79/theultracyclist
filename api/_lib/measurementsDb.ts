@@ -87,37 +87,107 @@ export function ensureMeasurementsSchema(): Promise<void> {
   return schemaReady;
 }
 
+export class DuplicateKeyError extends Error {
+  constructor(readonly conflicts: { key: string; values: number[] }[]) {
+    super("The same measurement appears more than once with different values.");
+    this.name = "DuplicateKeyError";
+  }
+}
+
+const keyOf = (r: Measurement) => `${r.measuredOn}|${r.metric}|${r.source}`;
+
+/**
+ * Collapses repeats within one batch before any of it reaches the database.
+ *
+ * The table's unique key resolves collisions between imports, which is what
+ * makes re-uploading a screenshot safe. It does nothing for collisions inside
+ * a single import: row-by-row upserts would have the second row silently
+ * overwrite the first, and the count would report that as an update, so an
+ * approved value would disappear and the message would call it success.
+ *
+ * Two rows landing on the same key happens for ordinary reasons. A screen can
+ * show the same figure twice, two labels can normalise to one metric, and
+ * several undated rows all inherit the same fallback date.
+ *
+ * Identical repeats collapse silently, since there is nothing to decide.
+ * Genuine disagreements are refused rather than resolved: picking the first
+ * or the last would be arbitrary, and this is health data.
+ */
+function collapseWithinBatch(rows: Measurement[]): Measurement[] {
+  const byKey = new Map<string, Measurement[]>();
+  for (const row of rows) {
+    const key = keyOf(row);
+    const list = byKey.get(key);
+    if (list) list.push(row);
+    else byKey.set(key, [row]);
+  }
+
+  const conflicts: { key: string; values: number[] }[] = [];
+  const result: Measurement[] = [];
+
+  for (const [key, group] of byKey) {
+    const distinct = [...new Set(group.map((r) => `${r.value}|${r.unit ?? ""}`))];
+    if (distinct.length > 1) {
+      conflicts.push({ key: `${group[0].label} on ${group[0].measuredOn}`, values: group.map((r) => r.value) });
+      continue;
+    }
+    result.push(group[0]);
+    void key;
+  }
+
+  if (conflicts.length > 0) throw new DuplicateKeyError(conflicts);
+  return result;
+}
+
 /**
  * Writes approved rows. Returns how many were new versus updated, because
  * "imported 6" reads as success when 6 rows were silently overwritten.
  */
-export async function saveMeasurements(rows: Measurement[]): Promise<{ inserted: number; updated: number }> {
+export async function saveMeasurements(
+  rows: Measurement[],
+): Promise<{ inserted: number; updated: number; collapsed: number }> {
   await ensureMeasurementsSchema();
-  if (rows.length === 0) return { inserted: 0, updated: 0 };
+  if (rows.length === 0) return { inserted: 0, updated: 0, collapsed: 0 };
 
-  const pool = getPool();
+  const deduped = collapseWithinBatch(rows);
+  const collapsed = rows.length - deduped.length;
+
+  // One transaction for the batch. Without it a failure on row five leaves
+  // four rows committed and the caller told the import failed, which is the
+  // worst of both: the athlete re-imports and cannot tell what already
+  // landed.
+  const client = await getPool().connect();
   let inserted = 0;
   let updated = 0;
 
-  for (const row of rows) {
-    // xmax = 0 identifies a genuine insert; anything else was an update. It
-    // is the only way to tell the two apart from ON CONFLICT.
-    const result = await pool.query<{ was_insert: boolean }>(
-      `INSERT INTO measurements (measured_on, metric, label, value, unit, source, note)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       ON CONFLICT (measured_on, metric, source) DO UPDATE
-         SET label = EXCLUDED.label,
-             value = EXCLUDED.value,
-             unit  = EXCLUDED.unit,
-             note  = EXCLUDED.note
-       RETURNING (xmax = 0) AS was_insert`,
-      [row.measuredOn, row.metric, row.label, row.value, row.unit, row.source, row.note],
-    );
-    if (result.rows[0]?.was_insert) inserted++;
-    else updated++;
+  try {
+    await client.query("BEGIN");
+    for (const row of deduped) {
+      // xmax = 0 identifies a genuine insert; anything else was an update. It
+      // is the only way to tell the two apart from ON CONFLICT.
+      const result = await client.query<{ was_insert: boolean }>(
+        `INSERT INTO measurements (measured_on, metric, label, value, unit, source, note)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (measured_on, metric, source) DO UPDATE
+           SET label = EXCLUDED.label,
+               value = EXCLUDED.value,
+               unit  = EXCLUDED.unit,
+               note  = EXCLUDED.note
+         RETURNING (xmax = 0) AS was_insert`,
+        [row.measuredOn, row.metric, row.label, row.value, row.unit, row.source, row.note],
+      );
+      if (result.rows[0]?.was_insert) inserted++;
+      else updated++;
+    }
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
   }
 
-  return { inserted, updated };
+  return { inserted, updated, collapsed };
 }
 
 export type StoredMeasurement = Measurement & { id: number; createdTs: number };

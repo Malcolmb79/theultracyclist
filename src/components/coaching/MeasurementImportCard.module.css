@@ -171,6 +171,19 @@
   color: var(--color-amber);
 }
 
+/* A clash is not a warning about accuracy, it is two rows fighting over one
+   slot, so it gets the accent rather than the amber the low-confidence flag
+   uses. The row stays fully editable: the fix is usually to change a date or
+   a metric name, not to abandon the import. */
+.rowClash {
+  border-color: var(--color-accent);
+}
+
+.clashFlag {
+  font-size: 0.72rem;
+  color: var(--color-accent);
+}
+
 .saveButton {
   align-self: flex-start;
   background: var(--color-accent-2);

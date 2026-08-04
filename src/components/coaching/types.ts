@@ -9,7 +9,13 @@ export type TrainingPhase = "build" | "recovery" | "taper";
 // `layout` record for the fixed cards and a separate `widgets` array for
 // metrics) is what lets add/remove/resize/move/reorder work identically
 // across every widget on the Coaching page, matching Dashboard/Trends.
-export type FixedCardKind = "readiness" | "chat" | "trainingPlan" | "powerZones" | "trainingCalendar";
+export type FixedCardKind =
+  | "readiness"
+  | "chat"
+  | "trainingPlan"
+  | "powerZones"
+  | "trainingCalendar"
+  | "measurements";
 
 export type CoachingWidgetEntry = {
   id: string; // fixed cards use their own kind as the id (only one of each can exist); metrics get a generated id.
@@ -35,6 +41,7 @@ export const FIXED_CARD_LABELS: Record<FixedCardKind, string> = {
   trainingPlan: "Training Plan",
   powerZones: "Power Zones",
   trainingCalendar: "Training Calendar",
+  measurements: "Import Measurements",
 };
 
 export type CoachingSettings = {

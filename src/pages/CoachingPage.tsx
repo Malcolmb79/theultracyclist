@@ -4,6 +4,7 @@ import PowerZonesCard from "../components/coaching/PowerZonesCard";
 import TrainingPlanCard from "../components/coaching/TrainingPlanCard";
 import CoachChatCard from "../components/coaching/CoachChatCard";
 import TrainingCalendarCard from "../components/coaching/TrainingCalendarCard";
+import MeasurementImportCard from "../components/coaching/MeasurementImportCard";
 import CoachingWidget from "../components/coaching/CoachingWidget";
 import { useCoachingData } from "../components/coaching/useCoachingData";
 import { FIXED_CARD_LABELS, type CoachingWidgetEntry, type FixedCardKind, type NarrativeInput } from "../components/coaching/types";
@@ -45,6 +46,10 @@ const MIN_SIZE: Record<FixedCardKind, { minWidth: number; minHeight: number }> =
   trainingPlan: { minWidth: 260, minHeight: 240 },
   powerZones: { minWidth: 260, minHeight: 240 },
   trainingCalendar: { minWidth: 260, minHeight: 240 },
+  // Taller than the rest: the review table has to show several rows and
+  // their editable fields at once, or approving an import means scrolling
+  // a list you are meant to be checking.
+  measurements: { minWidth: 320, minHeight: 300 },
 };
 
 const DEFAULT_DESKTOP: Record<FixedCardKind, Rect> = {
@@ -53,6 +58,7 @@ const DEFAULT_DESKTOP: Record<FixedCardKind, Rect> = {
   trainingPlan: { x: 0, y: 280, width: 340, height: 380 },
   powerZones: { x: 360, y: 480, width: 380, height: 380 },
   trainingCalendar: { x: 760, y: 0, width: 340, height: 460 },
+  measurements: { x: 760, y: 480, width: 420, height: 420 },
 };
 
 const DEFAULT_MOBILE: Record<FixedCardKind, Rect> = {
@@ -61,9 +67,10 @@ const DEFAULT_MOBILE: Record<FixedCardKind, Rect> = {
   trainingPlan: { x: 0, y: 680, width: 320, height: 380 },
   powerZones: { x: 0, y: 1080, width: 320, height: 380 },
   trainingCalendar: { x: 0, y: 1480, width: 320, height: 380 },
+  measurements: { x: 0, y: 1880, width: 320, height: 420 },
 };
 
-const FIXED_CARD_ORDER: FixedCardKind[] = ["readiness", "chat", "trainingPlan", "powerZones", "trainingCalendar"];
+const FIXED_CARD_ORDER: FixedCardKind[] = ["readiness", "chat", "trainingPlan", "powerZones", "trainingCalendar", "measurements"];
 
 // New widgets (fixed cards re-added after removal, or metrics from the
 // catalog) cascade below whatever's already on the canvas rather than
@@ -369,6 +376,7 @@ function CoachingView() {
                 )}
                 {data.status === "ready" && entry.kind === "powerZones" && <PowerZonesCard settings={data.settings} recentRides={data.recentRides} />}
                 {entry.kind === "trainingCalendar" && <TrainingCalendarCard />}
+                {entry.kind === "measurements" && <MeasurementImportCard />}
               </CoachingWidget>
             );
           })}

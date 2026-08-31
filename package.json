@@ -12,27 +12,27 @@
   "dependencies": {
     "@resvg/resvg-js": "^2.6.2",
     "@simplewebauthn/browser": "^13.3.0",
-    "@simplewebauthn/server": "^13.3.2",
+    "@simplewebauthn/server": "^13.3.3",
     "fflate": "^0.8.3",
     "leaflet": "^1.9.4",
     "pdfjs-dist": "^6.2.108",
-    "pg": "^8.22.0",
+    "pg": "^8.23.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router-dom": "^7.18.2",
-    "redis": "^6.1.0",
-    "twilio": "^6.0.2"
+    "redis": "^6.2.1",
+    "twilio": "^6.1.0"
   },
   "devDependencies": {
-    "@types/leaflet": "^1.9.21",
+    "@types/leaflet": "^1.9.22",
     "@types/node": "^24.13.2",
-    "@types/pg": "^8.20.3",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
     "@vercel/node": "^5.8.26",
-    "@vitejs/plugin-react": "^6.0.3",
-    "oxlint": "^1.71.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "oxlint": "^1.80.0",
     "typescript": "~6.0.2",
-    "vite": "^8.1.1"
+    "vite": "^8.2.2"
   }
 }

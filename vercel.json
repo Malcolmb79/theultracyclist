@@ -45,7 +45,7 @@
   "crons": [
     {
       "path": "/api/cron-refresh",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 5 * * *"
     }
   ]
 }

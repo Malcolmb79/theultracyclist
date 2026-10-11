@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getJSON, setJSON } from "./_lib/kvStore.js";
+import { getJSON, readJSON, setJSON } from "./_lib/kvStore.js";
 import { getSessionEmail } from "./_lib/session.js";
 import { irelandDateStr } from "./_lib/timeContext.js";
 
@@ -126,7 +126,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const payload = req.body as HealthAutoExportPayload;
     const metrics = payload.data?.metrics ?? [];
-    const history = await readHistory();
+
+    // Merged and written straight back, so an unreachable store must fail the
+    // request - reading it as "no history" would overwrite the year with
+    // whatever this one payload holds, and answering ok after a failed write
+    // told the sender to discard data that was never saved.
+    let history: History;
+    try {
+      history = (await readJSON<History>(KV_KEY)) ?? readLegacyHistory();
+    } catch {
+      res.status(503).json({ error: "Storage unavailable" });
+      return;
+    }
 
     for (const metric of metrics) {
       const isSum = SUM_UNITS.has(metric.units);
@@ -154,7 +165,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const trimmed: History = {};
     for (const date of trimmedDates) trimmed[date] = history[date];
 
-    await setJSON(KV_KEY, trimmed);
+    if (!(await setJSON(KV_KEY, trimmed))) {
+      res.status(503).json({ error: "Storage unavailable" });
+      return;
+    }
 
     res.status(200).json({ ok: true, days: trimmedDates.length });
     return;

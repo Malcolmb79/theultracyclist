@@ -5,7 +5,7 @@ export type Widget = {
   source: "strava" | "whoop" | "health" | "weather" | "garmin";
   metric: string;
   label: string;
-  viewType: "stat" | "chart" | "timeline" | "ring" | "combo" | "rings" | "healthCalendar" | "caloriesBalance" | "macroSplit" | "allActivity" | "liveTracker";
+  viewType: "stat" | "chart" | "timeline" | "ring" | "combo" | "rings" | "healthCalendar" | "caloriesBalance" | "macroSplit" | "allActivity" | "liveTracker" | "bodyBattery";
   x?: number;
   y?: number;
   width?: number;
@@ -64,6 +64,11 @@ export const WHOOP_RINGS_COMBO_ID = "whoop.sleepRecoveryStrainRings";
 // Sleep/HRV/Weight all shown per day (small color dots), rather than one
 // metric per calendar the way Trends' calendar view works.
 export const HEALTH_CALENDAR_ID = "whoop.healthCalendar";
+
+// Special catalog entry: one live 0-100 energy level for the day - Garmin's
+// own body battery when synced, else estimated from Whoop recovery/strain and
+// Apple Health energy (see utils/bodyBattery.ts). The id predates Garmin.
+export const BODY_BATTERY_ID = "whoop.bodyBattery";
 
 // Special catalog entry: dietary (consumed) vs active+basal (burned)
 // energy for the day, side by side with the net difference - rather than

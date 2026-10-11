@@ -24,6 +24,7 @@
     "twilio": "^6.0.2"
   },
   "devDependencies": {
+    "@flow-js/garmin-connect": "^1.6.24",
     "@types/leaflet": "^1.9.21",
     "@types/node": "^24.13.2",
     "@types/pg": "^8.20.3",

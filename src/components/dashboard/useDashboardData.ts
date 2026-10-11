@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { WHOOP_STRAIN_RECOVERY_COMBO_ID, WHOOP_RINGS_COMBO_ID, HEALTH_CALENDAR_ID, CALORIES_BALANCE_ID, MACRO_SPLIT_ID, PERFORMANCE_CHART_ID, WEATHER_ID, GARMIN_LIVETRACK_ID, LIVE_TRACKER_ID, ALL_ACTIVITY_ID } from "./types";
+import { WHOOP_STRAIN_RECOVERY_COMBO_ID, WHOOP_RINGS_COMBO_ID, HEALTH_CALENDAR_ID, BODY_BATTERY_ID, CALORIES_BALANCE_ID, MACRO_SPLIT_ID, PERFORMANCE_CHART_ID, WEATHER_ID, GARMIN_LIVETRACK_ID, LIVE_TRACKER_ID, ALL_ACTIVITY_ID } from "./types";
 import { useUnits } from "../../context/UnitsContext";
 import { convertMetricSeries, convertValueUnit } from "../../utils/units";
 import { computeBmi, findWeightMetricName } from "../../utils/bmi";
@@ -132,6 +132,7 @@ export function useDashboardData(raw: RawSourcesState): DashboardDataState {
           { id: WHOOP_STRAIN_RECOVERY_COMBO_ID, source: "whoop", label: "Strain & Recovery", unit: "", series: [], statOnly: true },
           { id: WHOOP_RINGS_COMBO_ID, source: "whoop", label: "Sleep, Recovery & Strain", unit: "", series: [], statOnly: true },
           { id: HEALTH_CALENDAR_ID, source: "whoop", label: "Health Calendar", unit: "", series: [], statOnly: true },
+          { id: BODY_BATTERY_ID, source: "whoop", label: "Body Battery", unit: "", series: [], statOnly: true },
         );
       }
 
@@ -245,6 +246,13 @@ export function useDashboardData(raw: RawSourcesState): DashboardDataState {
         const hasMacroData = MACRO_ORDER.some((key) => findMacroField(catalog, key) != null);
         if (hasMacroData) {
           metrics.push({ id: MACRO_SPLIT_ID, source: "health", label: "Macro split (Carbs/Fat/Protein)", unit: "", series: [], statOnly: true });
+        }
+
+        // Garmin's readings arrive through the same history (see
+        // scripts/garmin-sync.mjs), so the battery is offered on them alone
+        // for an athlete who has no Whoop to hang it on.
+        if (catalog.some((c) => c.name === "garmin_body_battery") && !metrics.some((m) => m.id === BODY_BATTERY_ID)) {
+          metrics.push({ id: BODY_BATTERY_ID, source: "health", label: "Body Battery", unit: "", series: [], statOnly: true });
         }
       }
 

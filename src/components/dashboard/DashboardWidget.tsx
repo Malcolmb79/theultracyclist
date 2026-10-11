@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { formatDate } from "../../utils/formatDate";
 import { relativeDayLabel } from "../../utils/relativeDate";
 import { recoveryColor } from "../../utils/recoveryColor";
-import { irelandTodayDateStr } from "../../utils/irelandDate";
+import { irelandDateStr, irelandTodayDateStr, whoopDayStr } from "../../utils/irelandDate";
 import { estimateCalorieBurnNow, DEFAULT_CALORIE_BURN_ESTIMATE } from "../../utils/estimateCalorieBurn";
+import { computeBodyBattery, type GarminBatteryInputs } from "../../utils/bodyBattery";
 import { useIsMobile } from "../../utils/useIsMobile";
 import { useMeasuredWidth } from "../../utils/useMeasuredWidth";
 import { useCanvasItem } from "../../utils/useCanvasItem";
@@ -14,6 +15,7 @@ import RingGauge from "./RingGauge";
 import BmiChart from "./BmiChart";
 import HealthCalendar from "./HealthCalendar";
 import CaloriesBalanceCard from "./CaloriesBalanceCard";
+import BodyBatteryCard from "./BodyBatteryCard";
 import MacroSplitCard from "./MacroSplitCard";
 import PerformanceChart from "./PerformanceChart";
 import WeatherCard from "./WeatherCard";
@@ -31,6 +33,7 @@ import {
   WHOOP_STRAIN_RECOVERY_COMBO_ID,
   WHOOP_RINGS_COMBO_ID,
   HEALTH_CALENDAR_ID,
+  BODY_BATTERY_ID,
   CALORIES_BALANCE_ID,
   MACRO_SPLIT_ID,
   PERFORMANCE_CHART_ID,
@@ -181,6 +184,13 @@ const DEFAULT_HEALTH_CALENDAR_HEIGHT = 480;
 // own (slightly taller) floor rather than clipping at MIN_BMI_HEIGHT.
 const MIN_CALORIES_HEIGHT = 240;
 const MIN_CALORIES_WIDTH = 220;
+// Gauge, headline and the three outlook figures fit at the floor; the
+// per-term breakdown underneath only appears once there's room for it
+// (see BodyBatteryCard), which the default height leaves.
+const MIN_BODY_BATTERY_HEIGHT = 200;
+const MIN_BODY_BATTERY_WIDTH = 240;
+const DEFAULT_BODY_BATTERY_WIDTH = 340;
+const DEFAULT_BODY_BATTERY_HEIGHT = 380;
 // The donut plus a three-row legend with its own header - taller than the
 // calories card, and wide enough that "Carbohydrates (000g)" doesn't have to
 // ellipsis away the grams.
@@ -270,17 +280,18 @@ export default function DashboardWidget({
   const isHealthCalendar = widget.metric === HEALTH_CALENDAR_ID;
   const isCaloriesBalance = widget.metric === CALORIES_BALANCE_ID;
   const isMacroSplit = widget.metric === MACRO_SPLIT_ID;
+  const isBodyBattery = widget.metric === BODY_BATTERY_ID;
 
   // Ticks every minute so the estimated-burn fallback below visibly climbs
   // through the day while the page is left open, same pattern as
-  // WeatherCard's own live clock - only actually running for the one
-  // widget type that needs it.
+  // WeatherCard's own live clock - only actually running for the two
+  // widget types that need it (the body battery drains on the same clock).
   const [estimateNow, setEstimateNow] = useState(() => new Date());
   useEffect(() => {
-    if (!isCaloriesBalance) return;
+    if (!isCaloriesBalance && !isBodyBattery) return;
     const interval = setInterval(() => setEstimateNow(new Date()), 60_000);
     return () => clearInterval(interval);
-  }, [isCaloriesBalance]);
+  }, [isCaloriesBalance, isBodyBattery]);
   const isPerformanceChart = widget.metric === PERFORMANCE_CHART_ID;
   const isWeather = widget.metric === WEATHER_ID;
   const isGarminLiveTrack = widget.metric === GARMIN_LIVETRACK_ID;
@@ -289,7 +300,7 @@ export default function DashboardWidget({
   const detailKind = DETAIL_KIND_BY_METRIC[widget.metric];
   const [openDetail, setOpenDetail] = useState<WhoopDetailKind | null>(null);
   const fullMetric =
-    isCombo || isRings || isHealthCalendar || isCaloriesBalance || isMacroSplit || isPerformanceChart || isWeather || isGarminLiveTrack || isLiveTracker || isAllActivity
+    isCombo || isRings || isHealthCalendar || isBodyBattery || isCaloriesBalance || isMacroSplit || isPerformanceChart || isWeather || isGarminLiveTrack || isLiveTracker || isAllActivity
       ? undefined
       : metricById.get(widget.metric);
   const isMobile = useIsMobile();
@@ -437,6 +448,61 @@ export default function DashboardWidget({
     protein: (goals?.proteinG as number | undefined) ?? null,
   };
 
+  // Body battery: the morning charge comes from whichever cycle was scored
+  // most recently (same fallback the rings use, since recovery and sleep lag
+  // the watch by hours), but strain is only "today's" if the cycle really is
+  // today's - yesterday's strain read as today's would drain a full day's
+  // training from a morning that hasn't started.
+  const consumedToday = consumedByDate.get(today) ?? null;
+  // Garmin's own readings for today (synced into the health history by
+  // scripts/garmin-sync.mjs). Without a body battery reading for TODAY the
+  // Whoop-based estimate is used, rather than showing yesterday's level as now.
+  const garminToday = useMemo((): GarminBatteryInputs | null => {
+    if (!isBodyBattery) return null;
+    const read = (name: string): number | null =>
+      metricById.get(`health.garmin_${name}`)?.series.find((p) => p.date.slice(0, 10) === today)?.value ?? null;
+    const current = read("body_battery");
+    if (current == null) return null;
+    return {
+      current,
+      currentAtMinutes: read("body_battery_at"),
+      wake: read("body_battery_wake"),
+      charged: read("body_battery_charged"),
+      drained: read("body_battery_drained"),
+      sleepScore: read("sleep_score"),
+      hrv: read("hrv"),
+      restingHr: read("resting_hr"),
+      stress: read("stress"),
+      readiness: read("training_readiness"),
+    };
+  }, [isBodyBattery, metricById, today]);
+  const bodyBattery = useMemo(() => {
+    if (!isBodyBattery) return null;
+    if (garminToday == null && whoopHistory.length === 0 && activeToday == null) return null;
+    const byDay = new Map(whoopHistory.map((d) => [whoopDayStr(new Date(d.date)), d]));
+    const dayBefore = (dateStr: string, days: number) => irelandDateStr(new Date(new Date(`${dateStr}T12:00:00Z`).getTime() - days * 86400000));
+    const yesterday = dayBefore(today, 1);
+    const latest = latestWhoop(whoopHistory);
+    const recentStrains = [1, 2, 3]
+      .map((n) => byDay.get(dayBefore(today, n))?.strain?.score)
+      .filter((s): s is number => s != null);
+    return computeBodyBattery(
+      {
+        garmin: garminToday,
+        recoveryScore: latest.recovery?.value.score ?? null,
+        sleepPerformance: latest.sleep?.value.performancePercent ?? null,
+        todayStrain: byDay.get(today)?.strain?.score ?? null,
+        yesterdayStrain: byDay.get(yesterday)?.strain?.score ?? null,
+        recentAvgStrain: recentStrains.length > 0 ? recentStrains.reduce((sum, s) => sum + s, 0) / recentStrains.length : null,
+        activeKcalToday: activeToday,
+        consumedKcalToday: consumedToday,
+        burnedKcalToday: hasRealBurnToday ? realBurnedToday : estimatedBurnedToday,
+        wakeTime: caloriesBurnSettings?.wakeTime ?? DEFAULT_CALORIE_BURN_ESTIMATE.wakeTime,
+      },
+      estimateNow,
+    );
+  }, [isBodyBattery, garminToday, whoopHistory, today, activeToday, consumedToday, hasRealBurnToday, realBurnedToday, estimatedBurnedToday, caloriesBurnSettings?.wakeTime, estimateNow]);
+
   const minHeight = isAllActivity
     ? MIN_ALL_ACTIVITY_HEIGHT
     : isCombo
@@ -449,6 +515,8 @@ export default function DashboardWidget({
           ? MIN_HEALTH_CALENDAR_HEIGHT
           : isCaloriesBalance
             ? MIN_CALORIES_HEIGHT
+            : isBodyBattery
+              ? MIN_BODY_BATTERY_HEIGHT
             : isMacroSplit
               ? MIN_MACRO_HEIGHT
             : isPerformanceChart
@@ -472,6 +540,8 @@ export default function DashboardWidget({
         ? MIN_HEALTH_CALENDAR_WIDTH
         : isCaloriesBalance
           ? MIN_CALORIES_WIDTH
+          : isBodyBattery
+            ? MIN_BODY_BATTERY_WIDTH
           : isMacroSplit
             ? MIN_MACRO_WIDTH
           : isPerformanceChart
@@ -489,6 +559,8 @@ export default function DashboardWidget({
     ? DEFAULT_ALL_ACTIVITY_WIDTH
     : isHealthCalendar
     ? DEFAULT_HEALTH_CALENDAR_WIDTH
+    : isBodyBattery
+      ? DEFAULT_BODY_BATTERY_WIDTH
     : isMacroSplit
       ? DEFAULT_MACRO_WIDTH
     : isPerformanceChart
@@ -506,6 +578,8 @@ export default function DashboardWidget({
     ? DEFAULT_ALL_ACTIVITY_HEIGHT
     : isHealthCalendar
     ? DEFAULT_HEALTH_CALENDAR_HEIGHT
+    : isBodyBattery
+      ? DEFAULT_BODY_BATTERY_HEIGHT
     : isMacroSplit
       ? DEFAULT_MACRO_HEIGHT
     : isPerformanceChart
@@ -542,7 +616,9 @@ export default function DashboardWidget({
     // Exempt for the same reason as the others: capped to 200px the row
     // list would show about three of its eleven readings.
     !isLiveTracker &&
-    !isWeather
+    !isWeather &&
+    // The gauge plus outlook row alone need the full floor height.
+    !isBodyBattery
       ? MOBILE_CAP_HEIGHT
       : Infinity;
 
@@ -719,6 +795,7 @@ export default function DashboardWidget({
               !isRings &&
               !isBmi &&
               !isHealthCalendar &&
+              !isBodyBattery &&
               !isCaloriesBalance &&
               !isMacroSplit &&
               !isPerformanceChart &&
@@ -801,6 +878,8 @@ export default function DashboardWidget({
               bmiByDate={bmiByDate}
               height={contentHeight}
             />
+          ) : isBodyBattery ? (
+            <BodyBatteryCard battery={bodyBattery} availableHeight={contentHeight} />
           ) : isCaloriesBalance ? (
             <CaloriesBalanceCard
               consumed={consumedLatest}

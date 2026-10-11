@@ -26,3 +26,6 @@ dist-ssr
 .vercel
 .env*
 !.env.example
+
+# Garmin sync tokens and config (scripts/garmin-sync.mjs)
+.garmin/

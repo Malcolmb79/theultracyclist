@@ -25,7 +25,7 @@ export function readImageFile(file: File): Promise<HTMLImageElement> {
 // photos where the subject wasn't dead-center), resizes to a small fixed
 // size, and encodes as a JPEG data URL - keeps a profile picture to a few KB
 // regardless of the source photo's resolution, since it's stored directly
-// inside the settings blob (see api/coaching-settings.ts) rather than in
+// inside the settings blob (see api/_routes/coaching-settings.ts) rather than in
 // separate file storage.
 export function cropImageToDataUrl(img: HTMLImageElement, crop: CropRect): string {
   const canvas = document.createElement("canvas");

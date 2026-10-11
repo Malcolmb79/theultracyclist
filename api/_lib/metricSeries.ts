@@ -1,7 +1,7 @@
-import { fetchWhoopHistory } from "../whoop-data.js";
-import { fetchStravaRides } from "../strava-activities.js";
-import { fetchHealthHistory } from "../health-data.js";
-import { fetchCoachingSettings } from "../coaching-settings.js";
+import { fetchWhoopHistory } from "../_routes/whoop-data.js";
+import { fetchStravaRides } from "../_routes/strava-activities.js";
+import { fetchHealthHistory } from "../_routes/health-data.js";
+import { fetchCoachingSettings } from "../_routes/coaching-settings.js";
 import { irelandDateStr, whoopDayStr } from "./timeContext.js";
 import { convertValueUnit, type UnitSystem } from "./units.js";
 import { isWeightFieldName } from "./weightField.js";

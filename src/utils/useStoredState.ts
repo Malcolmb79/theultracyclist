@@ -5,7 +5,7 @@ import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
  *
  * localStorage rather than the server: these are per-viewer display
  * preferences, not part of the layout the athlete arranges for everyone
- * (see api/live-tracker.ts for that). Someone dot-watching who only cares
+ * (see api/_routes/live-tracker.ts for that). Someone dot-watching who only cares
  * about heart rate should be able to say so without it changing what
  * anybody else sees.
  *

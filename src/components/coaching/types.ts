@@ -57,7 +57,7 @@ export type CoachingSettings = {
   phase?: TrainingPhase;
   widgets?: CoachingWidgetEntry[];
   // Free-text standing instructions the athlete sets once, folded into
-  // every coach prompt server-side - see api/coaching-settings.ts.
+  // every coach prompt server-side - see api/_routes/coaching-settings.ts.
   customRules?: string;
   // A small square JPEG data URL, already resized client-side (see
   // src/utils/resizeImage.ts) before being saved - shown in ProfileMenu.
@@ -87,7 +87,7 @@ export type CoachingSettings = {
    * The athlete's TrainingPeaks Premium calendar feed (webcal:// or https://).
    * TrainingPeaks has no personal API, so this feed is the only automatable
    * way in - read-only, and never merged into saved workouts. See
-   * api/trainingpeaks-calendar.ts.
+   * api/_routes/trainingpeaks-calendar.ts.
    */
   trainingPeaksIcsUrl?: string;
 };
@@ -127,7 +127,7 @@ export type WeeklyProgress = {
   rideCount: number;
 };
 
-// Mirrors NarrativeInput in api/coaching-narrative.ts - kept as an
+// Mirrors NarrativeInput in api/_routes/coaching-narrative.ts - kept as an
 // independent local type rather than a cross-directory import, matching how
 // the rest of this project keeps the frontend and api/ TypeScript projects
 // decoupled (see useDashboardData.ts's own local Whoop* types).

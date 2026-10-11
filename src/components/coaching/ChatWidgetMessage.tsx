@@ -6,7 +6,7 @@ import styles from "./ChatWidgetMessage.module.css";
 
 /**
  * Expands the `[widget:<metric>:<view>]` markers the coach places in a reply
- * (see the show_widget tool in api/coaching-chat.ts) into the actual dashboard
+ * (see the show_widget tool in api/_routes/coaching-chat.ts) into the actual dashboard
  * widget, rendered between the surrounding prose.
  *
  * A marker rather than a second field on the response because

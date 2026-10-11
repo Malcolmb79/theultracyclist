@@ -1,7 +1,7 @@
-import { fetchWhoopHistory } from "../whoop-data.js";
-import { fetchHealthHistory } from "../health-data.js";
-import { fetchCoachingSettings } from "../coaching-settings.js";
-import { fetchGoals } from "../trends-goals.js";
+import { fetchWhoopHistory } from "../_routes/whoop-data.js";
+import { fetchHealthHistory } from "../_routes/health-data.js";
+import { fetchCoachingSettings } from "../_routes/coaching-settings.js";
+import { fetchGoals } from "../_routes/trends-goals.js";
 import { resolveMetric } from "./metricSeries.js";
 import { irelandDateStr, irelandTodayDateStr } from "./timeContext.js";
 import { convertValueUnit, type UnitSystem } from "./units.js";

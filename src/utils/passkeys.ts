@@ -1,7 +1,7 @@
 import { startRegistration, startAuthentication, browserSupportsWebAuthn } from "@simplewebauthn/browser";
 
 // All passkey traffic goes to the one endpoint, selected by action - see
-// api/passkeys.ts for why it is a single function.
+// api/_routes/passkeys.ts for why it is a single function.
 const ENDPOINT = "/api/passkeys";
 
 export type PasskeySummary = { id: string; label: string; createdAt: string; lastUsedAt?: string };

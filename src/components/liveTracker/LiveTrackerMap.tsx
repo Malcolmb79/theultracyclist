@@ -33,9 +33,9 @@ const MAX_ZOOM = 18;
 type WeatherState = { temp: number; windSpeed: number; windDirection: number; code: number } | null;
 type WindClass = "headwind" | "tailwind" | "crosswind";
 
-// Mirrors the parts of api/live.json.ts's response the map reads -
+// Mirrors the parts of api/_routes/live.json.ts's response the map reads -
 // duplicated per this project's api/src decoupling convention, same as
-// LiveTrackerPage does for api/live-tracker.ts.
+// LiveTrackerPage does for api/_routes/live-tracker.ts.
 export type LiveTelemetry = {
   live: {
     stale: boolean;
@@ -129,7 +129,7 @@ function formatClock(seconds: number): string {
 // timer_s/speed_mps/power_w/hr_bpm/cad_rpm/batt_pct (see
 // connectiq/edge-tracker/source/EdgeTrackerView.mc), and the rolling
 // averages here are derived from those same columns server-side in
-// api/live.json.ts rather than in the browser. Nothing is shown that the
+// api/_routes/live.json.ts rather than in the browser. Nothing is shown that the
 // device doesn't measure.
 //
 // `value` returns null whenever the reading is missing - a dropped HR
@@ -236,7 +236,7 @@ interface LiveTrackerMapProps {
   totalKm: number;
   weather: WeatherState;
   telemetry: LiveTelemetry;
-  // Where the ride is in its lifecycle, from api/live-tracker.ts. Drives the
+  // Where the ride is in its lifecycle, from api/_routes/live-tracker.ts. Drives the
   // LIVE badge - deliberately absent rather than greyed when nothing is
   // arriving, since a permanent badge that only changes colour still reads
   // as "live" at a glance - and whether the readings are captioned as

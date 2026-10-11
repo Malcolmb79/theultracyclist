@@ -1,9 +1,9 @@
-import { fetchWhoopHistory } from "../whoop-data.js";
-import { fetchStravaRides, type Ride } from "../strava-activities.js";
-import { fetchCoachingSettings } from "../coaching-settings.js";
-import { fetchGoals } from "../trends-goals.js";
-import { fetchHealthHistory } from "../health-data.js";
-import type { ChatContext } from "../coaching-chat.js";
+import { fetchWhoopHistory } from "../_routes/whoop-data.js";
+import { fetchStravaRides, type Ride } from "../_routes/strava-activities.js";
+import { fetchCoachingSettings } from "../_routes/coaching-settings.js";
+import { fetchGoals } from "../_routes/trends-goals.js";
+import { fetchHealthHistory } from "../_routes/health-data.js";
+import type { ChatContext } from "../_routes/coaching-chat.js";
 import { irelandDateStr, irelandTodayDateStr, whoopDayStr } from "./timeContext.js";
 import { isWeightFieldName } from "./weightField.js";
 

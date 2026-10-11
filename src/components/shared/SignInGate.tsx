@@ -5,7 +5,7 @@ import styles from "./SignInGate.module.css";
 const AUTH_ERROR_MESSAGES: Record<string, string> = {
   denied: "That Microsoft account isn't authorized for this dashboard.",
   failed: "Sign-in failed. Please try again.",
-  // api/auth-callback.ts redirects here when PASSKEY_ONLY is set, so landing
+  // api/_routes/auth-callback.ts redirects here when PASSKEY_ONLY is set, so landing
   // back on the gate has an explanation rather than looking like a failure.
   "passkey-only": "Microsoft sign-in is switched off - use your passkey.",
 };

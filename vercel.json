@@ -11,6 +11,10 @@
   ],
   "rewrites": [
     {
+      "source": "/api/:route",
+      "destination": "/api/router?__route=:route"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
@@ -38,7 +42,7 @@
     }
   ],
   "functions": {
-    "api/widget-image.ts": {
+    "api/router.ts": {
       "includeFiles": "api/_fonts/**"
     }
   },

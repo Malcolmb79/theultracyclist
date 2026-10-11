@@ -171,7 +171,7 @@ function CoachingView() {
     targetTime: data.status === "ready" ? data.settings.caloriesBurnTargetTime : undefined,
   };
 
-  // Trusts the server's list as-is (see api/coaching-settings.ts's one-time
+  // Trusts the server's list as-is (see api/_routes/coaching-settings.ts's one-time
   // migration) rather than re-seeding missing fixed cards here on every
   // render - that would make removing one impossible, since it'd get
   // silently re-added on the very next render after the save round-trips.

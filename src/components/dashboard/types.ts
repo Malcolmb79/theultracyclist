@@ -107,5 +107,5 @@ export const LIVE_TRACKER_ID = "garmin.liveTracker";
 
 // Special catalog entry: every recorded session from every source, not just
 // the bike rides the rest of the dashboard is built on - see
-// api/activities.ts for why that filtering exists everywhere else.
+// api/_routes/activities.ts for why that filtering exists everywhere else.
 export const ALL_ACTIVITY_ID = "activity.all";

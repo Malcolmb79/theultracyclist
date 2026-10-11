@@ -86,7 +86,7 @@ export type RawSourcesState =
     };
 
 // `device` scopes the coaching-settings widgets/layout fields (see
-// api/coaching-settings.ts) so a phone/tablet/PC each keep their own
+// api/_routes/coaching-settings.ts) so a phone/tablet/PC each keep their own
 // Coaching-page card arrangement - the other three fetches have nothing
 // device-specific about them.
 export function useRawSources(device: DeviceCategory): RawSourcesState {

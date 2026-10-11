@@ -25,7 +25,7 @@ interface LiveTrackerWidgetProps {
   // Only the signed-in owner can drag/resize - public visitors get a plain
   // positioned card rendering the same saved layout read-only, since there's
   // no per-visitor preference here (see LiveTrackerLayout in
-  // api/live-tracker.ts).
+  // api/_routes/live-tracker.ts).
   interactive: boolean;
   // Phone/tablet: full-width in normal document flow instead of absolutely
   // positioned - same pattern as DashboardWidget/CoachingWidget.

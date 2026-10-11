@@ -12,7 +12,7 @@ import styles from "./SignInGate.module.css";
  * rather than raise it. This asks for the one thing that's missing.
  *
  * Verifying reuses the ordinary passkey sign-in, which re-issues the session
- * cookie tagged as passkey-authenticated (see api/passkeys.ts). So the effect
+ * cookie tagged as passkey-authenticated (see api/_routes/passkeys.ts). So the effect
  * of stepping up is simply a better session, in place.
  */
 export default function PasskeyStepUp({ title }: { title: string }) {

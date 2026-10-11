@@ -16,7 +16,7 @@ import styles from "./ProgressPhotos.module.css";
 const ANGLES = ["front", "side", "back"] as const;
 type Angle = (typeof ANGLES)[number];
 
-/** Zoom and offset applied when a photo is displayed - see api/progress-photos.ts. */
+/** Zoom and offset applied when a photo is displayed - see api/_routes/progress-photos.ts. */
 interface PhotoFit {
   s: number;
   x: number;
@@ -259,7 +259,7 @@ export default function ProgressPhotos({ latestWeightKg, weightUnitLabel }: { la
 
   // Alignment carries no image - the photo it adjusts is already stored, so
   // resending several hundred KB of base64 to move it 3% left would be
-  // absurd. The endpoint merges by date (see api/progress-photos.ts).
+  // absurd. The endpoint merges by date (see api/_routes/progress-photos.ts).
   async function saveFit(date: string, angle: Angle, fit: PhotoFit) {
     setError(null);
     try {

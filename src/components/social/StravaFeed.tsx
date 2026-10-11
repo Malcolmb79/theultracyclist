@@ -68,7 +68,7 @@ export default function StravaFeed() {
     let cancelled = false;
 
     // Photos the athlete chose to publish, keyed by ride id. Unauthenticated
-    // callers only ever receive rides marked public (see api/strava-photos.ts),
+    // callers only ever receive rides marked public (see api/_routes/strava-photos.ts),
     // so this is safe to fetch from the public site.
     fetch("/api/strava-photos?action=saved")
       .then((r) => (r.ok ? r.json() : null))

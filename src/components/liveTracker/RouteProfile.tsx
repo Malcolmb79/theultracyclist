@@ -26,7 +26,7 @@ function sample(points: RoutePoint[], maxPoints: number): RoutePoint[] {
 }
 
 // Linear interpolation of elevation at a given distance, between the two
-// sampled points bracketing it - same approach as api/live-tracker.ts's
+// sampled points bracketing it - same approach as api/_routes/live-tracker.ts's
 // interpolatePosition, just for elevation instead of lat/lon.
 function elevationAtKm(points: RoutePoint[], km: number): number | null {
   if (points.length === 0) return null;

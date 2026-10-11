@@ -197,8 +197,8 @@ export async function insertSamples(samples: TrackerSample[]): Promise<number> {
 }
 
 // No Connect IQ sample for this long and position falls back to Traccar -
-// shared by every consumer of the merge rule (api/live.json.ts and
-// api/live-tracker.ts) so the two can't quietly drift out of sync with each
+// shared by every consumer of the merge rule (api/_routes/live.json.ts and
+// api/_routes/live-tracker.ts) so the two can't quietly drift out of sync with each
 // other about what counts as stale.
 export const EDGE_STALE_S = 180;
 

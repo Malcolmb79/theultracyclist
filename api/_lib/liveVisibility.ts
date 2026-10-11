@@ -6,7 +6,7 @@ import { getSessionEmail } from "./session.js";
  * Settings' "Show live page to visitors" toggle, applied to every endpoint
  * that can answer "where is he".
  *
- * It used to live only in api/live-tracker.ts, which meant switching the page
+ * It used to live only in api/_routes/live-tracker.ts, which meant switching the page
  * off hid the page and nothing else: /api/live.json still returned live
  * lat/lon and /api/history.json still returned the whole track, both with
  * Access-Control-Allow-Origin: *. Anyone who had loaded the page once kept a

@@ -6,7 +6,7 @@ import styles from "./RidePhotosSection.module.css";
  *
  * Chosen photos are copied into the app's own storage rather than linked:
  * Strava's photo URLs are signed and expire, so a saved link would work for a
- * while and then quietly break (see api/strava-photos.ts).
+ * while and then quietly break (see api/_routes/strava-photos.ts).
  */
 
 type Candidate = {

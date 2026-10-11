@@ -44,7 +44,7 @@ export function useAuthSession(): AuthState {
 
     check();
 
-    // Each check renews the session server-side (see api/auth-session.ts), so
+    // Each check renews the session server-side (see api/_routes/auth-session.ts), so
     // this doubles as the keepalive: the dashboard stays signed in while it is
     // being used, and lapses normally once it isn't.
     const interval = setInterval(check, KEEPALIVE_MS);

@@ -1,7 +1,7 @@
 // Ordered questions for the Coaching page's interactive "Weekly check-in"
 // flow (see CoachChatCard.tsx) - same fields, same order, as the static
 // template WhatsApp's "checkin" trigger returns (CHECKIN_TEMPLATE in
-// api/whatsapp-webhook.ts), just asked one at a time instead of dumped as
+// api/_routes/whatsapp-webhook.ts), just asked one at a time instead of dumped as
 // a single fill-in-the-blanks block. Pictures aren't asked here - there's
 // no photo upload in this chat, so buildWeeklyCheckinMessage appends a
 // plain reminder for those instead.
@@ -36,7 +36,7 @@ const MEASUREMENT_START_INDEX = 17; // "Thigh measurement:" onward, see above
 
 // Assembles the collected answers back into the same field order/structure
 // as the static WhatsApp template, so whoever receives it (via
-// api/send-checkin.ts) sees a familiar, consistent format regardless of
+// api/_routes/send-checkin.ts) sees a familiar, consistent format regardless of
 // whether it came from WhatsApp directly or this page.
 export function buildWeeklyCheckinMessage(answers: string[]): string {
   const lines: string[] = ["*Weekly check-in*", ""];

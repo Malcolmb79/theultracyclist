@@ -24,7 +24,7 @@ The baseline scan spiders and passively inspects responses — headers, cookies,
 information disclosure. It does not send attack payloads.
 
 A full active scan would, and the public endpoints here write to the tracker
-database. `api/ingest.ts` is bearer-token protected, but pointing an active
+database. `api/_routes/ingest.ts` is bearer-token protected, but pointing an active
 scanner at the record's own data is a poor trade for findings a baseline
 already surfaces.
 

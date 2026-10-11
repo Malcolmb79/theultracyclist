@@ -1,0 +1,211 @@
+import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { getJSON, readJSON, setJSON } from "../_lib/kvStore.js";
+import { getSessionEmail } from "../_lib/session.js";
+import { irelandDateStr } from "../_lib/timeContext.js";
+
+// Active retention cap - the POST handler below trims stored history to the
+// most recent MAX_DAYS on every ingest, permanently discarding older days.
+// Raised from 90 to keep a full year available to the coach; the JSON is
+// small so storage cost isn't a concern.
+const MAX_DAYS = 365;
+
+const KV_KEY = "APPLE_HEALTH_HISTORY";
+
+// Units that represent a cumulative daily total get summed across same-day
+// samples (steps, calories, minutes, grams of a nutrient); anything else
+// (weight, heart rate, percentages, VO2 max) is a point-in-time reading and
+// gets averaged across the day's samples instead.
+const SUM_UNITS = new Set(["kcal", "count", "min", "g", "mg", "km", "mi", "IU", "mcg"]);
+
+export type MetricValue = { value: number; unit: string };
+export type DayMetrics = Record<string, MetricValue>;
+export type History = Record<string, DayMetrics>;
+
+type HealthAutoExportPayload = {
+  data?: {
+    metrics?: {
+      name: string;
+      units: string;
+      data: { qty?: number; date: string; source?: string }[];
+    }[];
+  };
+};
+
+// One-time migration fallback: this key used to live in a Vercel project
+// env var, only visible to the running server after a full redeploy (see
+// the git history for _lib/vercelEnvStore.ts) - since Apple Health syncs
+// happen far more often than "low write frequency" assumed when every
+// other route was migrated off this same mechanism, a sync could easily
+// land while a previous sync's redeploy was still in flight, silently
+// clobbering it (each write replaced the whole env var, and process.env is
+// a build-time snapshot, so nothing was ever lost more visibly than "the
+// dashboard just doesn't show it"). Until the first post-migration write
+// lands in Redis, fall back to whatever's still in the env var so nothing
+// synced before the cutover disappears.
+function readLegacyHistory(): History {
+  try {
+    const raw = process.env.APPLE_HEALTH_HISTORY;
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as History) : {};
+  } catch {
+    return {};
+  }
+}
+
+async function readHistory(): Promise<History> {
+  return (await getJSON<History>(KV_KEY)) ?? readLegacyHistory();
+}
+
+/**
+ * Loose match between a requested metric name and a stored field name.
+ *
+ * Apple Health field names come from whichever app wrote them
+ * ("weight_body_mass", "step_count", "dietary_energy"), so a caller asking for
+ * "body weight" or "steps" cannot be expected to guess the exact string. An
+ * exact-match filter told an athlete there was no body weight data while it sat
+ * there under a longer name.
+ *
+ * Matches if any meaningful word of the request appears in the field name,
+ * with a naive plural trim so "steps" still finds "step_count". Deliberately
+ * generous: a couple of extra metrics in the answer is harmless, a false "no
+ * data" is not.
+ */
+function matchesMetricName(fieldName: string, wanted: string): boolean {
+  const field = fieldName.toLowerCase();
+  const tokens = wanted
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length >= 3);
+  if (tokens.length === 0) return false;
+  return tokens.some((token) => field.includes(token) || (token.endsWith("s") && field.includes(token.slice(0, -1))));
+}
+
+// In-process accessor for the tool-calling coach: same stored history the
+// GET route reads, filtered to a day window and optionally to specific
+// metric names.
+export async function fetchHealthHistory(days: number = MAX_DAYS, metricNames?: string[]): Promise<History> {
+  const history = await readHistory();
+  // Counted back from the Irish calendar day, since that's what the stored
+  // date keys mean - a UTC cutoff trims a day early for the first hour of
+  // every Irish day during BST.
+  const cutoff = irelandDateStr(new Date(Date.now() - days * 86400000));
+
+  const filtered: History = {};
+  for (const [date, metrics] of Object.entries(history)) {
+    if (date < cutoff) continue;
+
+    if (!metricNames || metricNames.length === 0) {
+      filtered[date] = metrics;
+      continue;
+    }
+
+    // Matched loosely on purpose. Apple Health's field names come from
+    // whichever app wrote them ("weight_body_mass", "dietary_energy"), and a
+    // caller asking for "weight" has no way to know the exact string - an
+    // exact-match filter answered "no body weight data" for an athlete whose
+    // weight was right there under a longer name.
+    const subset: DayMetrics = {};
+    for (const [name, value] of Object.entries(metrics)) {
+      if (metricNames.some((wanted) => matchesMetricName(name, wanted))) subset[name] = value;
+    }
+    if (Object.keys(subset).length > 0) filtered[date] = subset;
+  }
+
+  return filtered;
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method === "POST") {
+    const secret = process.env.APPLE_HEALTH_WEBHOOK_SECRET;
+    const authHeader = req.headers.authorization;
+    if (!secret || authHeader !== `Bearer ${secret}`) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const payload = req.body as HealthAutoExportPayload;
+    const metrics = payload.data?.metrics ?? [];
+
+    // Merged and written straight back, so an unreachable store must fail the
+    // request - reading it as "no history" would overwrite the year with
+    // whatever this one payload holds, and answering ok after a failed write
+    // told the sender to discard data that was never saved.
+    let history: History;
+    try {
+      history = (await readJSON<History>(KV_KEY)) ?? readLegacyHistory();
+    } catch {
+      res.status(503).json({ error: "Storage unavailable" });
+      return;
+    }
+
+    for (const metric of metrics) {
+      const isSum = SUM_UNITS.has(metric.units);
+      const byDate = new Map<string, number[]>();
+
+      for (const point of metric.data) {
+        if (typeof point.qty !== "number" || typeof point.date !== "string") continue;
+        const date = point.date.slice(0, 10);
+        const list = byDate.get(date) ?? [];
+        list.push(point.qty);
+        byDate.set(date, list);
+      }
+
+      for (const [date, values] of byDate) {
+        const total = values.reduce((sum, v) => sum + v, 0);
+        const aggregated = isSum ? total : total / values.length;
+        history[date] = history[date] ?? {};
+        history[date][metric.name] = { value: Math.round(aggregated * 100) / 100, unit: metric.units };
+      }
+    }
+
+    const trimmedDates = Object.keys(history)
+      .sort((a, b) => (a < b ? 1 : -1))
+      .slice(0, MAX_DAYS);
+    const trimmed: History = {};
+    for (const date of trimmedDates) trimmed[date] = history[date];
+
+    if (!(await setJSON(KV_KEY, trimmed))) {
+      res.status(503).json({ error: "Storage unavailable" });
+      return;
+    }
+
+    res.status(200).json({ ok: true, days: trimmedDates.length });
+    return;
+  }
+
+  // Reads require a signed-in session. Unlike /api/strava-activities and
+  // /api/whoop-data - which are deliberately open because the public site's
+  // ride feed and recovery summary render from them - nothing outside the
+  // signed-in dashboard reads this one, and it carries a year of body
+  // weight, nutrition and body-composition history.
+  //
+  // The POST above keeps its own bearer-secret check instead: the iOS
+  // Health Auto Export shortcut pushing data has no session cookie.
+  if (!getSessionEmail(req)) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const history = await readHistory();
+
+  const catalogMap = new Map<string, { unit: string; days: number }>();
+  for (const day of Object.values(history)) {
+    for (const [name, metric] of Object.entries(day)) {
+      const existing = catalogMap.get(name);
+      if (existing) existing.days += 1;
+      else catalogMap.set(name, { unit: metric.unit, days: 1 });
+    }
+  }
+  const catalog = Array.from(catalogMap.entries())
+    .map(([name, info]) => ({ name, unit: info.unit, days: info.days }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  // Was cached at Vercel's edge for 30 minutes (stale-while-revalidate up
+  // to an hour) - harmless back when writes needed a full redeploy to ever
+  // change anyway, but now that writes are instant (see readHistory
+  // above), a long public cache just reintroduces the same "synced but not
+  // showing up" staleness from a different layer. KV reads are already
+  // fast, so there's nothing worth caching here.
+  res.status(200).json({ history, catalog });
+}

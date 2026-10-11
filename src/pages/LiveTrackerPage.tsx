@@ -25,7 +25,7 @@ type LiveTrackerRect = { x: number; y: number; width: number; height: number };
 type LiveWidgetId = "pace" | "progress" | "map" | "eta" | "donate";
 type LiveTrackerLayout = { order: LiveWidgetId[]; rects: Record<LiveWidgetId, LiveTrackerRect> };
 
-// Mirrors api/live-tracker.ts's public response shape - duplicated per this
+// Mirrors api/_routes/live-tracker.ts's public response shape - duplicated per this
 // project's api/src decoupling convention (see other widgets for the same
 // pattern).
 type ApiResult = {
@@ -40,7 +40,7 @@ type ApiResult = {
   layout: LiveTrackerLayout | null;
   // Whether samples are arriving right now, from the ingest feed itself
   // rather than the configured start time - starting the tracker is what
-  // actually begins the attempt. See api/live-tracker.ts.
+  // actually begins the attempt. See api/_routes/live-tracker.ts.
   //
   // Optional because the GET is edge-cached for 15 seconds for anonymous
   // visitors, so for a few seconds after a deploy a new bundle can be handed
@@ -130,7 +130,7 @@ function relativeSeconds(timestampMs: number): string {
 // Public "dot-watching" page for the actual attempt, separate from the
 // Microsoft-gated /dashboard app - no sign-in required to view, meant to be
 // shared with followers. Position comes from the athlete's Garmin inReach
-// MapShare feed (api/live-tracker.ts), the route from a public GPX/RWGPS
+// MapShare feed (api/_routes/live-tracker.ts), the route from a public GPX/RWGPS
 // export, and weather from Open-Meteo at the athlete's current position
 // (not the visitor's own location, unlike the dashboard's Weather widget).
 //
@@ -146,7 +146,7 @@ function relativeSeconds(timestampMs: number): string {
 // missing reading shows "—" rather than a plausible-looking substitute.
 //
 // Widgets are drag/resize-able exactly like Dashboard/Trends/Coaching, but
-// only for the signed-in owner (api/live-tracker.ts's isOwner, from the
+// only for the signed-in owner (api/_routes/live-tracker.ts's isOwner, from the
 // same session cookie the Microsoft-gated dashboard uses) - public
 // visitors get the same saved layout rendered read-only, since there's no
 // per-visitor preference to speak of here.

@@ -7,7 +7,7 @@ import styles from "./LiveTrackerCard.module.css";
 // have changed - it would burn requests to redraw the same numbers.
 const POLL_INTERVAL_MS = 5 * 60_000;
 
-// Mirrors the parts of api/live.json.ts this card reads - duplicated per
+// Mirrors the parts of api/_routes/live.json.ts this card reads - duplicated per
 // this project's api/src decoupling convention, same as LiveTrackerMap.
 type LiveJson = {
   status: string;

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { recoveryColor } from "../../utils/recoveryColor";
 import { bmiCategory, formatWeight } from "../../utils/bmi";
 import { formatDate } from "../../utils/formatDate";
+import { hrvStatusLabel, readinessColor, GARMIN_SLEEP_COLOR, type GarminDay } from "../../utils/garmin";
 import styles from "./WhoopDetailModal.module.css";
 
 // Deliberately its own local shape (not imported from useDashboardData.ts)
@@ -26,6 +27,7 @@ export type HealthCalendarDay = {
 interface HealthDayDetailModalProps {
   date: string;
   day: HealthCalendarDay | undefined;
+  garminDay?: GarminDay;
   weightVal: number | null;
   weightUnit: string;
   bmi: number | null;
@@ -63,7 +65,7 @@ function BandRow({ label, percent, color }: { label: string; percent: number; co
   );
 }
 
-export default function HealthDayDetailModal({ date, day, weightVal, weightUnit, bmi, onClose }: HealthDayDetailModalProps) {
+export default function HealthDayDetailModal({ date, day, garminDay, weightVal, weightUnit, bmi, onClose }: HealthDayDetailModalProps) {
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -77,7 +79,9 @@ export default function HealthDayDetailModal({ date, day, weightVal, weightUnit,
     };
   }, [onClose]);
 
-  const hasAnything = !!day?.recovery || !!day?.strain || !!day?.sleep || weightVal != null;
+  const hasAnything = !!day?.recovery || !!day?.strain || !!day?.sleep || !!garminDay || weightVal != null;
+  const g = garminDay;
+  const hrvStatus = hrvStatusLabel(g?.hrvStatus ?? null);
 
   return createPortal(
     <div className={styles.backdrop} onClick={onClose}>
@@ -105,6 +109,15 @@ export default function HealthDayDetailModal({ date, day, weightVal, weightUnit,
               {day?.sleep && <Row label="Sleep consistency" value={`${day.sleep.consistencyPercent}%`} />}
               {day?.sleep && <Row label="Sleep efficiency" value={`${day.sleep.efficiencyPercent}%`} />}
               {day?.sleep && <Row label="Respiratory rate" value={`${day.sleep.respiratoryRate.toFixed(1)} rpm`} />}
+              {g?.readiness != null && <BandRow label="Training Readiness" percent={g.readiness} color={readinessColor(g.readiness)} />}
+              {g?.hrv != null && <Row label="Overnight HRV" value={`${g.hrv} ms${hrvStatus ? ` (${hrvStatus})` : ""}`} />}
+              {g?.restingHr != null && <Row label="Resting heart rate" value={`${g.restingHr} bpm`} />}
+              {g?.trainingLoad != null && <Row label="Training load" value={`${Math.round(g.trainingLoad)}${g.acuteLoad != null ? ` (acute ${g.acuteLoad})` : ""}`} />}
+              {g?.activityMinutes ? <Row label="Activity time" value={formatMinutes(g.activityMinutes)} /> : null}
+              {g?.sleepScore != null && <BandRow label="Sleep score" percent={g.sleepScore} color={GARMIN_SLEEP_COLOR} />}
+              {g?.sleepHours != null && <Row label="Sleep duration" value={`${g.sleepHours.toFixed(1)} h${g.sleepNeedHours != null ? ` (needed ${g.sleepNeedHours.toFixed(1)} h)` : ""}`} />}
+              {g?.bodyBatteryWake != null && <Row label="Body Battery at wake" value={`${g.bodyBatteryWake}`} />}
+              {g?.stress != null && <Row label="Average stress" value={`${g.stress}`} />}
               {weightVal != null && <Row label="Weight" value={`${formatWeight(weightVal)}${weightUnit}`} />}
               {bmi != null && <Row label="BMI" value={`${bmi.toFixed(1)} - ${bmiCategory(bmi).label}`} />}
             </ul>

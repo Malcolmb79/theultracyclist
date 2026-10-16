@@ -177,11 +177,24 @@ function toMetrics(date, raw, activity) {
     if (n != null) out[name] = { units, value: Math.round(n * 100) / 100 };
   };
 
+  const hours = (seconds) => (num(seconds) != null ? seconds / 3600 : null);
   const sleepDto = raw.sleep?.dailySleepDTO;
   put("garmin_sleep_score", "score", sleepDto?.sleepScores?.overall?.value);
-  put("garmin_sleep_hours", "hr", num(sleepDto?.sleepTimeSeconds) != null ? sleepDto.sleepTimeSeconds / 3600 : null);
+  put("garmin_sleep_hours", "hr", hours(sleepDto?.sleepTimeSeconds));
+  put("garmin_sleep_deep_hours", "hr", hours(sleepDto?.deepSleepSeconds));
+  put("garmin_sleep_light_hours", "hr", hours(sleepDto?.lightSleepSeconds));
+  put("garmin_sleep_rem_hours", "hr", hours(sleepDto?.remSleepSeconds));
+  put("garmin_sleep_awake_hours", "hr", hours(sleepDto?.awakeSleepSeconds));
+  put("garmin_sleep_need_hours", "hr", num(sleepDto?.sleepNeed?.actual) != null ? sleepDto.sleepNeed.actual / 60 : null);
+  put("garmin_sleep_awakenings", "times", sleepDto?.awakeCount);
+  put("garmin_sleep_stress", "score", sleepDto?.avgSleepStress);
+  put("garmin_respiration", "brpm", sleepDto?.averageRespirationValue);
+  put("garmin_sleep_battery_gain", "score", raw.sleep?.bodyBatteryChange);
 
   put("garmin_hrv", "ms", raw.hrv?.hrvSummary?.lastNightAvg ?? raw.sleep?.avgOvernightHrv);
+  put("garmin_hrv_weekly", "ms", raw.hrv?.hrvSummary?.weeklyAvg);
+  // History stores numbers only, so the status word travels as a code (see HRV_STATUS_CODES).
+  put("garmin_hrv_status", "code", HRV_STATUS_CODES[raw.hrv?.hrvSummary?.status ?? raw.sleep?.hrvStatus]);
   put("garmin_resting_hr", "bpm", raw.heartRate?.restingHeartRate ?? raw.sleep?.restingHeartRate);
   put("garmin_stress", "score", raw.stress?.avgStressLevel);
   put("garmin_steps", "count", raw.steps);
@@ -191,6 +204,16 @@ function toMetrics(date, raw, activity) {
     ? raw.readiness.toSorted((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)))[0]
     : raw.readiness;
   put("garmin_training_readiness", "score", readinessEntry?.score);
+  put("garmin_acute_load", "load", readinessEntry?.acuteLoad);
+  // Reported in minutes (443 the morning after a long race).
+  put("garmin_recovery_time", "hr", num(readinessEntry?.recoveryTime) != null ? readinessEntry.recoveryTime / 60 : null);
+  // Each factor's contribution to readiness, 0-100, for the detail view.
+  put("garmin_readiness_sleep", "pct", readinessEntry?.sleepScoreFactorPercent);
+  put("garmin_readiness_recovery", "pct", readinessEntry?.recoveryTimeFactorPercent);
+  put("garmin_readiness_hrv", "pct", readinessEntry?.hrvFactorPercent);
+  put("garmin_readiness_load", "pct", readinessEntry?.acwrFactorPercent);
+  put("garmin_readiness_stress", "pct", readinessEntry?.stressHistoryFactorPercent);
+  put("garmin_readiness_sleep_history", "pct", readinessEntry?.sleepHistoryFactorPercent);
 
   const readings = batteryReadings(raw);
   if (readings.length > 0) {
@@ -218,6 +241,9 @@ function toMetrics(date, raw, activity) {
   return out;
 }
 
+// Kept in step with src/utils/garmin.ts, which turns the codes back into words.
+const HRV_STATUS_CODES = { NONE: 0, POOR: 1, LOW: 2, UNBALANCED: 3, BALANCED: 4 };
+
 function activityByDate(activities) {
   const byDate = new Map();
   for (const a of activities ?? []) {
@@ -231,57 +257,77 @@ function activityByDate(activities) {
   return byDate;
 }
 
-async function sync(args) {
-  const dryRun = args.includes("--dry-run");
-  const daysIndex = args.indexOf("--days");
-  const days = daysIndex >= 0 ? Math.max(1, Math.min(60, Number(args[daysIndex + 1]) || 3)) : 3;
-
-  const client = await connect();
-  const dates = daysBack(days);
-  const activities = await attempt("activities", () => client.getActivities(0, 60));
-  const loads = activityByDate(activities);
-
-  const byMetric = new Map();
-  for (const date of dates) {
-    console.log(`Fetching ${date}`);
-    const raw = await fetchRaw(client, date);
-    const metrics = toMetrics(date, raw, loads.get(date) ?? null);
-    for (const [name, { units, value }] of Object.entries(metrics)) {
-      const entry = byMetric.get(name) ?? { name, units, data: [] };
-      entry.data.push({ qty: value, date: `${date} 00:00:00 +0000`, source: "Garmin Connect" });
-      byMetric.set(name, entry);
-    }
-  }
-
-  // Refreshed OAuth tokens are good for a year; saving them after every run
-  // keeps the sign-in alive without ever needing the password again.
-  saveTokens(client);
-
-  const payload = { data: { metrics: [...byMetric.values()] } };
-  if (payload.data.metrics.length === 0) {
-    console.error("Nothing to post - every Garmin request came back empty.");
-    process.exitCode = 1;
-    return;
-  }
-  if (dryRun) {
-    console.log(JSON.stringify(payload, null, 2));
-    return;
-  }
-
+async function post(payload) {
   const config = readConfig();
-  if (!config.siteUrl || !config.secret) throw new Error("Missing site URL or secret. Run: node scripts/garmin-sync.mjs login");
+  if (!config.siteUrl || !config.secret) throw new Error("Missing site URL or secret. Run: node scripts/garmin-sync.mjs setup");
   const res = await fetch(`${config.siteUrl.replace(/\/$/, "")}/api/health-data`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.secret}` },
     body: JSON.stringify(payload),
   });
   const body = await res.text();
-  if (!res.ok) {
-    console.error(`Post failed: ${res.status} ${body}`);
-    process.exitCode = 1;
-    return;
+  if (!res.ok) throw new Error(`Post failed: ${res.status} ${body}`);
+  return body;
+}
+
+function toPayload(days) {
+  const byMetric = new Map();
+  for (const { date, metrics } of days) {
+    for (const [name, { units, value }] of Object.entries(metrics)) {
+      const entry = byMetric.get(name) ?? { name, units, data: [] };
+      entry.data.push({ qty: value, date: `${date} 00:00:00 +0000`, source: "Garmin Connect" });
+      byMetric.set(name, entry);
+    }
   }
-  console.log(`Posted ${payload.data.metrics.length} metrics over ${dates.length} day(s): ${body}`);
+  return { data: { metrics: [...byMetric.values()] } };
+}
+
+// Backfills post in chunks so a failure late in a long run keeps what came
+// before it, and pause between days so Garmin doesn't throttle the account.
+const CHUNK_DAYS = 10;
+
+async function sync(args) {
+  const dryRun = args.includes("--dry-run");
+  const flag = (name, fallback) => {
+    const i = args.indexOf(name);
+    return i >= 0 ? Number(args[i + 1]) || fallback : fallback;
+  };
+  const days = Math.max(1, Math.min(120, flag("--days", 3)));
+  const delayMs = Math.max(0, flag("--delay", days > 10 ? 3000 : 0));
+
+  const client = await connect();
+  const dates = daysBack(days);
+  const activities = await attempt("activities", () => client.getActivities(0, Math.min(400, Math.max(60, days * 3))));
+  const loads = activityByDate(activities);
+
+  let pending = [];
+  let posted = 0;
+  const flush = async () => {
+    if (pending.length === 0) return;
+    const payload = toPayload(pending);
+    if (dryRun) console.log(JSON.stringify(payload, null, 2));
+    else console.log(`Posted ${pending[0].date}..${pending.at(-1).date}: ${await post(payload)}`);
+    posted += pending.length;
+    pending = [];
+  };
+
+  for (const [i, date] of dates.entries()) {
+    console.log(`Fetching ${date}`);
+    const metrics = toMetrics(date, await fetchRaw(client, date), loads.get(date) ?? null);
+    if (Object.keys(metrics).length > 0) pending.push({ date, metrics });
+    if (pending.length >= CHUNK_DAYS) await flush();
+    if (delayMs > 0 && i < dates.length - 1) await new Promise((r) => setTimeout(r, delayMs));
+  }
+  await flush();
+
+  // Refreshed OAuth tokens are good for a year; saving them after every run
+  // keeps the sign-in alive without ever needing the password again.
+  saveTokens(client);
+
+  if (posted === 0) {
+    console.error("Nothing to post - every Garmin request came back empty.");
+    process.exitCode = 1;
+  }
 }
 
 async function dump(args) {
@@ -299,7 +345,7 @@ async function dump(args) {
 const [command, ...rest] = process.argv.slice(2);
 const commands = { login, setup, sync, dump };
 if (!commands[command]) {
-  console.error("Usage: node scripts/garmin-sync.mjs <login | setup | sync [--days N] [--dry-run] | dump [YYYY-MM-DD]>");
+  console.error("Usage: node scripts/garmin-sync.mjs <login | setup | sync [--days N] [--delay MS] [--dry-run] | dump [YYYY-MM-DD]>");
   process.exit(1);
 }
 commands[command](rest).catch((err) => {

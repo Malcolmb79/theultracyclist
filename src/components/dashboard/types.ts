@@ -70,6 +70,12 @@ export const HEALTH_CALENDAR_ID = "whoop.healthCalendar";
 // Apple Health energy (see utils/bodyBattery.ts). The id predates Garmin.
 export const BODY_BATTERY_ID = "whoop.bodyBattery";
 
+// Garmin counterparts of the three Whoop composites above, drawn from the
+// garmin_* readings in the health history (see utils/garmin.ts).
+export const GARMIN_LOAD_READINESS_COMBO_ID = "garmin.loadReadinessCombo";
+export const GARMIN_RINGS_ID = "garmin.sleepReadinessBatteryRings";
+export const GARMIN_HEALTH_CALENDAR_ID = "garmin.healthCalendar";
+
 // Special catalog entry: dietary (consumed) vs active+basal (burned)
 // energy for the day, side by side with the net difference - rather than
 // two separate single-metric widgets the athlete has to compare by eye.

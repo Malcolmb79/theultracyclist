@@ -28,11 +28,16 @@ import { MACRO_ORDER, findMacroMetricId, type MacroGrams } from "../../utils/mac
 import { hrvReadinessColor } from "../../utils/hrvColor";
 import { latestWhoop, type LatestWhoop } from "../../utils/latestWhoop";
 import WhoopDetailModal, { type WhoopDetailKind } from "./WhoopDetailModal";
+import GarminDetailModal, { type GarminDetailKind } from "./GarminDetailModal";
+import { GARMIN_BATTERY_COLOR, GARMIN_LOAD_COLOR, GARMIN_SLEEP_COLOR, latestGarmin, readinessColor, type GarminDay } from "../../utils/garmin";
 import type { MetricDef, WhoopDay } from "./useDashboardData";
 import {
   WHOOP_STRAIN_RECOVERY_COMBO_ID,
   WHOOP_RINGS_COMBO_ID,
   HEALTH_CALENDAR_ID,
+  GARMIN_LOAD_READINESS_COMBO_ID,
+  GARMIN_RINGS_ID,
+  GARMIN_HEALTH_CALENDAR_ID,
   BODY_BATTERY_ID,
   CALORIES_BALANCE_ID,
   MACRO_SPLIT_ID,
@@ -69,6 +74,7 @@ interface DashboardWidgetProps {
   widget: Widget;
   metricById: Map<string, MetricDef>;
   whoopHistory: WhoopDay[];
+  garminHistory?: GarminDay[];
   performanceSeries: PerformancePoint[];
   onViewTypeChange: (viewType: Widget["viewType"]) => void;
   onColorChange: (color: string) => void;
@@ -116,6 +122,17 @@ const DETAIL_KIND_BY_METRIC: Record<string, WhoopDetailKind> = {
   "whoop.strain": "strain",
   "whoop.recovery": "recovery",
   "whoop.sleepPerformance": "sleep",
+};
+
+const GARMIN_DETAIL_KIND_BY_METRIC: Record<string, GarminDetailKind> = {
+  "garmin.readiness": "readiness",
+  "garmin.hrv": "readiness",
+  "garmin.restingHr": "readiness",
+  "garmin.sleepScore": "sleep",
+  "garmin.sleepHours": "sleep",
+  "garmin.trainingLoad": "load",
+  "garmin.acuteLoad": "load",
+  "garmin.bodyBatteryWake": "bodyBattery",
 };
 
 const HEADER_HEIGHT = 44;
@@ -239,9 +256,10 @@ function formatValue(value: number, unit: string): string {
 // decorative and defers to the custom color when the user has set one.
 function ringColor(metric: MetricDef, value: number, customColor?: string): string {
   if (metric.id === "whoop.recovery") return recoveryColor(value);
+  if (metric.id === "garmin.readiness") return readinessColor(value);
   if (customColor) return customColor;
-  if (metric.id === "whoop.sleepPerformance") return "#8FA9C5";
-  if (metric.id === "whoop.strain") return "#4B87F5";
+  if (metric.id === "whoop.sleepPerformance" || metric.id === "garmin.sleepScore") return GARMIN_SLEEP_COLOR;
+  if (metric.id === "whoop.strain" || metric.id === "garmin.trainingLoad") return GARMIN_LOAD_COLOR;
   return "var(--color-accent-2)";
 }
 
@@ -255,6 +273,7 @@ export default function DashboardWidget({
   widget,
   metricById,
   whoopHistory,
+  garminHistory = [],
   performanceSeries,
   onViewTypeChange,
   onColorChange,
@@ -274,10 +293,14 @@ export default function DashboardWidget({
   goals,
   inline = false,
 }: DashboardWidgetProps) {
-  const isCombo = widget.metric === WHOOP_STRAIN_RECOVERY_COMBO_ID;
-  const isRings = widget.metric === WHOOP_RINGS_COMBO_ID;
+  const isGarminCombo = widget.metric === GARMIN_LOAD_READINESS_COMBO_ID;
+  const isGarminRings = widget.metric === GARMIN_RINGS_ID;
+  const isGarminCalendar = widget.metric === GARMIN_HEALTH_CALENDAR_ID;
+  // The Garmin composites share sizing and chrome with their Whoop originals.
+  const isCombo = widget.metric === WHOOP_STRAIN_RECOVERY_COMBO_ID || isGarminCombo;
+  const isRings = widget.metric === WHOOP_RINGS_COMBO_ID || isGarminRings;
   const isBmi = widget.metric === "health.bmi";
-  const isHealthCalendar = widget.metric === HEALTH_CALENDAR_ID;
+  const isHealthCalendar = widget.metric === HEALTH_CALENDAR_ID || isGarminCalendar;
   const isCaloriesBalance = widget.metric === CALORIES_BALANCE_ID;
   const isMacroSplit = widget.metric === MACRO_SPLIT_ID;
   const isBodyBattery = widget.metric === BODY_BATTERY_ID;
@@ -298,7 +321,10 @@ export default function DashboardWidget({
   const isLiveTracker = widget.metric === LIVE_TRACKER_ID;
   const isAllActivity = widget.metric === ALL_ACTIVITY_ID;
   const detailKind = DETAIL_KIND_BY_METRIC[widget.metric];
+  const garminDetailKind = GARMIN_DETAIL_KIND_BY_METRIC[widget.metric];
   const [openDetail, setOpenDetail] = useState<WhoopDetailKind | null>(null);
+  const [openGarminDetail, setOpenGarminDetail] = useState<GarminDetailKind | null>(null);
+  const clickDetail = detailKind ? () => setOpenDetail(detailKind) : garminDetailKind ? () => setOpenGarminDetail(garminDetailKind) : undefined;
   const fullMetric =
     isCombo || isRings || isHealthCalendar || isBodyBattery || isCaloriesBalance || isMacroSplit || isPerformanceChart || isWeather || isGarminLiveTrack || isLiveTracker || isAllActivity
       ? undefined
@@ -337,7 +363,7 @@ export default function DashboardWidget({
   // HRV has no universal "good" number, so it's banded by deviation from
   // the athlete's own recent baseline rather than a fixed value - see
   // hrvColor.ts for the reasoning.
-  const isHrvWidget = metric?.id === "whoop.hrv";
+  const isHrvWidget = metric?.id === "whoop.hrv" || metric?.id === "garmin.hrv";
   const effectiveColor = isWeightWidget && latestBmi != null
     ? bmiCategoryColor(latestBmi)
     : isHrvWidget && metric && metric.series.length >= 2
@@ -845,18 +871,27 @@ export default function DashboardWidget({
 
         <div
           ref={contentRef}
-          className={`${styles.content} ${detailKind ? styles.clickable : ""}`}
-          onClick={detailKind ? () => setOpenDetail(detailKind) : undefined}
-          role={detailKind ? "button" : undefined}
-          tabIndex={detailKind ? 0 : undefined}
+          className={`${styles.content} ${clickDetail ? styles.clickable : ""}`}
+          onClick={clickDetail}
+          role={clickDetail ? "button" : undefined}
+          tabIndex={clickDetail ? 0 : undefined}
         >
-          {isCombo ? (
+          {isGarminCombo ? (
+            <ComboLoadReadiness
+              load={rangedMetric("garmin.trainingLoad")}
+              readiness={rangedMetric("garmin.readiness")}
+              chartHeight={Math.max(24, (contentHeight - COMBO_SECTION_OVERHEAD) / 2)}
+              loadColor={widget.color}
+            />
+          ) : isCombo ? (
             <ComboStrainRecovery
               strain={rangedMetric("whoop.strain")}
               recovery={rangedMetric("whoop.recovery")}
               chartHeight={Math.max(24, (contentHeight - COMBO_SECTION_OVERHEAD) / 2)}
               strainColor={widget.color}
             />
+          ) : isGarminRings ? (
+            <GarminRingsRow history={garminHistory} contentHeight={contentHeight} onOpenDetail={setOpenGarminDetail} />
           ) : isRings ? (
             <RingsRow
               latest={latestWhoop(whoopHistory)}
@@ -873,6 +908,7 @@ export default function DashboardWidget({
           ) : isHealthCalendar ? (
             <HealthCalendar
               whoopHistory={whoopHistory}
+              garminHistory={isGarminCalendar ? garminHistory : undefined}
               weightByDate={weightByDate}
               weightUnit={weightUnit}
               bmiByDate={bmiByDate}
@@ -975,6 +1011,7 @@ export default function DashboardWidget({
         )}
       </div>
       {openDetail && <WhoopDetailModal kind={openDetail} history={whoopHistory} onClose={() => setOpenDetail(null)} />}
+      {openGarminDetail && <GarminDetailModal kind={openGarminDetail} history={garminHistory} onClose={() => setOpenGarminDetail(null)} />}
     </>
   );
 }
@@ -1039,6 +1076,83 @@ function RingsRow({
           />
         </button>
       )}
+    </div>
+  );
+}
+
+function GarminRingsRow({
+  history,
+  contentHeight,
+  onOpenDetail,
+}: {
+  history: GarminDay[];
+  contentHeight: number;
+  onOpenDetail: (kind: GarminDetailKind) => void;
+}) {
+  const [containerRef, measuredWidth] = useMeasuredWidth(MIN_RINGS_WIDTH);
+  // Each ring takes the newest day its own reading exists for: sleep is
+  // scored on waking, readiness updates through the morning.
+  const sleep = latestGarmin(history, "sleepScore");
+  const readiness = latestGarmin(history, "readiness");
+  const battery = latestGarmin(history, "bodyBattery");
+
+  if (!sleep && !readiness && !battery) {
+    return <p className={styles.empty}>No Garmin data yet.</p>;
+  }
+
+  const gap = ringsRowGap(measuredWidth);
+  const ringSize = Math.max(60, Math.min((measuredWidth - gap * 2) / 3, contentHeight - RING_LABEL_OVERHEAD));
+  const ring = (kind: GarminDetailKind, value: number, color: string, label: string) => (
+    <button type="button" className={styles.ringButton} onClick={() => onOpenDetail(kind)}>
+      <RingGauge percent={value} color={color} centerValue={`${Math.round(value)}`} label={label} pixelSize={ringSize} />
+    </button>
+  );
+
+  return (
+    <div className={styles.ringsRow} ref={containerRef} style={{ gap }}>
+      {sleep && ring("sleep", sleep.value, GARMIN_SLEEP_COLOR, "SLEEP")}
+      {readiness && ring("readiness", readiness.value, readinessColor(readiness.value), "READINESS")}
+      {battery && ring("bodyBattery", battery.value, GARMIN_BATTERY_COLOR, "BATTERY")}
+    </div>
+  );
+}
+
+function ComboLoadReadiness({
+  load,
+  readiness,
+  chartHeight,
+  loadColor,
+}: {
+  load: MetricDef | undefined;
+  readiness: MetricDef | undefined;
+  chartHeight: number;
+  loadColor?: string;
+}) {
+  if (!load?.series.length || !readiness?.series.length) {
+    return <p className={styles.empty}>No Garmin data yet.</p>;
+  }
+  const loadWeek = load.series.slice(-COMBO_DAYS);
+  const readinessWeek = readiness.series.slice(-COMBO_DAYS);
+  const color = loadColor ?? GARMIN_LOAD_COLOR;
+
+  return (
+    <div className={styles.combo}>
+      <div>
+        <span className={styles.comboLabel}>Training load</span>
+        {loadWeek.length > 1 ? (
+          <TrendChart points={loadWeek} pointColor={() => color} pointLabel={(p) => `${Math.round(p.value)}`} showDates height={chartHeight} color={color} showArea={false} />
+        ) : (
+          <p className={styles.empty}>Not enough data yet.</p>
+        )}
+      </div>
+      <div>
+        <span className={styles.comboLabel}>Readiness</span>
+        {readinessWeek.length > 1 ? (
+          <TrendChart points={readinessWeek} pointColor={(p) => readinessColor(p.value)} pointLabel={(p) => `${Math.round(p.value)}`} showDates height={chartHeight} />
+        ) : (
+          <p className={styles.empty}>Not enough data yet.</p>
+        )}
+      </div>
     </div>
   );
 }

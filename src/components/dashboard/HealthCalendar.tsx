@@ -3,6 +3,7 @@ import { recoveryColor } from "../../utils/recoveryColor";
 import { bmiCategoryColor, formatWeight } from "../../utils/bmi";
 import { irelandTodayDateStr, whoopDayStr } from "../../utils/irelandDate";
 import HealthDayDetailModal, { type HealthCalendarDay } from "./HealthDayDetailModal";
+import { readinessColor, type GarminDay } from "../../utils/garmin";
 import styles from "./HealthCalendar.module.css";
 
 const WEEKDAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
@@ -29,13 +30,15 @@ function shiftMonth(monthKey: string, delta: number): string {
 
 interface HealthCalendarProps {
   whoopHistory: HealthCalendarDay[];
+  /** When given, the calendar shows Garmin readings instead of Whoop's. */
+  garminHistory?: GarminDay[];
   weightByDate: Map<string, number>;
   weightUnit: string;
   bmiByDate: Map<string, number>;
   height: number;
 }
 
-export default function HealthCalendar({ whoopHistory, weightByDate, weightUnit, bmiByDate, height }: HealthCalendarProps) {
+export default function HealthCalendar({ whoopHistory, garminHistory, weightByDate, weightUnit, bmiByDate, height }: HealthCalendarProps) {
   const [monthKey, setMonthKey] = useState(() => irelandTodayDateStr().slice(0, 7));
   const [openDate, setOpenDate] = useState<string | null>(null);
   const [year, month] = monthKey.split("-").map(Number);
@@ -45,7 +48,8 @@ export default function HealthCalendar({ whoopHistory, weightByDate, weightUnit,
   // the first hour of every Irish day during BST (Irish midnight is 23:00
   // UTC the previous day), showing that cycle one day earlier than it
   // actually falls on locally.
-  const byDate = new Map(whoopHistory.map((d) => [whoopDayStr(new Date(d.date)), d]));
+  const byDate = new Map(garminHistory ? [] : whoopHistory.map((d) => [whoopDayStr(new Date(d.date)), d]));
+  const garminByDate = new Map((garminHistory ?? []).map((d) => [d.date, d]));
 
   // Monday-first grid, so the leading blanks count from Monday rather than
   // from getUTCDay()'s Sunday - see WEEKDAY_LABELS above.
@@ -87,6 +91,7 @@ export default function HealthCalendar({ whoopHistory, weightByDate, weightUnit,
           if (!dateStr) return <div key={`empty-${i}`} className={styles.cell} />;
 
           const day = byDate.get(dateStr);
+          const garminDay = garminByDate.get(dateStr);
           const weightVal = weightByDate.get(dateStr);
           const bmi = bmiByDate.get(dateStr);
 
@@ -105,6 +110,15 @@ export default function HealthCalendar({ whoopHistory, weightByDate, weightUnit,
           if (day?.sleep) {
             values.push({ color: SLEEP_COLOR, text: `${day.sleep.performancePercent}%`, label: `Sleep ${day.sleep.performancePercent}%` });
           }
+          if (garminDay?.readiness != null) {
+            values.push({ color: readinessColor(garminDay.readiness), text: `${garminDay.readiness}`, label: `Readiness ${garminDay.readiness}` });
+          }
+          if (garminDay?.hrv != null) {
+            values.push({ color: HRV_COLOR, text: `${garminDay.hrv}`, label: `HRV ${garminDay.hrv}ms` });
+          }
+          if (garminDay?.sleepScore != null) {
+            values.push({ color: SLEEP_COLOR, text: `${garminDay.sleepScore}`, label: `Sleep score ${garminDay.sleepScore}` });
+          }
           if (weightVal != null) {
             const weightColor = bmi != null ? bmiCategoryColor(bmi) : WEIGHT_FALLBACK_COLOR;
             const weightText = `${formatWeight(weightVal)}${weightUnit}`;
@@ -113,6 +127,7 @@ export default function HealthCalendar({ whoopHistory, weightByDate, weightUnit,
 
           const dots: { color: string; label: string }[] = [];
           if (day?.strain) dots.push({ color: STRAIN_COLOR, label: `Strain ${day.strain.score.toFixed(1)}` });
+          if (garminDay?.trainingLoad) dots.push({ color: STRAIN_COLOR, label: `Training load ${Math.round(garminDay.trainingLoad)}` });
 
           const hasData = values.length > 0 || dots.length > 0;
           const title = hasData
@@ -149,8 +164,8 @@ export default function HealthCalendar({ whoopHistory, weightByDate, weightUnit,
         })}
       </div>
       <div className={styles.legend}>
-        <span><span className={styles.legendDot} style={{ background: "var(--color-amber)" }} />Recovery</span>
-        <span><span className={styles.legendDot} style={{ background: STRAIN_COLOR }} />Strain</span>
+        <span><span className={styles.legendDot} style={{ background: "var(--color-amber)" }} />{garminHistory ? "Readiness" : "Recovery"}</span>
+        <span><span className={styles.legendDot} style={{ background: STRAIN_COLOR }} />{garminHistory ? "Training" : "Strain"}</span>
         <span><span className={styles.legendDot} style={{ background: SLEEP_COLOR }} />Sleep</span>
         <span><span className={styles.legendDot} style={{ background: HRV_COLOR }} />HRV</span>
         <span><span className={styles.legendDot} style={{ background: WEIGHT_FALLBACK_COLOR }} />Weight</span>
@@ -160,6 +175,7 @@ export default function HealthCalendar({ whoopHistory, weightByDate, weightUnit,
         <HealthDayDetailModal
           date={openDate}
           day={byDate.get(openDate)}
+          garminDay={garminByDate.get(openDate)}
           weightVal={weightByDate.get(openDate) ?? null}
           weightUnit={weightUnit}
           bmi={bmiByDate.get(openDate) ?? null}

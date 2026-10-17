@@ -25,6 +25,8 @@ const ROUTES: Record<string, () => Promise<RouteModule>> = {
   "cron-refresh": () => import("./_routes/cron-refresh.js"),
   "dashboard-layout": () => import("./_routes/dashboard-layout.js"),
   "describe-figure": () => import("./_routes/describe-figure.js"),
+  "garmin-activities": () => import("./_routes/garmin-activities.js"),
+  "garmin-summary": () => import("./_routes/garmin-summary.js"),
   "garmin-timeline": () => import("./_routes/garmin-timeline.js"),
   "health-data": () => import("./_routes/health-data.js"),
   "history.json": () => import("./_routes/history.json.js"),
@@ -50,9 +52,6 @@ const ROUTES: Record<string, () => Promise<RouteModule>> = {
   "trends-goals": () => import("./_routes/trends-goals.js"),
   "trends-layout": () => import("./_routes/trends-layout.js"),
   "whatsapp-webhook": () => import("./_routes/whatsapp-webhook.js"),
-  "whoop-authorize": () => import("./_routes/whoop-authorize.js"),
-  "whoop-callback": () => import("./_routes/whoop-callback.js"),
-  "whoop-data": () => import("./_routes/whoop-data.js"),
   "widget-image": () => import("./_routes/widget-image.js"),
 };
 

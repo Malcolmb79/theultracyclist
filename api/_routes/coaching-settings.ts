@@ -16,7 +16,7 @@ type FixedCardKind = "readiness" | "chat" | "trainingPlan" | "powerZones" | "tra
 type CoachingWidgetEntry = {
   id: string;
   kind: FixedCardKind | "metric";
-  source?: "strava" | "whoop" | "health";
+  source?: "strava" | "garmin" | "health";
   metric?: string;
   viewType?: "stat" | "chart" | "timeline" | "ring" | "combo" | "rings" | "healthCalendar" | "caloriesBalance";
   label: string;

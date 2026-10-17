@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import styles from "./WhoopDetailModal.module.css";
+import styles from "./DetailModal.module.css";
 import { formatMinutes, qualityBand } from "./detailFormat";
 
 type GoodDirection = "up" | "down" | "neutral";

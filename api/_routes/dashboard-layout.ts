@@ -5,7 +5,7 @@ import { isDeviceCategory, mergeDeviceLayout, resolveDeviceLayout, type DeviceCa
 
 export type Widget = {
   id: string;
-  source: "strava" | "whoop" | "health";
+  source: "strava" | "garmin" | "health";
   metric: string;
   label: string;
   viewType: "stat" | "chart" | "timeline" | "ring" | "combo" | "rings";

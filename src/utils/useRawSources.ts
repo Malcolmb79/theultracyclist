@@ -51,7 +51,7 @@ export function plannedWorkoutsPath(): string {
 // still lands, short enough that a hang doesn't strand the page.
 const SOURCE_TIMEOUT_MS = 20_000;
 
-// Fetches Whoop/Strava/Apple Health/coaching-settings ONCE and shares the
+// Fetches Strava/Apple Health (with Garmin)/coaching-settings ONCE and shares the
 // raw JSON across every hook that needs it (useDashboardData, useCoachingData).
 // Each of those used to run this exact set of fetches independently, so a
 // page using more than one of them (Coaching uses both) doubled the API call
@@ -63,7 +63,6 @@ export type RawSourcesState =
   | { status: "loading" }
   | {
       status: "ready";
-      whoop: unknown | null;
       strava: unknown | null;
       health: unknown | null;
       // The athlete's targets (weight, macros, calories, ...) as stored by
@@ -123,8 +122,7 @@ export function useRawSources(device: DeviceCategory): RawSourcesState {
     };
 
     try {
-      const [whoop, strava, health, settingsBody, goalsBody, plannedBody, tpBody, tpDirect] = await Promise.all([
-        withDeadline("/api/whoop-data"),
+      const [strava, health, settingsBody, goalsBody, plannedBody, tpBody, tpDirect] = await Promise.all([
         // A generous count (not the default 6 "recent rides" list) so the
         // Performance Chart's CTL/ATL/TSB has real ride history behind it
         // instead of ramping up from an artificially recent start - matches
@@ -146,7 +144,6 @@ export function useRawSources(device: DeviceCategory): RawSourcesState {
       if (cancelledRef.current) return;
       setState({
         status: "ready",
-        whoop,
         strava,
         health,
         goals: (goalsBody as { goals?: Record<string, unknown> } | null)?.goals ?? {},
@@ -162,7 +159,7 @@ export function useRawSources(device: DeviceCategory): RawSourcesState {
       });
     } catch {
       if (cancelledRef.current) return;
-      setState({ status: "ready", whoop: null, strava: null, health: null, goals: {}, planned: [], trainingPeaks: null, settings: {}, saveSettings, refetch: load });
+      setState({ status: "ready", strava: null, health: null, goals: {}, planned: [], trainingPeaks: null, settings: {}, saveSettings, refetch: load });
     }
     // `load` intentionally depends only on `device` - it reassigns itself as
     // each state's `refetch` via useCallback's own memoization, so callers

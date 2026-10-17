@@ -49,7 +49,7 @@ export default function GoalsEditor({ goals, onSave }: GoalsEditorProps) {
   return (
     <div className={styles.editor}>
       <h3 className={styles.title}>Goals</h3>
-      <p className={styles.hint}>Training days are detected automatically from Strava rides and Whoop activity.</p>
+      <p className={styles.hint}>Training days are detected automatically from Strava rides and Garmin activity.</p>
       {FIELDS.map(({ key, label, unit, dateKey }) => {
         const convertible = CONVERTIBLE_KEYS.has(key);
         const displayUnit = convertible ? convertValueUnit(1, unit, system).unit : unit;

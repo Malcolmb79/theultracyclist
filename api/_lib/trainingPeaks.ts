@@ -18,7 +18,7 @@ import { getJSON, setJSON } from "./kvStore.js";
  * tp-mcp keeps it in the OS keyring, which a serverless function cannot reach.
  * For the deployed coach to read TrainingPeaks at all, the credential has to
  * be somewhere the function can get to, and that means the same store as the
- * Whoop and Strava tokens. It is a long-lived session credential for the
+ * Strava tokens. It is a long-lived session credential for the
  * athlete's whole TrainingPeaks account, so it is never returned by any
  * endpoint, never logged, and never put in a prompt - see coaching-settings.ts,
  * which reports only whether one is present.

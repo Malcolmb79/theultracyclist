@@ -2,7 +2,7 @@ import type { WidgetDateRange } from "../../utils/dateRange";
 
 export type Widget = {
   id: string;
-  source: "strava" | "whoop" | "health" | "weather" | "garmin";
+  source: "strava" | "health" | "weather" | "garmin";
   metric: string;
   label: string;
   viewType: "stat" | "chart" | "timeline" | "ring" | "combo" | "rings" | "healthCalendar" | "caloriesBalance" | "macroSplit" | "allActivity" | "liveTracker" | "bodyBattery" | "batteryTimeline";
@@ -52,29 +52,19 @@ export const DEFAULT_WIDGET_COLOR = "#2ee6a6";
 // is still a multiple of 10.
 export const WIDGET_GRID_SIZE = 10;
 
-// Special catalog entry: a preset combining whoop.strain + whoop.recovery
-// into one widget, rather than a single real metric series.
-export const WHOOP_STRAIN_RECOVERY_COMBO_ID = "whoop.strainRecoveryCombo";
+// Special catalog entry: a single month calendar with Garmin readiness, HRV
+// and sleep plus weight shown per day, rather than one metric per calendar
+// the way Trends' calendar view works.
+export const HEALTH_CALENDAR_ID = "garmin.healthCalendar";
 
-// Special catalog entry: a compact Sleep/Recovery/Strain 3-ring row,
-// matching Whoop's own summary strip - each ring opens that metric's detail.
-export const WHOOP_RINGS_COMBO_ID = "whoop.sleepRecoveryStrainRings";
+// Special catalog entry: one live 0-100 energy level for the day from Garmin's
+// own Body Battery, with a projection to bedtime (see utils/bodyBattery.ts).
+export const BODY_BATTERY_ID = "garmin.bodyBattery";
 
-// Special catalog entry: a single month calendar with Strain/Recovery/
-// Sleep/HRV/Weight all shown per day (small color dots), rather than one
-// metric per calendar the way Trends' calendar view works.
-export const HEALTH_CALENDAR_ID = "whoop.healthCalendar";
-
-// Special catalog entry: one live 0-100 energy level for the day - Garmin's
-// own body battery when synced, else estimated from Whoop recovery/strain and
-// Apple Health energy (see utils/bodyBattery.ts). The id predates Garmin.
-export const BODY_BATTERY_ID = "whoop.bodyBattery";
-
-// Garmin counterparts of the three Whoop composites above, drawn from the
-// garmin_* readings in the health history (see utils/garmin.ts).
+// Garmin composites drawn from the garmin_* readings in the health history
+// (see utils/garmin.ts): training load over readiness, and the four rings.
 export const GARMIN_LOAD_READINESS_COMBO_ID = "garmin.loadReadinessCombo";
 export const GARMIN_RINGS_ID = "garmin.sleepReadinessBatteryRings";
-export const GARMIN_HEALTH_CALENDAR_ID = "garmin.healthCalendar";
 // Garmin's intraday Body Battery and stress chart; reads /api/garmin-timeline.
 export const GARMIN_BATTERY_TIMELINE_ID = "garmin.bodyBatteryTimeline";
 
@@ -107,7 +97,7 @@ export const GARMIN_LIVETRACK_ID = "garmin.liveTrack";
 // Special catalog entry: live ride telemetry from the athlete's own Edge
 // 1040 Connect IQ app (see connectiq/edge-tracker), read from the same
 // /api/live.json the public /live page uses - no per-metric series, and
-// unrelated to the Strava/Whoop/Health fetches, which only see this ride
+// unrelated to the Strava/Garmin/Health fetches, which only see this ride
 // after it has been saved and synced. Distinct from GARMIN_LIVETRACK_ID
 // above, which embeds Garmin's own hosted LiveTrack page in an iframe and
 // carries no performance data at all.

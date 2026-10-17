@@ -6,7 +6,7 @@ import { effectiveDateRange, resolveDateRange, type PageDateRanges } from "../..
 import type { TrendMetricDef } from "./useTrendsData";
 import type { TrendsWidgetConfig, TrendsViewType } from "./types";
 import HealthCalendar from "../dashboard/HealthCalendar";
-import type { HealthCalendarDay } from "../dashboard/HealthDayDetailModal";
+import type { GarminDay } from "../../utils/garmin";
 import PerformanceChart from "../dashboard/PerformanceChart";
 import MacroSplitCard from "../dashboard/MacroSplitCard";
 import CaloriesBalanceCard from "../dashboard/CaloriesBalanceCard";
@@ -56,7 +56,7 @@ interface TrendsWidgetProps {
   widget: TrendsWidgetConfig;
   metric: TrendMetricDef | undefined;
   days: string[];
-  whoopHistory: HealthCalendarDay[];
+  garminHistory: GarminDay[];
   weightByDate: Map<string, number>;
   /** Apple Health weight readings in display units, for the goal chart. */
   weightSeries?: { date: string; value: number }[];
@@ -146,7 +146,7 @@ export default function TrendsWidget({
   days: allDays,
   onDateRangeChange,
   pageDateRanges,
-  whoopHistory,
+  garminHistory,
   weightByDate,
   weightSeries = [],
   weightUnit,
@@ -446,7 +446,7 @@ export default function TrendsWidget({
           <p className={styles.empty}>Metric not available.</p>
         ) : isHealthCalendar ? (
           <HealthCalendar
-            whoopHistory={whoopHistory}
+            history={garminHistory}
             weightByDate={weightByDate}
             weightUnit={weightUnit}
             bmiByDate={bmiByDate}

@@ -21,7 +21,7 @@ export type CoachingWidgetEntry = {
   id: string; // fixed cards use their own kind as the id (only one of each can exist); metrics get a generated id.
   kind: FixedCardKind | "metric";
   // Only set when kind === "metric":
-  source?: "strava" | "whoop" | "health" | "weather" | "garmin";
+  source?: "strava" | "health" | "weather" | "garmin";
   metric?: string;
   // Borrowed from the dashboard's own Widget rather than restated, so a new
   // widget type added there can't silently fail to typecheck here.

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { migrateWidgets } from "../utils/metricAliases";
 import DataCatalog from "../components/dashboard/DataCatalog";
 import DashboardWidget from "../components/dashboard/DashboardWidget";
 import { useDashboardData } from "../components/dashboard/useDashboardData";
@@ -7,12 +8,9 @@ import { usePullToRefresh } from "../utils/usePullToRefresh";
 import type { PageDateRanges } from "../utils/dateRange";
 import PullToRefreshIndicator from "../components/shared/PullToRefreshIndicator";
 import {
-  WHOOP_STRAIN_RECOVERY_COMBO_ID,
-  WHOOP_RINGS_COMBO_ID,
   HEALTH_CALENDAR_ID,
   GARMIN_LOAD_READINESS_COMBO_ID,
   GARMIN_RINGS_ID,
-  GARMIN_HEALTH_CALENDAR_ID,
   GARMIN_BATTERY_TIMELINE_ID,
   BODY_BATTERY_ID,
   CALORIES_BALANCE_ID,
@@ -37,9 +35,7 @@ function nextId(): string {
 }
 
 function defaultViewType(metric: MetricDef): Widget["viewType"] {
-  if (metric.id === WHOOP_STRAIN_RECOVERY_COMBO_ID) return "combo";
-  if (metric.id === WHOOP_RINGS_COMBO_ID) return "rings";
-  if (metric.id === HEALTH_CALENDAR_ID || metric.id === GARMIN_HEALTH_CALENDAR_ID) return "healthCalendar";
+  if (metric.id === HEALTH_CALENDAR_ID) return "healthCalendar";
   if (metric.id === GARMIN_LOAD_READINESS_COMBO_ID) return "combo";
   if (metric.id === GARMIN_RINGS_ID) return "rings";
   if (metric.id === BODY_BATTERY_ID) return "bodyBattery";
@@ -83,7 +79,7 @@ function DashboardEditor() {
   const raw = useRawSources(device);
   const data = useDashboardData(raw);
   const stacked = device === "mobile";
-  // Drag-down-to-refresh (mobile) - re-fetches Whoop/Strava/Apple
+  // Drag-down-to-refresh (mobile) - re-fetches Garmin/Strava/Apple
   // Health/settings in the background without unmounting the widgets
   // currently on screen (see useRawSources' refetch).
   const handlePullRefresh = useCallback(async () => {
@@ -109,7 +105,7 @@ function DashboardEditor() {
     fetch(`/api/dashboard-layout?device=${device}`)
       .then((res) => res.json())
       .then((body: { widgets: Widget[] }) => {
-        if (!cancelled) setWidgets(body.widgets ?? []);
+        if (!cancelled) setWidgets(migrateWidgets(body.widgets ?? []));
       })
       .catch(() => {
         if (!cancelled) setWidgets([]);
@@ -264,7 +260,6 @@ function DashboardEditor() {
                 key={widget.id}
                 widget={widget}
                 metricById={metricById}
-                whoopHistory={data.whoopHistory}
                 garminHistory={data.garminHistory}
                 performanceSeries={data.performanceSeries}
                 caloriesBurnSettings={caloriesBurnSettings}
@@ -303,7 +298,6 @@ function DashboardEditor() {
                   x: rescueOffCanvasX(widget.x ?? 0, widget.width ?? DEFAULT_WIDGET_WIDTH, usableCanvasWidth()),
                 }}
                 metricById={metricById}
-                whoopHistory={data.whoopHistory}
                 garminHistory={data.garminHistory}
                 performanceSeries={data.performanceSeries}
                 caloriesBurnSettings={caloriesBurnSettings}

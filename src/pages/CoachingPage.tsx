@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import { migrateWidgets } from "../utils/metricAliases";
 import ReadinessCard from "../components/coaching/ReadinessCard";
 import PowerZonesCard from "../components/coaching/PowerZonesCard";
 import TrainingPlanCard from "../components/coaching/TrainingPlanCard";
@@ -12,12 +13,9 @@ import DataCatalog from "../components/dashboard/DataCatalog";
 import DashboardWidget from "../components/dashboard/DashboardWidget";
 import { useDashboardData } from "../components/dashboard/useDashboardData";
 import {
-  WHOOP_STRAIN_RECOVERY_COMBO_ID,
-  WHOOP_RINGS_COMBO_ID,
   HEALTH_CALENDAR_ID,
   GARMIN_LOAD_READINESS_COMBO_ID,
   GARMIN_RINGS_ID,
-  GARMIN_HEALTH_CALENDAR_ID,
   GARMIN_BATTERY_TIMELINE_ID,
   BODY_BATTERY_ID,
   CALORIES_BALANCE_ID,
@@ -86,9 +84,7 @@ function nextWidgetPosition(existing: CoachingWidgetEntry[]): { x: number; y: nu
 }
 
 function defaultViewType(metric: MetricDef): Widget["viewType"] {
-  if (metric.id === WHOOP_STRAIN_RECOVERY_COMBO_ID) return "combo";
-  if (metric.id === WHOOP_RINGS_COMBO_ID) return "rings";
-  if (metric.id === HEALTH_CALENDAR_ID || metric.id === GARMIN_HEALTH_CALENDAR_ID) return "healthCalendar";
+  if (metric.id === HEALTH_CALENDAR_ID) return "healthCalendar";
   if (metric.id === GARMIN_LOAD_READINESS_COMBO_ID) return "combo";
   if (metric.id === GARMIN_RINGS_ID) return "rings";
   if (metric.id === BODY_BATTERY_ID) return "bodyBattery";
@@ -111,7 +107,7 @@ function nextId(): string {
 function toWidget(entry: CoachingWidgetEntry): Widget {
   return {
     id: entry.id,
-    source: entry.source ?? "whoop",
+    source: entry.source ?? "garmin",
     metric: entry.metric ?? "",
     label: entry.label,
     viewType: entry.viewType ?? "stat",
@@ -164,7 +160,7 @@ function CoachingView() {
   const isMobile = useIsMobile();
   const [isResizing, setIsResizing] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
-  // Drag-down-to-refresh (mobile) - re-fetches Whoop/Strava/Apple
+  // Drag-down-to-refresh (mobile) - re-fetches Garmin/Strava/Apple
   // Health/settings in the background without unmounting the cards
   // currently on screen (see useRawSources' refetch).
   const handlePullRefresh = useCallback(async () => {
@@ -183,7 +179,7 @@ function CoachingView() {
   // migration) rather than re-seeding missing fixed cards here on every
   // render - that would make removing one impossible, since it'd get
   // silently re-added on the very next render after the save round-trips.
-  const widgets: CoachingWidgetEntry[] = data.status === "ready" ? (data.settings.widgets ?? []) : [];
+  const widgets: CoachingWidgetEntry[] = data.status === "ready" ? migrateWidgets(data.settings.widgets ?? []) : [];
   const metricById = new Map((dashboardData.status === "ready" ? dashboardData.metrics : []).map((m) => [m.id, m]));
   const missingFixedCards = FIXED_CARD_ORDER.filter((kind) => !widgets.some((w) => w.kind === kind));
 
@@ -335,7 +331,6 @@ function CoachingView() {
                   key={entry.id}
                   widget={{ ...toWidget(entry), x }}
                   metricById={metricById}
-                  whoopHistory={dashboardData.status === "ready" ? dashboardData.whoopHistory : []}
                   garminHistory={dashboardData.status === "ready" ? dashboardData.garminHistory : []}
                   performanceSeries={dashboardData.status === "ready" ? dashboardData.performanceSeries : []}
                   caloriesBurnSettings={caloriesBurnSettings}
@@ -375,7 +370,6 @@ function CoachingView() {
                     dataAvailable={data.dataAvailable}
                     widgetData={{
                       metricById,
-                      whoopHistory: dashboardData.status === "ready" ? dashboardData.whoopHistory : [],
                       garminHistory: dashboardData.status === "ready" ? dashboardData.garminHistory : [],
                       performanceSeries: dashboardData.status === "ready" ? dashboardData.performanceSeries : [],
                       goals: dashboardData.status === "ready" ? dashboardData.goals : undefined,

@@ -1,6 +1,6 @@
 import type { GarminDay } from "../../utils/garmin";
 import DashboardWidget from "../dashboard/DashboardWidget";
-import type { MetricDef, WhoopDay } from "../dashboard/useDashboardData";
+import type { MetricDef } from "../dashboard/useDashboardData";
 import type { PerformancePoint } from "../../utils/performanceSeries";
 import type { Widget } from "../dashboard/types";
 import styles from "./ChatWidgetMessage.module.css";
@@ -28,7 +28,6 @@ const VIEW_TYPES = new Set(["stat", "chart", "timeline", "ring"]);
 
 export type ChatWidgetData = {
   metricById: Map<string, MetricDef>;
-  whoopHistory: WhoopDay[];
   garminHistory?: GarminDay[];
   performanceSeries: PerformancePoint[];
   goals?: Record<string, unknown>;
@@ -106,7 +105,6 @@ export default function ChatWidgetMessage({ content, data }: { content: string; 
               inline
               widget={widget}
               metricById={data.metricById}
-              whoopHistory={data.whoopHistory}
               garminHistory={data.garminHistory}
               performanceSeries={data.performanceSeries}
               goals={data.goals}

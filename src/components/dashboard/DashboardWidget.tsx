@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { formatDate } from "../../utils/formatDate";
 import { relativeDayLabel } from "../../utils/relativeDate";
-import { recoveryColor } from "../../utils/recoveryColor";
-import { irelandDateStr, irelandTodayDateStr, whoopDayStr } from "../../utils/irelandDate";
+import { irelandTodayDateStr } from "../../utils/irelandDate";
 import { estimateCalorieBurnNow, DEFAULT_CALORIE_BURN_ESTIMATE } from "../../utils/estimateCalorieBurn";
 import { computeBodyBattery, type GarminBatteryInputs } from "../../utils/bodyBattery";
 import { useIsMobile } from "../../utils/useIsMobile";
@@ -27,18 +26,13 @@ import type { PerformancePoint } from "../../utils/performanceSeries";
 import { bmiCategoryColor, isWeightMetricId } from "../../utils/bmi";
 import { MACRO_ORDER, findMacroMetricId, type MacroGrams } from "../../utils/macros";
 import { hrvReadinessColor } from "../../utils/hrvColor";
-import { latestWhoop, type LatestWhoop } from "../../utils/latestWhoop";
-import WhoopDetailModal, { type WhoopDetailKind } from "./WhoopDetailModal";
 import GarminDetailModal, { type GarminDetailKind } from "./GarminDetailModal";
 import { GARMIN_BATTERY_COLOR, GARMIN_LOAD_COLOR, GARMIN_SLEEP_COLOR, latestGarmin, readinessColor, type GarminDay } from "../../utils/garmin";
-import type { MetricDef, WhoopDay } from "./useDashboardData";
+import type { MetricDef } from "./useDashboardData";
 import {
-  WHOOP_STRAIN_RECOVERY_COMBO_ID,
-  WHOOP_RINGS_COMBO_ID,
   HEALTH_CALENDAR_ID,
   GARMIN_LOAD_READINESS_COMBO_ID,
   GARMIN_RINGS_ID,
-  GARMIN_HEALTH_CALENDAR_ID,
   GARMIN_BATTERY_TIMELINE_ID,
   BODY_BATTERY_ID,
   CALORIES_BALANCE_ID,
@@ -75,7 +69,6 @@ import styles from "./DashboardWidget.module.css";
 interface DashboardWidgetProps {
   widget: Widget;
   metricById: Map<string, MetricDef>;
-  whoopHistory: WhoopDay[];
   garminHistory?: GarminDay[];
   performanceSeries: PerformancePoint[];
   onViewTypeChange: (viewType: Widget["viewType"]) => void;
@@ -117,15 +110,7 @@ interface DashboardWidgetProps {
   inline?: boolean;
 }
 
-// Maps a widget's underlying metric id to the Whoop detail view it should
-// open on click, matching Whoop's own app behavior of tapping a ring to see
-// its breakdown. Only these three metrics have a matching detail view.
-const DETAIL_KIND_BY_METRIC: Record<string, WhoopDetailKind> = {
-  "whoop.strain": "strain",
-  "whoop.recovery": "recovery",
-  "whoop.sleepPerformance": "sleep",
-};
-
+// Tapping a widget opens the matching Garmin detail view.
 const GARMIN_DETAIL_KIND_BY_METRIC: Record<string, GarminDetailKind> = {
   "garmin.readiness": "readiness",
   "garmin.hrv": "readiness",
@@ -264,24 +249,21 @@ function formatValue(value: number, unit: string): string {
 // never overridden by the widget's custom color - everything else is purely
 // decorative and defers to the custom color when the user has set one.
 function ringColor(metric: MetricDef, value: number, customColor?: string): string {
-  if (metric.id === "whoop.recovery") return recoveryColor(value);
   if (metric.id === "garmin.readiness") return readinessColor(value);
   if (customColor) return customColor;
-  if (metric.id === "whoop.sleepPerformance" || metric.id === "garmin.sleepScore") return GARMIN_SLEEP_COLOR;
-  if (metric.id === "whoop.strain" || metric.id === "garmin.trainingLoad") return GARMIN_LOAD_COLOR;
+  if (metric.id === "garmin.sleepScore") return GARMIN_SLEEP_COLOR;
+  if (metric.id === "garmin.trainingLoad") return GARMIN_LOAD_COLOR;
   return "var(--color-accent-2)";
 }
 
 function ringPercent(metric: MetricDef, value: number): number {
   if (metric.unit === "%") return value;
-  if (metric.id === "whoop.strain") return (value / 21) * 100;
   return Math.min(100, value);
 }
 
 export default function DashboardWidget({
   widget,
   metricById,
-  whoopHistory,
   garminHistory = [],
   performanceSeries,
   onViewTypeChange,
@@ -304,12 +286,10 @@ export default function DashboardWidget({
 }: DashboardWidgetProps) {
   const isGarminCombo = widget.metric === GARMIN_LOAD_READINESS_COMBO_ID;
   const isGarminRings = widget.metric === GARMIN_RINGS_ID;
-  const isGarminCalendar = widget.metric === GARMIN_HEALTH_CALENDAR_ID;
-  // The Garmin composites share sizing and chrome with their Whoop originals.
-  const isCombo = widget.metric === WHOOP_STRAIN_RECOVERY_COMBO_ID || isGarminCombo;
-  const isRings = widget.metric === WHOOP_RINGS_COMBO_ID || isGarminRings;
+  const isCombo = isGarminCombo;
+  const isRings = isGarminRings;
   const isBmi = widget.metric === "health.bmi";
-  const isHealthCalendar = widget.metric === HEALTH_CALENDAR_ID || isGarminCalendar;
+  const isHealthCalendar = widget.metric === HEALTH_CALENDAR_ID;
   const isCaloriesBalance = widget.metric === CALORIES_BALANCE_ID;
   const isMacroSplit = widget.metric === MACRO_SPLIT_ID;
   const isBodyBattery = widget.metric === BODY_BATTERY_ID;
@@ -330,11 +310,9 @@ export default function DashboardWidget({
   const isLiveTracker = widget.metric === LIVE_TRACKER_ID;
   const isAllActivity = widget.metric === ALL_ACTIVITY_ID;
   const isBatteryTimeline = widget.metric === GARMIN_BATTERY_TIMELINE_ID;
-  const detailKind = DETAIL_KIND_BY_METRIC[widget.metric];
   const garminDetailKind = GARMIN_DETAIL_KIND_BY_METRIC[widget.metric];
-  const [openDetail, setOpenDetail] = useState<WhoopDetailKind | null>(null);
   const [openGarminDetail, setOpenGarminDetail] = useState<GarminDetailKind | null>(null);
-  const clickDetail = detailKind ? () => setOpenDetail(detailKind) : garminDetailKind ? () => setOpenGarminDetail(garminDetailKind) : undefined;
+  const clickDetail = garminDetailKind ? () => setOpenGarminDetail(garminDetailKind) : undefined;
   const fullMetric =
     isCombo || isRings || isHealthCalendar || isBodyBattery || isCaloriesBalance || isMacroSplit || isPerformanceChart || isWeather || isGarminLiveTrack || isLiveTracker || isAllActivity || isBatteryTimeline
       ? undefined
@@ -373,7 +351,7 @@ export default function DashboardWidget({
   // HRV has no universal "good" number, so it's banded by deviation from
   // the athlete's own recent baseline rather than a fixed value - see
   // hrvColor.ts for the reasoning.
-  const isHrvWidget = metric?.id === "whoop.hrv" || metric?.id === "garmin.hrv";
+  const isHrvWidget = metric?.id === "garmin.hrv";
   const effectiveColor = isWeightWidget && latestBmi != null
     ? bmiCategoryColor(latestBmi)
     : isHrvWidget && metric && metric.series.length >= 2
@@ -484,15 +462,9 @@ export default function DashboardWidget({
     protein: (goals?.proteinG as number | undefined) ?? null,
   };
 
-  // Body battery: the morning charge comes from whichever cycle was scored
-  // most recently (same fallback the rings use, since recovery and sleep lag
-  // the watch by hours), but strain is only "today's" if the cycle really is
-  // today's - yesterday's strain read as today's would drain a full day's
-  // training from a morning that hasn't started.
-  const consumedToday = consumedByDate.get(today) ?? null;
   // Garmin's own readings for today (synced into the health history by
-  // scripts/garmin-sync.mjs). Without a body battery reading for TODAY the
-  // Whoop-based estimate is used, rather than showing yesterday's level as now.
+  // scripts/garmin-sync.mjs). Without a reading for TODAY the card says so,
+  // rather than showing yesterday's level as now.
   const garminToday = useMemo((): GarminBatteryInputs | null => {
     if (!isBodyBattery) return null;
     const read = (name: string): number | null =>
@@ -512,32 +484,13 @@ export default function DashboardWidget({
       readiness: read("training_readiness"),
     };
   }, [isBodyBattery, metricById, today]);
-  const bodyBattery = useMemo(() => {
-    if (!isBodyBattery) return null;
-    if (garminToday == null && whoopHistory.length === 0 && activeToday == null) return null;
-    const byDay = new Map(whoopHistory.map((d) => [whoopDayStr(new Date(d.date)), d]));
-    const dayBefore = (dateStr: string, days: number) => irelandDateStr(new Date(new Date(`${dateStr}T12:00:00Z`).getTime() - days * 86400000));
-    const yesterday = dayBefore(today, 1);
-    const latest = latestWhoop(whoopHistory);
-    const recentStrains = [1, 2, 3]
-      .map((n) => byDay.get(dayBefore(today, n))?.strain?.score)
-      .filter((s): s is number => s != null);
-    return computeBodyBattery(
-      {
-        garmin: garminToday,
-        recoveryScore: latest.recovery?.value.score ?? null,
-        sleepPerformance: latest.sleep?.value.performancePercent ?? null,
-        todayStrain: byDay.get(today)?.strain?.score ?? null,
-        yesterdayStrain: byDay.get(yesterday)?.strain?.score ?? null,
-        recentAvgStrain: recentStrains.length > 0 ? recentStrains.reduce((sum, s) => sum + s, 0) / recentStrains.length : null,
-        activeKcalToday: activeToday,
-        consumedKcalToday: consumedToday,
-        burnedKcalToday: hasRealBurnToday ? realBurnedToday : estimatedBurnedToday,
-        wakeTime: caloriesBurnSettings?.wakeTime ?? DEFAULT_CALORIE_BURN_ESTIMATE.wakeTime,
-      },
-      estimateNow,
-    );
-  }, [isBodyBattery, garminToday, whoopHistory, today, activeToday, consumedToday, hasRealBurnToday, realBurnedToday, estimatedBurnedToday, caloriesBurnSettings?.wakeTime, estimateNow]);
+  const bodyBattery = useMemo(
+    () =>
+      isBodyBattery && garminToday
+        ? computeBodyBattery(garminToday, caloriesBurnSettings?.wakeTime ?? DEFAULT_CALORIE_BURN_ESTIMATE.wakeTime, estimateNow)
+        : null,
+    [isBodyBattery, garminToday, caloriesBurnSettings?.wakeTime, estimateNow],
+  );
 
   const minHeight = isBatteryTimeline
     ? MIN_BATTERY_TIMELINE_HEIGHT
@@ -904,21 +857,8 @@ export default function DashboardWidget({
               chartHeight={Math.max(24, (contentHeight - COMBO_SECTION_OVERHEAD) / 2)}
               loadColor={widget.color}
             />
-          ) : isCombo ? (
-            <ComboStrainRecovery
-              strain={rangedMetric("whoop.strain")}
-              recovery={rangedMetric("whoop.recovery")}
-              chartHeight={Math.max(24, (contentHeight - COMBO_SECTION_OVERHEAD) / 2)}
-              strainColor={widget.color}
-            />
           ) : isGarminRings ? (
             <GarminRingsRow history={garminHistory} contentHeight={contentHeight} onOpenDetail={setOpenGarminDetail} />
-          ) : isRings ? (
-            <RingsRow
-              latest={latestWhoop(whoopHistory)}
-              contentHeight={contentHeight}
-              onOpenDetail={setOpenDetail}
-            />
           ) : isBmi ? (
             <BmiChart
               bmi={metric?.series.length ? metric.series[metric.series.length - 1].value : null}
@@ -928,8 +868,7 @@ export default function DashboardWidget({
             />
           ) : isHealthCalendar ? (
             <HealthCalendar
-              whoopHistory={whoopHistory}
-              garminHistory={isGarminCalendar ? garminHistory : undefined}
+              history={garminHistory}
               weightByDate={weightByDate}
               weightUnit={weightUnit}
               bmiByDate={bmiByDate}
@@ -1033,73 +972,8 @@ export default function DashboardWidget({
           </div>
         )}
       </div>
-      {openDetail && <WhoopDetailModal kind={openDetail} history={whoopHistory} onClose={() => setOpenDetail(null)} />}
       {openGarminDetail && <GarminDetailModal kind={openGarminDetail} history={garminHistory} onClose={() => setOpenGarminDetail(null)} />}
     </>
-  );
-}
-
-function RingsRow({
-  latest,
-  contentHeight,
-  onOpenDetail,
-}: {
-  // Each ring takes the last day its own field was scored, not the newest
-  // cycle wholesale - strain is live all day while recovery and sleep arrive
-  // hours later, so the newest cycle blanks two of three rings all morning.
-  latest: LatestWhoop<WhoopDay>;
-  contentHeight: number;
-  onOpenDetail: (kind: WhoopDetailKind) => void;
-}) {
-  // Measures the row's actual rendered width rather than back-computing it
-  // from the widget's outer size minus assumed padding/border/gap constants
-  // - that arithmetic drifted out of sync with the real CSS (missed the
-  // widget's 1px border) and clipped the rightmost ring at small sizes.
-  const [containerRef, measuredWidth] = useMeasuredWidth(MIN_RINGS_WIDTH);
-
-  if (!latest.sleep && !latest.recovery && !latest.strain) {
-    return <p className={styles.empty}>No data yet for this metric.</p>;
-  }
-
-  const gap = ringsRowGap(measuredWidth);
-  const ringSize = Math.max(60, Math.min((measuredWidth - gap * 2) / 3, contentHeight - RING_LABEL_OVERHEAD));
-
-  return (
-    <div className={styles.ringsRow} ref={containerRef} style={{ gap }}>
-      {latest.sleep && (
-        <button type="button" className={styles.ringButton} onClick={() => onOpenDetail("sleep")}>
-          <RingGauge
-            percent={latest.sleep.value.performancePercent}
-            color="#8FA9C5"
-            centerValue={`${latest.sleep.value.performancePercent}%`}
-            label="SLEEP"
-            pixelSize={ringSize}
-          />
-        </button>
-      )}
-      {latest.recovery && (
-        <button type="button" className={styles.ringButton} onClick={() => onOpenDetail("recovery")}>
-          <RingGauge
-            percent={latest.recovery.value.score}
-            color={recoveryColor(latest.recovery.value.score)}
-            centerValue={`${latest.recovery.value.score}%`}
-            label="RECOVERY"
-            pixelSize={ringSize}
-          />
-        </button>
-      )}
-      {latest.strain && (
-        <button type="button" className={styles.ringButton} onClick={() => onOpenDetail("strain")}>
-          <RingGauge
-            percent={(latest.strain.value.score / 21) * 100}
-            color="#4B87F5"
-            centerValue={latest.strain.value.score.toFixed(1)}
-            label="STRAIN"
-            pixelSize={ringSize}
-          />
-        </button>
-      )}
-    </div>
   );
 }
 
@@ -1118,8 +992,8 @@ function GarminRingsRow({
   const sleep = latestGarmin(history, "sleepScore");
   const readiness = latestGarmin(history, "readiness");
   const battery = latestGarmin(history, "bodyBattery");
-  // Load is the newest day's, like Whoop's live strain - 0 until an activity
-  // lands. A full ring is twice the recent daily average (acute load / 7).
+  // Load is the newest day's and climbs as activities sync - 0 until the
+  // first one lands. A full ring is twice the recent daily average (acute load / 7).
   const loadDay = history.at(-1);
   const load = loadDay?.trainingLoad ?? null;
   const acute = latestGarmin(history, "acuteLoad")?.value ?? null;
@@ -1190,57 +1064,3 @@ function ComboLoadReadiness({
 
 const COMBO_DAYS = 7;
 
-function ComboStrainRecovery({
-  strain,
-  recovery,
-  chartHeight,
-  strainColor,
-}: {
-  strain: MetricDef | undefined;
-  recovery: MetricDef | undefined;
-  chartHeight: number;
-  strainColor?: string;
-}) {
-  if (!strain?.series.length || !recovery?.series.length) {
-    return <p className={styles.empty}>No data yet for this metric.</p>;
-  }
-
-  const strainWeek = strain.series.slice(-COMBO_DAYS);
-  const recoveryWeek = recovery.series.slice(-COMBO_DAYS);
-  const resolvedStrainColor = strainColor ?? "#4B87F5";
-
-  return (
-    <div className={styles.combo}>
-      <div>
-        <span className={styles.comboLabel}>Strain</span>
-        {strainWeek.length > 1 ? (
-          <TrendChart
-            points={strainWeek}
-            pointColor={() => resolvedStrainColor}
-            pointLabel={(p) => p.value.toFixed(1)}
-            showDates
-            height={chartHeight}
-            color={resolvedStrainColor}
-            showArea={false}
-          />
-        ) : (
-          <p className={styles.empty}>Not enough data yet.</p>
-        )}
-      </div>
-      <div>
-        <span className={styles.comboLabel}>Recovery</span>
-        {recoveryWeek.length > 1 ? (
-          <TrendChart
-            points={recoveryWeek}
-            pointColor={(p) => recoveryColor(p.value)}
-            pointLabel={(p) => `${Math.round(p.value)}%`}
-            showDates
-            height={chartHeight}
-          />
-        ) : (
-          <p className={styles.empty}>Not enough data yet.</p>
-        )}
-      </div>
-    </div>
-  );
-}

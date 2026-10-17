@@ -1,33 +1,13 @@
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
-import { recoveryColor } from "../../utils/recoveryColor";
 import { bmiCategory, formatWeight } from "../../utils/bmi";
 import { formatDate } from "../../utils/formatDate";
 import { hrvStatusLabel, readinessColor, GARMIN_SLEEP_COLOR, type GarminDay } from "../../utils/garmin";
-import styles from "./WhoopDetailModal.module.css";
-
-// Deliberately its own local shape (not imported from useDashboardData.ts)
-// so both Dashboard/Coaching's WhoopDay and Trends' own separately-fetched
-// day shape can feed this modal without the two hooks needing to share a
-// type - matching how the rest of this project keeps hooks decoupled.
-export type HealthCalendarDay = {
-  date: string;
-  recovery: { score: number; hrvMs: number; restingHeartRate: number } | null;
-  strain: { score: number; avgHeartRate: number; maxHeartRate: number; zone1to3Minutes: number; zone4to5Minutes: number } | null;
-  sleep: {
-    performancePercent: number;
-    totalSleepHours: number;
-    consistencyPercent: number;
-    efficiencyPercent: number;
-    hoursNeeded: number;
-    respiratoryRate: number;
-  } | null;
-};
+import styles from "./DetailModal.module.css";
 
 interface HealthDayDetailModalProps {
   date: string;
-  day: HealthCalendarDay | undefined;
-  garminDay?: GarminDay;
+  day: GarminDay | undefined;
   weightVal: number | null;
   weightUnit: string;
   bmi: number | null;
@@ -65,7 +45,7 @@ function BandRow({ label, percent, color }: { label: string; percent: number; co
   );
 }
 
-export default function HealthDayDetailModal({ date, day, garminDay, weightVal, weightUnit, bmi, onClose }: HealthDayDetailModalProps) {
+export default function HealthDayDetailModal({ date, day, weightVal, weightUnit, bmi, onClose }: HealthDayDetailModalProps) {
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -79,8 +59,8 @@ export default function HealthDayDetailModal({ date, day, garminDay, weightVal, 
     };
   }, [onClose]);
 
-  const hasAnything = !!day?.recovery || !!day?.strain || !!day?.sleep || !!garminDay || weightVal != null;
-  const g = garminDay;
+  const hasAnything = !!day || weightVal != null;
+  const g = day;
   const hrvStatus = hrvStatusLabel(g?.hrvStatus ?? null);
 
   return createPortal(
@@ -97,18 +77,6 @@ export default function HealthDayDetailModal({ date, day, garminDay, weightVal, 
             <p className={styles.empty}>No data for this day.</p>
           ) : (
             <ul className={styles.rows}>
-              {day?.recovery && <BandRow label="Recovery" percent={day.recovery.score} color={recoveryColor(day.recovery.score)} />}
-              {day?.recovery && <Row label="HRV" value={`${day.recovery.hrvMs} ms`} />}
-              {day?.recovery && <Row label="Resting heart rate" value={`${day.recovery.restingHeartRate} bpm`} />}
-              {day?.strain && <Row label="Strain" value={day.strain.score.toFixed(1)} />}
-              {day?.strain && <Row label="Strain avg/max heart rate" value={`${day.strain.avgHeartRate} / ${day.strain.maxHeartRate} bpm`} />}
-              {day?.strain && <Row label="Heart rate zones 1-3" value={formatMinutes(day.strain.zone1to3Minutes)} />}
-              {day?.strain && <Row label="Heart rate zones 4-5" value={formatMinutes(day.strain.zone4to5Minutes)} />}
-              {day?.sleep && <BandRow label="Sleep performance" percent={day.sleep.performancePercent} color="#8FA9C5" />}
-              {day?.sleep && <Row label="Sleep duration" value={`${day.sleep.totalSleepHours.toFixed(1)} h (needed ${day.sleep.hoursNeeded.toFixed(1)} h)`} />}
-              {day?.sleep && <Row label="Sleep consistency" value={`${day.sleep.consistencyPercent}%`} />}
-              {day?.sleep && <Row label="Sleep efficiency" value={`${day.sleep.efficiencyPercent}%`} />}
-              {day?.sleep && <Row label="Respiratory rate" value={`${day.sleep.respiratoryRate.toFixed(1)} rpm`} />}
               {g?.readiness != null && <BandRow label="Training Readiness" percent={g.readiness} color={readinessColor(g.readiness)} />}
               {g?.hrv != null && <Row label="Overnight HRV" value={`${g.hrv} ms${hrvStatus ? ` (${hrvStatus})` : ""}`} />}
               {g?.restingHr != null && <Row label="Resting heart rate" value={`${g.restingHr} bpm`} />}

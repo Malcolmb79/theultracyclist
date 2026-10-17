@@ -3,7 +3,6 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 export const SESSION_COOKIE_NAME = "dash_session";
 export const OAUTH_STATE_COOKIE_NAME = "oauth_state";
-export const WHOOP_OAUTH_STATE_COOKIE_NAME = "whoop_oauth_state";
 /**
  * How long a session stays valid once issued.
  *

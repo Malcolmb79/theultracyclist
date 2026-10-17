@@ -4,7 +4,7 @@ import { irelandTodayDateStr } from "./timeContext.js";
 
 // The coach's view of the Garmin data that scripts/garmin-sync.mjs writes
 // into the health history as flat garmin_* fields. Read straight from Redis,
-// so unlike Whoop there is no token to race and every channel (browser chat,
+// so there is no third-party token to race and every channel (browser chat,
 // WhatsApp, the daily note) can read it server-side.
 
 // Codes written by scripts/garmin-sync.mjs (HRV_STATUS_CODES).

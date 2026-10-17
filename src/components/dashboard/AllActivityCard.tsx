@@ -9,7 +9,7 @@ import styles from "./AllActivityCard.module.css";
  *
  * Deliberately not filtered to bike rides the way the rest of the dashboard
  * is: the point of this widget is the sessions the cycling-only view drops -
- * runs, walks, strength, and anything Whoop caught that never reached Strava.
+ * runs, walks, strength, and anything the Garmin watch recorded that never reached Strava.
  *
  * TSS is shown only where it exists, which is rides with power. A run has no
  * TSS here, and inventing one would put a number on this card that the
@@ -18,7 +18,7 @@ import styles from "./AllActivityCard.module.css";
 
 export type MergedActivity = {
   id: string;
-  source: "strava" | "whoop";
+  source: "strava" | "garmin";
   sport: string;
   name: string;
   date: string;
@@ -29,7 +29,7 @@ export type MergedActivity = {
   avgWatts: number | null;
   avgHeartrate: number | null;
   tss: number | null;
-  alsoOnWhoop?: boolean;
+  alsoOnGarmin?: boolean;
 };
 
 // Sports are named differently by each source ("VirtualRide", "Weight
@@ -45,9 +45,9 @@ const SPORT_ICONS: { pattern: RegExp; icon: string }[] = [
   { pattern: /row/i, icon: "🚣" },
   { pattern: /pickle|tennis|padel|squash/i, icon: "🎾" },
   { pattern: /ski|snowboard/i, icon: "⛷" },
-  // Whoop logs recovery modalities as workouts. They are kept deliberately -
-  // they are part of what the athlete did - so they get their own marks rather
-  // than falling through to the generic bullet, which made them look like
+  // Recovery sessions logged on the watch (breathwork, yoga) are kept - they
+  // are part of what the athlete did - so they get their own marks rather than
+  // falling through to the generic bullet, which made them look like
   // unrecognised noise in a list they belong in.
   { pattern: /meditat|breath|mindful/i, icon: "🧠" },
   { pattern: /compression|massage|sauna|ice bath|cold|recovery/i, icon: "💆" },
@@ -165,9 +165,9 @@ export default function AllActivityCard({ range }: { range?: { start: string; en
                     {activity.name}
                   </span>
                   <span className={styles.facts}>{facts.join(" · ")}</span>
-                  {activity.source === "whoop" && (
-                    <span className={styles.badge} title="Whoop recorded this; it never reached Strava">
-                      Whoop
+                  {activity.source === "garmin" && (
+                    <span className={styles.badge} title="Garmin recorded this; it never reached Strava">
+                      Garmin
                     </span>
                   )}
                 </li>

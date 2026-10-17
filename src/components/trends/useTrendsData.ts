@@ -9,13 +9,14 @@ import { computeFitnessSeries } from "../../utils/fitness";
 import { getAtpWeekFor } from "../../utils/atpPlan";
 import { computePerformanceSeries, type PerformancePoint, type PlannedTss } from "../../utils/performanceSeries";
 import { plannedWorkoutsPath, type TrainingPeaksPayload } from "../../utils/useRawSources";
-import { irelandDateStr, whoopDayStr } from "../../utils/irelandDate";
+import { irelandDateStr } from "../../utils/irelandDate";
+import { garminDaysFrom, type GarminDay } from "../../utils/garmin";
 import type { PageDateRanges } from "../../utils/dateRange";
 import { today } from "./aggregate";
 
 export type TrendMetricDef = {
   id: string;
-  source: "whoop" | "strava" | "health" | "goal";
+  source: "garmin" | "strava" | "health" | "goal";
   label: string;
   unit: string;
   aggregation: "sum" | "avg";
@@ -31,20 +32,6 @@ export type TrendMetricDef = {
   goalTolerance?: number;
   getValue: (date: string) => number | null;
   getGoal?: (date: string) => number | null;
-};
-
-type WhoopDayRaw = {
-  date: string;
-  recovery: { score: number; hrvMs: number; restingHeartRate: number } | null;
-  strain: { score: number; avgHeartRate: number; maxHeartRate: number; zone1to3Minutes: number; zone4to5Minutes: number } | null;
-  sleep: {
-    performancePercent: number;
-    totalSleepHours: number;
-    consistencyPercent: number;
-    efficiencyPercent: number;
-    hoursNeeded: number;
-    respiratoryRate: number;
-  } | null;
 };
 
 type StravaRide = {
@@ -88,7 +75,7 @@ export type TrendsDataState =
       // For the Health Calendar widget only - everything else here works off
       // the getValue-per-metric shape above, but a multi-metric-per-day
       // calendar needs the raw day objects and weight/BMI-by-date directly.
-      whoopHistory: WhoopDayRaw[];
+      garminHistory: GarminDay[];
       weightByDate: Map<string, number>;
       weightUnit: string;
       bmiByDate: Map<string, number>;
@@ -116,7 +103,6 @@ export function useTrendsData(): TrendsDataState {
     let cancelled = false;
 
     Promise.all([
-      fetch("/api/whoop-data").then((r) => (r.ok ? r.json() : null)),
       // A generous count (not the default 6 "recent rides" list) so CTL's
       // 42-day window has real history behind it rather than ramping up
       // from an artificially recent start - see useTrendsData's CTL/ATL/TSB
@@ -128,18 +114,10 @@ export function useTrendsData(): TrendsDataState {
       fetch(plannedWorkoutsPath()).then((r) => (r.ok ? r.json() : null)),
       fetch("/api/trainingpeaks").then((r) => (r.ok ? r.json() : null)),
     ])
-      .then(([whoop, strava, health, goalsBody, settingsBody, plannedBody, tpDirect]) => {
+      .then(([strava, health, goalsBody, settingsBody, plannedBody, tpDirect]) => {
         if (cancelled) return;
 
         const goals: Goals = goalsBody?.goals ?? {};
-        const whoopDays = (whoop?.history as WhoopDayRaw[] | undefined) ?? [];
-        // Whoop cycle starts and Strava start dates are both full UTC
-        // timestamps, so a raw .slice(0, 10) buckets them by the UTC calendar
-        // day - which is the previous day for anything between Irish midnight
-        // and 1am during BST. An 00:30 start to a long ride belonged to
-        // yesterday; the whole app reads these by Irish day instead.
-        const whoopByDate = new Map(whoopDays.map((d) => [whoopDayStr(new Date(d.date)), d]));
-
         const rides = (strava?.rides as StravaRide[] | undefined) ?? [];
         const stravaByDate = new Map<string, StravaRide[]>();
         for (const ride of rides) {
@@ -150,65 +128,93 @@ export function useTrendsData(): TrendsDataState {
         }
 
         const healthHistory = (health?.history as HealthHistory | undefined) ?? {};
-        const healthCatalog = (health?.catalog as HealthCatalogEntry[] | undefined) ?? [];
+        // Garmin's readings arrive as garmin_* fields in the same history and
+        // are offered as their own metrics below rather than as raw fields.
+        const healthCatalog = ((health?.catalog as HealthCatalogEntry[] | undefined) ?? []).filter((c) => !c.name.startsWith("garmin_"));
+        const garminDays = garminDaysFrom(healthHistory);
+        const garminByDate = new Map(garminDays.map((d) => [d.date, d]));
 
-        const allDates = new Set<string>([...whoopByDate.keys(), ...stravaByDate.keys(), ...Object.keys(healthHistory)]);
+        const allDates = new Set<string>([...stravaByDate.keys(), ...Object.keys(healthHistory)]);
         const days = Array.from(allDates).sort();
 
         const isTrainingDay = (date: string): boolean => {
           if (stravaByDate.has(date)) return true;
-          const w = whoopByDate.get(date);
-          return !!w?.strain && w.strain.zone1to3Minutes + w.strain.zone4to5Minutes > 0;
+          const g = garminByDate.get(date);
+          return !!g && ((g.activityMinutes ?? 0) > 0 || (g.trainingLoad ?? 0) > 0);
         };
 
         const metrics: TrendMetricDef[] = [
           {
-            id: "whoop.recovery",
-            source: "whoop",
-            label: "Recovery score",
-            unit: "%",
-            aggregation: "avg",
-            getValue: (date) => whoopByDate.get(date)?.recovery?.score ?? null,
-          },
-          {
-            id: "whoop.strain",
-            source: "whoop",
-            label: "Strain",
+            id: "garmin.readiness",
+            source: "garmin",
+            label: "Training Readiness",
             unit: "",
             aggregation: "avg",
-            getValue: (date) => whoopByDate.get(date)?.strain?.score ?? null,
+            getValue: (date) => garminByDate.get(date)?.readiness ?? null,
           },
           {
-            id: "whoop.sleepPerformance",
-            source: "whoop",
-            label: "Sleep performance",
-            unit: "%",
+            id: "garmin.trainingLoad",
+            source: "garmin",
+            label: "Training load",
+            unit: "",
+            aggregation: "sum",
+            getValue: (date) => garminByDate.get(date)?.trainingLoad ?? null,
+          },
+          {
+            id: "garmin.acuteLoad",
+            source: "garmin",
+            label: "Acute load (7-day)",
+            unit: "",
             aggregation: "avg",
-            getValue: (date) => whoopByDate.get(date)?.sleep?.performancePercent ?? null,
+            getValue: (date) => garminByDate.get(date)?.acuteLoad ?? null,
           },
           {
-            id: "whoop.sleepHours",
-            source: "whoop",
+            id: "garmin.sleepScore",
+            source: "garmin",
+            label: "Sleep score",
+            unit: "",
+            aggregation: "avg",
+            getValue: (date) => garminByDate.get(date)?.sleepScore ?? null,
+          },
+          {
+            id: "garmin.sleepHours",
+            source: "garmin",
             label: "Sleep duration",
             unit: "h",
             aggregation: "avg",
-            getValue: (date) => whoopByDate.get(date)?.sleep?.totalSleepHours ?? null,
+            getValue: (date) => garminByDate.get(date)?.sleepHours ?? null,
           },
           {
-            id: "whoop.hrv",
-            source: "whoop",
-            label: "HRV",
+            id: "garmin.hrv",
+            source: "garmin",
+            label: "HRV (overnight)",
             unit: "ms",
             aggregation: "avg",
-            getValue: (date) => whoopByDate.get(date)?.recovery?.hrvMs ?? null,
+            getValue: (date) => garminByDate.get(date)?.hrv ?? null,
           },
           {
-            id: "whoop.restingHr",
-            source: "whoop",
+            id: "garmin.restingHr",
+            source: "garmin",
             label: "Resting heart rate",
             unit: "bpm",
             aggregation: "avg",
-            getValue: (date) => whoopByDate.get(date)?.recovery?.restingHeartRate ?? null,
+            getValue: (date) => garminByDate.get(date)?.restingHr ?? null,
+          },
+          {
+            id: "garmin.bodyBatteryWake",
+            source: "garmin",
+            label: "Body Battery at wake",
+            unit: "",
+            aggregation: "avg",
+            getValue: (date) => garminByDate.get(date)?.bodyBatteryWake ?? null,
+          },
+          {
+            id: "garmin.stress",
+            source: "garmin",
+            label: "Stress (day average)",
+            unit: "",
+            aggregation: "avg",
+            getValue: (date) => garminByDate.get(date)?.stress ?? null,
           },
           {
             id: "strava.distance",
@@ -415,7 +421,7 @@ export function useTrendsData(): TrendsDataState {
             aggregation: "avg",
             isGoal: true,
             goalDirection: "atLeast",
-            getValue: (date) => whoopByDate.get(date)?.sleep?.totalSleepHours ?? null,
+            getValue: (date) => garminByDate.get(date)?.sleepHours ?? null,
             getGoal: () => goals.sleepHours ?? null,
           },
           {
@@ -503,7 +509,7 @@ export function useTrendsData(): TrendsDataState {
             isGoal: true,
             goalDirection: "atLeast",
             getValue: (date) => {
-              const hours = whoopByDate.get(date)?.sleep?.totalSleepHours;
+              const hours = garminByDate.get(date)?.sleepHours;
               if (hours == null || goals.sleepHours == null) return null;
               return hours >= goals.sleepHours ? 1 : 0;
             },
@@ -526,7 +532,7 @@ export function useTrendsData(): TrendsDataState {
           },
         );
 
-        // Health Calendar: one calendar with Strain/Recovery/Sleep/HRV/
+        // Health Calendar: one calendar with Training/Readiness/Sleep/HRV/
         // Weight per day, rather than the day/week/month aggregate every
         // other metric uses - getValue is never actually called since
         // TrendsWidget special-cases this id before reaching that logic.
@@ -544,7 +550,7 @@ export function useTrendsData(): TrendsDataState {
 
         metrics.push({
           id: HEALTH_CALENDAR_ID,
-          source: "whoop",
+          source: "garmin",
           label: "Health Calendar",
           unit: "",
           aggregation: "avg",
@@ -593,7 +599,7 @@ export function useTrendsData(): TrendsDataState {
         // weekly target.
         const sleepByDate = new Map<string, number>();
         for (const date of days) {
-          const hours = whoopByDate.get(date)?.sleep?.totalSleepHours;
+          const hours = garminByDate.get(date)?.sleepHours;
           if (hours != null) sleepByDate.set(date, hours);
         }
         const lastSevenNights = [...sleepByDate.keys()].slice(-7);
@@ -687,7 +693,7 @@ export function useTrendsData(): TrendsDataState {
           metrics,
           goals,
           saveGoals,
-          whoopHistory: whoopDays,
+          garminHistory: garminDays,
           weightByDate,
           weightUnit,
           bmiByDate,
@@ -707,7 +713,7 @@ export function useTrendsData(): TrendsDataState {
             metrics: [],
             goals: {},
             saveGoals: async () => {},
-            whoopHistory: [],
+            garminHistory: [],
             weightByDate: new Map(),
             weightUnit: "kg",
             bmiByDate: new Map(),

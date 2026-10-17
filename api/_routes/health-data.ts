@@ -175,7 +175,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // Reads require a signed-in session. Unlike /api/strava-activities and
-  // /api/whoop-data - which are deliberately open because the public site's
+  // /api/garmin-summary - which are deliberately open because the public site's
   // ride feed and recovery summary render from them - nothing outside the
   // signed-in dashboard reads this one, and it carries a year of body
   // weight, nutrition and body-composition history.

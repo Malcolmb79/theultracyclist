@@ -1,7 +1,7 @@
 import RingGauge from "./RingGauge";
 import { BandRow, ComparisonRow, DetailModal, TextRow } from "./detailParts";
 import { average } from "./detailFormat";
-import styles from "./WhoopDetailModal.module.css";
+import styles from "./DetailModal.module.css";
 import {
   GARMIN_BATTERY_COLOR,
   GARMIN_LOAD_COLOR,

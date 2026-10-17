@@ -1,8 +1,8 @@
 import type { BodyBattery, BodyBatteryBand } from "../../utils/bodyBattery";
 import styles from "./BodyBatteryCard.module.css";
 
-// Same three colours as the recovery ring, banded on Whoop's recovery
-// thresholds (see bodyBattery.ts).
+// Same three colours as the readiness ring, banded on Garmin's Body Battery
+// levels (see bodyBattery.ts).
 const BAND_COLOR: Record<BodyBatteryBand, string> = {
   high: "var(--color-accent-2)",
   medium: "var(--color-amber)",
@@ -21,7 +21,7 @@ const BREAKDOWN_MIN_HEIGHT = 230;
 
 export default function BodyBatteryCard({ battery, availableHeight }: BodyBatteryCardProps) {
   if (!battery) {
-    return <p className={styles.empty}>No data yet - needs a Garmin sync or a Whoop recovery reading.</p>;
+    return <p className={styles.empty}>No Body Battery reading yet today - it appears after the next Garmin sync.</p>;
   }
 
   const color = BAND_COLOR[battery.band];
@@ -49,23 +49,16 @@ export default function BodyBatteryCard({ battery, availableHeight }: BodyBatter
       <div className={styles.outlook}>
         <div className={styles.outlookItem}>
           <span className={styles.outlookValue}>{battery.startLevel}</span>
-          <span className={styles.outlookLabel}>{battery.estimatedStart ? "Woke (est.)" : "Woke"}</span>
+          <span className={styles.outlookLabel}>Woke</span>
         </div>
         <div className={styles.outlookItem}>
           <span className={styles.outlookValue}>{battery.projectedEndLevel}</span>
           <span className={styles.outlookLabel}>Bedtime, easy day</span>
         </div>
-        {battery.strainBudget != null ? (
-          <div className={styles.outlookItem}>
-            <span className={styles.outlookValue}>{battery.strainBudget > 0 ? `~${battery.strainBudget}` : "0"}</span>
-            <span className={styles.outlookLabel}>Strain in hand</span>
-          </div>
-        ) : (
-          <div className={styles.outlookItem}>
-            <span className={styles.outlookValue}>{battery.spare.rideHours > 0 ? `~${battery.spare.rideHours} h` : "0"}</span>
-            <span className={styles.outlookLabel}>Riding in hand</span>
-          </div>
-        )}
+        <div className={styles.outlookItem}>
+          <span className={styles.outlookValue}>{battery.spare.rideHours > 0 ? `~${battery.spare.rideHours} h` : "0"}</span>
+          <span className={styles.outlookLabel}>Riding in hand</span>
+        </div>
       </div>
 
       {showBreakdown && (

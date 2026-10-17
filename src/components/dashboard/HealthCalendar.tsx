@@ -1,8 +1,7 @@
 import { useState } from "react";
-import { recoveryColor } from "../../utils/recoveryColor";
 import { bmiCategoryColor, formatWeight } from "../../utils/bmi";
-import { irelandTodayDateStr, whoopDayStr } from "../../utils/irelandDate";
-import HealthDayDetailModal, { type HealthCalendarDay } from "./HealthDayDetailModal";
+import { irelandTodayDateStr } from "../../utils/irelandDate";
+import HealthDayDetailModal from "./HealthDayDetailModal";
 import { readinessColor, type GarminDay } from "../../utils/garmin";
 import styles from "./HealthCalendar.module.css";
 
@@ -12,7 +11,7 @@ const MONTH_LABELS = [
   "July", "August", "September", "October", "November", "December",
 ];
 
-const STRAIN_COLOR = "#4B87F5";
+const TRAINING_COLOR = "#4B87F5";
 const SLEEP_COLOR = "#8FA9C5";
 const HRV_COLOR = "#a78bfa";
 const WEIGHT_FALLBACK_COLOR = "var(--color-accent-2)";
@@ -29,27 +28,19 @@ function shiftMonth(monthKey: string, delta: number): string {
 }
 
 interface HealthCalendarProps {
-  whoopHistory: HealthCalendarDay[];
-  /** When given, the calendar shows Garmin readings instead of Whoop's. */
-  garminHistory?: GarminDay[];
+  history: GarminDay[];
   weightByDate: Map<string, number>;
   weightUnit: string;
   bmiByDate: Map<string, number>;
   height: number;
 }
 
-export default function HealthCalendar({ whoopHistory, garminHistory, weightByDate, weightUnit, bmiByDate, height }: HealthCalendarProps) {
+export default function HealthCalendar({ history, weightByDate, weightUnit, bmiByDate, height }: HealthCalendarProps) {
   const [monthKey, setMonthKey] = useState(() => irelandTodayDateStr().slice(0, 7));
   const [openDate, setOpenDate] = useState<string | null>(null);
   const [year, month] = monthKey.split("-").map(Number);
 
-  // d.date is Whoop's cycle-start timestamp (full ISO, UTC) - a raw
-  // .slice(0, 10) reads the UTC calendar day, which is wrong for roughly
-  // the first hour of every Irish day during BST (Irish midnight is 23:00
-  // UTC the previous day), showing that cycle one day earlier than it
-  // actually falls on locally.
-  const byDate = new Map(garminHistory ? [] : whoopHistory.map((d) => [whoopDayStr(new Date(d.date)), d]));
-  const garminByDate = new Map((garminHistory ?? []).map((d) => [d.date, d]));
+  const garminByDate = new Map(history.map((d) => [d.date, d]));
 
   // Monday-first grid, so the leading blanks count from Monday rather than
   // from getUTCDay()'s Sunday - see WEEKDAY_LABELS above.
@@ -90,26 +81,16 @@ export default function HealthCalendar({ whoopHistory, garminHistory, weightByDa
         {cells.map((dateStr, i) => {
           if (!dateStr) return <div key={`empty-${i}`} className={styles.cell} />;
 
-          const day = byDate.get(dateStr);
           const garminDay = garminByDate.get(dateStr);
           const weightVal = weightByDate.get(dateStr);
           const bmi = bmiByDate.get(dateStr);
 
-          // Recovery/HRV/Sleep/Weight get their actual numbers shown
+          // Readiness/HRV/Sleep/Weight get their actual numbers shown
           // directly (colored for at-a-glance reading) since those are the
-          // ones worth reading without opening the day detail. Strain stays
+          // ones worth reading without opening the day detail. Training stays
           // as a plain color dot - there's only so much a ~50px cell can
           // show before it's unreadable clutter.
           const values: { color: string; text: string; label: string }[] = [];
-          if (day?.recovery) {
-            values.push({ color: recoveryColor(day.recovery.score), text: `${day.recovery.score}%`, label: `Recovery ${day.recovery.score}%` });
-          }
-          if (day?.recovery?.hrvMs != null) {
-            values.push({ color: HRV_COLOR, text: `${day.recovery.hrvMs}`, label: `HRV ${day.recovery.hrvMs}ms` });
-          }
-          if (day?.sleep) {
-            values.push({ color: SLEEP_COLOR, text: `${day.sleep.performancePercent}%`, label: `Sleep ${day.sleep.performancePercent}%` });
-          }
           if (garminDay?.readiness != null) {
             values.push({ color: readinessColor(garminDay.readiness), text: `${garminDay.readiness}`, label: `Readiness ${garminDay.readiness}` });
           }
@@ -126,8 +107,7 @@ export default function HealthCalendar({ whoopHistory, garminHistory, weightByDa
           }
 
           const dots: { color: string; label: string }[] = [];
-          if (day?.strain) dots.push({ color: STRAIN_COLOR, label: `Strain ${day.strain.score.toFixed(1)}` });
-          if (garminDay?.trainingLoad) dots.push({ color: STRAIN_COLOR, label: `Training load ${Math.round(garminDay.trainingLoad)}` });
+          if (garminDay?.trainingLoad) dots.push({ color: TRAINING_COLOR, label: `Training load ${Math.round(garminDay.trainingLoad)}` });
 
           const hasData = values.length > 0 || dots.length > 0;
           const title = hasData
@@ -164,8 +144,8 @@ export default function HealthCalendar({ whoopHistory, garminHistory, weightByDa
         })}
       </div>
       <div className={styles.legend}>
-        <span><span className={styles.legendDot} style={{ background: "var(--color-amber)" }} />{garminHistory ? "Readiness" : "Recovery"}</span>
-        <span><span className={styles.legendDot} style={{ background: STRAIN_COLOR }} />{garminHistory ? "Training" : "Strain"}</span>
+        <span><span className={styles.legendDot} style={{ background: "var(--color-amber)" }} />Readiness</span>
+        <span><span className={styles.legendDot} style={{ background: TRAINING_COLOR }} />Training</span>
         <span><span className={styles.legendDot} style={{ background: SLEEP_COLOR }} />Sleep</span>
         <span><span className={styles.legendDot} style={{ background: HRV_COLOR }} />HRV</span>
         <span><span className={styles.legendDot} style={{ background: WEIGHT_FALLBACK_COLOR }} />Weight</span>
@@ -174,8 +154,7 @@ export default function HealthCalendar({ whoopHistory, garminHistory, weightByDa
       {openDate && (
         <HealthDayDetailModal
           date={openDate}
-          day={byDate.get(openDate)}
-          garminDay={garminByDate.get(openDate)}
+          day={garminByDate.get(openDate)}
           weightVal={weightByDate.get(openDate) ?? null}
           weightUnit={weightUnit}
           bmi={bmiByDate.get(openDate) ?? null}

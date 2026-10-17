@@ -1,7 +1,7 @@
 import InstagramFeed from "../components/social/InstagramFeed";
 import StravaFeed from "../components/social/StravaFeed";
 import FollowLinks from "../components/social/FollowLinks";
-import WhoopSummary from "../components/recovery/WhoopSummary";
+import GarminSummary from "../components/recovery/GarminSummary";
 import SectionHeading from "../components/shared/SectionHeading";
 
 export default function FollowPage() {
@@ -33,7 +33,7 @@ export default function FollowPage() {
       <section className="section">
         <div className="container">
           <SectionHeading eyebrow="Training" title="Recovery" />
-          <WhoopSummary />
+          <GarminSummary />
         </div>
       </section>
     </>

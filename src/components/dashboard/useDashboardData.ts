@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { WHOOP_STRAIN_RECOVERY_COMBO_ID, WHOOP_RINGS_COMBO_ID, HEALTH_CALENDAR_ID, BODY_BATTERY_ID, GARMIN_LOAD_READINESS_COMBO_ID, GARMIN_RINGS_ID, GARMIN_HEALTH_CALENDAR_ID, GARMIN_BATTERY_TIMELINE_ID, CALORIES_BALANCE_ID, MACRO_SPLIT_ID, PERFORMANCE_CHART_ID, WEATHER_ID, GARMIN_LIVETRACK_ID, LIVE_TRACKER_ID, ALL_ACTIVITY_ID } from "./types";
+import { HEALTH_CALENDAR_ID, BODY_BATTERY_ID, GARMIN_LOAD_READINESS_COMBO_ID, GARMIN_RINGS_ID, GARMIN_BATTERY_TIMELINE_ID, CALORIES_BALANCE_ID, MACRO_SPLIT_ID, PERFORMANCE_CHART_ID, WEATHER_ID, GARMIN_LIVETRACK_ID, LIVE_TRACKER_ID, ALL_ACTIVITY_ID } from "./types";
 import { useUnits } from "../../context/UnitsContext";
 import { garminDaysFrom, type GarminDay } from "../../utils/garmin";
 import { convertMetricSeries, convertValueUnit } from "../../utils/units";
@@ -13,7 +13,7 @@ export type SeriesPoint = { date: string; value: number };
 
 export type MetricDef = {
   id: string;
-  source: "strava" | "whoop" | "health" | "weather" | "garmin";
+  source: "strava" | "health" | "weather" | "garmin";
   label: string;
   unit: string;
   series: SeriesPoint[]; // chronological, oldest first
@@ -22,17 +22,6 @@ export type MetricDef = {
   hidden?: boolean;
 };
 
-export type WhoopRecovery = { score: number; hrvMs: number; restingHeartRate: number };
-export type WhoopStrain = { score: number; avgHeartRate: number; maxHeartRate: number; zone1to3Minutes: number; zone4to5Minutes: number };
-export type WhoopSleep = {
-  performancePercent: number;
-  totalSleepHours: number;
-  consistencyPercent: number;
-  efficiencyPercent: number;
-  hoursNeeded: number;
-  respiratoryRate: number;
-};
-export type WhoopDay = { date: string; recovery: WhoopRecovery | null; strain: WhoopStrain | null; sleep: WhoopSleep | null };
 
 type StravaRide = {
   id: number;
@@ -78,7 +67,6 @@ export type DashboardDataState =
   | {
       status: "ready";
       metrics: MetricDef[];
-      whoopHistory: WhoopDay[];
       garminHistory: GarminDay[];
       performanceSeries: PerformancePoint[];
       /** The athlete's targets, passed straight through for goal-aware widgets. */
@@ -91,7 +79,6 @@ export function useDashboardData(raw: RawSourcesState): DashboardDataState {
   return useMemo<DashboardDataState>(() => {
     if (raw.status !== "ready") return { status: "loading" };
 
-    const whoop = raw.whoop as { history?: WhoopDay[] } | null;
     const strava = raw.strava as
       | { rides?: StravaRide[]; summary?: { weekly?: StravaPeriodSummary; monthly?: StravaPeriodSummary } }
       | null;
@@ -101,44 +88,21 @@ export function useDashboardData(raw: RawSourcesState): DashboardDataState {
     const trainingPeaks = raw.trainingPeaks;
 
     const metrics: MetricDef[] = [];
-      let whoopHistory: WhoopDay[] = [];
       let garminHistory: GarminDay[] = [];
       let performanceSeries: PerformancePoint[] = [];
 
       // Always offered, independent of any connected data source - it's a
-      // live location snapshot, not derived from Whoop/Strava/Health.
+      // live location snapshot, not derived from Garmin/Strava/Health.
       metrics.push({ id: WEATHER_ID, source: "weather", label: "Weather", unit: "", series: [], statOnly: true });
       metrics.push({ id: GARMIN_LIVETRACK_ID, source: "garmin", label: "Garmin LiveTrack", unit: "", series: [], statOnly: true });
       // Reads /api/live.json directly, so it is offered regardless of which
-      // of Strava/Whoop/Health happen to be connected - those only see a
+      // of Strava/Garmin/Health happen to be connected - those only see a
       // ride once it has been saved and synced, which is hours too late to
       // be "live".
       metrics.push({ id: LIVE_TRACKER_ID, source: "garmin", label: "Live ride data", unit: "", series: [], statOnly: true });
       // Reads its own endpoint rather than the shared Strava fetch, which is
       // ride-filtered on purpose, so it is offered whatever else connected.
       metrics.push({ id: ALL_ACTIVITY_ID, source: "strava", label: "All activity", unit: "", series: [], statOnly: true });
-
-      if (whoop?.history) {
-        const days = (whoop.history as WhoopDay[]).slice().reverse();
-        whoopHistory = days;
-        const series = (pick: (d: WhoopDay) => number | null | undefined): SeriesPoint[] =>
-          days
-            .map((d) => ({ date: d.date, value: pick(d) }))
-            .filter((p): p is SeriesPoint => p.value != null);
-
-        metrics.push(
-          { id: "whoop.recovery", source: "whoop", label: "Recovery score", unit: "%", series: series((d) => d.recovery?.score) },
-          { id: "whoop.hrv", source: "whoop", label: "HRV", unit: "ms", series: series((d) => d.recovery?.hrvMs) },
-          { id: "whoop.restingHr", source: "whoop", label: "Resting heart rate", unit: "bpm", series: series((d) => d.recovery?.restingHeartRate) },
-          { id: "whoop.strain", source: "whoop", label: "Strain", unit: "", series: series((d) => d.strain?.score) },
-          { id: "whoop.strainAvgHr", source: "whoop", label: "Strain avg heart rate", unit: "bpm", series: series((d) => d.strain?.avgHeartRate) },
-          { id: "whoop.sleepPerformance", source: "whoop", label: "Sleep performance", unit: "%", series: series((d) => d.sleep?.performancePercent) },
-          { id: "whoop.sleepHours", source: "whoop", label: "Sleep duration", unit: "h", series: series((d) => d.sleep?.totalSleepHours) },
-          { id: WHOOP_STRAIN_RECOVERY_COMBO_ID, source: "whoop", label: "Strain & Recovery", unit: "", series: [], statOnly: true },
-          { id: WHOOP_RINGS_COMBO_ID, source: "whoop", label: "Sleep, Recovery & Strain", unit: "", series: [], statOnly: true },
-          { id: HEALTH_CALENDAR_ID, source: "whoop", label: "Health Calendar", unit: "", series: [], statOnly: true },
-        );
-      }
 
       if (strava?.rides) {
         const rides = (strava.rides as StravaRide[]).slice().reverse();
@@ -270,22 +234,19 @@ export function useDashboardData(raw: RawSourcesState): DashboardDataState {
             { id: "garmin.stress", source: "garmin", label: "Stress (day average)", unit: "", series: series((d) => d.stress) },
             { id: GARMIN_LOAD_READINESS_COMBO_ID, source: "garmin", label: "Training Load & Readiness", unit: "", series: [], statOnly: true },
             { id: GARMIN_RINGS_ID, source: "garmin", label: "Sleep, Readiness, Body Battery & Load", unit: "", series: [], statOnly: true },
-            { id: GARMIN_HEALTH_CALENDAR_ID, source: "garmin", label: "Health Calendar", unit: "", series: [], statOnly: true },
+            { id: HEALTH_CALENDAR_ID, source: "garmin", label: "Health Calendar", unit: "", series: [], statOnly: true },
             { id: GARMIN_BATTERY_TIMELINE_ID, source: "garmin", label: "Body Battery Timeline", unit: "", series: [], statOnly: true },
           );
         }
       }
 
-      // Garmin's own reading drives it; the Whoop estimate is the fallback
-      // until Whoop is removed.
-      if (garminHistory.length > 0 || whoopHistory.length > 0) {
-        metrics.push({ id: BODY_BATTERY_ID, source: garminHistory.length > 0 ? "garmin" : "whoop", label: "Body Battery", unit: "", series: [], statOnly: true });
+      if (garminHistory.length > 0) {
+        metrics.push({ id: BODY_BATTERY_ID, source: "garmin", label: "Body Battery", unit: "", series: [], statOnly: true });
       }
 
     return {
       status: "ready",
       metrics: metrics.map((m) => convertMetricSeries(m, system)),
-      whoopHistory,
       garminHistory,
       performanceSeries,
       goals: raw.goals,

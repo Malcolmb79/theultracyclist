@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { migrateWidgets } from "../utils/metricAliases";
 import TrendsCatalog from "../components/trends/TrendsCatalog";
 import TrendsWidget from "../components/trends/TrendsWidget";
 import { useTrendsData, type TrendMetricDef } from "../components/trends/useTrendsData";
@@ -66,7 +67,7 @@ function TrendsEditor() {
     fetch(`/api/trends-layout?device=${device}`)
       .then((res) => res.json())
       .then((body: { widgets: TrendsWidgetConfig[] }) => {
-        if (!cancelled) setWidgets(body.widgets ?? []);
+        if (!cancelled) setWidgets(migrateWidgets(body.widgets ?? []));
       })
       .catch(() => {
         if (!cancelled) setWidgets([]);
@@ -256,7 +257,7 @@ function TrendsEditor() {
                 widget={widget}
                 metric={metricById.get(widget.metric)}
                 days={data.days}
-                whoopHistory={data.whoopHistory}
+                garminHistory={data.garminHistory}
                 weightByDate={data.weightByDate}
                 weightSeries={data.weightSeries}
                 weightUnit={data.weightUnit}
@@ -299,7 +300,7 @@ function TrendsEditor() {
                 }}
                 metric={metricById.get(widget.metric)}
                 days={data.days}
-                whoopHistory={data.whoopHistory}
+                garminHistory={data.garminHistory}
                 weightByDate={data.weightByDate}
                 weightSeries={data.weightSeries}
                 weightUnit={data.weightUnit}

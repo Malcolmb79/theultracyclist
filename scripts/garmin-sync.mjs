@@ -299,6 +299,30 @@ function toTimeline(date, raw, activities) {
   return { date, dayStart, dayEnd, sleep, points, activities: timelineActivities(activities, dayStart, dayEnd) };
 }
 
+// The activity list for the All activity feed (api/_routes/garmin-activities.ts).
+function activityRecords(activities) {
+  const out = [];
+  for (const a of activities ?? []) {
+    const start = typeof a.startTimeGMT === "string" ? Date.parse(`${a.startTimeGMT.replace(" ", "T")}Z`) : NaN;
+    if (a.activityId == null || !Number.isFinite(start)) continue;
+    const round = (v, digits = 0) => (num(v) == null ? null : Math.round(v * 10 ** digits) / 10 ** digits);
+    out.push({
+      id: String(a.activityId),
+      start: new Date(start).toISOString(),
+      name: typeof a.activityName === "string" ? a.activityName.slice(0, 120) : "Activity",
+      type: typeof a.activityType?.typeKey === "string" ? a.activityType.typeKey : "other",
+      durationMinutes: num(a.duration) != null ? Math.round(a.duration / 60) : null,
+      distanceKm: num(a.distance) != null && a.distance > 0 ? round(a.distance / 1000, 1) : null,
+      elevationGainM: round(a.elevationGain),
+      avgHeartrate: round(a.averageHR),
+      avgWatts: round(a.avgPower),
+      trainingLoad: round(a.activityTrainingLoad),
+      calories: round(a.calories),
+    });
+  }
+  return out;
+}
+
 // Matches MAX_DAYS in api/_routes/garmin-timeline.ts.
 const TIMELINE_DAYS = 7;
 
@@ -390,6 +414,12 @@ async function sync(args) {
   if (timelines.length > 0) {
     if (dryRun) console.log(`Timeline: ${timelines.map((t) => `${t.date} (${t.points.length} points)`).join(", ")}`);
     else console.log(`Posted timeline for ${timelines.length} day(s): ${await post({ days: timelines }, "garmin-timeline")}`);
+  }
+
+  const records = activityRecords(activities);
+  if (records.length > 0) {
+    if (dryRun) console.log(`Activities: ${records.length}`);
+    else console.log(`Posted ${records.length} activities: ${await post({ activities: records }, "garmin-activities")}`);
   }
 
   // Refreshed OAuth tokens are good for a year; saving them after every run

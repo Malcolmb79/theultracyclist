@@ -12,12 +12,12 @@ interface TrendsCatalogProps {
 
 const SOURCE_LABELS: Record<TrendMetricDef["source"], string> = {
   goal: "Goals vs Actual",
-  whoop: "Whoop",
+  garmin: "Garmin",
   strava: "Strava",
   health: "Apple Health",
 };
 
-const SOURCE_ORDER: TrendMetricDef["source"][] = ["goal", "whoop", "strava", "health"];
+const SOURCE_ORDER: TrendMetricDef["source"][] = ["goal", "garmin", "strava", "health"];
 
 export default function TrendsCatalog({ metrics, goals, onSaveGoals, onAdd }: TrendsCatalogProps) {
   const grouped = SOURCE_ORDER.map((source) => ({ source, items: metrics.filter((m) => m.source === source) }));

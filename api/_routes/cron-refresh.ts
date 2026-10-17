@@ -3,21 +3,18 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 /**
  * Keeps the slow, cacheable upstreams warm on a schedule.
  *
- * Both of these are cached at the edge, and both are slow when cold - Whoop
- * because recovery lands each morning and strain climbs all day, Strava because
- * paging 200 activities takes about ten seconds. Left alone, whoever opens the
+ * Strava's activity list is cached at the edge and slow when cold - paging
+ * 200 activities takes about ten seconds. Left alone, whoever opens the
  * dashboard first pays that cost and sees stale figures until they do.
  *
  * Deliberately just re-requests the public URLs rather than recomputing
  * anything: that populates the very cache entry a visitor will hit, which a
  * direct in-process call would not.
  *
- * This narrows the staleness window; it does not close it. Whoop webhooks are
- * the way to be told the moment a score lands rather than finding out on the
- * next tick.
+ * This narrows the staleness window; it does not close it.
  */
 
-const WARM_PATHS = ["/api/whoop-data", "/api/strava-activities?count=200", "/api/strava-activities"];
+const WARM_PATHS = ["/api/strava-activities?count=200", "/api/strava-activities"];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Vercel sends the cron secret as a bearer token when one is configured.

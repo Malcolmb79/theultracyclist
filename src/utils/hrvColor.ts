@@ -1,8 +1,8 @@
 // HRV has no universal "good" absolute value - it's highly individual, so
-// unlike recovery score (already 0-100 and banded by Whoop itself), HRV
+// unlike Training Readiness (already 0-100 and banded by Garmin itself), HRV
 // readiness is judged by how today's reading compares to the athlete's own
 // recent baseline. Bands below match the deviation-from-baseline approach
-// used by Oura/WHOOP's own trend views and EliteHRV, not a fixed ms cutoff.
+// used by Garmin's HRV status, Oura's trend views and EliteHRV, not a fixed ms cutoff.
 const AMBER_THRESHOLD_PERCENT = -5;
 const RED_THRESHOLD_PERCENT = -15;
 const BASELINE_WINDOW_DAYS = 7;

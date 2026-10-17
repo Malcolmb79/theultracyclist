@@ -78,7 +78,7 @@ function dayLabel(iso: string): string {
 // Geolocation for the coordinates, Open-Meteo's free keyless API for the
 // forecast, BigDataCloud's free keyless reverse-geocode endpoint for the
 // place name), no server route or account needed. Useful for judging
-// today's ride against real conditions, which none of the Whoop/Strava/
+// today's ride against real conditions, which none of the Garmin/Strava/
 // Health data otherwise captures.
 export default function WeatherCard() {
   const { system } = useUnits();

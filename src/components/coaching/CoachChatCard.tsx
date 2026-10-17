@@ -88,7 +88,7 @@ export default function CoachChatCard({ input, settings, onSaveSettings, dataAva
     setMessages([]);
 
     // A short deliberate pause before the first read of the session - gives
-    // a just-finished ride or overnight Whoop sync a few extra seconds to
+    // a just-finished ride or overnight Garmin sync a few extra seconds to
     // land before the coach forms an opinion on stale data.
     const timer = setTimeout(() => {
       if (cancelled) return;
@@ -273,7 +273,7 @@ export default function CoachChatCard({ input, settings, onSaveSettings, dataAva
         </div>
       )}
 
-      {status === "waiting" && <p className={styles.muted}>Waiting for today's Whoop/Strava data to load…</p>}
+      {status === "waiting" && <p className={styles.muted}>Waiting for today's Garmin/Strava data to load…</p>}
       {status === "loading" && <p className={styles.muted}>Generating…</p>}
       {status === "error" && <p className={styles.muted}>Couldn't reach the coach right now.</p>}
       {status === "unconfigured" && (

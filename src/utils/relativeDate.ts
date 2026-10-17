@@ -5,8 +5,8 @@ import { formatDate } from "./formatDate";
 // to register at a glance than "25 July 2026" when the point is whether a
 // widget's data is actually current. Apple Health metrics sync via a
 // push-based Shortcut (only updates when the phone/Health app actually
-// pushes new data, not on a fixed schedule the way Whoop's once-daily
-// recovery does), so it's normal for these to sit a day or more behind
+// pushes new data, not on a fixed schedule the way the Garmin sync
+// runs), so it's normal for these to sit a day or more behind
 // until something new syncs - this makes that age obvious rather than
 // letting a plain date quietly read as "current" at a glance.
 export function relativeDayLabel(dateStr: string): string {

@@ -269,7 +269,7 @@ const TOOLS = [
             "\"health.caloriesBalance\", \"health.bmi\", \"strava.performanceChart\", \"garmin.readiness\", " +
             "\"garmin.hrv\", \"garmin.sleepScore\", \"garmin.trainingLoad\", the Garmin composites " +
             "\"garmin.sleepReadinessBatteryRings\", \"garmin.loadReadinessCombo\", \"garmin.healthCalendar\", " +
-            "\"garmin.bodyBatteryTimeline\" and \"whoop.bodyBattery\" (the Body Battery card), or any \"health.<field>\" Apple " +
+            "\"garmin.bodyBatteryTimeline\" and \"garmin.bodyBattery\" (the Body Battery card), or any \"health.<field>\" Apple " +
             "Health field. These are dashboard widgets, not raw Apple Health fields - several are derived " +
             "(BMI from body weight and the height in Settings; macro split and calories balance from the " +
             "nutrition fields), so do not go looking for a matching field first and do not conclude the data " +

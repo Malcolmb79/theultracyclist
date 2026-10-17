@@ -81,11 +81,6 @@ function roundTo1(value: number): number {
   return Math.round(value * 10) / 10;
 }
 
-function whoopStatusFromQuery(): "connected" | "failed" | null {
-  const value = new URLSearchParams(window.location.search).get("whoop");
-  return value === "connected" || value === "failed" ? value : null;
-}
-
 // <input type="datetime-local"> wants "YYYY-MM-DDTHH:mm" in the browser's
 // own local time, with no timezone suffix - converts a stored ISO string to
 // that shape (and back again on save via new Date(value).toISOString()).
@@ -165,20 +160,10 @@ function SettingsEditor() {
   const [startTimeInput, setStartTimeInput] = useState("");
   const [showLivePageInput, setShowLivePageInput] = useState(true);
   const [liveTrackerStatus, setLiveTrackerStatus] = useState<string | null>(null);
-  const [whoopStatus] = useState(whoopStatusFromQuery);
   const [pictureDataUrl, setPictureDataUrl] = useState<string | undefined>(undefined);
   const [pictureError, setPictureError] = useState<string | null>(null);
   const [savingPicture, setSavingPicture] = useState(false);
   const [cropperImage, setCropperImage] = useState<HTMLImageElement | null>(null);
-
-  useEffect(() => {
-    if (!whoopStatus) return;
-    const url = new URL(window.location.href);
-    url.searchParams.delete("whoop");
-    window.history.replaceState({}, "", url.toString());
-    // Only strip the redirect param once, on mount - not on every whoopStatus read.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -771,16 +756,6 @@ function SettingsEditor() {
             />
             Show stored measurements on the Coaching page
           </label>
-        </div>
-
-        <div className={styles.section}>
-          <p className={styles.sectionTitle}>Connections</p>
-          <p className={styles.sectionHint}>Reconnect a data source if its dashboard widgets go blank.</p>
-          {whoopStatus === "connected" && <p className={styles.statusOk}>Whoop reconnected.</p>}
-          {whoopStatus === "failed" && <p className={styles.statusFail}>Couldn't reconnect Whoop - try again.</p>}
-          <a href="/api/whoop-authorize" className={styles.connectButton}>
-            Reconnect Whoop
-          </a>
         </div>
 
         <div className={styles.section}>

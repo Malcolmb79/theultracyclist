@@ -120,6 +120,7 @@ function toWidget(entry: CoachingWidgetEntry): Widget {
     width: entry.width,
     height: entry.height,
     color: entry.color,
+    dateRange: entry.dateRange,
   };
 }
 

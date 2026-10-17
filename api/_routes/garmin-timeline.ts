@@ -20,6 +20,7 @@ export type TimelineDay = {
   dayEnd: number;
   sleep: { start: number; end: number } | null;
   points: Point[];
+  activities?: { start: number; end: number; name: string; type: string; load: number | null; calories: number | null }[];
 };
 
 type Timeline = Record<string, TimelineDay>;
@@ -35,7 +36,8 @@ function isDay(value: unknown): value is TimelineDay {
     Number.isFinite(d.dayStart) &&
     Number.isFinite(d.dayEnd) &&
     Array.isArray(d.points) &&
-    d.points.length <= 1000
+    d.points.length <= 1000 &&
+    (d.activities === undefined || (Array.isArray(d.activities) && d.activities.length <= 50))
   );
 }
 

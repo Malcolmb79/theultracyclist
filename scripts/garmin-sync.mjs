@@ -246,7 +246,27 @@ function toMetrics(date, raw, activity) {
 // sends it. Most battery readings come back "ADJUSTED" (refined after the
 // watch synced) and Garmin draws those as a solid line; only "ESTIMATED" is
 // dotted.
-function toTimeline(date, raw) {
+function timelineActivities(activities, dayStart, dayEnd) {
+  const out = [];
+  for (const a of activities ?? []) {
+    const start = typeof a.startTimeGMT === "string" ? Date.parse(`${a.startTimeGMT.replace(" ", "T")}Z`) : NaN;
+    const seconds = num(a.elapsedDuration) ?? num(a.duration);
+    if (!Number.isFinite(start) || seconds == null) continue;
+    const end = start + seconds * 1000;
+    if (end <= dayStart || start >= dayEnd) continue;
+    out.push({
+      start,
+      end,
+      name: typeof a.activityName === "string" ? a.activityName.slice(0, 80) : "Activity",
+      type: typeof a.activityType?.typeKey === "string" ? a.activityType.typeKey : "other",
+      load: num(a.activityTrainingLoad) != null ? Math.round(a.activityTrainingLoad) : null,
+      calories: num(a.calories) != null ? Math.round(a.calories) : null,
+    });
+  }
+  return out.sort((a, b) => a.start - b.start);
+}
+
+function toTimeline(date, raw, activities) {
   const stress = raw.stress;
   if (!stress?.startTimestampGMT) return null;
   const dayStart = Date.parse(`${stress.startTimestampGMT}Z`);
@@ -276,7 +296,7 @@ function toTimeline(date, raw) {
   const sleepStart = num(sleepDto?.sleepStartTimestampGMT);
   const sleepEnd = num(sleepDto?.sleepEndTimestampGMT);
   const sleep = sleepStart != null && sleepEnd != null ? { start: sleepStart, end: sleepEnd } : null;
-  return { date, dayStart, dayEnd, sleep, points };
+  return { date, dayStart, dayEnd, sleep, points, activities: timelineActivities(activities, dayStart, dayEnd) };
 }
 
 // Matches MAX_DAYS in api/_routes/garmin-timeline.ts.
@@ -358,7 +378,7 @@ async function sync(args) {
     const raw = await fetchRaw(client, date);
     const metrics = toMetrics(date, raw, loads.get(date) ?? null);
     if (i >= dates.length - TIMELINE_DAYS) {
-      const timeline = toTimeline(date, raw);
+      const timeline = toTimeline(date, raw, activities);
       if (timeline) timelines.push(timeline);
     }
     if (Object.keys(metrics).length > 0) pending.push({ date, metrics });

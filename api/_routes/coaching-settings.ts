@@ -75,6 +75,10 @@ export type CoachingSettings = {
   pageDateRanges?: Record<string, string>;
   /** TrainingPeaks Premium calendar feed URL - see api/_routes/trainingpeaks-calendar.ts. */
   trainingPeaksIcsUrl?: string;
+  // Whether the Import Measurements card lists what's already stored. Off by
+  // default: body composition and blood work shouldn't be on screen just
+  // because the coaching page is open.
+  showStoredMeasurements?: boolean;
 };
 
 // KV shape: profile fields (ftpWatts, heightCm, ...) are shared across every
@@ -181,6 +185,7 @@ export async function fetchCoachingSettings(): Promise<CoachingSettings> {
     caloriesBurnTargetTime: stored.caloriesBurnTargetTime,
     pageDateRanges: stored.pageDateRanges,
     trainingPeaksIcsUrl: stored.trainingPeaksIcsUrl,
+    showStoredMeasurements: stored.showStoredMeasurements,
   };
 }
 
@@ -229,6 +234,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       caloriesBurnTargetTime: incoming.caloriesBurnTargetTime,
       pageDateRanges: incoming.pageDateRanges,
       trainingPeaksIcsUrl: incoming.trainingPeaksIcsUrl,
+      showStoredMeasurements: incoming.showStoredMeasurements,
       widgetsByDevice,
       // A save from today's client always sends an already-migrated list
       // (or a deliberately-emptied one) - either way, the array is now the
@@ -270,6 +276,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     caloriesBurnTargetTime: stored.caloriesBurnTargetTime,
     pageDateRanges: stored.pageDateRanges,
     trainingPeaksIcsUrl: stored.trainingPeaksIcsUrl,
+    showStoredMeasurements: stored.showStoredMeasurements,
     widgets,
   };
   res.status(200).json({ settings });

@@ -39,7 +39,7 @@ function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-export default function MeasurementImportCard() {
+export default function MeasurementImportCard({ showStored = false }: { showStored?: boolean }) {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [source, setSource] = useState("");
   const [fallbackDate, setFallbackDate] = useState(today());
@@ -48,12 +48,19 @@ export default function MeasurementImportCard() {
   const [done, setDone] = useState<string | null>(null);
   const [recent, setRecent] = useState<Stored[]>([]);
 
+  // Skipped entirely when the stored list is hidden (the Settings toggle),
+  // not just left unrendered - this is body composition and blood work, and
+  // data that shouldn't be on screen shouldn't be sitting in memory either.
   const loadRecent = useCallback(() => {
+    if (!showStored) {
+      setRecent([]);
+      return;
+    }
     fetch("/api/measurements?limit=12")
       .then((r) => (r.ok ? r.json() : null))
       .then((b: { measurements?: Stored[] } | null) => setRecent(b?.measurements ?? []))
       .catch(() => {});
-  }, []);
+  }, [showStored]);
 
   useEffect(loadRecent, [loadRecent]);
 
@@ -282,7 +289,7 @@ export default function MeasurementImportCard() {
       {error && <p className={styles.fail}>{error}</p>}
       {done && <p className={styles.ok}>{done}</p>}
 
-      {recent.length > 0 && (
+      {showStored && recent.length > 0 && (
         <div className={styles.recent}>
           <p className={styles.recentTitle}>Stored</p>
           <ul className={styles.recentList}>

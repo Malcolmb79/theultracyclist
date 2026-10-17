@@ -137,6 +137,7 @@ function SettingsEditor() {
     | "garmin"
     | "liveTracker"
     | "caloriesBurn"
+    | "storedMeasurements"
     | "trainingPeaks"
     // Not a save - the one destructive action on this page. It shares this
     // state so it can't run while a save is in flight, and vice versa.
@@ -285,6 +286,18 @@ function SettingsEditor() {
         caloriesBurnTarget: caloriesBurnTargetInput === "" ? undefined : Number(caloriesBurnTargetInput),
         caloriesBurnTargetTime: caloriesBurnTargetTimeInput || undefined,
       });
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  // Saves on toggle rather than behind a Save button - a lone checkbox with
+  // a pending state of its own would be the only reason for the button.
+  const handleToggleStoredMeasurements = async (show: boolean) => {
+    if (!settings) return;
+    setSaving("storedMeasurements");
+    try {
+      await persist({ ...settings, showStoredMeasurements: show || undefined });
     } finally {
       setSaving(null);
     }
@@ -740,6 +753,24 @@ function SettingsEditor() {
           >
             {saving === "caloriesBurn" ? "Saving…" : "Save"}
           </button>
+        </div>
+
+        <div className={styles.section}>
+          <p className={styles.sectionTitle}>Measurements</p>
+          <p className={styles.sectionHint}>
+            Imported measurements — body composition, blood work, anything read in from a screenshot — stay in the
+            database either way. This only controls whether the Import Measurements card on the Coaching page lists
+            what&apos;s already stored.
+          </p>
+          <label className={styles.checkboxRow}>
+            <input
+              type="checkbox"
+              checked={settings?.showStoredMeasurements ?? false}
+              disabled={saving === "storedMeasurements" || !settings}
+              onChange={(e) => handleToggleStoredMeasurements(e.target.checked)}
+            />
+            Show stored measurements on the Coaching page
+          </label>
         </div>
 
         <div className={styles.section}>

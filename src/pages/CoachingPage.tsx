@@ -388,7 +388,11 @@ function CoachingView() {
                 )}
                 {data.status === "ready" && entry.kind === "powerZones" && <PowerZonesCard settings={data.settings} recentRides={data.recentRides} />}
                 {entry.kind === "trainingCalendar" && <TrainingCalendarCard />}
-                {entry.kind === "measurements" && <MeasurementImportCard />}
+                {entry.kind === "measurements" && (
+                  <MeasurementImportCard
+                    showStored={data.status === "ready" && (data.settings.showStoredMeasurements ?? false)}
+                  />
+                )}
               </CoachingWidget>
             );
           })}

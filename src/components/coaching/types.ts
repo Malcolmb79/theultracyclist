@@ -90,6 +90,12 @@ export type CoachingSettings = {
    * api/_routes/trainingpeaks-calendar.ts.
    */
   trainingPeaksIcsUrl?: string;
+  /**
+   * Whether the Import Measurements card lists what's already stored. Off by
+   * default - body composition and blood work shouldn't be on screen just
+   * because the coaching page is open. Toggled in Settings.
+   */
+  showStoredMeasurements?: boolean;
 };
 
 export type ReadinessLevel = "hard" | "moderate" | "easy" | "rest";

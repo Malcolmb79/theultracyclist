@@ -20,7 +20,8 @@ export type TimelineDay = {
   dayEnd: number;
   sleep: { start: number; end: number } | null;
   points: Point[];
-  activities?: { start: number; end: number; name: string; type: string; load: number | null; calories: number | null }[];
+  /** Recorded activities, plus moves the watch detected on its own (auto: true). */
+  activities?: { start: number; end: number; name: string; type: string; load: number | null; calories: number | null; auto?: boolean }[];
 };
 
 type Timeline = Record<string, TimelineDay>;

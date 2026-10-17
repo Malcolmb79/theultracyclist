@@ -189,7 +189,7 @@ type TimelineDay = {
   dayEnd: number;
   sleep: { start: number; end: number } | null;
   points: TimelinePoint[];
-  activities?: { start: number; end: number; name: string; type: string; load: number | null; calories: number | null }[];
+  activities?: { start: number; end: number; name: string; type: string; load: number | null; calories: number | null; auto?: boolean }[];
 };
 
 const time = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Dublin", hour: "2-digit", minute: "2-digit" });
@@ -234,6 +234,7 @@ export async function bodyBatteryDay(date?: string): Promise<unknown> {
       return {
         name: a.name,
         type: a.type,
+        autoDetected: a.auto === true,
         from: time.format(a.start),
         to: time.format(a.end),
         trainingLoad: a.load,

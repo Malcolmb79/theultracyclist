@@ -135,7 +135,7 @@ async function attempt(label, fn) {
 /** Raw Garmin responses for one date - kept separate so `dump` and `sync` read the same thing. */
 async function fetchRaw(client, date) {
   const asDate = new Date(`${date}T12:00:00Z`);
-  const [sleep, hrv, heartRate, stress, bodyBatteryReport, readiness, steps] = await Promise.all([
+  const [sleep, hrv, heartRate, stress, bodyBatteryReport, readiness, steps, events] = await Promise.all([
     attempt("sleep", () => client.get(`${API}/sleep-service/sleep/dailySleepData`, { params: { date } })),
     attempt("hrv", () => client.get(`${API}/hrv-service/hrv/${date}`)),
     attempt("heart rate", () => client.getHeartRate(asDate)),
@@ -145,8 +145,10 @@ async function fetchRaw(client, date) {
     ),
     attempt("training readiness", () => client.get(`${API}/metrics-service/metrics/trainingreadiness/${date}`)),
     attempt("steps", () => client.getSteps(asDate)),
+    // Movement the watch detected on its own (Move IQ), e.g. a walk nobody started.
+    attempt("daily events", () => client.get(`${API}/wellness-service/wellness/dailyEvents`, { params: { calendarDate: date } })),
   ]);
-  return { sleep, hrv, heartRate, stress, bodyBatteryReport, readiness, steps };
+  return { sleep, hrv, heartRate, stress, bodyBatteryReport, readiness, steps, events };
 }
 
 /**
@@ -266,6 +268,30 @@ function timelineActivities(activities, dayStart, dayEnd) {
   return out.sort((a, b) => a.start - b.start);
 }
 
+// Garmin's auto-detected moves for the day. They repeat every recorded
+// activity too (a ride shows up as "cycling"), so any that overlap one are
+// dropped; what's left is movement nobody pressed start for.
+function detectedMoves(events, recorded) {
+  const out = [];
+  for (const e of Array.isArray(events) ? events : []) {
+    const start = typeof e.startTimestampGMT === "string" ? Date.parse(`${e.startTimestampGMT}Z`) : NaN;
+    const end = typeof e.endTimestampGMT === "string" ? Date.parse(`${e.endTimestampGMT}Z`) : NaN;
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
+    if (recorded.some((a) => start < a.end && end > a.start)) continue;
+    const type = typeof e.activityType === "string" ? e.activityType : "other";
+    out.push({
+      start,
+      end,
+      name: `${type.charAt(0).toUpperCase()}${type.slice(1).replace(/_/g, " ")} (auto-detected)`,
+      type,
+      load: null,
+      calories: null,
+      auto: true,
+    });
+  }
+  return out;
+}
+
 function toTimeline(date, raw, activities) {
   const stress = raw.stress;
   if (!stress?.startTimestampGMT) return null;
@@ -296,7 +322,8 @@ function toTimeline(date, raw, activities) {
   const sleepStart = num(sleepDto?.sleepStartTimestampGMT);
   const sleepEnd = num(sleepDto?.sleepEndTimestampGMT);
   const sleep = sleepStart != null && sleepEnd != null ? { start: sleepStart, end: sleepEnd } : null;
-  return { date, dayStart, dayEnd, sleep, points, activities: timelineActivities(activities, dayStart, dayEnd) };
+  const recorded = timelineActivities(activities, dayStart, dayEnd);
+  return { date, dayStart, dayEnd, sleep, points, activities: [...recorded, ...detectedMoves(raw.events, recorded)].sort((a, b) => a.start - b.start) };
 }
 
 // The activity list for the All activity feed (api/_routes/garmin-activities.ts).

@@ -11,7 +11,8 @@ import styles from "./BodyBatteryTimelineCard.module.css";
 /** [timestamp ms, stress (-1 unmeasured, -2 active) or null, battery or null, 1 if estimated]. */
 type Point = [number, number | null, number | null, 0 | 1];
 
-type Activity = { start: number; end: number; name: string; type: string; load: number | null; calories: number | null };
+/** `auto` marks movement the watch detected itself rather than a recorded activity. */
+type Activity = { start: number; end: number; name: string; type: string; load: number | null; calories: number | null; auto?: boolean };
 
 type TimelineDay = {
   date: string;
@@ -27,6 +28,8 @@ const STRESS_COLOR = "#f97316";
 const ACTIVE_COLOR = "rgba(160, 160, 160, 0.35)";
 const SLEEP_COLOR = "#2563eb";
 const ACTIVITY_COLOR = "#16a34a";
+// Garmin draws auto-detected moves in grey to set them apart from recorded activities.
+const DETECTED_COLOR = "#6b7280";
 const BATTERY_COLOR = "var(--color-text)";
 
 // Garmin's stress bands, labelled on the right edge like its chart.
@@ -298,7 +301,7 @@ export default function BodyBatteryTimelineCard({ availableHeight }: { available
               width={a.pillWidth}
               height={LANE_HEIGHT}
               rx={LANE_HEIGHT / 2}
-              fill={ACTIVITY_COLOR}
+              fill={a.auto ? DETECTED_COLOR : ACTIVITY_COLOR}
               stroke={hoverActivity?.start === a.start ? "var(--color-text)" : "none"}
             />
             <ActivityIcon kind={a.kind} cx={a.pillX + a.pillWidth / 2} cy={laneTop + LANE_HEIGHT / 2} />
@@ -329,6 +332,7 @@ export default function BodyBatteryTimelineCard({ availableHeight }: { available
         <span><span className={styles.dot} style={{ background: ACTIVE_COLOR }} />Active</span>
         <span><span className={styles.dot} style={{ background: SLEEP_COLOR }} />Sleep</span>
         <span><span className={styles.dot} style={{ background: ACTIVITY_COLOR }} />Activity</span>
+        <span><span className={styles.dot} style={{ background: DETECTED_COLOR }} />Auto-detected</span>
       </div>
     </div>
   );

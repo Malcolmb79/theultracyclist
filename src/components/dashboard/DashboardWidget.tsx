@@ -171,6 +171,7 @@ const RING_LABEL_OVERHEAD = 28;
 // below this width the rings would be forced smaller than their floor and
 // clip.
 const MIN_RINGS_WIDTH = 3 * 60 + MIN_RINGS_ROW_GAP * 2 + WIDGET_HORIZONTAL_CHROME;
+const MIN_GARMIN_RINGS_WIDTH = 4 * 60 + MIN_RINGS_ROW_GAP * 3 + WIDGET_HORIZONTAL_CHROME;
 
 // Shrinks the gap between rings as the widget gets smaller, so at the
 // smallest sizes the rings themselves get more of the available width
@@ -558,6 +559,8 @@ export default function DashboardWidget({
                       : MIN_WIDGET_HEIGHT;
   const minWidth = isAllActivity
     ? MIN_ALL_ACTIVITY_WIDTH
+    : isGarminRings
+    ? MIN_GARMIN_RINGS_WIDTH
     : isRings
     ? MIN_RINGS_WIDTH
     : isBmi
@@ -1089,30 +1092,38 @@ function GarminRingsRow({
   contentHeight: number;
   onOpenDetail: (kind: GarminDetailKind) => void;
 }) {
-  const [containerRef, measuredWidth] = useMeasuredWidth(MIN_RINGS_WIDTH);
+  const [containerRef, measuredWidth] = useMeasuredWidth(MIN_GARMIN_RINGS_WIDTH);
   // Each ring takes the newest day its own reading exists for: sleep is
   // scored on waking, readiness updates through the morning.
   const sleep = latestGarmin(history, "sleepScore");
   const readiness = latestGarmin(history, "readiness");
   const battery = latestGarmin(history, "bodyBattery");
+  // Load is the newest day's, like Whoop's live strain - 0 until an activity
+  // lands. A full ring is twice the recent daily average (acute load / 7).
+  const loadDay = history.at(-1);
+  const load = loadDay?.trainingLoad ?? null;
+  const acute = latestGarmin(history, "acuteLoad")?.value ?? null;
+  const loadPercent = load != null && acute ? Math.min(100, (load / ((acute / 7) * 2)) * 100) : 0;
 
-  if (!sleep && !readiness && !battery) {
+  if (!sleep && !readiness && !battery && load == null) {
     return <p className={styles.empty}>No Garmin data yet.</p>;
   }
 
+  const count = [sleep, readiness, battery, load].filter((r) => r != null).length;
   const gap = ringsRowGap(measuredWidth);
-  const ringSize = Math.max(60, Math.min((measuredWidth - gap * 2) / 3, contentHeight - RING_LABEL_OVERHEAD));
-  const ring = (kind: GarminDetailKind, value: number, color: string, label: string) => (
+  const ringSize = Math.max(60, Math.min((measuredWidth - gap * (count - 1)) / count, contentHeight - RING_LABEL_OVERHEAD));
+  const ring = (kind: GarminDetailKind, percent: number, value: number, color: string, label: string) => (
     <button type="button" className={styles.ringButton} onClick={() => onOpenDetail(kind)}>
-      <RingGauge percent={value} color={color} centerValue={`${Math.round(value)}`} label={label} pixelSize={ringSize} />
+      <RingGauge percent={percent} color={color} centerValue={`${Math.round(value)}`} label={label} pixelSize={ringSize} />
     </button>
   );
 
   return (
     <div className={styles.ringsRow} ref={containerRef} style={{ gap }}>
-      {sleep && ring("sleep", sleep.value, GARMIN_SLEEP_COLOR, "SLEEP")}
-      {readiness && ring("readiness", readiness.value, readinessColor(readiness.value), "READINESS")}
-      {battery && ring("bodyBattery", battery.value, GARMIN_BATTERY_COLOR, "BATTERY")}
+      {sleep && ring("sleep", sleep.value, sleep.value, GARMIN_SLEEP_COLOR, "SLEEP")}
+      {readiness && ring("readiness", readiness.value, readiness.value, readinessColor(readiness.value), "READINESS")}
+      {battery && ring("bodyBattery", battery.value, battery.value, GARMIN_BATTERY_COLOR, "BATTERY")}
+      {load != null && ring("load", loadPercent, load, GARMIN_LOAD_COLOR, "LOAD")}
     </div>
   );
 }

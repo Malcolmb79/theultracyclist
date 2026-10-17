@@ -269,7 +269,7 @@ export function useDashboardData(raw: RawSourcesState): DashboardDataState {
             { id: "garmin.bodyBatteryWake", source: "garmin", label: "Body Battery at wake", unit: "", series: series((d) => d.bodyBatteryWake) },
             { id: "garmin.stress", source: "garmin", label: "Stress (day average)", unit: "", series: series((d) => d.stress) },
             { id: GARMIN_LOAD_READINESS_COMBO_ID, source: "garmin", label: "Training Load & Readiness", unit: "", series: [], statOnly: true },
-            { id: GARMIN_RINGS_ID, source: "garmin", label: "Sleep, Readiness & Body Battery", unit: "", series: [], statOnly: true },
+            { id: GARMIN_RINGS_ID, source: "garmin", label: "Sleep, Readiness, Body Battery & Load", unit: "", series: [], statOnly: true },
             { id: GARMIN_HEALTH_CALENDAR_ID, source: "garmin", label: "Health Calendar", unit: "", series: [], statOnly: true },
           );
         }

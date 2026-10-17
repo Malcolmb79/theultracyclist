@@ -25,6 +25,7 @@ const ROUTES: Record<string, () => Promise<RouteModule>> = {
   "cron-refresh": () => import("./_routes/cron-refresh.js"),
   "dashboard-layout": () => import("./_routes/dashboard-layout.js"),
   "describe-figure": () => import("./_routes/describe-figure.js"),
+  "garmin-timeline": () => import("./_routes/garmin-timeline.js"),
   "health-data": () => import("./_routes/health-data.js"),
   "history.json": () => import("./_routes/history.json.js"),
   "ingest": () => import("./_routes/ingest.js"),

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { WHOOP_STRAIN_RECOVERY_COMBO_ID, WHOOP_RINGS_COMBO_ID, HEALTH_CALENDAR_ID, BODY_BATTERY_ID, GARMIN_LOAD_READINESS_COMBO_ID, GARMIN_RINGS_ID, GARMIN_HEALTH_CALENDAR_ID, CALORIES_BALANCE_ID, MACRO_SPLIT_ID, PERFORMANCE_CHART_ID, WEATHER_ID, GARMIN_LIVETRACK_ID, LIVE_TRACKER_ID, ALL_ACTIVITY_ID } from "./types";
+import { WHOOP_STRAIN_RECOVERY_COMBO_ID, WHOOP_RINGS_COMBO_ID, HEALTH_CALENDAR_ID, BODY_BATTERY_ID, GARMIN_LOAD_READINESS_COMBO_ID, GARMIN_RINGS_ID, GARMIN_HEALTH_CALENDAR_ID, GARMIN_BATTERY_TIMELINE_ID, CALORIES_BALANCE_ID, MACRO_SPLIT_ID, PERFORMANCE_CHART_ID, WEATHER_ID, GARMIN_LIVETRACK_ID, LIVE_TRACKER_ID, ALL_ACTIVITY_ID } from "./types";
 import { useUnits } from "../../context/UnitsContext";
 import { garminDaysFrom, type GarminDay } from "../../utils/garmin";
 import { convertMetricSeries, convertValueUnit } from "../../utils/units";
@@ -271,6 +271,7 @@ export function useDashboardData(raw: RawSourcesState): DashboardDataState {
             { id: GARMIN_LOAD_READINESS_COMBO_ID, source: "garmin", label: "Training Load & Readiness", unit: "", series: [], statOnly: true },
             { id: GARMIN_RINGS_ID, source: "garmin", label: "Sleep, Readiness, Body Battery & Load", unit: "", series: [], statOnly: true },
             { id: GARMIN_HEALTH_CALENDAR_ID, source: "garmin", label: "Health Calendar", unit: "", series: [], statOnly: true },
+            { id: GARMIN_BATTERY_TIMELINE_ID, source: "garmin", label: "Body Battery Timeline", unit: "", series: [], statOnly: true },
           );
         }
       }

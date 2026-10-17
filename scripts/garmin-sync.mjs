@@ -241,6 +241,47 @@ function toMetrics(date, raw, activity) {
   return out;
 }
 
+// The day's 3-minute stress and Body Battery readings, for the timeline
+// widget. Stress is -1 while unmeasurable and -2 during activity, as Garmin
+// sends it. Most battery readings come back "ADJUSTED" (refined after the
+// watch synced) and Garmin draws those as a solid line; only "ESTIMATED" is
+// dotted.
+function toTimeline(date, raw) {
+  const stress = raw.stress;
+  if (!stress?.startTimestampGMT) return null;
+  const dayStart = Date.parse(`${stress.startTimestampGMT}Z`);
+  if (!Number.isFinite(dayStart)) return null;
+  // The next Irish midnight - 23 or 25 hours on, on clock-change days.
+  let dayEnd = dayStart + 23 * 3600000;
+  while (irelandDate(new Date(dayEnd)) === date) dayEnd += 3600000;
+
+  const byTime = new Map();
+  for (const entry of stress.stressValuesArray ?? []) {
+    const at = num(entry?.[0]);
+    if (at != null) byTime.set(at, [at, num(entry[1]), null, 0]);
+  }
+  for (const entry of stress.bodyBatteryValuesArray ?? []) {
+    const at = num(entry?.[0]);
+    const level = num(entry?.[2]);
+    if (at == null || level == null) continue;
+    const point = byTime.get(at) ?? [at, null, null, 0];
+    point[2] = level;
+    point[3] = entry[1] === "ESTIMATED" ? 1 : 0;
+    byTime.set(at, point);
+  }
+  const points = [...byTime.values()].sort((a, b) => a[0] - b[0]);
+  if (points.length === 0) return null;
+
+  const sleepDto = raw.sleep?.dailySleepDTO;
+  const sleepStart = num(sleepDto?.sleepStartTimestampGMT);
+  const sleepEnd = num(sleepDto?.sleepEndTimestampGMT);
+  const sleep = sleepStart != null && sleepEnd != null ? { start: sleepStart, end: sleepEnd } : null;
+  return { date, dayStart, dayEnd, sleep, points };
+}
+
+// Matches MAX_DAYS in api/_routes/garmin-timeline.ts.
+const TIMELINE_DAYS = 7;
+
 // Kept in step with src/utils/garmin.ts, which turns the codes back into words.
 const HRV_STATUS_CODES = { NONE: 0, POOR: 1, LOW: 2, UNBALANCED: 3, BALANCED: 4 };
 
@@ -257,10 +298,10 @@ function activityByDate(activities) {
   return byDate;
 }
 
-async function post(payload) {
+async function post(payload, route = "health-data") {
   const config = readConfig();
   if (!config.siteUrl || !config.secret) throw new Error("Missing site URL or secret. Run: node scripts/garmin-sync.mjs setup");
-  const res = await fetch(`${config.siteUrl.replace(/\/$/, "")}/api/health-data`, {
+  const res = await fetch(`${config.siteUrl.replace(/\/$/, "")}/api/${route}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.secret}` },
     body: JSON.stringify(payload),
@@ -302,6 +343,7 @@ async function sync(args) {
 
   let pending = [];
   let posted = 0;
+  const timelines = [];
   const flush = async () => {
     if (pending.length === 0) return;
     const payload = toPayload(pending);
@@ -313,12 +355,22 @@ async function sync(args) {
 
   for (const [i, date] of dates.entries()) {
     console.log(`Fetching ${date}`);
-    const metrics = toMetrics(date, await fetchRaw(client, date), loads.get(date) ?? null);
+    const raw = await fetchRaw(client, date);
+    const metrics = toMetrics(date, raw, loads.get(date) ?? null);
+    if (i >= dates.length - TIMELINE_DAYS) {
+      const timeline = toTimeline(date, raw);
+      if (timeline) timelines.push(timeline);
+    }
     if (Object.keys(metrics).length > 0) pending.push({ date, metrics });
     if (pending.length >= CHUNK_DAYS) await flush();
     if (delayMs > 0 && i < dates.length - 1) await new Promise((r) => setTimeout(r, delayMs));
   }
   await flush();
+
+  if (timelines.length > 0) {
+    if (dryRun) console.log(`Timeline: ${timelines.map((t) => `${t.date} (${t.points.length} points)`).join(", ")}`);
+    else console.log(`Posted timeline for ${timelines.length} day(s): ${await post({ days: timelines }, "garmin-timeline")}`);
+  }
 
   // Refreshed OAuth tokens are good for a year; saving them after every run
   // keeps the sign-in alive without ever needing the password again.

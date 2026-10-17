@@ -1,0 +1,121 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.nav {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--color-text);
+  width: 26px;
+  height: 26px;
+  cursor: pointer;
+  flex: none;
+}
+
+.nav:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.day {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.readout {
+  margin-left: auto;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.chart {
+  display: block;
+  touch-action: pan-y;
+}
+
+.grid {
+  stroke: var(--color-border);
+  stroke-width: 1;
+}
+
+.axisLabel {
+  fill: var(--color-text-muted);
+  font-size: 10px;
+}
+
+.sleepShade {
+  fill: rgba(37, 99, 235, 0.08);
+}
+
+.batteryFill {
+  fill: rgba(255, 255, 255, 0.07);
+}
+
+.wake {
+  stroke: var(--color-text-muted);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+
+.cursor {
+  stroke: var(--color-text);
+  stroke-width: 1;
+  opacity: 0.5;
+}
+
+.tick {
+  fill: var(--color-text-muted);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.line {
+  width: 16px;
+  border-top: 2px solid var(--color-text);
+  display: inline-block;
+}
+
+.dashed {
+  border-top-style: dashed;
+}
+
+.empty {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  margin: 0;
+}

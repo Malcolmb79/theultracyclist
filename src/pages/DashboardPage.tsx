@@ -13,6 +13,7 @@ import {
   GARMIN_LOAD_READINESS_COMBO_ID,
   GARMIN_RINGS_ID,
   GARMIN_HEALTH_CALENDAR_ID,
+  GARMIN_BATTERY_TIMELINE_ID,
   BODY_BATTERY_ID,
   CALORIES_BALANCE_ID,
   ALL_ACTIVITY_ID,
@@ -44,6 +45,7 @@ function defaultViewType(metric: MetricDef): Widget["viewType"] {
   if (metric.id === BODY_BATTERY_ID) return "bodyBattery";
   if (metric.id === CALORIES_BALANCE_ID) return "caloriesBalance";
   if (metric.id === ALL_ACTIVITY_ID) return "allActivity";
+  if (metric.id === GARMIN_BATTERY_TIMELINE_ID) return "batteryTimeline";
   return metric.statOnly ? "stat" : "chart";
 }
 

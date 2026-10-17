@@ -22,6 +22,7 @@ import WeatherCard from "./WeatherCard";
 import GarminLiveTrackCard from "./GarminLiveTrackCard";
 import LiveTrackerCard from "./LiveTrackerCard";
 import AllActivityCard from "./AllActivityCard";
+import BodyBatteryTimelineCard from "./BodyBatteryTimelineCard";
 import type { PerformancePoint } from "../../utils/performanceSeries";
 import { bmiCategoryColor, isWeightMetricId } from "../../utils/bmi";
 import { MACRO_ORDER, findMacroMetricId, type MacroGrams } from "../../utils/macros";
@@ -38,6 +39,7 @@ import {
   GARMIN_LOAD_READINESS_COMBO_ID,
   GARMIN_RINGS_ID,
   GARMIN_HEALTH_CALENDAR_ID,
+  GARMIN_BATTERY_TIMELINE_ID,
   BODY_BATTERY_ID,
   CALORIES_BALANCE_ID,
   MACRO_SPLIT_ID,
@@ -151,6 +153,12 @@ const MIN_ALL_ACTIVITY_HEIGHT = 220;
 const MIN_ALL_ACTIVITY_WIDTH = 260;
 const DEFAULT_ALL_ACTIVITY_WIDTH = 380;
 const DEFAULT_ALL_ACTIVITY_HEIGHT = 340;
+// The day's 24 hours need width to read; the header, sleep bar, axis and
+// legend take ~110px of height before the plot gets any.
+const MIN_BATTERY_TIMELINE_WIDTH = 380;
+const MIN_BATTERY_TIMELINE_HEIGHT = 280;
+const DEFAULT_BATTERY_TIMELINE_WIDTH = 600;
+const DEFAULT_BATTERY_TIMELINE_HEIGHT = 360;
 // .ringsRow's gap between each of the 3 rings at a comfortable width - the
 // outer two rings overflow their column and get clipped by .content's
 // overflow:hidden if this isn't subtracted from the available row width.
@@ -321,13 +329,14 @@ export default function DashboardWidget({
   const isGarminLiveTrack = widget.metric === GARMIN_LIVETRACK_ID;
   const isLiveTracker = widget.metric === LIVE_TRACKER_ID;
   const isAllActivity = widget.metric === ALL_ACTIVITY_ID;
+  const isBatteryTimeline = widget.metric === GARMIN_BATTERY_TIMELINE_ID;
   const detailKind = DETAIL_KIND_BY_METRIC[widget.metric];
   const garminDetailKind = GARMIN_DETAIL_KIND_BY_METRIC[widget.metric];
   const [openDetail, setOpenDetail] = useState<WhoopDetailKind | null>(null);
   const [openGarminDetail, setOpenGarminDetail] = useState<GarminDetailKind | null>(null);
   const clickDetail = detailKind ? () => setOpenDetail(detailKind) : garminDetailKind ? () => setOpenGarminDetail(garminDetailKind) : undefined;
   const fullMetric =
-    isCombo || isRings || isHealthCalendar || isBodyBattery || isCaloriesBalance || isMacroSplit || isPerformanceChart || isWeather || isGarminLiveTrack || isLiveTracker || isAllActivity
+    isCombo || isRings || isHealthCalendar || isBodyBattery || isCaloriesBalance || isMacroSplit || isPerformanceChart || isWeather || isGarminLiveTrack || isLiveTracker || isAllActivity || isBatteryTimeline
       ? undefined
       : metricById.get(widget.metric);
   const isMobile = useIsMobile();
@@ -530,7 +539,9 @@ export default function DashboardWidget({
     );
   }, [isBodyBattery, garminToday, whoopHistory, today, activeToday, consumedToday, hasRealBurnToday, realBurnedToday, estimatedBurnedToday, caloriesBurnSettings?.wakeTime, estimateNow]);
 
-  const minHeight = isAllActivity
+  const minHeight = isBatteryTimeline
+    ? MIN_BATTERY_TIMELINE_HEIGHT
+    : isAllActivity
     ? MIN_ALL_ACTIVITY_HEIGHT
     : isCombo
     ? MIN_COMBO_HEIGHT
@@ -557,7 +568,9 @@ export default function DashboardWidget({
                     : isMobile
                       ? MOBILE_MIN_WIDGET_HEIGHT
                       : MIN_WIDGET_HEIGHT;
-  const minWidth = isAllActivity
+  const minWidth = isBatteryTimeline
+    ? MIN_BATTERY_TIMELINE_WIDTH
+    : isAllActivity
     ? MIN_ALL_ACTIVITY_WIDTH
     : isGarminRings
     ? MIN_GARMIN_RINGS_WIDTH
@@ -584,7 +597,9 @@ export default function DashboardWidget({
                   : isMobile
                     ? MOBILE_MIN_WIDGET_WIDTH
                     : MIN_WIDGET_WIDTH;
-  const defaultWidth = isAllActivity
+  const defaultWidth = isBatteryTimeline
+    ? DEFAULT_BATTERY_TIMELINE_WIDTH
+    : isAllActivity
     ? DEFAULT_ALL_ACTIVITY_WIDTH
     : isHealthCalendar
     ? DEFAULT_HEALTH_CALENDAR_WIDTH
@@ -603,7 +618,9 @@ export default function DashboardWidget({
           : isMobile
             ? MOBILE_DEFAULT_WIDGET_WIDTH
             : DEFAULT_WIDGET_WIDTH;
-  const defaultHeight = isAllActivity
+  const defaultHeight = isBatteryTimeline
+    ? DEFAULT_BATTERY_TIMELINE_HEIGHT
+    : isAllActivity
     ? DEFAULT_ALL_ACTIVITY_HEIGHT
     : isHealthCalendar
     ? DEFAULT_HEALTH_CALENDAR_HEIGHT
@@ -831,7 +848,8 @@ export default function DashboardWidget({
               !isWeather &&
               !isGarminLiveTrack &&
               !isLiveTracker &&
-              !isAllActivity && (
+              !isAllActivity &&
+              !isBatteryTimeline && (
               <select
                 className={styles.select}
                 value={widget.viewType}
@@ -946,6 +964,8 @@ export default function DashboardWidget({
             <GarminLiveTrackCard />
           ) : isLiveTracker ? (
             <LiveTrackerCard />
+          ) : isBatteryTimeline ? (
+            <BodyBatteryTimelineCard availableHeight={contentHeight} />
           ) : isAllActivity ? (
             <AllActivityCard range={resolvedRange} />
           ) : !metric || metric.series.length === 0 ? (

@@ -5,7 +5,7 @@ export type Widget = {
   source: "strava" | "whoop" | "health" | "weather" | "garmin";
   metric: string;
   label: string;
-  viewType: "stat" | "chart" | "timeline" | "ring" | "combo" | "rings" | "healthCalendar" | "caloriesBalance" | "macroSplit" | "allActivity" | "liveTracker" | "bodyBattery";
+  viewType: "stat" | "chart" | "timeline" | "ring" | "combo" | "rings" | "healthCalendar" | "caloriesBalance" | "macroSplit" | "allActivity" | "liveTracker" | "bodyBattery" | "batteryTimeline";
   x?: number;
   y?: number;
   width?: number;
@@ -75,6 +75,8 @@ export const BODY_BATTERY_ID = "whoop.bodyBattery";
 export const GARMIN_LOAD_READINESS_COMBO_ID = "garmin.loadReadinessCombo";
 export const GARMIN_RINGS_ID = "garmin.sleepReadinessBatteryRings";
 export const GARMIN_HEALTH_CALENDAR_ID = "garmin.healthCalendar";
+// Garmin's intraday Body Battery and stress chart; reads /api/garmin-timeline.
+export const GARMIN_BATTERY_TIMELINE_ID = "garmin.bodyBatteryTimeline";
 
 // Special catalog entry: dietary (consumed) vs active+basal (burned)
 // energy for the day, side by side with the net difference - rather than

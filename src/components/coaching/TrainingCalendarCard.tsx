@@ -11,9 +11,40 @@ type PlannedWorkout = {
   tssPlanned?: number;
 };
 
+type TpWorkout = {
+  date: string;
+  title: string;
+  sport: string | null;
+  plannedTss: number | null;
+  plannedMinutes: number | null;
+  completed: boolean;
+};
+
+type TpState = { configured: boolean; authExpired?: boolean; workouts: TpWorkout[] } | null;
+
+type Row = {
+  key: string;
+  date: string;
+  title: string;
+  sport: string | null;
+  minutes: number | null;
+  tss: number | null;
+  source: "coach" | "trainingPeaks";
+  completed: boolean;
+  /** Only the coach's own workouts can be removed from here. */
+  coachId?: string;
+};
+
+// TrainingPeaks workoutTypeValueId -> sport.
+const TP_SPORTS: Record<string, string> = {
+  "1": "Swim", "2": "Bike", "3": "Run", "4": "Brick", "5": "Cross-training", "6": "Race", "7": "Day off",
+  "8": "MTB", "9": "Strength", "10": "Custom", "11": "XC ski", "12": "Rowing", "13": "Walk", "100": "Other",
+};
+
 const WINDOW_DAYS_PAST = 7;
 const WINDOW_DAYS_FUTURE = 21;
-const shortDateFormatter = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short" });
+const PAST_ROWS = 3;
+const shortDateFormatter = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 
 function addDays(date: string, n: number): string {
   // Plain "YYYY-MM-DD" arithmetic anchored to the Irish calendar day, rather
@@ -24,15 +55,14 @@ function addDays(date: string, n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-// This card is a viewer, not a builder - creating/editing structured
-// workouts happens by describing them to the AI Coach card (chat or
-// WhatsApp), which has tools to build the interval structure and auto-
-// compute duration/TSS/IF itself. Keeping workout creation conversational
-// (matching how tp-mcp's own users create workouts) avoids needing a whole
-// separate interval-builder form UI here.
+// Shows the TrainingPeaks plan alongside the workouts the AI Coach has built.
+// It is a viewer, not a builder: creating and editing structured workouts
+// happens by describing them to the coach (chat or WhatsApp), and the
+// TrainingPeaks plan is edited in TrainingPeaks.
 export default function TrainingCalendarCard() {
-  const [workouts, setWorkouts] = useState<PlannedWorkout[] | null>(null);
-  const [error, setError] = useState(false);
+  const [coach, setCoach] = useState<PlannedWorkout[] | null>(null);
+  const [tp, setTp] = useState<TpState | undefined>(undefined);
+  const [coachError, setCoachError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -43,10 +73,22 @@ export default function TrainingCalendarCard() {
     fetch(`/api/planned-workouts?from=${from}&to=${to}`)
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error("failed"))))
       .then((body: { workouts: PlannedWorkout[] }) => {
-        if (!cancelled) setWorkouts(body.workouts ?? []);
+        if (!cancelled) setCoach(body.workouts ?? []);
       })
       .catch(() => {
-        if (!cancelled) setError(true);
+        if (!cancelled) {
+          setCoachError(true);
+          setCoach([]);
+        }
+      });
+
+    fetch("/api/trainingpeaks")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body: TpState) => {
+        if (!cancelled) setTp(body);
+      })
+      .catch(() => {
+        if (!cancelled) setTp(null);
       });
 
     return () => {
@@ -55,45 +97,84 @@ export default function TrainingCalendarCard() {
   }, []);
 
   const handleDelete = (id: string) => {
-    setWorkouts((prev) => prev?.filter((w) => w.id !== id) ?? prev);
+    setCoach((prev) => prev?.filter((w) => w.id !== id) ?? prev);
     fetch(`/api/planned-workouts?id=${id}`, { method: "DELETE" }).catch(() => {});
   };
 
   const todayStr = irelandTodayDateStr();
-  const sorted = workouts
-    ? [...workouts].sort((a, b) => a.date.localeCompare(b.date))
-    : null;
-  const upcoming = sorted?.filter((w) => w.date.slice(0, 10) >= todayStr) ?? [];
-  const past = sorted?.filter((w) => w.date.slice(0, 10) < todayStr).slice(-3) ?? [];
+  const loading = coach === null || tp === undefined;
+  const windowStart = addDays(todayStr, -WINDOW_DAYS_PAST);
+  const windowEnd = addDays(todayStr, WINDOW_DAYS_FUTURE);
+
+  const rows: Row[] = [
+    ...(coach ?? []).map((w) => ({
+      key: `coach-${w.id}`,
+      date: w.date.slice(0, 10),
+      title: w.title,
+      sport: w.sport,
+      minutes: w.durationMinutes ?? null,
+      tss: w.tssPlanned ?? null,
+      source: "coach" as const,
+      completed: false,
+      coachId: w.id,
+    })),
+    ...(tp?.workouts ?? [])
+      .filter((w) => w.date >= windowStart && w.date <= windowEnd)
+      .map((w, i) => ({
+        key: `tp-${w.date}-${i}`,
+        date: w.date,
+        title: w.title,
+        sport: w.sport ? (TP_SPORTS[w.sport] ?? null) : null,
+        minutes: w.plannedMinutes,
+        tss: w.plannedTss,
+        source: "trainingPeaks" as const,
+        completed: w.completed,
+      })),
+  ].sort((a, b) => a.date.localeCompare(b.date));
+
+  const upcoming = rows.filter((r) => r.date >= todayStr);
+  const past = rows.filter((r) => r.date < todayStr).slice(-PAST_ROWS);
+  const tpNote = tp?.authExpired
+    ? "TrainingPeaks needs reconnecting in Settings - showing the coach's workouts only."
+    : tp && !tp.configured
+      ? "Connect TrainingPeaks in Settings to see your plan here."
+      : null;
 
   return (
     <div className={styles.card}>
       <span className={styles.eyebrow}>Training Calendar</span>
 
-      {workouts === null && !error && <p className={styles.empty}>Loading…</p>}
-      {error && <p className={styles.empty}>Couldn't load planned workouts.</p>}
-      {workouts != null && workouts.length === 0 && (
+      {loading && <p className={styles.empty}>Loading…</p>}
+      {!loading && tpNote && <p className={styles.empty}>{tpNote}</p>}
+      {!loading && coachError && <p className={styles.empty}>Couldn't load the coach's workouts.</p>}
+      {!loading && rows.length === 0 && (
         <p className={styles.empty}>
           Nothing scheduled - ask the coach to build you a session, e.g. "give me 4x8min threshold for Tuesday".
         </p>
       )}
 
-      {workouts != null && workouts.length > 0 && (
+      {!loading && rows.length > 0 && (
         <ul className={styles.list}>
           {[...past, ...upcoming].map((w) => (
-            <li key={w.id} className={styles.row}>
+            <li key={w.key} className={`${styles.row} ${w.date === todayStr ? styles.today : ""}`}>
               <div className={styles.rowMain}>
-                <span className={styles.rowDate}>{shortDateFormatter.format(new Date(w.date))}</span>
+                <span className={styles.rowDate}>
+                  {w.date === todayStr ? "Today" : shortDateFormatter.format(new Date(`${w.date}T12:00:00Z`))}
+                  {w.completed ? " ✓" : ""}
+                </span>
                 <span className={styles.rowTitle}>{w.title}</span>
                 <span className={styles.rowMeta}>
-                  {w.sport}
-                  {w.durationMinutes != null ? ` · ${w.durationMinutes}min` : ""}
-                  {w.tssPlanned != null ? ` · ${w.tssPlanned} TSS` : ""}
+                  {[w.sport, w.minutes != null ? `${w.minutes}min` : null, w.tss != null ? `${w.tss} TSS` : null]
+                    .filter(Boolean)
+                    .join(" · ")}
+                  <span className={styles.source}>{w.source === "trainingPeaks" ? "TrainingPeaks" : "Coach"}</span>
                 </span>
               </div>
-              <button type="button" className={styles.removeButton} onClick={() => handleDelete(w.id)} aria-label={`Remove ${w.title}`}>
-                ×
-              </button>
+              {w.coachId && (
+                <button type="button" className={styles.removeButton} onClick={() => handleDelete(w.coachId!)} aria-label={`Remove ${w.title}`}>
+                  ×
+                </button>
+              )}
             </li>
           ))}
         </ul>

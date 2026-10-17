@@ -1,28 +1,16 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { requirePasskeySession } from "../_lib/session.js";
 import { irelandTimeContext, irelandTodayDateStr } from "../_lib/timeContext.js";
-import { ATHLETE_PROFILE, DATA_SEMANTICS, SEASON_PLAN, LANGUAGE_STYLE, READING_HONESTY, readingLine } from "../_lib/coachContext.js";
+import { ATHLETE_PROFILE, DATA_SEMANTICS, SEASON_PLAN, LANGUAGE_STYLE, READING_HONESTY, garminSnapshotLines, trainingPeaksLines } from "../_lib/coachContext.js";
+import { latestGarminReadings, type GarminReadings } from "../_lib/garminReadings.js";
+import { fetchTrainingPeaksData, type TrainingPeaksData } from "./trainingpeaks.js";
 
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const MODEL = "claude-haiku-4-5-20251001";
 
+// What the browser posts. Recovery readings are no longer taken from it -
+// Garmin's are read server-side below - only the week's progress and settings.
 export type NarrativeInput = {
-  recoveryScore: number | null;
-  hrvMs: number | null;
-  restingHeartRate: number | null;
-  strainScore: number | null;
-  /**
-   * The day each reading belongs to (YYYY-MM-DD, Irish). Recovery, HRV and RHR
-   * share one - they are scored together each morning - while sleep and strain
-   * can lag or lead it independently, so each carries its own. Sent even when
-   * it is today's: the coach is told to name the day whenever it isn't, and it
-   * cannot do that without knowing which day it has.
-   */
-  recoveryDate: string | null;
-  sleepDate: string | null;
-  strainDate: string | null;
-  recentAvgStrain: number | null;
-  sleepPerformance: number | null;
   weeklyDistanceKm: number | null;
   weeklyTargetKm: number | null;
   phase: "build" | "recovery" | "taper" | null;
@@ -38,23 +26,9 @@ function today(): string {
   return irelandTodayDateStr();
 }
 
-function buildPrompt(input: NarrativeInput): string {
+function buildPrompt(input: NarrativeInput, readings: GarminReadings, tp: TrainingPeaksData | null): string {
   const todayStr = today();
-  const lines: string[] = [];
-  lines.push(readingLine("Recovery score", input.recoveryScore, input.recoveryDate, "%", todayStr));
-  lines.push(readingLine("HRV", input.hrvMs, input.recoveryDate, " ms", todayStr));
-  lines.push(readingLine("Resting heart rate", input.restingHeartRate, input.recoveryDate, " bpm", todayStr));
-  // Strain is the one live figure here: it climbs all day and is read fresh on
-  // every request, so it is the current total, not a settled score.
-  lines.push(
-    input.strainScore == null
-      ? "Strain: no reading on record"
-      : input.strainDate === todayStr
-        ? `Strain so far today: ${input.strainScore} - LIVE, read just now, still rising as the day goes on`
-        : readingLine("Strain", input.strainScore, input.strainDate, "", todayStr),
-  );
-  if (input.recentAvgStrain != null) lines.push(`Average strain, last 3 days: ${input.recentAvgStrain}`);
-  lines.push(readingLine("Sleep performance", input.sleepPerformance, input.sleepDate, "%", todayStr));
+  const lines: string[] = [...garminSnapshotLines(readings, todayStr), ...trainingPeaksLines(tp, todayStr)];
   if (input.weeklyDistanceKm != null && input.weeklyTargetKm != null) {
     lines.push(`This week's distance so far: ${input.weeklyDistanceKm}km of a ${input.weeklyTargetKm}km target`);
   }
@@ -82,12 +56,14 @@ function buildPrompt(input: NarrativeInput): string {
     "\n\n" +
     "Draw on real coaching substance: HRV- and RHR-informed readiness (a depressed HRV or elevated RHR " +
     "relative to the athlete's own baseline signals accumulated fatigue earlier and more reliably than " +
-    "recovery score alone), the balance between strain and recovery, sleep's role in adaptation, and where " +
+    "the readiness score alone), the balance between training load and readiness, sleep's role in adaptation, and where " +
     "today sits in the athlete's current training phase (build, recovery, or taper) - including, when " +
     "relevant, the specific demands of race-pace fueling, conservative pacing, and taper design for a " +
     "multi-day unsupported solo effort.\n\n" +
     "This is a greeting, not a full briefing: write just 1-2 short, concise sentences - how they should " +
-    "approach today given their recovery and recent load, referencing the specific numbers naturally. Check " +
+    "approach today given their Garmin readiness, sleep and recent load, and what TrainingPeaks has planned for " +
+    "today - if the planned session doesn't suit how recovered they are, say so - referencing the specific " +
+    "numbers naturally. Check " +
     "whether they've already ridden today (below) before writing anything about today's session - if they " +
     "have, don't ask what's on the schedule or suggest they still need to train today; instead speak to " +
     "recovery from that ride and what it means for tomorrow. Be direct and practical, not generic " +
@@ -106,22 +82,24 @@ function buildPrompt(input: NarrativeInput): string {
 // deploy-hook overhead) that saved layouts/goals need. Worst case a cold
 // start regenerates it once; there's no data-loss risk either way.
 //
-// Keyed on the readings as well as the day. Whoop scores land some time after
-// waking, so a note written at 06:00 is written against nothing; keyed by date
-// alone that empty note would be served for the rest of the day, long after
-// the numbers arrived.
+// Keyed on the readings as well as the day. Garmin's scores sync some time
+// after waking, so a note written at 06:00 is written against nothing; keyed
+// by date alone that empty note would be served for the rest of the day, long
+// after the numbers arrived. Body Battery is left out of the key: it moves on
+// every sync, and the note states the time it was read.
 let cached: { key: string; text: string } | null = null;
 
-function cacheKey(date: string, input: NarrativeInput): string {
+function cacheKey(date: string, input: NarrativeInput, readings: GarminReadings, tp: TrainingPeaksData | null): string {
   return [
     date,
-    input.recoveryScore,
-    input.recoveryDate,
-    input.hrvMs,
-    input.restingHeartRate,
-    input.sleepPerformance,
-    input.sleepDate,
+    readings.readiness,
+    readings.readinessDate,
+    readings.hrvMs,
+    readings.restingHeartRate,
+    readings.sleepScore,
+    readings.sleepDate,
     input.hasRiddenToday,
+    tp?.workouts.filter((w) => w.date === date).map((w) => `${w.title}:${w.completed}`).join(",") ?? "",
   ].join("|");
 }
 
@@ -143,22 +121,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const date = today();
-  // Deliberately built from the snapshot the browser posted rather than a
-  // fresh server-side Whoop read.
-  //
-  // Reading Whoop here looked like the way to guarantee the note quotes this
-  // morning's numbers, but Whoop rotates its refresh token: every refresh
-  // invalidates the last one. This endpoint fires on every Coaching page load,
-  // so it raced /api/whoop-data for the same single-use token and knocked the
-  // Whoop feed out across the whole site - every Whoop widget went blank.
-  //
-  // The browser's snapshot comes from /api/whoop-data, which is one shared,
-  // edge-cached read. Up to a quarter of an hour behind the watch at worst,
-  // which costs nothing here: every reading is labelled with the day it came
-  // from, so a lagging figure is stated accurately rather than passed off as
-  // something it isn't.
+  // Garmin's readings are read here rather than taken from the browser:
+  // they live in Redis, so there is no shared token to race (the reason the
+  // Whoop-era note had to trust the browser's snapshot), and every channel
+  // then quotes the same numbers.
   const input = req.body as NarrativeInput;
-  const key = cacheKey(date, input);
+  const [readings, tp] = await Promise.all([latestGarminReadings(), fetchTrainingPeaksData().catch(() => null)]);
+  const key = cacheKey(date, input, readings, tp);
   if (cached && cached.key === key) {
     res.status(200).json({ configured: true, text: cached.text, cached: true });
     return;
@@ -175,7 +144,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 300,
-        messages: [{ role: "user", content: buildPrompt(input) }],
+        messages: [{ role: "user", content: buildPrompt(input, readings, tp) }],
       }),
     });
 

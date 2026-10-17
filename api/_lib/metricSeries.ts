@@ -1,8 +1,8 @@
-import { fetchWhoopHistory } from "../_routes/whoop-data.js";
 import { fetchStravaRides } from "../_routes/strava-activities.js";
 import { fetchHealthHistory } from "../_routes/health-data.js";
 import { fetchCoachingSettings } from "../_routes/coaching-settings.js";
-import { irelandDateStr, whoopDayStr } from "./timeContext.js";
+import { irelandDateStr } from "./timeContext.js";
+import { canonicalMetricId } from "./metricAliases.js";
 import { convertValueUnit, type UnitSystem } from "./units.js";
 import { isWeightFieldName } from "./weightField.js";
 
@@ -15,7 +15,7 @@ import { isWeightFieldName } from "./weightField.js";
  * meant one function per metric; resolving the series instead means one
  * renderer per *view* covers the whole catalog.
  *
- * Ids match useDashboardData exactly ("whoop.hrv", "strava.distance",
+ * Ids match useDashboardData exactly ("garmin.hrv", "strava.distance",
  * "health.<field>"). They are the athlete-facing contract - the coach names
  * them, the dashboard stores them in saved layouts - so they must not drift.
  */
@@ -23,15 +23,22 @@ import { isWeightFieldName } from "./weightField.js";
 export type MetricPoint = { date: string; value: number };
 export type ResolvedMetric = { id: string; label: string; unit: string; series: MetricPoint[] };
 
-const WHOOP_METRICS: Record<string, { label: string; unit: string; pick: (day: WhoopDay) => number | null | undefined }> = {
-  "whoop.recovery": { label: "Recovery score", unit: "%", pick: (d) => d.recovery?.score },
-  "whoop.hrv": { label: "HRV", unit: "ms", pick: (d) => d.recovery?.hrvMs },
-  "whoop.restingHr": { label: "Resting heart rate", unit: "bpm", pick: (d) => d.recovery?.restingHeartRate },
-  "whoop.strain": { label: "Strain", unit: "", pick: (d) => d.strain?.score },
-  "whoop.strainAvgHr": { label: "Strain avg heart rate", unit: "bpm", pick: (d) => d.strain?.avgHeartRate },
-  "whoop.sleepPerformance": { label: "Sleep performance", unit: "%", pick: (d) => d.sleep?.performancePercent },
-  "whoop.sleepHours": { label: "Sleep duration", unit: "h", pick: (d) => d.sleep?.totalSleepHours },
+// Garmin readings live in the health history as garmin_* fields (see
+// scripts/garmin-sync.mjs); these are the dashboard's names for them.
+const GARMIN_METRICS: Record<string, { label: string; unit: string; field: string }> = {
+  "garmin.readiness": { label: "Training Readiness", unit: "", field: "garmin_training_readiness" },
+  "garmin.hrv": { label: "HRV (overnight)", unit: "ms", field: "garmin_hrv" },
+  "garmin.restingHr": { label: "Resting heart rate", unit: "bpm", field: "garmin_resting_hr" },
+  "garmin.trainingLoad": { label: "Training load (day)", unit: "", field: "garmin_training_load" },
+  "garmin.acuteLoad": { label: "Acute load (7-day)", unit: "", field: "garmin_acute_load" },
+  "garmin.sleepScore": { label: "Sleep score", unit: "", field: "garmin_sleep_score" },
+  "garmin.sleepHours": { label: "Sleep duration", unit: "h", field: "garmin_sleep_hours" },
+  "garmin.bodyBatteryWake": { label: "Body Battery at wake", unit: "", field: "garmin_body_battery_wake" },
+  "garmin.stress": { label: "Stress (day average)", unit: "", field: "garmin_stress" },
 };
+
+/** The plain Garmin metrics - drawable with the generic views, unlike the Garmin composites. */
+export const GARMIN_METRIC_IDS = new Set(Object.keys(GARMIN_METRICS));
 
 const STRAVA_METRICS: Record<string, { label: string; unit: string; pick: (r: Ride) => number | null | undefined }> = {
   "strava.distance": { label: "Ride distance", unit: "km", pick: (r) => r.distanceKm },
@@ -42,7 +49,6 @@ const STRAVA_METRICS: Record<string, { label: string; unit: string; pick: (r: Ri
   "strava.elevationGain": { label: "Ride elevation gain", unit: "m", pick: (r) => r.elevationGainM },
 };
 
-type WhoopDay = { date: string; recovery?: { score?: number; hrvMs?: number; restingHeartRate?: number } | null; strain?: { score?: number; avgHeartRate?: number } | null; sleep?: { performancePercent?: number; totalSleepHours?: number } | null };
 type Ride = {
   startDate: string;
   distanceKm: number;
@@ -64,18 +70,25 @@ function formatHealthLabel(name: string): string {
   return name.includes("energy") ? `${formatted} (Calories)` : formatted;
 }
 
-export async function resolveMetric(id: string, days = 60): Promise<ResolvedMetric | null> {
+export async function resolveMetric(requestedId: string, days = 60): Promise<ResolvedMetric | null> {
+  const id = canonicalMetricId(requestedId);
   const settings = (await fetchCoachingSettings()) as { unitSystem?: string; heightCm?: number };
   const system: UnitSystem = settings.unitSystem === "imperial" ? "imperial" : "metric";
   const convert = (value: number, unit: string) => convertValueUnit(value, unit, system);
 
-  if (id in WHOOP_METRICS) {
-    const def = WHOOP_METRICS[id];
-    const { history } = await fetchWhoopHistory();
-    const series = (history as WhoopDay[])
-      .map((day) => ({ date: whoopDayStr(new Date(day.date)), value: def.pick(day) }))
-      .filter((p): p is MetricPoint => p.value != null)
-      .sort((a, b) => a.date.localeCompare(b.date));
+  if (id in GARMIN_METRICS) {
+    const def = GARMIN_METRICS[id];
+    const history = await fetchHealthHistory(days);
+    const dates = Object.keys(history).sort();
+    const hasGarmin = (date: string) => Object.keys(history[date]).some((n) => n.startsWith("garmin_"));
+    const series = dates
+      .map((date) => {
+        const value = history[date][def.field]?.value;
+        // A rest day has readings but no activity, so its load is 0, not missing.
+        if (value == null) return id === "garmin.trainingLoad" && hasGarmin(date) ? { date, value: 0 } : null;
+        return { date, value };
+      })
+      .filter((p): p is MetricPoint => p != null);
     return { id, label: def.label, unit: def.unit, series };
   }
 
@@ -133,9 +146,10 @@ export async function listMetricIds(): Promise<string[]> {
   const history = await fetchHealthHistory(60);
   const healthFields = [...new Set(Object.values(history).flatMap((day) => Object.keys(day)))];
   return [
-    ...Object.keys(WHOOP_METRICS),
+    ...Object.keys(GARMIN_METRICS),
     ...Object.keys(STRAVA_METRICS),
     "health.bmi",
-    ...healthFields.map((f) => `health.${f}`),
+    // The raw garmin_* fields are offered as the garmin.* metrics above.
+    ...healthFields.filter((f) => !f.startsWith("garmin_")).map((f) => `health.${f}`),
   ].sort();
 }

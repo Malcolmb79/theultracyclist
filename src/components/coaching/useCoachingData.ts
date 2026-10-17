@@ -3,14 +3,8 @@ import type { CoachingSettings, Readiness, RideZoneClassification, WeeklyProgres
 import { computeReadiness } from "./readiness";
 import { classifyPower } from "./powerZones";
 import type { RawSourcesState } from "../../utils/useRawSources";
-import { irelandDateStr, irelandTodayDateStr, whoopDayStr } from "../../utils/irelandDate";
-
-type WhoopDayRaw = {
-  date: string;
-  recovery: { score: number; hrvMs: number; restingHeartRate: number } | null;
-  strain: { score: number } | null;
-  sleep: { performancePercent: number } | null;
-};
+import { irelandDateStr, irelandTodayDateStr } from "../../utils/irelandDate";
+import { garminDaysFrom, latestGarmin } from "../../utils/garmin";
 
 type StravaRide = {
   id: number;
@@ -31,15 +25,7 @@ export type CoachingDataState =
       saveSettings: (next: CoachingSettings) => Promise<void>;
       weeklyProgress: WeeklyProgress;
       recentRides: RideZoneClassification[];
-      recoveryHistory: {
-        date: string;
-        recovery: number | null;
-        strain: number | null;
-        hrvMs: number | null;
-        restingHeartRate: number | null;
-        sleepPerformance: number | null;
-      }[];
-      // False when the underlying Whoop/Strava fetches didn't actually
+      // False when the underlying Garmin/Strava fetches didn't actually
       // succeed (vs. succeeding with genuinely no data) - lets the coach
       // chat card wait to speak rather than opening on an empty snapshot.
       dataAvailable: boolean;
@@ -48,14 +34,6 @@ export type CoachingDataState =
       // trained" instead of asking what's on the schedule after the fact.
       hasRiddenToday: boolean;
       todayDistanceKm: number | null;
-      // Whether recoveryHistory's latest entry is actually today's reading
-      // (Ireland-local) rather than a stale previous day's still showing
-      // because today's hasn't landed from Whoop yet (recovery/sleep are a
-      // once-daily morning reading - see DATA_SEMANTICS in
-      // api/_lib/coachContext.ts). Lets the readiness card show a waiting
-      // placeholder instead of quietly presenting yesterday's numbers as
-      // if they were today's.
-      readinessDataIsFresh: boolean;
     };
 
 // Monday-start week, not JS's default Sunday-start - matches how the
@@ -74,37 +52,26 @@ export function useCoachingData(raw: RawSourcesState): CoachingDataState {
   return useMemo<CoachingDataState>(() => {
     if (raw.status !== "ready") return { status: "loading" };
 
-    const whoop = raw.whoop as { history?: WhoopDayRaw[] } | null;
+    const health = raw.health as { history?: Record<string, Record<string, { value: number }>> } | null;
     const strava = raw.strava as { rides?: StravaRide[] } | null;
 
     // Both resolving null means the fetches came back non-ok (outage, stale
     // token, etc.), not "no data yet" - don't let the coach open on an empty
     // snapshot in that case.
-    const dataAvailable = whoop != null && strava != null;
+    const dataAvailable = health != null && strava != null;
     const settings = raw.settings as CoachingSettings;
-    const whoopDays = (whoop?.history ?? []).slice().reverse(); // oldest first
+    const garminDays = garminDaysFrom(health?.history ?? {});
     const rides = strava?.rides ?? [];
 
-      const recoveryHistory = whoopDays.map((d) => ({
-        date: whoopDayStr(new Date(d.date)),
-        recovery: d.recovery?.score ?? null,
-        strain: d.strain?.score ?? null,
-        hrvMs: d.recovery?.hrvMs ?? null,
-        restingHeartRate: d.recovery?.restingHeartRate ?? null,
-        sleepPerformance: d.sleep?.performancePercent ?? null,
-      }));
-
-      const latest = recoveryHistory[recoveryHistory.length - 1];
-      const last3Strain = recoveryHistory
-        .slice(-3)
-        .map((d) => d.strain)
-        .filter((v): v is number => v != null);
-      const recentAvgStrain = last3Strain.length > 0 ? last3Strain.reduce((a, b) => a + b, 0) / last3Strain.length : null;
-
-      const readiness = computeReadiness(latest?.recovery ?? null, recentAvgStrain != null ? Math.round(recentAvgStrain * 10) / 10 : null);
-
       const todayStr = irelandTodayDateStr();
-      const readinessDataIsFresh = latest?.date === todayStr;
+      const readinessReading = latestGarmin(garminDays, "readiness");
+      const readiness = computeReadiness({
+        readiness: readinessReading?.value ?? null,
+        readinessDate: readinessReading?.date ?? null,
+        recoveryHours: latestGarmin(garminDays, "recoveryHours")?.value ?? null,
+        sleepScore: latestGarmin(garminDays, "sleepScore")?.value ?? null,
+        today: todayStr,
+      });
       const weekStart = startOfWeek(todayStr);
       const thisWeekRides = rides.filter((r) => irelandDateStr(new Date(r.startDate)) >= weekStart);
       const weeklyProgress: WeeklyProgress = {
@@ -139,11 +106,9 @@ export function useCoachingData(raw: RawSourcesState): CoachingDataState {
       saveSettings: raw.saveSettings as (next: CoachingSettings) => Promise<void>,
       weeklyProgress,
       recentRides,
-      recoveryHistory,
       dataAvailable,
       hasRiddenToday,
       todayDistanceKm,
-      readinessDataIsFresh,
     };
   }, [raw]);
 }

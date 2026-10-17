@@ -1,61 +1,81 @@
 import type { Readiness } from "./types";
 
-const HIGH_RECOVERY = 67; // matches Whoop's own green banding threshold
-const LOW_RECOVERY = 34; // matches Whoop's own red banding threshold
-const HIGH_RECENT_STRAIN = 12; // Whoop's own "moderate" strain examples run ~8.7-12.7
+// Garmin's own Training Readiness levels: High 75+, Moderate 50-74, Low 25-49,
+// Poor below.
+const HIGH_READINESS = 75;
+const MODERATE_READINESS = 50;
+const LOW_READINESS = 25;
+// Garmin's recovery time is how long it still advises before the next hard
+// effort; a day or more left means today isn't the day for one, whatever the
+// morning's score says.
+const LONG_RECOVERY_HOURS = 24;
 
-// Deterministic, explainable rules - not a black box. Combines today's
-// recovery with recent training load (not just recovery alone) so a
-// high-recovery day right after several hard days still gets tempered
-// advice rather than a blanket "go hard".
-export function computeReadiness(recoveryScore: number | null, recentAvgStrain: number | null): Readiness {
-  if (recoveryScore == null) {
+export type ReadinessInputs = {
+  readiness: number | null;
+  readinessDate: string | null;
+  recoveryHours: number | null;
+  sleepScore: number | null;
+  today: string;
+};
+
+// Deterministic, explainable rules - not a black box. Training Readiness
+// already folds in sleep, HRV, recovery time and load balance; recovery time
+// is checked separately so a high score straight after a big session still
+// gets tempered advice rather than a blanket "go hard".
+export function computeReadiness({ readiness, readinessDate, recoveryHours, sleepScore, today }: ReadinessInputs): Readiness {
+  const base = { readiness, readinessDate, recoveryHours, sleepScore };
+  if (readiness == null) {
     return {
+      ...base,
       level: "moderate",
-      headline: "No recovery data yet",
-      reason: "Add a Whoop recovery reading to get a real recommendation - defaulting to a moderate, aerobic day.",
-      recoveryScore,
-      recentAvgStrain,
+      headline: "No readiness yet",
+      reason: "Garmin hasn't synced a Training Readiness reading yet - defaulting to a moderate, aerobic day.",
     };
   }
 
-  const highRecentLoad = recentAvgStrain != null && recentAvgStrain >= HIGH_RECENT_STRAIN;
+  const stale = readinessDate !== today ? " (from an earlier day - today's hasn't synced yet)" : "";
+  const longRecovery = recoveryHours != null && recoveryHours >= LONG_RECOVERY_HOURS;
 
-  if (recoveryScore >= HIGH_RECOVERY && !highRecentLoad) {
+  if (readiness >= HIGH_READINESS && !longRecovery) {
     return {
+      ...base,
       level: "hard",
       headline: "Hard day",
-      reason: `Recovery is strong at ${recoveryScore}% and recent load has been manageable - good day for a quality or high-intensity session.`,
-      recoveryScore,
-      recentAvgStrain,
+      reason: `Training Readiness is high at ${readiness}${stale} - a good day for a quality or high-intensity session.`,
     };
   }
 
-  if (recoveryScore >= HIGH_RECOVERY && highRecentLoad) {
+  if (readiness >= HIGH_READINESS) {
     return {
+      ...base,
       level: "moderate",
       headline: "Moderate day",
-      reason: `Recovery is strong at ${recoveryScore}%, but recent strain has been high (avg ${recentAvgStrain?.toFixed(1)} over the last 3 days) - keep today aerobic rather than adding more load on top.`,
-      recoveryScore,
-      recentAvgStrain,
+      reason: `Training Readiness is high at ${readiness}${stale}, but Garmin still advises ${Math.round(recoveryHours ?? 0)} hours of recovery - keep today aerobic rather than adding hard work on top.`,
     };
   }
 
-  if (recoveryScore >= LOW_RECOVERY) {
+  if (readiness >= MODERATE_READINESS) {
     return {
+      ...base,
       level: "moderate",
       headline: "Moderate day",
-      reason: `Recovery is middling at ${recoveryScore}% - steady aerobic work today, save hard efforts for a better recovery day.`,
-      recoveryScore,
-      recentAvgStrain,
+      reason: `Training Readiness is moderate at ${readiness}${stale} - steady aerobic work today, and save hard efforts for a higher-readiness day.`,
+    };
+  }
+
+  if (readiness >= LOW_READINESS) {
+    return {
+      ...base,
+      level: "easy",
+      headline: "Easy day",
+      reason: `Training Readiness is low at ${readiness}${stale} - keep it to an easy spin, or rest.`,
     };
   }
 
   return {
+    ...base,
     level: "rest",
-    headline: "Rest or easy day",
-    reason: `Recovery is low at ${recoveryScore}% - prioritize rest, or keep it to a genuinely easy spin if you ride at all.`,
-    recoveryScore,
-    recentAvgStrain,
+    headline: "Rest day",
+    reason: `Training Readiness is poor at ${readiness}${stale} - prioritise rest and sleep today.`,
   };
 }

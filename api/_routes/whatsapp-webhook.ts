@@ -4,6 +4,7 @@ import { getJSON, setJSON } from "../_lib/kvStore.js";
 import { generateCoachReply, type ChatMessage } from "./coaching-chat.js";
 import { computeChatContext } from "../_lib/coachSnapshot.js";
 import { isImageableMetric, signWidgetToken } from "../_lib/widgetImage.js";
+import { canonicalMetricId } from "../_lib/metricAliases.js";
 
 const MAX_HISTORY = 20; // matches the browser chat's own cap in coaching-chat.ts
 
@@ -129,7 +130,7 @@ function sendTwiml(res: VercelResponse, message?: string, mediaUrls: string[] = 
 function widgetMetricsIn(text: string): { metric: string; view: string }[] {
   const found = new Map<string, { metric: string; view: string }>();
   for (const match of text.matchAll(/\[widget:([^:\]]+)(?::([^\]]*))?\]/g)) {
-    const metric = match[1].trim();
+    const metric = canonicalMetricId(match[1].trim());
     const view = (match[2] ?? "").trim() || "stat";
     // Keyed by metric+view so "HRV as a chart" and "HRV as a stat" are two
     // images rather than one silently winning.

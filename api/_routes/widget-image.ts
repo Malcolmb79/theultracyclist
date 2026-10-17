@@ -15,6 +15,7 @@ import {
   noDataImage,
   performanceChartSvg,
   ringSvg,
+  readinessRingColor,
   ringsRowSvg,
   statSvg,
   timelineSvg,
@@ -22,7 +23,8 @@ import {
   weatherSvg,
 } from "../_lib/widgetImage.js";
 import { fetchLastLocation } from "./last-location.js";
-import { fetchWhoopHistory } from "./whoop-data.js";
+import { latestGarminReadings } from "../_lib/garminReadings.js";
+import { canonicalMetricId } from "../_lib/metricAliases.js";
 import { fetchStravaRides } from "./strava-activities.js";
 import { computeTss } from "../_lib/tss.js";
 import { computeFitnessSeries } from "../_lib/fitness.js";
@@ -288,7 +290,7 @@ async function rangeForMetric(metric: string): Promise<ResolvedRange> {
     getJSON<unknown>("DASHBOARD_LAYOUT").catch(() => null),
   ]);
   const widgets = resolveDeviceLayout<{ metric?: string; dateRange?: WidgetDateRange }>(layout, "desktop");
-  const own = widgets.find((w) => w.metric === metric)?.dateRange;
+  const own = widgets.find((w) => canonicalMetricId(w.metric ?? "") === metric)?.dateRange;
   const pageRanges = (settings as { pageDateRanges?: PageDateRanges }).pageDateRanges;
   return resolveDateRange(effectiveDateRange(own, "dashboard", pageRanges));
 }
@@ -317,49 +319,39 @@ async function performanceImage(): Promise<string> {
 }
 
 
-/** Whoop's three-up summary for the most recent scored day. */
+/** The Garmin rings: each reading is the newest one Garmin has synced. */
 async function ringsImage(): Promise<string> {
-  const { history } = await fetchWhoopHistory();
-  type Day = {
-    date: string;
-    recovery?: { score?: number } | null;
-    strain?: { score?: number } | null;
-    sleep?: { performancePercent?: number } | null;
-  };
-  const days = (history as Day[])
-    .slice()
-    .sort((a, b) => a.date.localeCompare(b.date));
-  if (days.length === 0) return noDataImage("Sleep, Recovery & Strain", "No Whoop history yet.");
-
-  // Each ring falls back to the last day its own field was scored. Strain is
-  // live all day while recovery and sleep arrive hours later, so reading the
-  // newest cycle wholesale blanks two rings of three every morning - and the
-  // athlete knows those numbers exist, because the watch is showing them.
-  const newestScored = <K extends "recovery" | "strain" | "sleep">(key: K) => {
-    for (let i = days.length - 1; i >= 0; i--) {
-      const value = days[i][key];
-      if (value) return { value, date: days[i].date };
-    }
-    return null;
-  };
-  const recovery = newestScored("recovery");
-  const strain = newestScored("strain");
-  const sleep = newestScored("sleep");
-
-  // Dated by the freshest thing on the card, with a note when the others are
-  // older, so nothing older is passed off as today's.
-  const dates = [recovery?.date, strain?.date, sleep?.date].filter((d): d is string => !!d).sort();
-  const newest = dates.at(-1);
-  const mixed = dates.length > 1 && irelandDateStr(new Date(dates[0])) !== irelandDateStr(new Date(newest as string));
-
-  return ringsRowSvg({
-    sleepPerformance: sleep?.value.performancePercent ?? null,
-    recovery: recovery?.value.score ?? null,
-    strain: strain?.value.score ?? null,
-    dateLabel: newest
-      ? `${dayLabel(irelandDateStr(new Date(newest)))}${mixed ? " · recovery and sleep from the last scored night" : ""}`
+  const r = await latestGarminReadings();
+  const today = irelandTodayDateStr();
+  // A full load ring is twice the recent daily average, as on the dashboard.
+  const dailyAverage = r.acuteLoad != null ? r.acuteLoad / 7 : null;
+  const load = r.trainingLoadToday;
+  const dates = [r.sleepDate, r.readinessDate, r.bodyBatteryDate].filter((d): d is string => !!d).sort();
+  const mixed = dates.length > 1 && dates[0] !== dates.at(-1);
+  return ringsRowSvg(
+    "Sleep, Readiness, Body Battery & Load",
+    [
+      { label: "SLEEP", value: r.sleepScore, display: r.sleepScore != null ? `${r.sleepScore}` : "—", fraction: (r.sleepScore ?? 0) / 100, color: "#8FA9C5" },
+      {
+        label: "READINESS",
+        value: r.readiness,
+        display: r.readiness != null ? `${r.readiness}` : "—",
+        fraction: (r.readiness ?? 0) / 100,
+        color: readinessRingColor(r.readiness ?? 0),
+      },
+      { label: "BATTERY", value: r.bodyBattery, display: r.bodyBattery != null ? `${r.bodyBattery}` : "—", fraction: (r.bodyBattery ?? 0) / 100, color: "#34d399" },
+      {
+        label: "LOAD",
+        value: load,
+        display: load != null ? `${load}` : "—",
+        fraction: load != null && dailyAverage ? load / (dailyAverage * 2) : 0,
+        color: "#4B87F5",
+      },
+    ],
+    dates.length > 0
+      ? `${dayLabel(dates.at(-1) as string)}${mixed ? " · some readings from an earlier day" : ""}${r.bodyBatteryAt && r.bodyBatteryDate === today ? ` · battery at ${r.bodyBatteryAt}` : ""}`
       : "",
-  });
+  );
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -371,6 +363,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(403).send("Invalid or expired link");
     return;
   }
+  // Links signed before Whoop was replaced still name its widgets.
+  spec.metric = canonicalMetricId(spec.metric);
 
   try {
     const history = (await fetchHealthHistory(120)) as Record<string, Record<string, HealthValue>>;
@@ -430,7 +424,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       svg = await weatherImage(s.unitSystem === "imperial" ? "imperial" : "metric");
     } else if (spec.metric === "strava.performanceChart") {
       svg = await performanceImage();
-    } else if (spec.metric === "whoop.sleepRecoveryStrainRings") {
+    } else if (spec.metric === "garmin.sleepReadinessBatteryRings") {
       svg = await ringsImage();
     } else {
       // Anything else is a plain metric: resolve its series and draw it in the

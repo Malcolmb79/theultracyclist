@@ -1,8 +1,11 @@
+import type { TrainingPeaksData } from "../_routes/trainingpeaks.js";
+import type { GarminReadings } from "./garminReadings.js";
+
 // Static background the coach should always have - athlete profile, how to
-// read Whoop's day-boundary data, and the high-level TrainingPeaks ATP
-// periodization plan through the record attempt itself. Manually captured
-// from the athlete's TrainingPeaks ATP export (no live TrainingPeaks API
-// integration exists here) - edit this file directly if the plan changes.
+// read Garmin's readings, and the high-level TrainingPeaks ATP periodisation
+// plan through the record attempt itself (SEASON_PLAN, typed in from the ATP
+// export; the live plan comes from TrainingPeaks itself via
+// trainingPeaksLines below) - edit this file directly if the plan changes.
 
 export const LANGUAGE_STYLE =
   'Write in UK English throughout - British spelling ("colour", "favourite", "organise", "prioritise", "metre") ' +
@@ -16,7 +19,7 @@ export const ATHLETE_PROFILE =
   "already computed on that boundary, so reason about \"this week\" the same way.";
 
 /**
- * A Whoop reading with the day it came from, rendered for the prompt.
+ * A Garmin reading with the day it came from, rendered for the prompt.
  *
  * Withholding a reading that wasn't today's used to be the safeguard against
  * the coach citing yesterday's number as this morning's - but a prompt that
@@ -35,7 +38,7 @@ export function readingLine(
   if (value == null) return `${label}: no reading on record`;
   if (!date) return `${label}: ${value}${unit} (day unknown - do not call it today's)`;
   if (date === todayStr) return `${label}: ${value}${unit} - today's reading`;
-  return `${label}: ${value}${unit} - from ${describeDate(date, todayStr)}, NOT today's; today's has not arrived from Whoop yet`;
+  return `${label}: ${value}${unit} - from ${describeDate(date, todayStr)}, NOT today's; today's has not synced from Garmin yet`;
 }
 
 function describeDate(date: string, todayStr: string): string {
@@ -57,7 +60,10 @@ function describeDate(date: string, todayStr: string): string {
  * sleep score as if it were last night's.
  */
 export const READING_HONESTY =
-  "Every number you state about recovery, HRV, resting heart rate, sleep or strain must appear verbatim in the " +
+  "Every number you state about Training Readiness, HRV, resting heart rate, sleep, Body Battery or training " +
+  "load must appear verbatim in the readings below or in a tool result - never estimate one, never average " +
+  "two, never carry a figure over from another day. " +
+  "Readings in the snapshot, specifically, must appear verbatim in the " +
   "readings below - never estimate one, never average two, never carry a figure over from another day. Each " +
   "reading is labelled with the day it came from. If a reading is not today's, say so and name the day it is " +
   "from before drawing anything from it; do not present it as this morning's. If a reading has no record at " +
@@ -66,13 +72,18 @@ export const READING_HONESTY =
   "screen next to it.";
 
 export const DATA_SEMANTICS =
-  'Data semantics: on the Sleep, Recovery & Strain dashboard, "today"\'s strain is LIVE - it keeps rising all ' +
-  'day as activity accumulates and is not final until the day ends. "Today"\'s recovery and sleep scores are ' +
-  "the opposite: a single fixed reading computed once, first thing in the morning, from last night's sleep - " +
-  "it does not move again for the rest of the day no matter what today's strain does. So a high live strain " +
-  "number today says nothing about today's recovery score; today's recovery already reflects last night, before " +
-  "today's training happened. Always check today's ride/workout status (given below, or via " +
-  "get_rides/get_recovery_history) before advising on today's session - never assume nothing's been done yet.";
+  "Data semantics - all recovery data comes from the athlete's Garmin watch. Sleep score (0-100) is fixed once, " +
+  "on waking, from last night. Training Readiness (0-100; Garmin's levels are Prime 95+, High 75-94, Moderate " +
+  "50-74, Low 25-49, Poor below 25) is first set on waking and then updates through the day as recovery time " +
+  "counts down and stress accumulates, so it can differ from this morning's. HRV is last night's overnight " +
+  "average and is best judged against its 7-day average and Garmin's HRV status (balanced, unbalanced, low, " +
+  "poor), not as an absolute number. Body Battery (0-100) is LIVE: it recharges overnight and drains through " +
+  "the day with activity and stress; the snapshot gives the latest synced reading and its time, which can be " +
+  "an hour or so behind the watch. Training load is Garmin's per-activity load: today's figure only covers " +
+  "activities synced so far and climbs as the day goes on, and the 7-day acute load is the running total " +
+  "Garmin compares against the athlete's chronic load. Recovery time is how many hours Garmin still recommends " +
+  "before the next hard effort. Always check today's ride/workout status (given below, or via get_rides or " +
+  "get_garmin_history) before advising on today's session - never assume nothing has been done yet.";
 
 /**
  * TrainingPeaks outranks everything derived.
@@ -122,3 +133,114 @@ export const SEASON_PLAN =
   "Transition/recovery immediately after. Planned fitness (CTL) climbs steadily from the high-teens now to " +
   "roughly 120-130 by race week - a long, progressive multi-phase build, not a short block, so don't chase big " +
   "week-to-week jumps.";
+
+// TrainingPeaks workoutTypeValueId -> sport.
+const TP_SPORTS: Record<string, string> = {
+  "1": "swim", "2": "bike", "3": "run", "4": "brick", "5": "cross-training", "6": "race", "7": "day off",
+  "8": "mountain bike", "9": "strength", "10": "custom", "11": "XC ski", "12": "rowing", "13": "walk", "100": "other",
+};
+
+function mondayOf(dateStr: string): string {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  const weekday = d.getUTCDay();
+  d.setUTCDate(d.getUTCDate() - (weekday === 0 ? 6 : weekday - 1));
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * The TrainingPeaks figures the coach should have in front of it on every
+ * message - today's form, this week's plan target and what is scheduled -
+ * rather than only behind a tool it might not think to call.
+ */
+export function trainingPeaksLines(tp: TrainingPeaksData | null, todayStr: string): string[] {
+  if (!tp?.configured) return ["TrainingPeaks: not connected"];
+  if (tp.authExpired) return ["TrainingPeaks: connection expired - needs reconnecting in Settings"];
+  const lines: string[] = [];
+  const fitness = tp.fitness.filter((p) => p.date <= todayStr && p.ctl != null).at(-1);
+  if (fitness) {
+    lines.push(
+      `TrainingPeaks fitness (${fitness.date === todayStr ? "today" : fitness.date}): CTL ${fitness.ctl}, ATL ${fitness.atl}, TSB ${fitness.tsb}`,
+    );
+  }
+  const week = tp.atp.find((w) => w.weekStart === mondayOf(todayStr));
+  if (week) {
+    lines.push(
+      `This week's Annual Training Plan target: ${[
+        week.tssTarget != null ? `${week.tssTarget} TSS` : null,
+        week.ctlTarget != null ? `CTL ${week.ctlTarget}` : null,
+        week.tsbTarget != null ? `TSB ${week.tsbTarget}` : null,
+      ]
+        .filter(Boolean)
+        .join(", ")}`,
+    );
+  }
+  const describe = (w: TrainingPeaksData["workouts"][number]) =>
+    [
+      w.title,
+      w.sport ? TP_SPORTS[w.sport] ?? null : null,
+      w.plannedMinutes != null ? `${w.plannedMinutes} min` : null,
+      w.plannedTss != null ? `${w.plannedTss} TSS planned` : null,
+    ]
+      .filter(Boolean)
+      .join(", ");
+  const today = tp.workouts.filter((w) => w.date === todayStr);
+  lines.push(
+    today.length > 0
+      ? `Planned in TrainingPeaks today: ${today.map((w) => `${describe(w)}${w.completed ? " (completed)" : ""}`).join("; ")}`
+      : "Planned in TrainingPeaks today: nothing",
+  );
+  const upcoming = tp.workouts.filter((w) => w.date > todayStr && !w.completed).slice(0, 4);
+  if (upcoming.length > 0) lines.push(`Next in TrainingPeaks: ${upcoming.map((w) => `${w.date} ${describe(w)}`).join("; ")}`);
+  const weekStart = mondayOf(todayStr);
+  const doneThisWeek = tp.workouts.filter((w) => w.completed && w.date >= weekStart && w.date <= todayStr);
+  if (doneThisWeek.length > 0) lines.push(`Completed in TrainingPeaks this week: ${doneThisWeek.length} workout(s)`);
+  return lines;
+}
+
+/**
+ * The Garmin snapshot lines, shared with the daily note. Every reading is
+ * labelled with the day it came from - the coach is told to name that day
+ * whenever it is not today's rather than letting a stale figure pass as this
+ * morning's.
+ */
+export function garminSnapshotLines(r: Partial<GarminReadings>, todayStr: string): string[] {
+  const lines: string[] = [];
+  lines.push(readingLine("Training Readiness", r.readiness, r.readinessDate, "/100", todayStr));
+  lines.push(
+    readingLine(
+      "Overnight HRV",
+      r.hrvMs,
+      r.hrvDate,
+      ` ms${r.hrvWeeklyMs != null ? ` (7-day average ${r.hrvWeeklyMs} ms${r.hrvStatus ? `, status ${r.hrvStatus}` : ""})` : ""}`,
+      todayStr,
+    ),
+  );
+  lines.push(readingLine("Resting heart rate", r.restingHeartRate, r.restingHeartRateDate, " bpm", todayStr));
+  lines.push(
+    readingLine(
+      "Sleep score",
+      r.sleepScore,
+      r.sleepDate,
+      `/100${r.sleepHours != null ? ` from ${r.sleepHours}h asleep${r.sleepNeedHours != null ? ` (Garmin's sleep need ${r.sleepNeedHours}h)` : ""}` : ""}`,
+      todayStr,
+    ),
+  );
+  lines.push(
+    r.bodyBattery == null
+      ? "Body Battery: no reading on record"
+      : r.bodyBatteryDate === todayStr
+        ? `Body Battery: ${r.bodyBattery} as of ${r.bodyBatteryAt ?? "the latest sync"} today - LIVE, drains through the day${r.bodyBatteryAtWake != null ? `; woke at ${r.bodyBatteryAtWake}` : ""}`
+        : readingLine("Body Battery", r.bodyBattery, r.bodyBatteryDate, "", todayStr),
+  );
+  lines.push(
+    r.trainingLoadToday == null
+      ? "Training load today: nothing synced from Garmin yet today"
+      : `Training load so far today: ${r.trainingLoadToday} - LIVE, rises as activities sync`,
+  );
+  if (r.recentAvgLoad != null) lines.push(`Average daily training load, last 3 days: ${r.recentAvgLoad}`);
+  if (r.acuteLoad != null) lines.push(readingLine("7-day acute training load", r.acuteLoad, r.acuteLoadDate, "", todayStr));
+  if (r.recoveryTimeHours != null) {
+    lines.push(readingLine("Garmin recovery time remaining", r.recoveryTimeHours, r.recoveryTimeDate, " hours", todayStr));
+  }
+  return lines;
+}

@@ -1,10 +1,10 @@
-import { fetchWhoopHistory } from "../_routes/whoop-data.js";
 import { fetchStravaRides, type Ride } from "../_routes/strava-activities.js";
 import { fetchCoachingSettings } from "../_routes/coaching-settings.js";
 import { fetchGoals } from "../_routes/trends-goals.js";
 import { fetchHealthHistory } from "../_routes/health-data.js";
 import type { ChatContext } from "../_routes/coaching-chat.js";
-import { irelandDateStr, irelandTodayDateStr, whoopDayStr } from "./timeContext.js";
+import { irelandDateStr, irelandTodayDateStr } from "./timeContext.js";
+import { latestGarminReadings } from "./garminReadings.js";
 import { isWeightFieldName } from "./weightField.js";
 
 // Monday-start week boundary, matching the athlete's training-week
@@ -26,7 +26,7 @@ function rideDateStr(ride: Ride): string {
   return irelandDateStr(new Date(ride.startDate));
 }
 
-// Builds the same recovery/strain/sleep/weekly-progress snapshot the
+// Builds the same Garmin readings and weekly-progress snapshot the
 // browser chat client normally computes itself (see narrativeInputFrom in
 // CoachingPage.tsx) and POSTs alongside every chat/narrative request - the
 // WhatsApp webhook has no browser session to do that, so it fetches the
@@ -53,74 +53,12 @@ async function latestWeightKg(): Promise<number | null> {
   return null;
 }
 
-export type WhoopReadings = Pick<
-  ChatContext,
-  "recoveryScore" | "hrvMs" | "restingHeartRate" | "strainScore" | "sleepPerformance" | "recentAvgStrain" | "recoveryDate" | "strainDate" | "sleepDate"
->;
-
-/**
- * The latest scored value of each Whoop field, with the day it came from.
- *
- * Separate from computeChatContext because the daily note only needs this
- * much. Reaching for the whole snapshot there pulled Whoop, Strava, the health
- * history twice, goals and settings on every page load, and the request stopped
- * coming back at all - far too much work for a card that renders on open.
- */
-export async function latestWhoopReadings(): Promise<WhoopReadings> {
-  const whoop = await fetchWhoopHistory().catch(() => null);
-  return readingsFrom(whoop?.history ?? []);
-}
-
-type WhoopHistory = NonNullable<Awaited<ReturnType<typeof fetchWhoopHistory>>>["history"];
-
-/** `history` is newest first, the order whoop-data returns it in. */
-function readingsFrom(history: WhoopHistory): WhoopReadings {
-  // Each field falls back to the last day it was actually scored, and its day
-  // travels with it. Whoop publishes recovery and sleep hours after the watch
-  // shows them and strain climbs live all day, so the newest cycle is often
-  // part-empty - and the three fields can legitimately be from three different
-  // days. Withholding anything that wasn't today's was the previous guard
-  // against a stale figure being read as this morning's; it backfired, because
-  // a prompt with no recovery score in it got one invented. The coach is given
-  // the latest of everything and told to name the day whenever it isn't
-  // today's. Same per-field fallback as the rings widget (src/utils/latestWhoop.ts).
-  const newestScored = <K extends "recovery" | "strain" | "sleep">(key: K) => {
-    for (const day of history) {
-      if (day[key]) return { value: day[key], date: whoopDayStr(new Date(day.date)) };
-    }
-    return null;
-  };
-  const recovery = newestScored("recovery");
-  const strain = newestScored("strain");
-  const sleep = newestScored("sleep");
-
-  const last3Strain = history
-    .slice(0, 3)
-    .map((d) => d.strain?.score)
-    .filter((v): v is number => v != null);
-
-  return {
-    recoveryScore: recovery?.value?.score ?? null,
-    hrvMs: recovery?.value?.hrvMs ?? null,
-    restingHeartRate: recovery?.value?.restingHeartRate ?? null,
-    strainScore: strain?.value?.score ?? null,
-    sleepPerformance: sleep?.value?.performancePercent ?? null,
-    recoveryDate: recovery?.date ?? null,
-    strainDate: strain?.date ?? null,
-    sleepDate: sleep?.date ?? null,
-    recentAvgStrain:
-      last3Strain.length > 0 ? Math.round((last3Strain.reduce((a, b) => a + b, 0) / last3Strain.length) * 10) / 10 : null,
-  };
-}
-
 export async function computeChatContext(): Promise<Partial<ChatContext>> {
-  const [whoop, rides, settings] = await Promise.all([
-    fetchWhoopHistory().catch(() => null),
+  const [readings, rides, settings] = await Promise.all([
+    latestGarminReadings(),
     fetchStravaRides().catch(() => [] as Ride[]),
     fetchCoachingSettings().catch(() => ({})),
   ]);
-
-  const readings = readingsFrom(whoop?.history ?? []);
 
   const todayStr = irelandTodayDateStr();
   const weekStart = startOfWeek(todayStr);

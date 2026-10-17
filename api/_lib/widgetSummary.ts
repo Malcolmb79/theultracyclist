@@ -1,4 +1,5 @@
-import { fetchWhoopHistory } from "../_routes/whoop-data.js";
+import { fetchGarminDays, latestGarminReadings } from "./garminReadings.js";
+import { canonicalMetricId } from "./metricAliases.js";
 import { fetchHealthHistory } from "../_routes/health-data.js";
 import { fetchCoachingSettings } from "../_routes/coaching-settings.js";
 import { fetchGoals } from "../_routes/trends-goals.js";
@@ -39,31 +40,62 @@ function dayWord(iso: string): string {
   return date === yesterday.toISOString().slice(0, 10) ? "yesterday" : date;
 }
 
-export async function summariseWidget(metric: string, view: string): Promise<Summary> {
+export async function summariseWidget(requestedMetric: string, view: string): Promise<Summary> {
+  let metric = requestedMetric;
   const settings = (await fetchCoachingSettings()) as { unitSystem?: string; heightCm?: number; ftpWatts?: number };
   const system: UnitSystem = settings.unitSystem === "imperial" ? "imperial" : "metric";
 
-  if (metric === "whoop.sleepRecoveryStrainRings") {
-    const { history } = await fetchWhoopHistory();
-    type Day = { date: string; recovery?: { score?: number } | null; strain?: { score?: number } | null; sleep?: { performancePercent?: number } | null };
-    const days = (history as Day[]).slice().sort((a, b) => a.date.localeCompare(b.date));
-    const newest = <K extends "recovery" | "strain" | "sleep">(key: K) => {
-      for (let i = days.length - 1; i >= 0; i--) if (days[i][key]) return { value: days[i][key], date: days[i].date };
-      return null;
-    };
-    const sleep = newest("sleep");
-    const recovery = newest("recovery");
-    const strain = newest("strain");
+  metric = canonicalMetricId(metric);
+
+  if (metric === "garmin.sleepReadinessBatteryRings") {
+    const r = await latestGarminReadings();
+    const when = (date: string | null) => (date ? dayWord(date) : "no reading");
     return {
       shows:
-        `Three rings for a single day, not a trend: ` +
-        `sleep ${sleep?.value?.performancePercent ?? "—"}% (${sleep ? dayWord(sleep.date) : "no reading"}), ` +
-        `recovery ${recovery?.value?.score ?? "—"}% (${recovery ? dayWord(recovery.date) : "no reading"}), ` +
-        `strain ${strain?.value?.score ?? "—"} on Whoop's 0-21 scale (${strain ? dayWord(strain.date) : "no reading"}).`,
+        `Four rings for the latest readings, not a trend: ` +
+        `sleep score ${r.sleepScore ?? "—"} (${when(r.sleepDate)}), ` +
+        `Training Readiness ${r.readiness ?? "—"} (${when(r.readinessDate)}), ` +
+        `Body Battery ${r.bodyBattery ?? "—"}${r.bodyBatteryAt ? ` at ${r.bodyBatteryAt}` : ""} (${when(r.bodyBatteryDate)}), ` +
+        `training load ${r.trainingLoadToday ?? "—"} today.`,
       note:
-        "Ring colours are fixed by metric, not by how good the number is: sleep is grey-blue, strain is blue, " +
-        "and only recovery is colour-banded (red under 34, amber under 67, green above). Do not describe a ring " +
-        "by a colour you have not been told.",
+        "Only the readiness ring is colour-banded (green 75+, amber 50-74, red below); sleep is grey-blue, " +
+        "Body Battery green and load blue whatever their value. Do not describe a ring by a colour you have not been told.",
+    };
+  }
+
+  if (metric === "garmin.loadReadinessCombo") {
+    const days = (await fetchGarminDays(10)).slice(0, 7).reverse();
+    return {
+      shows:
+        `Two charts over the last ${days.length} days. Training load: ${days.map((d) => `${dayWord(d.date)} ${d.trainingLoad}`).join(", ")}. ` +
+        `Training Readiness: ${days.map((d) => `${dayWord(d.date)} ${d.readiness ?? "—"}`).join(", ")}.`,
+    };
+  }
+
+  if (metric === "garmin.healthCalendar") {
+    return {
+      shows:
+        "A month calendar with each day's Training Readiness, HRV and sleep score, weight where logged, and a dot " +
+        "on training days. Call get_garmin_history for the figures before commenting on particular days.",
+    };
+  }
+
+  if (metric === "garmin.bodyBatteryTimeline") {
+    return {
+      shows:
+        "Today's Body Battery line over the 3-minute stress readings, with sleep and each activity on a lane " +
+        "beneath. Call get_body_battery_day for the figures before commenting on them.",
+    };
+  }
+
+  if (metric === "garmin.bodyBattery") {
+    const r = await latestGarminReadings();
+    return {
+      shows:
+        r.bodyBattery != null
+          ? `The Body Battery card: ${r.bodyBattery}${r.bodyBatteryAt ? ` at ${r.bodyBatteryAt}` : ""} (${r.bodyBatteryDate ? dayWord(r.bodyBatteryDate) : "—"}), ` +
+            `woke at ${r.bodyBatteryAtWake ?? "—"}, with a projection to bedtime and the riding left in hand.`
+          : "The Body Battery card, with no Garmin reading yet.",
     };
   }
 

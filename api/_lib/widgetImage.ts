@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { GARMIN_METRIC_IDS } from "./metricSeries.js";
 
 /**
  * Widget images for WhatsApp.
@@ -248,7 +249,7 @@ export const COMPOSITE_IMAGE_METRICS = new Set([
   "goal.ftp",
   "weather.current",
   "strava.performanceChart",
-  "whoop.sleepRecoveryStrainRings",
+  "garmin.sleepReadinessBatteryRings",
 ]);
 
 /**
@@ -259,7 +260,7 @@ export function isImageableMetric(metric: string): boolean {
   return (
     COMPOSITE_IMAGE_METRICS.has(metric) ||
     metric.startsWith("health.") ||
-    metric.startsWith("whoop.") ||
+    GARMIN_METRIC_IDS.has(metric) ||
     (metric.startsWith("strava.") && metric !== "strava.performanceChart") ||
     false
   );
@@ -524,62 +525,28 @@ export function performanceChartSvg(
   );
 }
 
-// Whoop's own three-up summary. Colours match the dashboard's rings exactly:
-// sleep steel blue, strain blue, and recovery banded red/amber/green - see
-// ringColor in DashboardWidget.tsx and recoveryColor in src/utils.
-const SLEEP_RING_COLOR = "#8FA9C5";
-const STRAIN_RING_COLOR = "#4B87F5";
+export type RingSpec = { label: string; value: number | null; display: string; fraction: number; color: string };
 
-function recoveryRingColor(score: number): string {
-  if (score >= 67) return "#2ee6a6";
-  if (score >= 34) return "#ffb020";
+// Garmin readiness banding, matching readinessColor in src/utils/garmin.ts.
+export function readinessRingColor(score: number): string {
+  if (score >= 75) return "#2ee6a6";
+  if (score >= 50) return "#ffb020";
   return "#ff4d2e";
 }
 
-// Strain is a 0-21 scale, not a percentage, so it fills against 21 rather than
-// 100 - otherwise a hard day's 18 would read as a fifth of the ring.
-const STRAIN_MAX = 21;
-
-export function ringsRowSvg(day: {
-  sleepPerformance: number | null;
-  recovery: number | null;
-  strain: number | null;
-  dateLabel: string;
-}): string {
-  const rings: { label: string; value: number | null; display: string; fraction: number; color: string }[] = [
-    {
-      label: "SLEEP",
-      value: day.sleepPerformance,
-      display: day.sleepPerformance != null ? `${Math.round(day.sleepPerformance)}%` : "—",
-      fraction: (day.sleepPerformance ?? 0) / 100,
-      color: SLEEP_RING_COLOR,
-    },
-    {
-      label: "RECOVERY",
-      value: day.recovery,
-      display: day.recovery != null ? `${Math.round(day.recovery)}%` : "—",
-      fraction: (day.recovery ?? 0) / 100,
-      color: recoveryRingColor(day.recovery ?? 0),
-    },
-    {
-      label: "STRAIN",
-      value: day.strain,
-      display: day.strain != null ? (Math.round(day.strain * 10) / 10).toString() : "—",
-      fraction: (day.strain ?? 0) / STRAIN_MAX,
-      color: STRAIN_RING_COLOR,
-    },
-  ];
-
+/** A row of rings, like the dashboard's rings widget, for a single day. */
+export function ringsRowSvg(title: string, rings: RingSpec[], dateLabel: string): string {
   if (rings.every((r) => r.value == null)) {
-    return noDataImage("Sleep, Recovery & Strain", "No Whoop reading for that day.");
+    return noDataImage(title, "No Garmin reading yet.");
   }
 
-  const r = 78;
+  const count = rings.length;
+  const r = count > 3 ? 64 : 78;
   const circumference = 2 * Math.PI * r;
   const cy = 230;
   const body = rings
     .map((ring, i) => {
-      const cx = W / 6 + (i * W) / 3;
+      const cx = W / (count * 2) + (i * W) / count;
       const filled = Math.max(0, Math.min(1, ring.fraction)) * circumference;
       return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="18"/>
         <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${ring.color}" stroke-width="18" stroke-linecap="round"
@@ -590,8 +557,8 @@ export function ringsRowSvg(day: {
     .join("");
 
   return frame(
-    "Sleep, Recovery & Strain",
-    `${body}<text x="40" y="${H - 24}" fill="${MUTED}" font-family="${FONT}" font-size="17">${esc(day.dateLabel)}</text>`,
+    title,
+    `${body}<text x="40" y="${H - 24}" fill="${MUTED}" font-family="${FONT}" font-size="17">${esc(dateLabel)}</text>`,
   );
 }
 

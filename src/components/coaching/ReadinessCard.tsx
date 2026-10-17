@@ -19,16 +19,22 @@ export default function ReadinessCard({ readiness }: { readiness: Readiness }) {
         {readiness.reason}
       </p>
       <div className={styles.stats}>
-        {readiness.recoveryScore != null && (
+        {readiness.readiness != null && (
           <div className={styles.stat}>
-            <span className={styles.statValue}>{readiness.recoveryScore}%</span>
-            <span className={styles.statLabel}>Recovery</span>
+            <span className={styles.statValue}>{readiness.readiness}</span>
+            <span className={styles.statLabel}>Readiness</span>
           </div>
         )}
-        {readiness.recentAvgStrain != null && (
+        {readiness.sleepScore != null && (
           <div className={styles.stat}>
-            <span className={styles.statValue}>{readiness.recentAvgStrain}</span>
-            <span className={styles.statLabel}>Avg strain, 3d</span>
+            <span className={styles.statValue}>{readiness.sleepScore}</span>
+            <span className={styles.statLabel}>Sleep score</span>
+          </div>
+        )}
+        {readiness.recoveryHours != null && (
+          <div className={styles.stat}>
+            <span className={styles.statValue}>{Math.round(readiness.recoveryHours)}h</span>
+            <span className={styles.statLabel}>Recovery time</span>
           </div>
         )}
       </div>

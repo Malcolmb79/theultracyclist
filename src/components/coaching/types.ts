@@ -104,8 +104,12 @@ export type Readiness = {
   level: ReadinessLevel;
   headline: string;
   reason: string;
-  recoveryScore: number | null;
-  recentAvgStrain: number | null;
+  /** Garmin Training Readiness, 0-100. */
+  readiness: number | null;
+  readinessDate: string | null;
+  /** Hours of recovery Garmin still advises before the next hard effort. */
+  recoveryHours: number | null;
+  sleepScore: number | null;
 };
 
 export type PowerZone = {
@@ -136,24 +140,9 @@ export type WeeklyProgress = {
 // Mirrors NarrativeInput in api/_routes/coaching-narrative.ts - kept as an
 // independent local type rather than a cross-directory import, matching how
 // the rest of this project keeps the frontend and api/ TypeScript projects
-// decoupled (see useDashboardData.ts's own local Whoop* types).
+// decoupled. Garmin readings are read server-side, so only the week's
+// progress and settings travel from here.
 export type NarrativeInput = {
-  recoveryScore: number | null;
-  hrvMs: number | null;
-  restingHeartRate: number | null;
-  strainScore: number | null;
-  /**
-   * The day each reading belongs to (YYYY-MM-DD, Irish). Recovery, HRV and RHR
-   * share one - they are scored together each morning - while sleep and strain
-   * can lag or lead it independently, so each carries its own. Sent even when
-   * it is today's: the coach is told to name the day whenever it isn't, and it
-   * cannot do that without knowing which day it has.
-   */
-  recoveryDate: string | null;
-  sleepDate: string | null;
-  strainDate: string | null;
-  recentAvgStrain: number | null;
-  sleepPerformance: number | null;
   weeklyDistanceKm: number | null;
   weeklyTargetKm: number | null;
   phase: TrainingPhase | null;

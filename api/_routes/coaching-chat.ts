@@ -1,15 +1,15 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { requirePasskeySession } from "../_lib/session.js";
 import { irelandTimeContext } from "../_lib/timeContext.js";
-import { ATHLETE_PROFILE, DATA_SEMANTICS, SEASON_PLAN, LANGUAGE_STYLE, READING_HONESTY, TRAININGPEAKS_PRECEDENCE, TRAININGPEAKS_SOLE_SOURCE, readingLine } from "../_lib/coachContext.js";
-import { fetchWhoopHistory } from "./whoop-data.js";
+import { ATHLETE_PROFILE, DATA_SEMANTICS, SEASON_PLAN, LANGUAGE_STYLE, READING_HONESTY, TRAININGPEAKS_PRECEDENCE, TRAININGPEAKS_SOLE_SOURCE, garminSnapshotLines, trainingPeaksLines } from "../_lib/coachContext.js";
+import { bodyBatteryDay, fetchGarminDays, latestGarminReadings, type GarminReadings } from "../_lib/garminReadings.js";
 import { fetchStravaRides } from "./strava-activities.js";
 import { fetchHealthHistory } from "./health-data.js";
 import { convertHealthHistory, type UnitSystem } from "../_lib/units.js";
 import { searchKnowledge } from "../_lib/coachKnowledge.js";
 import { summariseWidget } from "../_lib/widgetSummary.js";
 import { computeChatContext } from "../_lib/coachSnapshot.js";
-import { fetchTrainingPeaksData } from "./trainingpeaks.js";
+import { fetchTrainingPeaksData, type TrainingPeaksData } from "./trainingpeaks.js";
 import { fetchCoachingSettings } from "./coaching-settings.js";
 import { computeTss } from "../_lib/tss.js";
 import { computeFitnessSeries } from "../_lib/fitness.js";
@@ -30,23 +30,10 @@ const MAX_TOOL_ROUNDS = 5; // bounds worst-case latency/cost of the tool-use loo
 
 export type ChatMessage = { role: "user" | "assistant"; content: string };
 
-export type ChatContext = {
-  recoveryScore: number | null;
-  hrvMs: number | null;
-  restingHeartRate: number | null;
-  strainScore: number | null;
-  /**
-   * The day each reading belongs to (YYYY-MM-DD, Irish). Recovery, HRV and RHR
-   * share one - they are scored together each morning - while sleep and strain
-   * can lag or lead it independently, so each carries its own. Sent even when
-   * it is today's: the coach is told to name the day whenever it isn't, and it
-   * cannot do that without knowing which day it has.
-   */
-  recoveryDate: string | null;
-  sleepDate: string | null;
-  strainDate: string | null;
-  recentAvgStrain: number | null;
-  sleepPerformance: number | null;
+// Garmin readings, each with the day it belongs to (YYYY-MM-DD, Irish): they
+// sync at different times, so the coach is told to name the day whenever a
+// reading isn't today's, and cannot do that without knowing which it has.
+export type ChatContext = GarminReadings & {
   weeklyDistanceKm: number | null;
   weeklyTargetKm: number | null;
   phase: "build" | "recovery" | "taper" | null;
@@ -110,19 +97,35 @@ async function preferredUnitSystem(): Promise<UnitSystem> {
 // relying on the single latest-value snapshot baked into the system prompt.
 const TOOLS = [
   {
-    name: "get_recovery_history",
+    name: "get_garmin_history",
     description:
-      "Fetch daily Whoop history: recovery score, HRV (ms), resting heart rate, day strain, heart-rate " +
-      "zone minutes, and sleep (performance, stages, consistency, efficiency). Use this whenever the athlete " +
-      "asks about a trend, a specific past date, or anything beyond the single latest data point already " +
-      "given in context.",
+      "Fetch daily Garmin history, newest first: Training Readiness and what is holding it back (each factor " +
+      "0-100, where 100 means it is not dragging the score down), recovery time, sleep score with hours, need " +
+      "and stages, overnight HRV with its 7-day average and status, resting heart rate, Body Battery (at wake, " +
+      "high, low, charged, drained, latest), average stress, training load, 7-day acute load, activity minutes " +
+      "and steps. Use this whenever the athlete asks about a trend, a past date, or anything beyond the latest " +
+      "readings already in the snapshot.",
     input_schema: {
       type: "object",
       properties: {
         days: {
           type: "number",
-          description: "How many days of history to fetch, most recent first. Defaults to 25 if omitted.",
+          description: "How many days of history to fetch. Defaults to 21 if omitted.",
         },
+      },
+    },
+  },
+  {
+    name: "get_body_battery_day",
+    description:
+      "One day's Body Battery timeline from Garmin: the battery and average stress hour by hour, minutes spent " +
+      "in each stress band, the sleep window, and each activity with its training load and how much Body " +
+      "Battery it cost. Use this for how a particular ride or day drained the athlete, when their energy dipped, " +
+      "or how stressful a day was. Covers the last 7 days only.",
+    input_schema: {
+      type: "object",
+      properties: {
+        date: { type: "string", description: "YYYY-MM-DD. Omit for today." },
       },
     },
   },
@@ -192,7 +195,8 @@ const TOOLS = [
     name: "get_health_metrics",
     description:
       "Fetch daily Apple Health history (whatever the athlete's export includes - e.g. body weight, resting " +
-      "energy, VO2 max, step count). Use this for body weight trends or anything tracked outside Whoop/Strava. " +
+      "energy, VO2 max, step count). Use this for body weight trends or anything tracked outside Garmin/Strava " +
+      "(Garmin readings also appear here as garmin_* fields, but get_garmin_history presents them properly). " +
       "Values come back already converted into the athlete's chosen system and the `units` field says which - " +
       "quote them as given, don't convert again.",
     input_schema: {
@@ -262,8 +266,10 @@ const TOOLS = [
           type: "string",
           description:
             "Which widget, as a metric id the dashboard knows - e.g. \"health.macroSplit\", " +
-            "\"health.caloriesBalance\", \"health.bmi\", \"strava.performanceChart\", \"whoop.recovery\", " +
-            "\"whoop.sleepRecoveryStrainRings\", \"whoop.healthCalendar\", or any \"health.<field>\" Apple " +
+            "\"health.caloriesBalance\", \"health.bmi\", \"strava.performanceChart\", \"garmin.readiness\", " +
+            "\"garmin.hrv\", \"garmin.sleepScore\", \"garmin.trainingLoad\", the Garmin composites " +
+            "\"garmin.sleepReadinessBatteryRings\", \"garmin.loadReadinessCombo\", \"garmin.healthCalendar\", " +
+            "\"garmin.bodyBatteryTimeline\" and \"whoop.bodyBattery\" (the Body Battery card), or any \"health.<field>\" Apple " +
             "Health field. These are dashboard widgets, not raw Apple Health fields - several are derived " +
             "(BMI from body weight and the height in Settings; macro split and calories balance from the " +
             "nutrition fields), so do not go looking for a matching field first and do not conclude the data " +
@@ -373,10 +379,13 @@ const TOOLS = [
 async function executeTool(name: string, input: Record<string, unknown>): Promise<unknown> {
   try {
     switch (name) {
-      case "get_recovery_history": {
-        const days = typeof input.days === "number" ? input.days : undefined;
-        const result = await fetchWhoopHistory(days);
-        return result.history;
+      case "get_garmin_history": {
+        const days = typeof input.days === "number" ? Math.min(120, Math.max(1, input.days)) : 21;
+        const history = await fetchGarminDays(days);
+        return history.length > 0 ? history : { history: [], note: "No Garmin readings in that window." };
+      }
+      case "get_body_battery_day": {
+        return await bodyBatteryDay(typeof input.date === "string" ? input.date : undefined);
       }
       case "get_rides": {
         const count = typeof input.count === "number" ? input.count : undefined;
@@ -553,24 +562,10 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
   }
 }
 
-function buildSystemPrompt(context: Partial<ChatContext>, trainingPeaksActive = false): string {
-  const lines: string[] = [];
-  // Read fresh on every message, and each one labelled with the day it came
-  // from - the coach is told to name that day whenever it is not today's
-  // rather than letting a stale figure pass as this morning's.
+function buildSystemPrompt(context: Partial<ChatContext>, tp: TrainingPeaksData | null, trainingPeaksActive: boolean): string {
   const todayStr = irelandTodayDateStr();
-  lines.push(readingLine("Recovery score", context.recoveryScore, context.recoveryDate, "%", todayStr));
-  lines.push(readingLine("HRV", context.hrvMs, context.recoveryDate, " ms", todayStr));
-  lines.push(readingLine("Resting heart rate", context.restingHeartRate, context.recoveryDate, " bpm", todayStr));
-  lines.push(
-    context.strainScore == null
-      ? "Strain: no reading on record"
-      : context.strainDate === todayStr
-        ? `Strain so far today: ${context.strainScore} - LIVE, read just now, still rising as the day goes on`
-        : readingLine("Strain", context.strainScore, context.strainDate, "", todayStr),
-  );
-  if (context.recentAvgStrain != null) lines.push(`Average strain, last 3 days: ${context.recentAvgStrain}`);
-  lines.push(readingLine("Sleep performance", context.sleepPerformance, context.sleepDate, "%", todayStr));
+  const lines: string[] = garminSnapshotLines(context, todayStr);
+  lines.push(...trainingPeaksLines(tp, todayStr));
   if (context.weeklyDistanceKm != null && context.weeklyTargetKm != null) {
     lines.push(`This week's distance so far: ${context.weeklyDistanceKm}km of a ${context.weeklyTargetKm}km target`);
   }
@@ -668,22 +663,26 @@ function buildSystemPrompt(context: Partial<ChatContext>, trainingPeaksActive = 
     "\n\n" +
     LANGUAGE_STYLE +
     "\n\n" +
+    (trainingPeaksActive ? TRAININGPEAKS_SOLE_SOURCE : TRAININGPEAKS_PRECEDENCE) +
+    "\n\n" +
     "Coach with real depth: periodised training load across build/recovery/taper phases; HRV- and RHR-informed " +
     "readiness (a depressed HRV or elevated RHR relative to the athlete's own baseline signals accumulated " +
-    "fatigue earlier and more reliably than recovery score alone); power-zone-based training (Z1-2 endurance, " +
+    "fatigue earlier and more reliably than the readiness score alone); power-zone-based training (Z1-2 endurance, " +
     "Z3 tempo, Z4 threshold, Z5 VO2/anaerobic) - for an effort this long, time-in-zone and durability at low-Z " +
     "power matter far more than peak numbers; sleep's role in adaptation, since poor sleep performance blunts " +
     "the training effect of the same load; and the specific demands of a multi-day unsupported solo record " +
     "attempt - fueling strategy and gut training at race pace, pacing conservatively enough to avoid a " +
     "mid-attempt bonk or overuse injury, taper design in the final one to two weeks, and managing cumulative " +
     "sleep deprivation and fatigue during the attempt itself, not just the training leading up to it.\n\n" +
-    "You have tools to pull the athlete's actual historical data (Whoop recovery/strain/sleep, Strava rides, " +
-    "Apple Health, current CTL/ATL/TSB fitness/fatigue/form) beyond the snapshot below - use them whenever a " +
-    "specific number, trend, or past date would make your answer better than a general one, rather than " +
-    "guessing or saying you don't have the data. get_fitness also returns this week's target CTL/TSB from the " +
-    "athlete's real TrainingPeaks Annual Training Plan - when asked whether they're on track, ahead, or behind " +
-    "for the season, compare their actual current CTL/TSB against that target rather than judging the raw " +
-    "numbers in isolation. You can also schedule, edit, and cancel structured workouts " +
+    "You have tools to pull the athlete's actual data beyond the snapshot below - Garmin readiness, sleep, " +
+    "HRV, Body Battery and training load history, a single day's Body Battery timeline, Strava rides, Apple " +
+    "Health, and TrainingPeaks fitness, plan and workouts - use them whenever a specific number, trend, or past " +
+    "date would make your answer better than a general one, rather than guessing or saying you don't have the " +
+    "data. Review the Garmin and TrainingPeaks figures together: readiness, HRV, sleep and Body Battery say how " +
+    "well the athlete is absorbing the work, and TrainingPeaks says what the plan asks of them today and this " +
+    "week. When asked whether they're on track, compare current CTL/TSB against this week's Annual Training " +
+    "Plan target rather than judging the raw numbers in isolation, and when today's planned session doesn't " +
+    "suit how recovered they are, say so and suggest the adjustment. You can also schedule, edit, and cancel structured workouts " +
     "directly - when the athlete describes a session in words (e.g. \"give me 4x8min threshold for Tuesday\"), " +
     "build the interval structure yourself and create it rather than just describing what they should do; " +
     "check get_workouts first if you need to see what's already planned or find a workout's id to edit. " +
@@ -695,7 +694,7 @@ function buildSystemPrompt(context: Partial<ChatContext>, trainingPeaksActive = 
       ? `The athlete has set these standing rules - always follow them, even over generic best practice:\n${context.customRules}\n\n`
       : "") +
     "Current snapshot:\n" +
-    (lines.length ? lines.join("\n") : "No recent recovery/training data available.")
+    lines.join("\n")
   );
 }
 
@@ -722,7 +721,7 @@ export type CoachChannel = "web" | "whatsapp";
 // way to apply.
 const WHATSAPP_DRAWABLE =
   "\"health.bmi\", \"health.macroSplit\", \"health.caloriesBalance\", \"goal.weight\", \"goal.ftp\", " +
-  "\"weather.current\", \"strava.performanceChart\" or \"whoop.sleepRecoveryStrainRings\"";
+  "\"weather.current\", \"strava.performanceChart\" or \"garmin.sleepReadinessBatteryRings\"";
 
 /**
  * When TrainingPeaks is answering, the derived alternative is not on the menu.
@@ -763,7 +762,7 @@ function toolsFor(channel: CoachChannel, trainingPeaksActive: boolean) {
                 type: "string",
                 description:
                   "Which widget. A composite card id, or any metric id the dashboard knows - e.g. " +
-                  "\"whoop.recovery\", \"whoop.hrv\", \"strava.distance\", or \"health.<field>\" for any " +
+                  "\"garmin.readiness\", \"garmin.hrv\", \"garmin.sleepScore\", \"strava.distance\", or \"health.<field>\" for any " +
                   "Apple Health field (call get_health_metrics to see the field names).",
               },
               view: {
@@ -798,7 +797,7 @@ export async function generateCoachReply(
   const system = [
     {
       type: "text" as const,
-      text: buildSystemPrompt(context, trainingPeaksActive),
+      text: buildSystemPrompt(context, tp, trainingPeaksActive),
       cache_control: { type: "ephemeral" as const },
     },
   ];
@@ -900,6 +899,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     for (const [key, value] of Object.entries(serverContext)) {
       if (value != null) (context as Record<string, unknown>)[key] = value;
     }
+    // Readings come only from the server's Garmin read. An older browser
+    // still posts Whoop figures under some of the same names (hrvMs,
+    // restingHeartRate, sleepDate), which would otherwise fill a Garmin gap
+    // with a stale Whoop number.
+    const readings = await latestGarminReadings();
+    Object.assign(context, readings);
 
     const reply = await generateCoachReply(inputMessages, context);
     res.status(200).json({ configured: true, reply });

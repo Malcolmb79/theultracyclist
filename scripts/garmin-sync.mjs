@@ -471,6 +471,23 @@ async function dump(args) {
   console.log(`Saved raw responses to ${file}`);
 }
 
+// On GitHub Actions the logs are public. The Garmin library logs whole error
+// objects when a token refresh fails, and those carry the signed OAuth
+// header, so there only plain text gets through, with anything token-shaped
+// masked. GitHub masks the secrets themselves, but not pieces of them.
+if (process.env.GITHUB_ACTIONS === "true") {
+  const scrub = (arg) =>
+    typeof arg === "string"
+      ? arg.replace(/(oauth_[a-z_]+=")[^"]*"/gi, '$1***"').replace(/(Bearer\s+)\S+/gi, "$1***").replace(/("(?:oauth_token|oauth_token_secret|access_token|refresh_token)"\s*:\s*")[^"]*"/gi, '$1***"')
+      : arg instanceof Error
+        ? scrub(arg.message)
+        : "[details hidden in CI]";
+  for (const method of ["log", "warn", "error"]) {
+    const original = console[method].bind(console);
+    console[method] = (...args) => original(...args.map(scrub));
+  }
+}
+
 const [command, ...rest] = process.argv.slice(2);
 const commands = { login, setup, sync, dump };
 if (!commands[command]) {

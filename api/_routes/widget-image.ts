@@ -315,7 +315,7 @@ async function performanceImage(): Promise<string> {
   const range = await rangeForMetric(PERFORMANCE_CHART_METRIC);
   const points = filterSeriesToRange(Array.from(series.values()), range).slice(-MAX_CHART_DAYS);
   const week = getAtpWeekFor(today);
-  return performanceChartSvg(points, { ctl: week?.targetCtl ?? null, tsb: week?.targetTsb ?? null });
+  return performanceChartSvg(points, { ctl: week?.ctlTarget ?? null, tsb: week?.tsbTarget ?? null });
 }
 
 

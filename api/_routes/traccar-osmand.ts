@@ -85,6 +85,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     hrBpm: null,
     cadRpm: null,
     battPct: num(params.batt) ?? num(params.batt_level),
+    avgSpeedMps: null,
+    avgPowerW: null,
+    avgHrBpm: null,
+    totalAscentM: null,
+    event: null,
   };
 
   try {

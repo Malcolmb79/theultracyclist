@@ -94,6 +94,11 @@ function buildRide(options: SimOptions): TrackerSample[] {
         : Math.round(138 + Math.sin(clock.elapsedS / 700) * 12),
       cadRpm: clock.inStop ? null : Math.round(84 + Math.sin(clock.elapsedS / 300) * 6),
       battPct: Math.max(5, Math.round(100 - (clock.elapsedS / durationS) * 78)),
+      avgSpeedMps: null,
+      avgPowerW: null,
+      avgHrBpm: null,
+      totalAscentM: null,
+      event: null,
     };
   });
 }

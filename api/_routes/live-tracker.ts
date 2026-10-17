@@ -195,7 +195,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const devices = await latestPerDevice();
   const merged = mergePosition(devices.edge1040 ?? null, devices.traccar ?? null, nowTs);
-  const position: PositionPoint | null = merged != null ? { lat: merged.lat, lon: merged.lon, timestamp: merged.ts * 1000 } : null;
+  const position: PositionPoint | null =
+    merged != null && merged.lat != null && merged.lon != null ? { lat: merged.lat, lon: merged.lon, timestamp: merged.ts * 1000 } : null;
 
   // Newest sample from either device, not just whichever one won the position
   // merge: Traccar alone still means the tracker is running, and so does the

@@ -6,7 +6,10 @@ import { createClient } from "redis";
 // meant waiting out a full production redeploy, and rapid saves could race
 // each other. Redis (REDIS_URL, provisioned via Vercel's Redis marketplace
 // integration) gives a plain instant read/write instead.
-type RedisClient = ReturnType<typeof createClient>;
+function newClient(url: string) {
+  return createClient({ url });
+}
+type RedisClient = ReturnType<typeof newClient>;
 
 let clientPromise: Promise<RedisClient> | null = null;
 
@@ -46,7 +49,7 @@ function getClient(): Promise<RedisClient> | null {
   if (!url) return null;
 
   if (!clientPromise) {
-    const client = createClient({ url });
+    const client = newClient(url);
     client.on("error", (err) => console.error("Redis client error", err));
     // A rejected connect used to be cached forever, so one bad start meant
     // every later call in that instance inherited the same failure. Clearing

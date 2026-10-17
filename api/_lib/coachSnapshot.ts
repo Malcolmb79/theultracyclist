@@ -57,7 +57,7 @@ export async function computeChatContext(): Promise<Partial<ChatContext>> {
   const [readings, rides, settings] = await Promise.all([
     latestGarminReadings(),
     fetchStravaRides().catch(() => [] as Ride[]),
-    fetchCoachingSettings().catch(() => ({})),
+    fetchCoachingSettings().catch(() => ({}) as Awaited<ReturnType<typeof fetchCoachingSettings>>),
   ]);
 
   const todayStr = irelandTodayDateStr();

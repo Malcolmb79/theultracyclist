@@ -203,7 +203,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const key = historyKey(fromNumber);
     const history = (await getJSON<ChatMessage[]>(key)) ?? [];
-    const messages: ChatMessage[] = [...history, { role: "user", content: messageBody }].slice(-MAX_HISTORY);
+    const messages: ChatMessage[] = [...history, { role: "user" as const, content: messageBody }].slice(-MAX_HISTORY);
 
     const context = await computeChatContext();
     // "whatsapp" withholds the widget tool - see CoachChannel. The marker

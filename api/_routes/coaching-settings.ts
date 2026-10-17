@@ -110,6 +110,7 @@ const FIXED_CARD_LABELS: Record<FixedCardKind, string> = {
   chat: "AI Coach",
   trainingPlan: "Training Plan",
   powerZones: "Power Zones",
+  trainingCalendar: "Training Calendar",
 };
 
 type Rect = { x: number; y: number; width: number; height: number };
@@ -122,6 +123,7 @@ const DEFAULT_DESKTOP: Record<FixedCardKind, Rect> = {
   chat: { x: 360, y: 0, width: 380, height: 460 },
   trainingPlan: { x: 0, y: 280, width: 340, height: 380 },
   powerZones: { x: 360, y: 480, width: 380, height: 380 },
+  trainingCalendar: { x: 760, y: 0, width: 380, height: 420 },
 };
 
 const DEFAULT_MOBILE: Record<FixedCardKind, Rect> = {
@@ -129,6 +131,7 @@ const DEFAULT_MOBILE: Record<FixedCardKind, Rect> = {
   chat: { x: 0, y: 240, width: 320, height: 420 },
   trainingPlan: { x: 0, y: 680, width: 320, height: 380 },
   powerZones: { x: 0, y: 1080, width: 320, height: 380 },
+  trainingCalendar: { x: 0, y: 1480, width: 320, height: 420 },
 };
 
 // One-time normalization for a device's widget list: backfills "kind" on

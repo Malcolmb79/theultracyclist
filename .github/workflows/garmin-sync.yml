@@ -30,30 +30,48 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci --ignore-scripts --no-audit --no-fund
-
-      - name: Restore the Garmin sign-in
+      # Until the secrets exist the run is skipped with a notice rather than
+      # failed, so an unconfigured repo doesn't send a failure email every
+      # half hour. Once they are set, any real problem still fails the run.
+      - name: Check the secrets are set
+        id: secrets
         env:
           GARMIN_OAUTH1_TOKEN: ${{ secrets.GARMIN_OAUTH1_TOKEN }}
           GARMIN_OAUTH2_TOKEN: ${{ secrets.GARMIN_OAUTH2_TOKEN }}
           SITE_SECRET: ${{ secrets.APPLE_HEALTH_WEBHOOK_SECRET }}
         run: |
           if [ -z "$GARMIN_OAUTH1_TOKEN" ] || [ -z "$GARMIN_OAUTH2_TOKEN" ] || [ -z "$SITE_SECRET" ]; then
-            echo "Garmin sync secrets are not set - see the comment at the top of this workflow."
-            exit 1
+            echo "::notice::Garmin sync skipped - add the three secrets listed at the top of this workflow to turn it on."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
+
+      - uses: actions/checkout@v4
+        if: steps.secrets.outputs.ready == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.secrets.outputs.ready == 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.secrets.outputs.ready == 'true'
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Restore the Garmin sign-in
+        if: steps.secrets.outputs.ready == 'true'
+        env:
+          GARMIN_OAUTH1_TOKEN: ${{ secrets.GARMIN_OAUTH1_TOKEN }}
+          GARMIN_OAUTH2_TOKEN: ${{ secrets.GARMIN_OAUTH2_TOKEN }}
+          SITE_SECRET: ${{ secrets.APPLE_HEALTH_WEBHOOK_SECRET }}
+        run: |
           mkdir -p .garmin/tokens
           printf '%s' "$GARMIN_OAUTH1_TOKEN" > .garmin/tokens/oauth1_token.json
           printf '%s' "$GARMIN_OAUTH2_TOKEN" > .garmin/tokens/oauth2_token.json
           node -e 'require("fs").writeFileSync(".garmin/config.json", JSON.stringify({ siteUrl: "https://theultracyclist.com", secret: process.env.SITE_SECRET }))'
 
       - name: Sync
+        if: steps.secrets.outputs.ready == 'true'
         run: node scripts/garmin-sync.mjs sync --days 2

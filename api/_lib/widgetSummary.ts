@@ -1,5 +1,4 @@
 import { fetchGarminDays, latestGarminReadings } from "./garminReadings.js";
-import { canonicalMetricId } from "./metricAliases.js";
 import { fetchHealthHistory } from "../_routes/health-data.js";
 import { fetchCoachingSettings } from "../_routes/coaching-settings.js";
 import { fetchGoals } from "../_routes/trends-goals.js";
@@ -44,8 +43,6 @@ export async function summariseWidget(requestedMetric: string, view: string): Pr
   let metric = requestedMetric;
   const settings = (await fetchCoachingSettings()) as { unitSystem?: string; heightCm?: number; ftpWatts?: number };
   const system: UnitSystem = settings.unitSystem === "imperial" ? "imperial" : "metric";
-
-  metric = canonicalMetricId(metric);
 
   if (metric === "garmin.sleepReadinessBatteryRings") {
     const r = await latestGarminReadings();

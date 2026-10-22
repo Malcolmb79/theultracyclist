@@ -52,7 +52,6 @@ const ROUTES: Record<string, () => Promise<RouteModule>> = {
   "trainingpeaks": () => import("./_routes/trainingpeaks.js"),
   "trends-goals": () => import("./_routes/trends-goals.js"),
   "trends-layout": () => import("./_routes/trends-layout.js"),
-  "whoop-cleanup": () => import("./_routes/whoop-cleanup.js"),
   "whatsapp-webhook": () => import("./_routes/whatsapp-webhook.js"),
   "widget-image": () => import("./_routes/widget-image.js"),
 };

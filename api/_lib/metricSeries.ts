@@ -2,7 +2,6 @@ import { fetchStravaRides } from "../_routes/strava-activities.js";
 import { fetchHealthHistory } from "../_routes/health-data.js";
 import { fetchCoachingSettings } from "../_routes/coaching-settings.js";
 import { irelandDateStr } from "./timeContext.js";
-import { canonicalMetricId } from "./metricAliases.js";
 import { convertValueUnit, type UnitSystem } from "./units.js";
 import { isWeightFieldName } from "./weightField.js";
 
@@ -70,8 +69,7 @@ function formatHealthLabel(name: string): string {
   return name.includes("energy") ? `${formatted} (Calories)` : formatted;
 }
 
-export async function resolveMetric(requestedId: string, days = 60): Promise<ResolvedMetric | null> {
-  const id = canonicalMetricId(requestedId);
+export async function resolveMetric(id: string, days = 60): Promise<ResolvedMetric | null> {
   const settings = (await fetchCoachingSettings()) as { unitSystem?: string; heightCm?: number };
   const system: UnitSystem = settings.unitSystem === "imperial" ? "imperial" : "metric";
   const convert = (value: number, unit: string) => convertValueUnit(value, unit, system);

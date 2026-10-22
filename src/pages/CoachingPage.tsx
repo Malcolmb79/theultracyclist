@@ -1,5 +1,4 @@
 import { useCallback, useRef, useState } from "react";
-import { migrateWidgets } from "../utils/metricAliases";
 import ReadinessCard from "../components/coaching/ReadinessCard";
 import PowerZonesCard from "../components/coaching/PowerZonesCard";
 import TrainingPlanCard from "../components/coaching/TrainingPlanCard";
@@ -179,7 +178,7 @@ function CoachingView() {
   // migration) rather than re-seeding missing fixed cards here on every
   // render - that would make removing one impossible, since it'd get
   // silently re-added on the very next render after the save round-trips.
-  const widgets: CoachingWidgetEntry[] = data.status === "ready" ? migrateWidgets(data.settings.widgets ?? []) : [];
+  const widgets: CoachingWidgetEntry[] = data.status === "ready" ? data.settings.widgets ?? [] : [];
   const metricById = new Map((dashboardData.status === "ready" ? dashboardData.metrics : []).map((m) => [m.id, m]));
   const missingFixedCards = FIXED_CARD_ORDER.filter((kind) => !widgets.some((w) => w.kind === kind));
 

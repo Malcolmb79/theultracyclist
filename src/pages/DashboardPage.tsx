@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { migrateWidgets } from "../utils/metricAliases";
 import DataCatalog from "../components/dashboard/DataCatalog";
 import DashboardWidget from "../components/dashboard/DashboardWidget";
 import { useDashboardData } from "../components/dashboard/useDashboardData";
@@ -105,7 +104,7 @@ function DashboardEditor() {
     fetch(`/api/dashboard-layout?device=${device}`)
       .then((res) => res.json())
       .then((body: { widgets: Widget[] }) => {
-        if (!cancelled) setWidgets(migrateWidgets(body.widgets ?? []));
+        if (!cancelled) setWidgets(body.widgets ?? []);
       })
       .catch(() => {
         if (!cancelled) setWidgets([]);

@@ -24,7 +24,6 @@ import {
 } from "../_lib/widgetImage.js";
 import { fetchLastLocation } from "./last-location.js";
 import { latestGarminReadings } from "../_lib/garminReadings.js";
-import { canonicalMetricId } from "../_lib/metricAliases.js";
 import { fetchStravaRides } from "./strava-activities.js";
 import { computeTss } from "../_lib/tss.js";
 import { computeFitnessSeries } from "../_lib/fitness.js";
@@ -290,7 +289,7 @@ async function rangeForMetric(metric: string): Promise<ResolvedRange> {
     getJSON<unknown>("DASHBOARD_LAYOUT").catch(() => null),
   ]);
   const widgets = resolveDeviceLayout<{ metric?: string; dateRange?: WidgetDateRange }>(layout, "desktop");
-  const own = widgets.find((w) => canonicalMetricId(w.metric ?? "") === metric)?.dateRange;
+  const own = widgets.find((w) => w.metric === metric)?.dateRange;
   const pageRanges = (settings as { pageDateRanges?: PageDateRanges }).pageDateRanges;
   return resolveDateRange(effectiveDateRange(own, "dashboard", pageRanges));
 }
@@ -363,8 +362,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(403).send("Invalid or expired link");
     return;
   }
-  // Links signed before Whoop was replaced still name its widgets.
-  spec.metric = canonicalMetricId(spec.metric);
 
   try {
     const history = (await fetchHealthHistory(120)) as Record<string, Record<string, HealthValue>>;

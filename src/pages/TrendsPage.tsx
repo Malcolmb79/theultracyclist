@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { migrateWidgets } from "../utils/metricAliases";
 import TrendsCatalog from "../components/trends/TrendsCatalog";
 import TrendsWidget from "../components/trends/TrendsWidget";
 import { useTrendsData, type TrendMetricDef } from "../components/trends/useTrendsData";
@@ -67,7 +66,7 @@ function TrendsEditor() {
     fetch(`/api/trends-layout?device=${device}`)
       .then((res) => res.json())
       .then((body: { widgets: TrendsWidgetConfig[] }) => {
-        if (!cancelled) setWidgets(migrateWidgets(body.widgets ?? []));
+        if (!cancelled) setWidgets(body.widgets ?? []);
       })
       .catch(() => {
         if (!cancelled) setWidgets([]);

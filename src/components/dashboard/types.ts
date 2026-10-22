@@ -5,7 +5,7 @@ export type Widget = {
   source: "strava" | "health" | "weather" | "garmin" | "trainingpeaks";
   metric: string;
   label: string;
-  viewType: "stat" | "chart" | "timeline" | "ring" | "combo" | "rings" | "healthCalendar" | "caloriesBalance" | "macroSplit" | "allActivity" | "liveTracker" | "bodyBattery" | "batteryTimeline" | "sevenDayPlan";
+  viewType: "stat" | "chart" | "timeline" | "ring" | "combo" | "rings" | "healthCalendar" | "caloriesBalance" | "macroSplit" | "allActivity" | "liveTracker" | "bodyBattery" | "batteryTimeline" | "sevenDayPlan" | "plannedVsActual";
   x?: number;
   y?: number;
   width?: number;
@@ -111,3 +111,7 @@ export const ALL_ACTIVITY_ID = "activity.all";
 // Special catalog entry: the TrainingPeaks plan for today and the six days
 // after it, read from /api/trainingpeaks.
 export const SEVEN_DAY_PLAN_ID = "trainingpeaks.sevenDayPlan";
+
+// Special catalog entry: TrainingPeaks planned against done over the widget's
+// date range, read from /api/trainingpeaks?from=&to=.
+export const PLANNED_VS_ACTUAL_ID = "trainingpeaks.plannedVsActual";

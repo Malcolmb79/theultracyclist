@@ -5,6 +5,7 @@ import {
   fetchTrainingPeaksAtp,
   fetchTrainingPeaksFitness,
   fetchTrainingPeaksWorkouts,
+  fetchTrainingPeaksWorkoutsBetween,
   hasTrainingPeaksCookie,
   setTrainingPeaksCookie,
   TrainingPeaksAuthError,
@@ -110,6 +111,22 @@ export async function fetchTrainingPeaksData(force = false): Promise<TrainingPea
   }
 }
 
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+async function workoutsBetween(from: string | null, to: string | null) {
+  if (!from || !to || !DATE.test(from) || !DATE.test(to)) {
+    return { configured: true, workouts: [], workoutsUnavailable: true, error: "Expected from and to as YYYY-MM-DD." };
+  }
+  if (!(await hasTrainingPeaksCookie())) return { configured: false, workouts: [] };
+  try {
+    return { configured: true, workouts: (await fetchTrainingPeaksWorkoutsBetween(from, to)) ?? [] };
+  } catch (error) {
+    if (error instanceof TrainingPeaksAuthError) return { configured: true, authExpired: true, workouts: [] };
+    console.error("TrainingPeaks range read failed", error);
+    return { configured: true, workouts: [], workoutsUnavailable: true, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!getSessionEmail(req)) {
     res.status(401).json({ error: "Unauthorized" });
@@ -128,6 +145,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       error: data.error,
       counts: { fitness: data.fitness.length, atp: data.atp.length, workouts: data.workouts.length },
     });
+    return;
+  }
+
+  // A date range asks for just that span's workouts - the planned-vs-actual
+  // widget's window, which can reach well past the cached seven weeks.
+  const from = typeof req.query.from === "string" ? req.query.from : null;
+  const to = typeof req.query.to === "string" ? req.query.to : null;
+  if (from || to) {
+    res.setHeader("Cache-Control", "private, max-age=300");
+    res.status(200).json(await workoutsBetween(from, to));
     return;
   }
 

@@ -1,0 +1,183 @@
+/* Claims the whole card rather than being centred like a single figure
+   (see AllActivityCard). */
+.card {
+  align-self: stretch;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-2);
+}
+
+.headline {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.value {
+  font-size: 1.35rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.of {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+.percent {
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.good {
+  color: var(--color-accent-2);
+}
+
+.fair {
+  color: var(--color-amber);
+}
+
+.low {
+  color: var(--color-accent);
+}
+
+.toggle {
+  display: flex;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  flex: none;
+}
+
+.toggleButton {
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.toggleActive {
+  background: var(--color-bg-elevated-2);
+  color: var(--color-text);
+}
+
+.facts {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart {
+  flex: 1;
+  min-height: 60px;
+  display: flex;
+  align-items: stretch;
+  gap: 3px;
+  padding-top: var(--space-1);
+}
+
+.column {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Planned behind as an outline, actual in front as a solid bar, so a short
+   week shows as the gap between them. */
+.bars {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.planned,
+.actual {
+  position: absolute;
+  bottom: 0;
+  left: 12%;
+  right: 12%;
+  border-radius: 2px 2px 0 0;
+}
+
+.planned {
+  border: 1px solid var(--color-text-muted);
+  border-bottom: 0;
+  opacity: 0.6;
+}
+
+.future {
+  border-style: dashed;
+  opacity: 0.4;
+}
+
+.actual {
+  left: 28%;
+  right: 28%;
+  background: var(--color-accent-2);
+}
+
+.label {
+  height: 0.9rem;
+  font-size: 0.6rem;
+  color: var(--color-text-muted);
+  text-align: center;
+  white-space: nowrap;
+  overflow: visible;
+}
+
+.legend {
+  display: flex;
+  gap: var(--space-3);
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+}
+
+.legend span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.keyPlanned,
+.keyActual {
+  display: inline-block;
+  width: 10px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.keyPlanned {
+  border: 1px solid var(--color-text-muted);
+}
+
+.keyActual {
+  background: var(--color-accent-2);
+}
+
+.note {
+  margin: auto;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  text-align: center;
+}

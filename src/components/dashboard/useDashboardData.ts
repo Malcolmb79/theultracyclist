@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { HEALTH_CALENDAR_ID, BODY_BATTERY_ID, GARMIN_LOAD_READINESS_COMBO_ID, GARMIN_RINGS_ID, GARMIN_BATTERY_TIMELINE_ID, CALORIES_BALANCE_ID, MACRO_SPLIT_ID, PERFORMANCE_CHART_ID, WEATHER_ID, GARMIN_LIVETRACK_ID, LIVE_TRACKER_ID, ALL_ACTIVITY_ID, SEVEN_DAY_PLAN_ID } from "./types";
+import { HEALTH_CALENDAR_ID, BODY_BATTERY_ID, GARMIN_LOAD_READINESS_COMBO_ID, GARMIN_RINGS_ID, GARMIN_BATTERY_TIMELINE_ID, CALORIES_BALANCE_ID, MACRO_SPLIT_ID, PERFORMANCE_CHART_ID, WEATHER_ID, GARMIN_LIVETRACK_ID, LIVE_TRACKER_ID, ALL_ACTIVITY_ID, SEVEN_DAY_PLAN_ID, PLANNED_VS_ACTUAL_ID } from "./types";
 import { useUnits } from "../../context/UnitsContext";
 import { garminDaysFrom, type GarminDay } from "../../utils/garmin";
 import { convertMetricSeries, convertValueUnit } from "../../utils/units";
@@ -105,6 +105,7 @@ export function useDashboardData(raw: RawSourcesState): DashboardDataState {
       metrics.push({ id: ALL_ACTIVITY_ID, source: "strava", label: "All activity", unit: "", series: [], statOnly: true });
       // Reads /api/trainingpeaks itself and says so when it isn't connected.
       metrics.push({ id: SEVEN_DAY_PLAN_ID, source: "trainingpeaks", label: "Next 7 days", unit: "", series: [], statOnly: true });
+      metrics.push({ id: PLANNED_VS_ACTUAL_ID, source: "trainingpeaks", label: "Planned vs actual", unit: "", series: [], statOnly: true });
 
       if (strava?.rides) {
         const rides = (strava.rides as StravaRide[]).slice().reverse();

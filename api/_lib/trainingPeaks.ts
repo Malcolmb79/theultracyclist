@@ -237,8 +237,16 @@ export type TpWorkout = {
   sport: string | null;
   plannedTss: number | null;
   plannedMinutes: number | null;
+  /** What was actually done - null until the workout has a recorded file. */
+  actualTss: number | null;
+  actualMinutes: number | null;
   completed: boolean;
 };
+
+/** The longest span TrainingPeaks returns workouts for in one request. */
+const MAX_WORKOUT_SPAN_DAYS = 90;
+/** Two years, the longest date-range preset the site offers. */
+const MAX_RANGE_DAYS = 731;
 
 /**
  * Planned and completed workouts, without the calendar feed's ceilings.
@@ -247,15 +255,38 @@ export type TpWorkout = {
  * which is the whole reason for going past it.
  */
 export async function fetchTrainingPeaksWorkouts(daysBack = 7, daysAhead = 42): Promise<TpWorkout[] | null> {
+  return fetchTrainingPeaksWorkoutsBetween(daysFromToday(-daysBack), daysFromToday(daysAhead));
+}
+
+function addDays(date: string, days: number): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return iso(d);
+}
+
+/**
+ * Workouts between two dates, inclusive, in as many requests as TrainingPeaks'
+ * 90-day limit takes. Spans past two years are refused rather than turned
+ * into dozens of calls.
+ */
+export async function fetchTrainingPeaksWorkoutsBetween(start: string, end: string): Promise<TpWorkout[] | null> {
+  const span = (Date.parse(end) - Date.parse(start)) / 86_400_000;
+  if (!Number.isFinite(span) || span < 0) throw new Error("Invalid date range.");
+  if (span > MAX_RANGE_DAYS) throw new Error("Date range too long - two years at most.");
+
   const auth = await getAccessToken();
   if (!auth?.athleteId) return null;
 
-  const result = await call<Record<string, unknown>[]>(
-    `/fitness/v6/athletes/${auth.athleteId}/workouts/${daysFromToday(-daysBack)}/${daysFromToday(daysAhead)}`,
+  const chunks: [string, string][] = [];
+  for (let from = start; from <= end; from = addDays(from, MAX_WORKOUT_SPAN_DAYS)) {
+    const to = addDays(from, MAX_WORKOUT_SPAN_DAYS - 1);
+    chunks.push([from, to < end ? to : end]);
+  }
+  const results = await Promise.all(
+    chunks.map(([from, to]) => call<Record<string, unknown>[]>(`/fitness/v6/athletes/${auth.athleteId}/workouts/${from}/${to}`)),
   );
-  if (!result) return null;
 
-  const rows = Array.isArray(result.data) ? result.data : [];
+  const rows = results.flatMap((result) => (result && Array.isArray(result.data) ? result.data : []));
   const workouts = rows.map((row) => {
     const w = row as Record<string, number | string | null | boolean>;
     return {
@@ -266,6 +297,11 @@ export async function fetchTrainingPeaksWorkouts(daysBack = 7, daysAhead = 42): 
       plannedTss: numberOrNull(w.tssPlanned),
       plannedMinutes: (() => {
         const hours = numberOrNull(w.totalTimePlanned);
+        return hours == null ? null : Math.round(hours * 60);
+      })(),
+      actualTss: numberOrNull(w.tssActual),
+      actualMinutes: (() => {
+        const hours = numberOrNull(w.totalTime);
         return hours == null ? null : Math.round(hours * 60);
       })(),
       // A workout with recorded time actually happened; one with only a plan

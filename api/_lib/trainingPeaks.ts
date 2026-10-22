@@ -68,7 +68,8 @@ export async function hasTrainingPeaksCookie(): Promise<boolean> {
  */
 async function getAccessToken(): Promise<{ token: string; athleteId: number | null } | null> {
   const cached = await getJSON<CachedToken>(TOKEN_CACHE_KEY).catch(() => null);
-  if (cached?.accessToken && cached.expiresAt - EXPIRY_MARGIN_SECONDS > Date.now() / 1000) {
+  // A token cached without its athlete (saved before the user lookup existed) is fetched again.
+  if (cached?.accessToken && cached.athleteId != null && cached.expiresAt - EXPIRY_MARGIN_SECONDS > Date.now() / 1000) {
     return { token: cached.accessToken, athleteId: cached.athleteId };
   }
 
@@ -103,13 +104,29 @@ async function getAccessToken(): Promise<{ token: string; athleteId: number | nu
   const accessToken = body.token?.access_token;
   if (!body.success || !accessToken) throw new Error("TrainingPeaks returned an unrecognised token response.");
 
+  // The token response doesn't carry the athlete; the user record does.
+  // personId is the signed-in person's own athlete id (on a coach account
+  // `athletes` is the coached roster, so it isn't read).
+  const athleteId = body.user?.personId ?? (await fetchPersonId(accessToken));
+  if (athleteId == null) throw new Error("TrainingPeaks didn't say which athlete this account is.");
+
   const next: CachedToken = {
     accessToken,
     expiresAt: Date.now() / 1000 + (body.token?.expires_in ?? 3600),
-    athleteId: body.user?.personId ?? body.user?.userId ?? null,
+    athleteId,
   };
   await setJSON(TOKEN_CACHE_KEY, next).catch(() => {});
   return { token: next.accessToken, athleteId: next.athleteId };
+}
+
+async function fetchPersonId(accessToken: string): Promise<number | null> {
+  const response = await fetch(`${TP_API_BASE}/users/v3/user`, {
+    headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+  });
+  if (!response.ok) throw new Error(`TrainingPeaks user lookup failed (${response.status})`);
+  const body = (await response.json()) as { user?: { personId?: number }; personId?: number };
+  return (body.user ?? body).personId ?? null;
 }
 
 /** The stored cookie no longer works - the athlete has to paste a fresh one. */

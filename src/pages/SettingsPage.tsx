@@ -765,7 +765,8 @@ function SettingsEditor() {
             app infers: your real CTL/ATL/TSB rather than the figures built from Strava power alone, your real
             Annual Training Plan rather than the copy in the code, and real planned TSS rather than an estimate
             from a workout&apos;s title. Paste your <code>Production_tpAuth</code> cookie from a signed-in
-            TrainingPeaks tab (DevTools &rarr; Application &rarr; Cookies). It is stored write-only, never shown
+            TrainingPeaks tab (DevTools &rarr; Application &rarr; Cookies), or the whole <code>Cookie</code> request
+            header of any <code>tpapi.trainingpeaks.com</code> request in the Network tab. It is stored write-only, never shown
             again and never put in a prompt &mdash; but it is a long-lived key to your whole TrainingPeaks
             account, so treat it like a password. It expires periodically and will need re-pasting.
           </p>
@@ -775,7 +776,7 @@ function SettingsEditor() {
             className={`${styles.input} ${styles.inputWide}`}
             value={tpCookieInput}
             onChange={(e) => setTpCookieInput(e.target.value)}
-            placeholder="Production_tpAuth cookie value"
+            placeholder="Production_tpAuth value or Cookie header"
           />
           <button
             type="button"

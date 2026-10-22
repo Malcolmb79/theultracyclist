@@ -37,8 +37,19 @@ const UPSTREAM_TIMEOUT_MS = 8000;
 
 type CachedToken = { accessToken: string; expiresAt: number; athleteId: number | null };
 
+/**
+ * The cookie value from whatever was pasted: the bare value, "Production_tpAuth=value",
+ * or a whole Cookie request header copied from DevTools' Network tab.
+ */
+function tpAuthValue(pasted: string): string | null {
+  const text = pasted.trim().replace(/^cookie:s*/i, "");
+  const named = /(?:^|;s*)Production_tpAuth=([^;s]+)/.exec(text);
+  const value = (named ? named[1] : text).replace(/^"|"$/g, "").trim();
+  return value || null;
+}
+
 export async function setTrainingPeaksCookie(cookie: string | null): Promise<void> {
-  await setJSON(COOKIE_KEY, cookie && cookie.trim() ? cookie.trim() : null);
+  await setJSON(COOKIE_KEY, cookie ? tpAuthValue(cookie) : null);
   // A new cookie invalidates whatever the old one bought.
   await setJSON(TOKEN_CACHE_KEY, null).catch(() => {});
 }
@@ -75,6 +86,13 @@ async function getAccessToken(): Promise<{ token: string; athleteId: number | nu
   });
 
   if (response.status === 401) throw new TrainingPeaksAuthError("TrainingPeaks cookie has expired.");
+  // TrainingPeaks answers a value it cannot decode at all - a partial copy,
+  // or a different cookie - with a 500 rather than a 401.
+  if (response.status === 500) {
+    throw new Error(
+      "TrainingPeaks could not read the stored cookie. It is usually an incomplete copy or a different cookie - copy Production_tpAuth again.",
+    );
+  }
   if (!response.ok) throw new Error(`TrainingPeaks token exchange failed (${response.status})`);
 
   const body = (await response.json()) as {

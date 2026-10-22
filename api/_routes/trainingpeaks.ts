@@ -89,7 +89,8 @@ export async function fetchTrainingPeaksData(force = false): Promise<TrainingPea
     if (failures.length > 0) {
       // Not cached: an empty list here means "couldn't read", not "nothing
       // planned", and should be retried on the next request.
-      const error = failures.map(String).join("; ");
+      // One bad token exchange fails all three reads the same way.
+      const error = [...new Set(failures.map((e) => (e instanceof Error ? e.message : String(e))))].join("; ");
       console.error("TrainingPeaks read partly failed", error);
       return { configured: true, ...data, fetchedAt, error, workoutsUnavailable: workouts == null };
     }

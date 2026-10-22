@@ -18,10 +18,11 @@ export default function RecordFacts() {
         <strong>Route:</strong> {record.route}
       </p>
       <p>
-        <strong>Discipline:</strong> {record.discipline}
+        <strong>Category:</strong> {record.discipline}
       </p>
       <p>
-        <strong>Standing record:</strong> set {record.recordSetOn}, verified by {record.sanctionedBy}
+        <strong>Standing record:</strong> {record.currentRecordTime} by {record.currentRecordHolder}, set{" "}
+        {record.recordSetOn}, verified by the {record.sanctionedBy}
       </p>
       <p className={styles.note}>
         The World Ultracycling Association keeps the rules and the official ledger.{" "}

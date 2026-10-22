@@ -13,7 +13,9 @@ import type { RecordFacts } from "../types/content";
  * api/_lib/recordConfig.ts). Both have to be right, and they have to agree.
  */
 export const record: RecordFacts = {
-  discipline: "Solo and unsupported, Ireland north to south",
+  // WUCA's category for the record, as its ledger and Mervyn Kinkade's
+  // write-up of the 2023 ride name it.
+  discipline: "Ireland north to south: solo, unsupported, standard bicycle, male 18-49",
   route: "Malin Head to Mizen Head (traditional Irish end-to-end route)",
   distanceKm: 567.6,
   currentRecordHolder: "Mervyn Kinkade (Ireland)",
@@ -22,6 +24,6 @@ export const record: RecordFacts = {
   // 567.6 km / 19.5 h. Stored rather than computed so the page never derives a
   // speed from a distance the record holder didn't actually ride.
   recordAvgKmh: 29.1,
-  sanctionedBy: "World Ultracycling Association (WUCA)",
+  sanctionedBy: "World Ultracycling Association (WUCA), and listed by Guinness World Records",
   rulesUrl: "https://ultracycling.com/cross-country-records/",
 };

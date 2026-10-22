@@ -21,6 +21,7 @@ import WeatherCard from "./WeatherCard";
 import GarminLiveTrackCard from "./GarminLiveTrackCard";
 import LiveTrackerCard from "./LiveTrackerCard";
 import AllActivityCard from "./AllActivityCard";
+import SevenDayPlanCard from "./SevenDayPlanCard";
 import BodyBatteryTimelineCard from "./BodyBatteryTimelineCard";
 import type { PerformancePoint } from "../../utils/performanceSeries";
 import { bmiCategoryColor, isWeightMetricId } from "../../utils/bmi";
@@ -42,6 +43,7 @@ import {
   GARMIN_LIVETRACK_ID,
   LIVE_TRACKER_ID,
   ALL_ACTIVITY_ID,
+  SEVEN_DAY_PLAN_ID,
   DEFAULT_WIDGET_WIDTH,
   DEFAULT_WIDGET_HEIGHT,
   DEFAULT_WIDGET_COLOR,
@@ -138,6 +140,10 @@ const MIN_ALL_ACTIVITY_HEIGHT = 220;
 const MIN_ALL_ACTIVITY_WIDTH = 260;
 const DEFAULT_ALL_ACTIVITY_WIDTH = 380;
 const DEFAULT_ALL_ACTIVITY_HEIGHT = 340;
+const MIN_SEVEN_DAY_HEIGHT = 220;
+const MIN_SEVEN_DAY_WIDTH = 260;
+const DEFAULT_SEVEN_DAY_WIDTH = 380;
+const DEFAULT_SEVEN_DAY_HEIGHT = 330;
 // The day's 24 hours need width to read; the header, sleep bar, axis and
 // legend take ~110px of height before the plot gets any.
 const MIN_BATTERY_TIMELINE_WIDTH = 380;
@@ -309,12 +315,13 @@ export default function DashboardWidget({
   const isGarminLiveTrack = widget.metric === GARMIN_LIVETRACK_ID;
   const isLiveTracker = widget.metric === LIVE_TRACKER_ID;
   const isAllActivity = widget.metric === ALL_ACTIVITY_ID;
+  const isSevenDayPlan = widget.metric === SEVEN_DAY_PLAN_ID;
   const isBatteryTimeline = widget.metric === GARMIN_BATTERY_TIMELINE_ID;
   const garminDetailKind = GARMIN_DETAIL_KIND_BY_METRIC[widget.metric];
   const [openGarminDetail, setOpenGarminDetail] = useState<GarminDetailKind | null>(null);
   const clickDetail = garminDetailKind ? () => setOpenGarminDetail(garminDetailKind) : undefined;
   const fullMetric =
-    isCombo || isRings || isHealthCalendar || isBodyBattery || isCaloriesBalance || isMacroSplit || isPerformanceChart || isWeather || isGarminLiveTrack || isLiveTracker || isAllActivity || isBatteryTimeline
+    isCombo || isRings || isHealthCalendar || isBodyBattery || isCaloriesBalance || isMacroSplit || isPerformanceChart || isWeather || isGarminLiveTrack || isLiveTracker || isAllActivity || isBatteryTimeline || isSevenDayPlan
       ? undefined
       : metricById.get(widget.metric);
   const isMobile = useIsMobile();
@@ -494,6 +501,8 @@ export default function DashboardWidget({
 
   const minHeight = isBatteryTimeline
     ? MIN_BATTERY_TIMELINE_HEIGHT
+    : isSevenDayPlan
+    ? MIN_SEVEN_DAY_HEIGHT
     : isAllActivity
     ? MIN_ALL_ACTIVITY_HEIGHT
     : isCombo
@@ -523,6 +532,8 @@ export default function DashboardWidget({
                       : MIN_WIDGET_HEIGHT;
   const minWidth = isBatteryTimeline
     ? MIN_BATTERY_TIMELINE_WIDTH
+    : isSevenDayPlan
+    ? MIN_SEVEN_DAY_WIDTH
     : isAllActivity
     ? MIN_ALL_ACTIVITY_WIDTH
     : isGarminRings
@@ -552,6 +563,8 @@ export default function DashboardWidget({
                     : MIN_WIDGET_WIDTH;
   const defaultWidth = isBatteryTimeline
     ? DEFAULT_BATTERY_TIMELINE_WIDTH
+    : isSevenDayPlan
+    ? DEFAULT_SEVEN_DAY_WIDTH
     : isAllActivity
     ? DEFAULT_ALL_ACTIVITY_WIDTH
     : isHealthCalendar
@@ -573,6 +586,8 @@ export default function DashboardWidget({
             : DEFAULT_WIDGET_WIDTH;
   const defaultHeight = isBatteryTimeline
     ? DEFAULT_BATTERY_TIMELINE_HEIGHT
+    : isSevenDayPlan
+    ? DEFAULT_SEVEN_DAY_HEIGHT
     : isAllActivity
     ? DEFAULT_ALL_ACTIVITY_HEIGHT
     : isHealthCalendar
@@ -802,6 +817,7 @@ export default function DashboardWidget({
               !isGarminLiveTrack &&
               !isLiveTracker &&
               !isAllActivity &&
+              !isSevenDayPlan &&
               !isBatteryTimeline && (
               <select
                 className={styles.select}
@@ -907,6 +923,8 @@ export default function DashboardWidget({
             <BodyBatteryTimelineCard availableHeight={contentHeight} />
           ) : isAllActivity ? (
             <AllActivityCard range={resolvedRange} />
+          ) : isSevenDayPlan ? (
+            <SevenDayPlanCard />
           ) : !metric || metric.series.length === 0 ? (
             <p className={styles.empty}>
               {rangeIsEmpty ? "No readings in this date range." : "No data yet for this metric."}

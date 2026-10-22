@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { HEALTH_CALENDAR_ID, BODY_BATTERY_ID, GARMIN_LOAD_READINESS_COMBO_ID, GARMIN_RINGS_ID, GARMIN_BATTERY_TIMELINE_ID, CALORIES_BALANCE_ID, MACRO_SPLIT_ID, PERFORMANCE_CHART_ID, WEATHER_ID, GARMIN_LIVETRACK_ID, LIVE_TRACKER_ID, ALL_ACTIVITY_ID } from "./types";
+import { HEALTH_CALENDAR_ID, BODY_BATTERY_ID, GARMIN_LOAD_READINESS_COMBO_ID, GARMIN_RINGS_ID, GARMIN_BATTERY_TIMELINE_ID, CALORIES_BALANCE_ID, MACRO_SPLIT_ID, PERFORMANCE_CHART_ID, WEATHER_ID, GARMIN_LIVETRACK_ID, LIVE_TRACKER_ID, ALL_ACTIVITY_ID, SEVEN_DAY_PLAN_ID } from "./types";
 import { useUnits } from "../../context/UnitsContext";
 import { garminDaysFrom, type GarminDay } from "../../utils/garmin";
 import { convertMetricSeries, convertValueUnit } from "../../utils/units";
@@ -13,7 +13,7 @@ export type SeriesPoint = { date: string; value: number };
 
 export type MetricDef = {
   id: string;
-  source: "strava" | "health" | "weather" | "garmin";
+  source: "strava" | "health" | "weather" | "garmin" | "trainingpeaks";
   label: string;
   unit: string;
   series: SeriesPoint[]; // chronological, oldest first
@@ -103,6 +103,8 @@ export function useDashboardData(raw: RawSourcesState): DashboardDataState {
       // Reads its own endpoint rather than the shared Strava fetch, which is
       // ride-filtered on purpose, so it is offered whatever else connected.
       metrics.push({ id: ALL_ACTIVITY_ID, source: "strava", label: "All activity", unit: "", series: [], statOnly: true });
+      // Reads /api/trainingpeaks itself and says so when it isn't connected.
+      metrics.push({ id: SEVEN_DAY_PLAN_ID, source: "trainingpeaks", label: "Next 7 days", unit: "", series: [], statOnly: true });
 
       if (strava?.rides) {
         const rides = (strava.rides as StravaRide[]).slice().reverse();

@@ -11,10 +11,11 @@ const SOURCE_LABELS: Record<MetricDef["source"], string> = {
   health: "Apple Health",
   weather: "Weather",
   garmin: "Garmin",
+  trainingpeaks: "TrainingPeaks",
 };
 
 export default function DataCatalog({ metrics, onAdd }: DataCatalogProps) {
-  const grouped = (["garmin", "strava", "health", "weather"] as const).map((source) => ({
+  const grouped = (["garmin", "trainingpeaks", "strava", "health", "weather"] as const).map((source) => ({
     source,
     items: metrics.filter((m) => m.source === source && !m.hidden),
   }));

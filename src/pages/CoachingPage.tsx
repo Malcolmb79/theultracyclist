@@ -16,6 +16,7 @@ import {
   GARMIN_LOAD_READINESS_COMBO_ID,
   GARMIN_RINGS_ID,
   GARMIN_BATTERY_TIMELINE_ID,
+  SEVEN_DAY_PLAN_ID,
   BODY_BATTERY_ID,
   CALORIES_BALANCE_ID,
   MACRO_SPLIT_ID,
@@ -91,6 +92,7 @@ function defaultViewType(metric: MetricDef): Widget["viewType"] {
   if (metric.id === MACRO_SPLIT_ID) return "macroSplit";
   if (metric.id === ALL_ACTIVITY_ID) return "allActivity";
   if (metric.id === GARMIN_BATTERY_TIMELINE_ID) return "batteryTimeline";
+  if (metric.id === SEVEN_DAY_PLAN_ID) return "sevenDayPlan";
   return metric.statOnly ? "stat" : "chart";
 }
 

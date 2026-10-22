@@ -1,0 +1,127 @@
+/* Both widget shells centre their content, which would size the list to its
+   own width; a list has to claim the whole card (see AllActivityCard). */
+.card {
+  align-self: stretch;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  container-type: inline-size;
+}
+
+.days {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* Day label beside its sessions, so seven days stay readable in a short card. */
+.day {
+  display: grid;
+  grid-template-columns: 5.2rem minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: 3px var(--space-1);
+  border-radius: var(--radius-sm);
+}
+
+/* A narrow card gives the sessions the full width and puts the day above them. */
+@container (max-width: 320px) {
+  .day {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1px;
+  }
+}
+
+.today {
+  background: color-mix(in srgb, var(--color-accent-2) 12%, transparent);
+}
+
+.today .dayLabel {
+  color: var(--color-accent-2);
+  font-weight: 600;
+}
+
+.dayLabel {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.rest {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* icon | name | facts: only the name flexes, and only it truncates. */
+.row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: 0.8rem;
+}
+
+.icon {
+  width: 1.1em;
+  text-align: center;
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.facts {
+  justify-self: end;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.done .icon {
+  color: var(--color-accent-2);
+}
+
+.done .name {
+  color: var(--color-text-muted);
+}
+
+.total {
+  margin: 0;
+  padding-top: var(--space-1);
+  border-top: 1px solid var(--color-border);
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.note {
+  margin: auto;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  text-align: center;
+}

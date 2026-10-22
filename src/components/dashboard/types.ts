@@ -2,10 +2,10 @@ import type { WidgetDateRange } from "../../utils/dateRange";
 
 export type Widget = {
   id: string;
-  source: "strava" | "health" | "weather" | "garmin";
+  source: "strava" | "health" | "weather" | "garmin" | "trainingpeaks";
   metric: string;
   label: string;
-  viewType: "stat" | "chart" | "timeline" | "ring" | "combo" | "rings" | "healthCalendar" | "caloriesBalance" | "macroSplit" | "allActivity" | "liveTracker" | "bodyBattery" | "batteryTimeline";
+  viewType: "stat" | "chart" | "timeline" | "ring" | "combo" | "rings" | "healthCalendar" | "caloriesBalance" | "macroSplit" | "allActivity" | "liveTracker" | "bodyBattery" | "batteryTimeline" | "sevenDayPlan";
   x?: number;
   y?: number;
   width?: number;
@@ -107,3 +107,7 @@ export const LIVE_TRACKER_ID = "garmin.liveTracker";
 // the bike rides the rest of the dashboard is built on - see
 // api/_routes/activities.ts for why that filtering exists everywhere else.
 export const ALL_ACTIVITY_ID = "activity.all";
+
+// Special catalog entry: the TrainingPeaks plan for today and the six days
+// after it, read from /api/trainingpeaks.
+export const SEVEN_DAY_PLAN_ID = "trainingpeaks.sevenDayPlan";

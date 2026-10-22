@@ -206,6 +206,19 @@ export async function fetchTrainingPeaksFitness(days = 90): Promise<TpFitnessPoi
 
 export type TpAtpWeek = { weekStart: string; tssTarget: number | null; ctlTarget: number | null; tsbTarget: number | null };
 
+function atpRows(data: unknown): Record<string, unknown>[] {
+  const payload = data as { weeks?: Record<string, unknown>[] } | Record<string, unknown>[] | null;
+  return Array.isArray(payload) ? payload : (payload?.weeks ?? []);
+}
+
+/** A few of the plan's weeks exactly as TrainingPeaks sends them, to check what it carries. */
+export async function fetchTrainingPeaksAtpSample(): Promise<unknown> {
+  const auth = await getAccessToken();
+  if (!auth?.athleteId) return null;
+  const result = await call<unknown>(`/fitness/v1/athletes/${auth.athleteId}/atp/${daysFromToday(-7)}/${daysFromToday(21)}`);
+  return result ? atpRows(result.data).slice(0, 3) : null;
+}
+
 /** The real Annual Training Plan, rather than the copy typed into atpPlan.ts. */
 export async function fetchTrainingPeaksAtp(weeksAhead = 26): Promise<TpAtpWeek[] | null> {
   const auth = await getAccessToken();
@@ -216,13 +229,14 @@ export async function fetchTrainingPeaksAtp(weeksAhead = 26): Promise<TpAtpWeek[
   );
   if (!result) return null;
 
-  const payload = result.data as { weeks?: Record<string, unknown>[] } | Record<string, unknown>[];
-  const weeks = Array.isArray(payload) ? payload : (payload.weeks ?? []);
+  const weeks = atpRows(result.data);
   return weeks.map((week) => {
     const w = week as Record<string, number | string | null>;
     return {
-      weekStart: String(w.weekStartDate ?? w.startDate ?? "").slice(0, 10),
-      tssTarget: numberOrNull(w.targetTss ?? w.plannedTss ?? w.tss),
+      // tp-mcp reads the week's date from `week` and its planned TSS from
+      // `volume`; the other names are kept in case the reply varies.
+      weekStart: String(w.week ?? w.weekStartDate ?? w.startDate ?? "").slice(0, 10),
+      tssTarget: numberOrNull(w.volume ?? w.targetTss ?? w.plannedTss ?? w.tss),
       ctlTarget: numberOrNull(w.targetCtl ?? w.ctl),
       tsbTarget: numberOrNull(w.targetTsb ?? w.tsb),
     };

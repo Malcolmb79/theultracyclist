@@ -3,6 +3,7 @@ import { getSessionEmail } from "../_lib/session.js";
 import { getJSON, setJSON } from "../_lib/kvStore.js";
 import {
   fetchTrainingPeaksAtp,
+  fetchTrainingPeaksAtpSample,
   fetchTrainingPeaksFitness,
   fetchTrainingPeaksWorkouts,
   fetchTrainingPeaksWorkoutsBetween,
@@ -145,6 +146,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       error: data.error,
       counts: { fitness: data.fitness.length, atp: data.atp.length, workouts: data.workouts.length },
     });
+    return;
+  }
+
+  // The plan exactly as TrainingPeaks sends it, for checking which fields it
+  // carries. Signed-in only, like everything else here.
+  if (req.query.atpSample === "1") {
+    try {
+      res.status(200).json({ sample: await fetchTrainingPeaksAtpSample() });
+    } catch (error) {
+      res.status(200).json({ error: error instanceof Error ? error.message : String(error) });
+    }
     return;
   }
 

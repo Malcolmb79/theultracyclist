@@ -499,7 +499,9 @@ async function executeTool(name: string, input: Record<string, unknown>, trainin
               }
             : {}),
           ...(include.includes("atp") ? { atpWeeks: data.atp.slice(0, 12) } : {}),
-          ...(include.includes("workouts")
+          ...(include.includes("workouts") && data.workoutsUnavailable
+            ? { workoutsUnavailable: true, note: "The workouts could not be read just now. Say so rather than saying nothing is planned." }
+            : include.includes("workouts")
             ? {
                 plannedWorkouts: data.workouts.filter((w) => !w.completed),
                 recentCompleted: data.workouts.filter((w) => w.completed).slice(-10),

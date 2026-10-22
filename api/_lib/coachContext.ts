@@ -179,6 +179,13 @@ export function trainingPeaksLines(tp: TrainingPeaksData | null, todayStr: strin
     ]
       .filter(Boolean)
       .join(", ");
+  if (tp.workoutsUnavailable) {
+    lines.push(
+      "TrainingPeaks workouts could not be read just now - do not say what is or isn't planned; say the " +
+        "workouts couldn't be loaded and suggest trying again shortly.",
+    );
+    return lines;
+  }
   const today = tp.workouts.filter((w) => w.date === todayStr);
   lines.push(
     today.length > 0

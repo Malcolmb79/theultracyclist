@@ -43,6 +43,8 @@ export type TrainingPeaksData = {
   /** Set when the stored cookie needs replacing, so the UI can say so plainly. */
   authExpired?: boolean;
   error?: string;
+  /** The workouts could not be read, so an empty list says nothing about the plan. */
+  workoutsUnavailable?: boolean;
 };
 
 type Cached = { fetchedAt: number; data: Omit<TrainingPeaksData, "configured"> };
@@ -65,14 +67,32 @@ export async function fetchTrainingPeaksData(force = false): Promise<TrainingPea
   try {
     // One token exchange serves all three; they are independent otherwise, so
     // a failure in one should not cost the other two.
+    const failures: unknown[] = [];
+    const attempt = <T,>(work: Promise<T>) =>
+      work.catch((error: unknown) => {
+        failures.push(error);
+        return null;
+      });
     const [fitness, atp, workouts] = await Promise.all([
-      fetchTrainingPeaksFitness().catch(() => null),
-      fetchTrainingPeaksAtp().catch(() => null),
-      fetchTrainingPeaksWorkouts().catch(() => null),
+      attempt(fetchTrainingPeaksFitness()),
+      attempt(fetchTrainingPeaksAtp()),
+      attempt(fetchTrainingPeaksWorkouts()),
     ]);
+    // A rejected cookie fails all three. Swallowed one by one, that read as
+    // a connected account with nothing planned - and the coach told the
+    // athlete so.
+    const authFailure = failures.find((error) => error instanceof TrainingPeaksAuthError);
+    if (authFailure) throw authFailure;
 
     const data = { fitness: fitness ?? [], atp: atp ?? [], workouts: workouts ?? [] };
     const fetchedAt = Date.now();
+    if (failures.length > 0) {
+      // Not cached: an empty list here means "couldn't read", not "nothing
+      // planned", and should be retried on the next request.
+      const error = failures.map(String).join("; ");
+      console.error("TrainingPeaks read partly failed", error);
+      return { configured: true, ...data, fetchedAt, error, workoutsUnavailable: workouts == null };
+    }
     await setJSON(CACHE_KEY, { fetchedAt, data } satisfies Cached).catch(() => {});
     return { configured: true, ...data, fetchedAt };
   } catch (error) {

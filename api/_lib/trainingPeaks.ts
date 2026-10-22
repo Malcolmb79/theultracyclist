@@ -221,7 +221,7 @@ export async function fetchTrainingPeaksWorkouts(daysBack = 7, daysAhead = 42): 
   if (!result) return null;
 
   const rows = Array.isArray(result.data) ? result.data : [];
-  return rows.map((row) => {
+  const workouts = rows.map((row) => {
     const w = row as Record<string, number | string | null | boolean>;
     return {
       id: w.workoutId != null ? String(w.workoutId) : null,
@@ -238,6 +238,7 @@ export async function fetchTrainingPeaksWorkouts(daysBack = 7, daysAhead = 42): 
       completed: numberOrNull(w.totalTime) != null,
     };
   });
+  return workouts.sort((a, b) => a.date.localeCompare(b.date));
 }
 
 function numberOrNull(value: unknown): number | null {

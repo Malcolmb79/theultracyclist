@@ -1,7 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { requirePasskeySession } from "../_lib/session.js";
 import { irelandTimeContext, irelandTodayDateStr } from "../_lib/timeContext.js";
-import { ATHLETE_PROFILE, DATA_SEMANTICS, SEASON_PLAN, LANGUAGE_STYLE, READING_HONESTY, garminSnapshotLines, trainingPeaksLines } from "../_lib/coachContext.js";
+import { DATA_SEMANTICS, LANGUAGE_STYLE, READING_HONESTY, garminSnapshotLines, planContext, trainingPeaksLines } from "../_lib/coachContext.js";
+import { getCoachBaseline, type CoachBaseline } from "../_lib/coachBaseline.js";
 import { latestGarminReadings, type GarminReadings } from "../_lib/garminReadings.js";
 import { fetchTrainingPeaksData, type TrainingPeaksData } from "./trainingpeaks.js";
 
@@ -26,7 +27,12 @@ function today(): string {
   return irelandTodayDateStr();
 }
 
-function buildPrompt(input: NarrativeInput, readings: GarminReadings, tp: TrainingPeaksData | null): string {
+function buildPrompt(
+  input: NarrativeInput,
+  readings: GarminReadings,
+  tp: TrainingPeaksData | null,
+  baseline: CoachBaseline | null,
+): string {
   const todayStr = today();
   const lines: string[] = [...garminSnapshotLines(readings, todayStr), ...trainingPeaksLines(tp, todayStr)];
   if (input.weeklyDistanceKm != null && input.weeklyTargetKm != null) {
@@ -41,16 +47,13 @@ function buildPrompt(input: NarrativeInput, readings: GarminReadings, tp: Traini
 
   return (
     "You are a professional cycling coach writing a short daily note for an athlete preparing for an " +
-    "unsupported ultra-distance record attempt (Ireland, north to south, roughly 570km solo, one continuous " +
-    "unsupported effort). This note is the first thing they see when they open the chat, so before anything " +
+    "ultra-distance cycling record attempt, described in the approved plan below. This note is the first thing they see when they open the chat, so before anything " +
     "else, note the time of day below and let it shape your tone.\n\n" +
     irelandTimeContext() +
     "\n\n" +
-    ATHLETE_PROFILE +
+    planContext(baseline) +
     "\n\n" +
     DATA_SEMANTICS +
-    "\n\n" +
-    SEASON_PLAN +
     "\n\n" +
     LANGUAGE_STYLE +
     "\n\n" +
@@ -59,7 +62,7 @@ function buildPrompt(input: NarrativeInput, readings: GarminReadings, tp: Traini
     "the readiness score alone), the balance between training load and readiness, sleep's role in adaptation, and where " +
     "today sits in the athlete's current training phase (build, recovery, or taper) - including, when " +
     "relevant, the specific demands of race-pace fueling, conservative pacing, and taper design for a " +
-    "multi-day unsupported solo effort.\n\n" +
+    "single long unsupported solo effort.\n\n" +
     "This is a greeting, not a full briefing: write just 1-2 short, concise sentences - how they should " +
     "approach today given their Garmin readiness, sleep and recent load, and what TrainingPeaks has planned for " +
     "today - if the planned session doesn't suit how recovered they are, say so - referencing the specific " +
@@ -121,13 +124,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const date = today();
-  // Garmin's readings are read here rather than taken from the browser:
-  // they live in Redis, so there is no shared token to race (the reason the
-  // Whoop-era note had to trust the browser's snapshot), and every channel
-  // then quotes the same numbers.
+  // Garmin's readings are read here rather than taken from the browser, so
+  // every channel quotes the same numbers.
   const input = req.body as NarrativeInput;
-  const [readings, tp] = await Promise.all([latestGarminReadings(), fetchTrainingPeaksData().catch(() => null)]);
-  const key = cacheKey(date, input, readings, tp);
+  const [readings, tp, baseline] = await Promise.all([
+    latestGarminReadings(),
+    fetchTrainingPeaksData().catch(() => null),
+    getCoachBaseline(),
+  ]);
+  const key = `${cacheKey(date, input, readings, tp)}|${baseline?.updatedAt ?? ""}`;
   if (cached && cached.key === key) {
     res.status(200).json({ configured: true, text: cached.text, cached: true });
     return;
@@ -144,7 +149,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 300,
-        messages: [{ role: "user", content: buildPrompt(input, readings, tp) }],
+        messages: [{ role: "user", content: buildPrompt(input, readings, tp, baseline) }],
       }),
     });
 

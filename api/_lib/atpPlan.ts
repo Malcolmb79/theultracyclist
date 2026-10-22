@@ -1,6 +1,6 @@
 // The athlete's real TrainingPeaks Annual Training Plan (ATP), entered
 // manually from their own TrainingPeaks account (no live TrainingPeaks API
-// integration exists here - see CLAUDE.md/coachContext.ts's SEASON_PLAN for
+// integration exists here - see CLAUDE.md for
 // why). Each entry is one Monday-start training week's planned TSS and the
 // resulting target CTL (fitness)/TSB (form) TrainingPeaks itself computed
 // for that week under its own model - not recomputed from tssTarget here,
@@ -76,7 +76,7 @@ export const ATP_PLAN: AtpWeek[] = [
 ];
 
 // Monday-start week boundary matching this plan's own convention (and the
-// athlete's - see ATHLETE_PROFILE in coachContext.ts).
+// athlete's - see WEEK_CONVENTION in coachContext.ts).
 function startOfWeek(dateStr: string): string {
   const d = new Date(`${dateStr}T00:00:00Z`);
   const day = d.getUTCDay();

@@ -126,3 +126,8 @@ export async function setJSON(key: string, value: unknown): Promise<boolean> {
     return false;
   }
 }
+
+/** Removes keys outright. Returns how many existed. */
+export async function deleteKeys(keys: string[]): Promise<number> {
+  return command(`del ${keys.join(" ")}`, (client) => client.del(keys));
+}

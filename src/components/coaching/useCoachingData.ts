@@ -4,7 +4,7 @@ import { computeReadiness } from "./readiness";
 import { classifyPower } from "./powerZones";
 import type { RawSourcesState } from "../../utils/useRawSources";
 import { irelandDateStr, irelandTodayDateStr } from "../../utils/irelandDate";
-import { garminDaysFrom, latestGarmin } from "../../utils/garmin";
+import { garminDaysFrom } from "../../utils/garmin";
 
 type StravaRide = {
   id: number;
@@ -64,14 +64,7 @@ export function useCoachingData(raw: RawSourcesState): CoachingDataState {
     const rides = strava?.rides ?? [];
 
       const todayStr = irelandTodayDateStr();
-      const readinessReading = latestGarmin(garminDays, "readiness");
-      const readiness = computeReadiness({
-        readiness: readinessReading?.value ?? null,
-        readinessDate: readinessReading?.date ?? null,
-        recoveryHours: latestGarmin(garminDays, "recoveryHours")?.value ?? null,
-        sleepScore: latestGarmin(garminDays, "sleepScore")?.value ?? null,
-        today: todayStr,
-      });
+      const readiness = computeReadiness(garminDays, todayStr);
       const weekStart = startOfWeek(todayStr);
       const thisWeekRides = rides.filter((r) => irelandDateStr(new Date(r.startDate)) >= weekStart);
       const weeklyProgress: WeeklyProgress = {

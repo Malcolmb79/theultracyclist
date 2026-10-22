@@ -1,7 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { requirePasskeySession } from "../_lib/session.js";
 import { irelandTimeContext } from "../_lib/timeContext.js";
-import { ATHLETE_PROFILE, DATA_SEMANTICS, SEASON_PLAN, LANGUAGE_STYLE, READING_HONESTY, TRAININGPEAKS_PRECEDENCE, TRAININGPEAKS_SOLE_SOURCE, garminSnapshotLines, trainingPeaksLines } from "../_lib/coachContext.js";
+import { DATA_SEMANTICS, LANGUAGE_STYLE, READING_HONESTY, TRAININGPEAKS_PRECEDENCE, TRAININGPEAKS_SOLE_SOURCE, garminSnapshotLines, planContext, trainingPeaksLines } from "../_lib/coachContext.js";
+import { getCoachBaseline, readPlanSection, type CoachBaseline } from "../_lib/coachBaseline.js";
 import { bodyBatteryDay, fetchGarminDays, latestGarminReadings, type GarminReadings } from "../_lib/garminReadings.js";
 import { fetchStravaRides } from "./strava-activities.js";
 import { fetchHealthHistory } from "./health-data.js";
@@ -236,6 +237,21 @@ const TOOLS = [
       properties: {
         from: { type: "string", description: "Start date, YYYY-MM-DD. Omit for no lower bound." },
         to: { type: "string", description: "End date, YYYY-MM-DD. Omit for no upper bound." },
+      },
+    },
+  },
+  {
+    name: "read_training_plan",
+    description:
+      "Read the athlete's approved training plan document, one section at a time - the full detail behind the " +
+      "baseline rules in your instructions: the workout library with every session's structure, sample weeks, " +
+      "phase detail, FTP-test protocol, strength programme, fuelling and meal plans. Call it with no section to " +
+      "get the contents, then ask for a section by number or title. Use it before building or changing a " +
+      "session, so the change follows the plan's own definitions.",
+    input_schema: {
+      type: "object",
+      properties: {
+        section: { type: "string", description: 'A section number ("4") or words from its title ("workout library"). Omit for the contents.' },
       },
     },
   },
@@ -528,6 +544,11 @@ async function executeTool(name: string, input: Record<string, unknown>, trainin
       // (see WIDGET_MARKER in CoachChatCard.tsx). Kept as a marker in the
       // reply text rather than a second return channel so the one
       // generateCoachReply string still serves WhatsApp, where it is stripped.
+      case "read_training_plan": {
+        const baseline = await getCoachBaseline();
+        if (!baseline) return { error: "No training plan has been loaded." };
+        return readPlanSection(baseline.document, typeof input.section === "string" ? input.section : undefined);
+      }
       case "search_knowledge": {
         const query = typeof input.query === "string" ? input.query : "";
         if (!query.trim()) return { hits: [], note: "No query given." };
@@ -607,7 +628,12 @@ async function executeTool(name: string, input: Record<string, unknown>, trainin
   }
 }
 
-function buildSystemPrompt(context: Partial<ChatContext>, tp: TrainingPeaksData | null, trainingPeaksActive: boolean): string {
+function buildSystemPrompt(
+  context: Partial<ChatContext>,
+  tp: TrainingPeaksData | null,
+  trainingPeaksActive: boolean,
+  baseline: CoachBaseline | null,
+): string {
   const todayStr = irelandTodayDateStr();
   const lines: string[] = garminSnapshotLines(context, todayStr);
   lines.push(...trainingPeaksLines(tp, todayStr));
@@ -693,18 +719,16 @@ function buildSystemPrompt(context: Partial<ChatContext>, tp: TrainingPeaksData 
   );
 
   return (
-    "You are a professional cycling coach chatting with an athlete preparing for an unsupported ultra-distance " +
-    "record attempt (Ireland, north to south, roughly 570km solo, one continuous unsupported effort). Before " +
-    "anything else, note the time of day below and let it shape your tone and advice.\n\n" +
+    "You are a professional cycling coach chatting with an athlete preparing for an ultra-distance cycling " +
+    "record attempt, described in the approved plan below. Before anything else, note the time of day below " +
+    "and let it shape your tone and advice.\n\n" +
     irelandTimeContext() +
     "\n\n" +
-    ATHLETE_PROFILE +
+    planContext(baseline) +
     "\n\n" +
     DATA_SEMANTICS +
     "\n\n" +
     READING_HONESTY +
-    "\n\n" +
-    SEASON_PLAN +
     "\n\n" +
     LANGUAGE_STYLE +
     "\n\n" +
@@ -715,10 +739,10 @@ function buildSystemPrompt(context: Partial<ChatContext>, tp: TrainingPeaksData 
     "fatigue earlier and more reliably than the readiness score alone); power-zone-based training (Z1-2 endurance, " +
     "Z3 tempo, Z4 threshold, Z5 VO2/anaerobic) - for an effort this long, time-in-zone and durability at low-Z " +
     "power matter far more than peak numbers; sleep's role in adaptation, since poor sleep performance blunts " +
-    "the training effect of the same load; and the specific demands of a multi-day unsupported solo record " +
+    "the training effect of the same load; and the specific demands of a single long unsupported solo record " +
     "attempt - fueling strategy and gut training at race pace, pacing conservatively enough to avoid a " +
-    "mid-attempt bonk or overuse injury, taper design in the final one to two weeks, and managing cumulative " +
-    "sleep deprivation and fatigue during the attempt itself, not just the training leading up to it.\n\n" +
+    "mid-attempt bonk or overuse injury, taper design in the final one to two weeks, and managing " +
+    "night riding and fatigue during the attempt itself, not just the training leading up to it.\n\n" +
     "You have tools to pull the athlete's actual data beyond the snapshot below - Garmin readiness, sleep, " +
     "HRV, Body Battery and training load history, a single day's Body Battery timeline, Strava rides, Apple " +
     "Health, and TrainingPeaks fitness, plan and workouts - use them whenever a specific number, trend, or past " +
@@ -732,8 +756,8 @@ function buildSystemPrompt(context: Partial<ChatContext>, tp: TrainingPeaksData 
     "calendar, Garmin and Zwift. When the athlete describes a session in words (e.g. \"give me 4x8min " +
     "threshold for Tuesday\"), build the interval structure yourself rather than just describing it. These " +
     "change the athlete's real plan. That plan - the workouts and Annual Training Plan in TrainingPeaks, with " +
-    "the athlete's standing rules and coaching material - is the baseline: follow it as written and never " +
-    "rework it on your own initiative; it changes only when the athlete asks for a change in this chat. Even " +
+    "the approved plan and rules above, its full document (read_training_plan) and their standing rules - is " +
+    "the baseline: follow it as written and never rework it on your own initiative; it changes only when the athlete asks for a change in this chat. Even " +
     "then, unless they asked for exactly that change, say what you intend - the " +
     "session, the day, what it replaces - and only make it once they agree; afterwards, say what was changed " +
     "and where. Use get_trainingpeaks (or get_workouts when TrainingPeaks isn't connected) to see what's " +
@@ -844,12 +868,12 @@ export async function generateCoachReply(
   // Whether TrainingPeaks can actually answer right now, not merely whether a
   // cookie is stored - an expired connection has to fall back like a missing
   // one.
-  const tp = await fetchTrainingPeaksData().catch(() => null);
+  const [tp, baseline] = await Promise.all([fetchTrainingPeaksData().catch(() => null), getCoachBaseline()]);
   const trainingPeaksActive = !!tp?.configured && !tp.authExpired && tp.fitness.length > 0;
   const system = [
     {
       type: "text" as const,
-      text: buildSystemPrompt(context, tp, trainingPeaksActive),
+      text: buildSystemPrompt(context, tp, trainingPeaksActive, baseline),
       cache_control: { type: "ephemeral" as const },
     },
   ];
@@ -951,10 +975,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     for (const [key, value] of Object.entries(serverContext)) {
       if (value != null) (context as Record<string, unknown>)[key] = value;
     }
-    // Readings come only from the server's Garmin read. An older browser
-    // still posts Whoop figures under some of the same names (hrvMs,
-    // restingHeartRate, sleepDate), which would otherwise fill a Garmin gap
-    // with a stale Whoop number.
+    // Readings come only from the server's Garmin read, so every channel
+    // quotes the same numbers whatever the browser sent.
     const readings = await latestGarminReadings();
     Object.assign(context, readings);
 

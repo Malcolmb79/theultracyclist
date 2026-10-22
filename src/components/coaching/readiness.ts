@@ -1,81 +1,106 @@
+import type { GarminDay } from "../../utils/garmin";
 import type { Readiness } from "./types";
 
-// Garmin's own Training Readiness levels: High 75+, Moderate 50-74, Low 25-49,
-// Poor below.
-const HIGH_READINESS = 75;
-const MODERATE_READINESS = 50;
-const LOW_READINESS = 25;
-// Garmin's recovery time is how long it still advises before the next hard
-// effort; a day or more left means today isn't the day for one, whatever the
-// morning's score says.
-const LONG_RECOVERY_HOURS = 24;
+// The training plan's daily traffic light, on Garmin's own Training Readiness
+// levels: green 75+, amber 50-74, red below 50.
+const GREEN_READINESS = 75;
+const AMBER_READINESS = 50;
+// The plan's red flags beside the score itself: HRV down two days running, or
+// resting HR 5+ bpm above the athlete's norm. A night under 7 hours makes the
+// day amber at best.
+const RHR_RISE_BPM = 5;
+const SHORT_SLEEP_HOURS = 7;
+// The resting-HR norm is the median of the previous few weeks, and needs a
+// week of readings before it says anything.
+const RHR_NORM_DAYS = 28;
+const RHR_NORM_MIN_READINGS = 7;
 
-export type ReadinessInputs = {
-  readiness: number | null;
-  readinessDate: string | null;
-  recoveryHours: number | null;
-  sleepScore: number | null;
-  today: string;
-};
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
 
-// Deterministic, explainable rules - not a black box. Training Readiness
-// already folds in sleep, HRV, recovery time and load balance; recovery time
-// is checked separately so a high score straight after a big session still
-// gets tempered advice rather than a blanket "go hard".
-export function computeReadiness({ readiness, readinessDate, recoveryHours, sleepScore, today }: ReadinessInputs): Readiness {
-  const base = { readiness, readinessDate, recoveryHours, sleepScore };
-  if (readiness == null) {
+/** HRV lower on each of the last two mornings, ending on `date`. */
+function hrvFallingTwoDays(days: GarminDay[], date: string): boolean {
+  const withHrv = days.filter((d) => d.hrv != null && d.date <= date);
+  const last = withHrv.slice(-3);
+  if (last.length < 3 || last[2].date !== date) return false;
+  return last[1].hrv! < last[0].hrv! && last[2].hrv! < last[1].hrv!;
+}
+
+/** How far `date`'s resting HR sits above the athlete's recent norm, in bpm. */
+function restingHrRise(days: GarminDay[], date: string): number | null {
+  const today = days.find((d) => d.date === date)?.restingHr;
+  if (today == null) return null;
+  const before = days.filter((d) => d.date < date && d.restingHr != null).slice(-RHR_NORM_DAYS);
+  if (before.length < RHR_NORM_MIN_READINGS) return null;
+  return today - median(before.map((d) => d.restingHr!));
+}
+
+// Deterministic, explainable rules - the plan's, not a black box.
+export function computeReadiness(days: GarminDay[], today: string): Readiness {
+  const latest = [...days].reverse().find((d) => d.readiness != null) ?? null;
+  const readiness = latest?.readiness ?? null;
+  const readinessDate = latest?.date ?? null;
+  const day = readinessDate ? days.find((d) => d.date === readinessDate) : undefined;
+  const base = {
+    readiness,
+    readinessDate,
+    recoveryHours: day?.recoveryHours ?? null,
+    sleepScore: day?.sleepScore ?? null,
+  };
+
+  if (readiness == null || readinessDate == null) {
     return {
       ...base,
       level: "moderate",
       headline: "No readiness yet",
-      reason: "Garmin hasn't synced a Training Readiness reading yet - defaulting to a moderate, aerobic day.",
+      reason: "Garmin hasn't synced a Training Readiness reading yet - ride the bottom of each range until it does.",
     };
   }
 
   const stale = readinessDate !== today ? " (from an earlier day - today's hasn't synced yet)" : "";
-  const longRecovery = recoveryHours != null && recoveryHours >= LONG_RECOVERY_HOURS;
+  const hrvFalling = hrvFallingTwoDays(days, readinessDate);
+  const rhrRise = restingHrRise(days, readinessDate);
+  const rhrHigh = rhrRise != null && rhrRise >= RHR_RISE_BPM;
+  const shortSleep = day?.sleepHours != null && day.sleepHours < SHORT_SLEEP_HOURS;
 
-  if (readiness >= HIGH_READINESS && !longRecovery) {
+  const redFlags = [
+    readiness < AMBER_READINESS ? `Training Readiness is ${readiness}${stale}` : null,
+    hrvFalling ? "HRV has dropped two days running" : null,
+    rhrHigh ? `resting HR is ${Math.round(rhrRise!)} bpm above your norm` : null,
+  ].filter((flag): flag is string => flag != null);
+
+  if (redFlags.length > 0) {
+    const [first, ...rest] = redFlags;
     return {
       ...base,
-      level: "hard",
-      headline: "Hard day",
-      reason: `Training Readiness is high at ${readiness}${stale} - a good day for a quality or high-intensity session.`,
+      level: "rest",
+      headline: "Red - 45 min Z1 or a day off",
+      reason:
+        `${first}${rest.length ? `, and ${rest.join(" and ")}` : ""}. Swap today's session for 45 minutes of ` +
+        "Z1 or take the day off. Move the key session rather than doubling up.",
     };
   }
 
-  if (readiness >= HIGH_READINESS) {
+  if (readiness < GREEN_READINESS || shortSleep) {
+    const why =
+      readiness < GREEN_READINESS
+        ? `Training Readiness is ${readiness}${stale}`
+        : `Readiness is ${readiness}${stale}, but you slept ${day!.sleepHours!.toFixed(1)} hours`;
     return {
       ...base,
       level: "moderate",
-      headline: "Moderate day",
-      reason: `Training Readiness is high at ${readiness}${stale}, but Garmin still advises ${Math.round(recoveryHours ?? 0)} hours of recovery - keep today aerobic rather than adding hard work on top.`,
-    };
-  }
-
-  if (readiness >= MODERATE_READINESS) {
-    return {
-      ...base,
-      level: "moderate",
-      headline: "Moderate day",
-      reason: `Training Readiness is moderate at ${readiness}${stale} - steady aerobic work today, and save hard efforts for a higher-readiness day.`,
-    };
-  }
-
-  if (readiness >= LOW_READINESS) {
-    return {
-      ...base,
-      level: "easy",
-      headline: "Easy day",
-      reason: `Training Readiness is low at ${readiness}${stale} - keep it to an easy spin, or rest.`,
+      headline: "Amber - trim the session",
+      reason: `${why}. Do the key session with one interval dropped, ride the bottom of each range, and skip Tuesday's optional block.`,
     };
   }
 
   return {
     ...base,
-    level: "rest",
-    headline: "Rest day",
-    reason: `Training Readiness is poor at ${readiness}${stale} - prioritise rest and sleep today.`,
+    level: "hard",
+    headline: "Green - ride as planned",
+    reason: `Training Readiness is ${readiness}${stale} - ride today's session as planned.`,
   };
 }

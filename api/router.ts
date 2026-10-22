@@ -18,6 +18,7 @@ const ROUTES: Record<string, () => Promise<RouteModule>> = {
   "auth-login": () => import("./_routes/auth-login.js"),
   "auth-logout": () => import("./_routes/auth-logout.js"),
   "auth-session": () => import("./_routes/auth-session.js"),
+  "coach-baseline": () => import("./_routes/coach-baseline.js"),
   "coach-knowledge": () => import("./_routes/coach-knowledge.js"),
   "coaching-chat": () => import("./_routes/coaching-chat.js"),
   "coaching-narrative": () => import("./_routes/coaching-narrative.js"),
@@ -51,6 +52,7 @@ const ROUTES: Record<string, () => Promise<RouteModule>> = {
   "trainingpeaks": () => import("./_routes/trainingpeaks.js"),
   "trends-goals": () => import("./_routes/trends-goals.js"),
   "trends-layout": () => import("./_routes/trends-layout.js"),
+  "whoop-cleanup": () => import("./_routes/whoop-cleanup.js"),
   "whatsapp-webhook": () => import("./_routes/whatsapp-webhook.js"),
   "widget-image": () => import("./_routes/widget-image.js"),
 };

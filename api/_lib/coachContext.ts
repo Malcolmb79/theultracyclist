@@ -1,22 +1,28 @@
 import type { TrainingPeaksData } from "../_routes/trainingpeaks.js";
+import type { CoachBaseline } from "./coachBaseline.js";
 import type { GarminReadings } from "./garminReadings.js";
 
-// Static background the coach should always have - athlete profile, how to
-// read Garmin's readings, and the high-level TrainingPeaks ATP periodisation
-// plan through the record attempt itself (SEASON_PLAN, typed in from the ATP
-// export; the live plan comes from TrainingPeaks itself via
-// trainingPeaksLines below) - edit this file directly if the plan changes.
+// Static background the coach should always have - how to read Garmin's
+// readings and TrainingPeaks' figures, and the athlete's approved training
+// plan (the baseline, kept in Redis - see coachBaseline.ts - because this
+// repository is public and the plan holds personal health detail).
 
 export const LANGUAGE_STYLE =
   'Write in UK English throughout - British spelling ("colour", "favourite", "organise", "prioritise", "metre") ' +
   "and phrasing, never American.";
 
-export const ATHLETE_PROFILE =
-  "Athlete profile: 46 years old, a competitive cyclist returning to training after a long break from the bike. " +
-  "Ramp volume and intensity up gradually and conservatively rather than assuming an established base - err on " +
-  "the side of caution with load increases given the return-to-training context. Sleep goal: 8+ hours nightly. " +
-  "Their training week runs Monday-Sunday, not Sunday-Saturday - the weekly distance/hours figures below are " +
-  "already computed on that boundary, so reason about \"this week\" the same way.";
+const WEEK_CONVENTION =
+  "The athlete's training week runs Monday-Sunday, not Sunday-Saturday - the weekly distance/hours figures " +
+  'below are already computed on that boundary, so reason about "this week" the same way.';
+
+/** The approved plan's rules, or a note that none is loaded yet. */
+export function planContext(baseline: CoachBaseline | null): string {
+  const rules = baseline
+    ? baseline.rules
+    : "No approved training plan has been loaded yet. Follow the workouts and Annual Training Plan in " +
+      "TrainingPeaks, and ask the athlete before assuming anything about the target event.";
+  return `${rules}\n\n${WEEK_CONVENTION}`;
+}
 
 /**
  * A Garmin reading with the day it came from, rendered for the prompt.
@@ -123,16 +129,6 @@ export const TRAININGPEAKS_SOLE_SOURCE =
   "describes what a given ride did, and that is not something TrainingPeaks overrides. If a specific figure " +
   "is genuinely missing from TrainingPeaks, say it is not in TrainingPeaks rather than substituting one " +
   "from somewhere else.";
-
-export const SEASON_PLAN =
-  "Season plan (from the athlete's TrainingPeaks Annual Training Plan): periodised toward the target event itself " +
-  '- "World Record Ultra", the week of June 7-13, 2027 (the Ireland north-south unsupported record attempt). ' +
-  "Phase sequence and approximate dates: Preparation (through late Aug 2026) -> Base 1 (late Aug-early Oct 2026) " +
-  "-> Base 2 (early Oct-early Dec 2026) -> Base 3 (early Dec 2026-late Mar 2027) -> Build 1 (late Mar-mid Apr " +
-  "2027) -> Build 2 (mid Apr-late May 2027) -> Peak (late May-early Jun 2027) -> Race week (Jun 7-13 2027) -> " +
-  "Transition/recovery immediately after. Planned fitness (CTL) climbs steadily from the high-teens now to " +
-  "roughly 120-130 by race week - a long, progressive multi-phase build, not a short block, so don't chase big " +
-  "week-to-week jumps.";
 
 // TrainingPeaks workoutTypeValueId -> sport.
 const TP_SPORTS: Record<string, string> = {

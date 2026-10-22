@@ -13,7 +13,7 @@ function timeOfDayLabel(hour: number): string {
 }
 
 // Monday-first, matching the athlete's training-week convention (see
-// ATHLETE_PROFILE in coachContext.ts) - index 0 = Monday.
+// WEEK_CONVENTION in coachContext.ts) - index 0 = Monday.
 const WEEKDAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 function daysLeftPhrase(weekdayNum: number): string {
@@ -47,7 +47,7 @@ export function irelandTodayDateStr(): string {
 }
 
 // Monday-start week boundary, matching the athlete's training-week
-// convention (see ATHLETE_PROFILE in coachContext.ts) - same calc as
+// convention (see WEEK_CONVENTION in coachContext.ts) - same calc as
 // api/_lib/coachSnapshot.ts's local copy, duplicated rather than imported
 // since that file already imports FROM this one (avoids a circular need)
 // and this project keeps small date helpers local to each file that needs

@@ -73,7 +73,7 @@ export const ATP_PLAN: AtpWeek[] = [
 ];
 
 // Monday-start week boundary matching this plan's own convention (and the
-// athlete's - see ATHLETE_PROFILE in coachContext.ts).
+// athlete's - see WEEK_CONVENTION in coachContext.ts).
 function startOfWeek(dateStr: string): string {
   const d = new Date(`${dateStr}T00:00:00Z`);
   const day = d.getUTCDay();

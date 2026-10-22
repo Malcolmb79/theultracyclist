@@ -8,7 +8,7 @@ import { latestGarminReadings } from "./garminReadings.js";
 import { isWeightFieldName } from "./weightField.js";
 
 // Monday-start week boundary, matching the athlete's training-week
-// convention (see ATHLETE_PROFILE in coachContext.ts) - mirrors the
+// convention (see WEEK_CONVENTION in coachContext.ts) - mirrors the
 // identical calc in the browser's useCoachingData.ts, duplicated here since
 // this runs server-side with no browser to compute and send a snapshot
 // (the WhatsApp webhook's only caller - see whatsapp-webhook.ts), matching

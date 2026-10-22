@@ -1,4 +1,5 @@
 import { getJSON, setJSON } from "./kvStore.js";
+import { computeStructureSummary, type WorkoutStep, type WorkoutStepGroup } from "./plannedWorkouts.js";
 
 /**
  * A minimal TrainingPeaks client, ported from the tp-mcp server's HTTP layer.
@@ -10,9 +11,10 @@ import { getJSON, setJSON } from "./kvStore.js";
  * subsequent call. That is a private endpoint and can change without notice;
  * every caller here degrades to "not available" rather than breaking a page.
  *
- * Only the three reads the coach actually needs are ported, not tp-mcp's 84
- * tools. Each one closes a gap the ICS calendar feed cannot: the feed carries
- * no TSS, reaches only 14 days ahead, and has no ATP targets at all.
+ * Only what the coach needs is ported, not tp-mcp's 84 tools: three reads
+ * that close the gaps the ICS calendar feed leaves (no TSS, 14 days ahead, no
+ * ATP targets), and creating, changing and deleting planned workouts, so the
+ * coach can adjust the plan itself.
  *
  * WHY THE COOKIE LIVES IN REDIS
  * tp-mcp keeps it in the OS keyring, which a serverless function cannot reach.
@@ -117,7 +119,9 @@ async function call<T>(path: string, init?: { method?: string; body?: unknown })
 
   if (response.status === 401) throw new TrainingPeaksAuthError("TrainingPeaks rejected the stored credential.");
   if (!response.ok) throw new Error(`TrainingPeaks request failed (${response.status})`);
-  return { data: (await response.json()) as T, athleteId: auth.athleteId };
+  // A DELETE answers with no body at all.
+  const text = await response.text();
+  return { data: (text ? JSON.parse(text) : null) as T, athleteId: auth.athleteId };
 }
 
 function iso(date: Date): string {
@@ -191,6 +195,8 @@ export async function fetchTrainingPeaksAtp(weeksAhead = 26): Promise<TpAtpWeek[
 }
 
 export type TpWorkout = {
+  /** TrainingPeaks' workout id - what changing or deleting it takes. */
+  id: string | null;
   date: string;
   title: string;
   sport: string | null;
@@ -218,6 +224,7 @@ export async function fetchTrainingPeaksWorkouts(daysBack = 7, daysAhead = 42): 
   return rows.map((row) => {
     const w = row as Record<string, number | string | null | boolean>;
     return {
+      id: w.workoutId != null ? String(w.workoutId) : null,
       date: String(w.workoutDay ?? w.startDate ?? "").slice(0, 10),
       title: String(w.title ?? w.description ?? "Workout"),
       sport: w.workoutTypeValueId != null ? String(w.workoutTypeValueId) : null,
@@ -236,4 +243,154 @@ export async function fetchTrainingPeaksWorkouts(daysBack = 7, daysAhead = 42): 
 function numberOrNull(value: unknown): number | null {
   const n = typeof value === "string" ? Number(value) : value;
   return typeof n === "number" && Number.isFinite(n) ? Math.round(n * 10) / 10 : null;
+}
+
+// --- Writing planned workouts -------------------------------------------
+// Ported from tp-mcp's tp_create_workout / tp_update_workout /
+// tp_delete_workout and its structure builder.
+
+/** Sport name -> (workoutTypeFamilyId, workoutTypeValueId), from GET /fitness/v6/workouttypes. */
+export const TP_SPORTS = {
+  Bike: 2,
+  Run: 3,
+  Swim: 1,
+  Strength: 9,
+  Walk: 13,
+  MtnBike: 8,
+  Crosstrain: 5,
+  DayOff: 7,
+  Other: 100,
+} as const;
+export type TpSport = keyof typeof TP_SPORTS;
+
+export type TpWorkoutInput = {
+  /** YYYY-MM-DD, or YYYY-MM-DDTHH:MM:SS for a planned start time. */
+  date: string;
+  sport: TpSport;
+  title: string;
+  description?: string;
+  primaryIntensityMetric?: "percentOfFtp" | "percentOfThresholdHr";
+  steps?: WorkoutStepGroup[];
+  durationMinutes?: number;
+  tssPlanned?: number;
+};
+
+function stepWire(step: WorkoutStep) {
+  return {
+    name: step.name ?? "Step",
+    type: "step",
+    length: { value: step.durationSeconds, unit: "second" },
+    targets: step.intensityMin != null ? [{ minValue: step.intensityMin, maxValue: step.intensityMax ?? step.intensityMin }] : [],
+    intensityClass: step.intensityClass ?? "active",
+    openDuration: false,
+  };
+}
+
+/** TrainingPeaks' own structure format: blocks with begin/end offsets, plus the bar-chart polyline its calendar draws. */
+export function trainingPeaksStructure(steps: WorkoutStepGroup[], metric: "percentOfFtp" | "percentOfThresholdHr") {
+  const blockSeconds = (g: WorkoutStepGroup) =>
+    g.type === "repetition" ? g.steps.reduce((sum, s) => sum + s.durationSeconds, 0) * g.reps : g.durationSeconds;
+  const total = steps.reduce((sum, g) => sum + blockSeconds(g), 0);
+  let cursor = 0;
+  const blocks = steps.map((g) => {
+    const begin = cursor;
+    cursor += blockSeconds(g);
+    return g.type === "repetition"
+      ? { type: "repetition", length: { value: g.reps, unit: "repetition" }, steps: g.steps.map(stepWire), begin, end: cursor }
+      : { type: "step", length: { value: 1, unit: "repetition" }, steps: [stepWire(g)], begin, end: cursor };
+  });
+
+  const polyline: number[][] = [];
+  let elapsed = 0;
+  const bar = (step: WorkoutStep) => {
+    const start = total > 0 ? elapsed / total : 0;
+    elapsed += step.durationSeconds;
+    const end = total > 0 ? elapsed / total : 0;
+    const height = (step.intensityMax ?? step.intensityMin ?? 0) / 100;
+    const r = (v: number) => Math.round(v * 10000) / 10000;
+    polyline.push([r(start), 0], [r(start), r(height)], [r(end), r(height)], [r(end), 0]);
+  };
+  for (const g of steps) {
+    if (g.type === "repetition") for (let i = 0; i < g.reps; i++) g.steps.forEach(bar);
+    else bar(g);
+  }
+
+  return {
+    structure: blocks,
+    polyline,
+    primaryLengthMetric: "duration",
+    primaryIntensityMetric: metric,
+    primaryIntensityTargetOrRange: "range",
+  };
+}
+
+function workoutDay(date: string): string {
+  return `${date.slice(0, 10)}T00:00:00`;
+}
+
+function applyInput(target: Record<string, unknown>, input: Partial<TpWorkoutInput>) {
+  if (input.sport) {
+    target.workoutTypeFamilyId = TP_SPORTS[input.sport];
+    target.workoutTypeValueId = TP_SPORTS[input.sport];
+  }
+  if (input.title != null) target.title = input.title;
+  if (input.description != null) target.description = input.description;
+  if (input.date) {
+    target.workoutDay = workoutDay(input.date);
+    if (input.date.length > 10) target.startTimePlanned = input.date;
+    else if (typeof target.startTimePlanned === "string") {
+      // Moving a workout with a start time keeps the time of day.
+      target.startTimePlanned = `${input.date}${(target.startTimePlanned as string).slice(10)}`;
+    }
+  }
+  const metric = input.primaryIntensityMetric ?? "percentOfFtp";
+  const derived = input.steps?.length ? computeStructureSummary({ steps: input.steps, primaryIntensityMetric: metric }) : null;
+  if (input.steps?.length) {
+    target.structure = JSON.stringify(trainingPeaksStructure(input.steps, metric));
+    if (derived && input.tssPlanned == null) target.ifPlanned = derived.ifPlanned;
+    else delete target.ifPlanned;
+  }
+  const minutes = input.durationMinutes ?? derived?.durationMinutes;
+  if (minutes != null) target.totalTimePlanned = minutes / 60;
+  const tss = input.tssPlanned ?? derived?.tssPlanned;
+  if (tss != null) target.tssPlanned = tss;
+}
+
+export type TpWriteResult = { id: string | null; date: string; title: string };
+
+export async function createTrainingPeaksWorkout(input: TpWorkoutInput): Promise<TpWriteResult> {
+  const auth = await getAccessToken();
+  if (!auth?.athleteId) throw new Error("TrainingPeaks isn't connected.");
+  const payload: Record<string, unknown> = { athleteId: auth.athleteId, isHidden: false };
+  applyInput(payload, input);
+  const result = await call<Record<string, unknown>>(`/fitness/v6/athletes/${auth.athleteId}/workouts`, { method: "POST", body: payload });
+  return {
+    id: result?.data?.workoutId != null ? String(result.data.workoutId) : null,
+    date: input.date,
+    title: input.title,
+  };
+}
+
+async function existingWorkout(id: string): Promise<{ athleteId: number; workout: Record<string, unknown> }> {
+  if (!/^\d+$/.test(id)) throw new Error(`"${id}" is not a TrainingPeaks workout id.`);
+  const auth = await getAccessToken();
+  if (!auth?.athleteId) throw new Error("TrainingPeaks isn't connected.");
+  const result = await call<Record<string, unknown>>(`/fitness/v6/athletes/${auth.athleteId}/workouts/${id}`);
+  if (!result?.data || typeof result.data !== "object") throw new Error(`No TrainingPeaks workout ${id}.`);
+  // A workout with recorded time already happened; its record is the athlete's, not the plan's.
+  if (result.data.totalTime != null) throw new Error("That workout has already been completed - only planned workouts can be changed.");
+  return { athleteId: auth.athleteId, workout: result.data };
+}
+
+export async function updateTrainingPeaksWorkout(id: string, patch: Partial<TpWorkoutInput>): Promise<TpWriteResult> {
+  const { athleteId, workout } = await existingWorkout(id);
+  applyInput(workout, patch);
+  await call(`/fitness/v6/athletes/${athleteId}/workouts/${id}`, { method: "PUT", body: workout });
+  return { id, date: String(workout.workoutDay ?? "").slice(0, 10), title: String(workout.title ?? "") };
+}
+
+export async function deleteTrainingPeaksWorkout(id: string): Promise<TpWriteResult> {
+  const { athleteId, workout } = await existingWorkout(id);
+  await call(`/fitness/v6/athletes/${athleteId}/workouts/${id}`, { method: "DELETE" });
+  return { id, date: String(workout.workoutDay ?? "").slice(0, 10), title: String(workout.title ?? "") };
 }

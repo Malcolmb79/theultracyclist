@@ -47,6 +47,11 @@ export type TrainingPeaksData = {
 
 type Cached = { fetchedAt: number; data: Omit<TrainingPeaksData, "configured"> };
 
+/** After the coach changes the plan, so the next read shows the change. */
+export async function forgetTrainingPeaksCache(): Promise<void> {
+  await setJSON(CACHE_KEY, null).catch(() => {});
+}
+
 export async function fetchTrainingPeaksData(force = false): Promise<TrainingPeaksData> {
   if (!(await hasTrainingPeaksCookie())) {
     return { configured: false, fitness: [], atp: [], workouts: [] };

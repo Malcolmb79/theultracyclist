@@ -9,7 +9,15 @@ import { convertHealthHistory, type UnitSystem } from "../_lib/units.js";
 import { searchKnowledge } from "../_lib/coachKnowledge.js";
 import { summariseWidget } from "../_lib/widgetSummary.js";
 import { computeChatContext } from "../_lib/coachSnapshot.js";
-import { fetchTrainingPeaksData, type TrainingPeaksData } from "./trainingpeaks.js";
+import { fetchTrainingPeaksData, forgetTrainingPeaksCache, type TrainingPeaksData } from "./trainingpeaks.js";
+import {
+  createTrainingPeaksWorkout,
+  deleteTrainingPeaksWorkout,
+  updateTrainingPeaksWorkout,
+  TP_SPORTS,
+  type TpSport,
+  type TpWorkoutInput,
+} from "../_lib/trainingPeaks.js";
 import { fetchCoachingSettings } from "./coaching-settings.js";
 import { computeTss } from "../_lib/tss.js";
 import { computeFitnessSeries } from "../_lib/fitness.js";
@@ -220,9 +228,9 @@ const TOOLS = [
   {
     name: "get_workouts",
     description:
-      "List the athlete's planned (structured) workouts in a date range - title, sport, planned duration/TSS/IF, " +
-      "and full interval structure. Use this to check what's already scheduled before creating or changing " +
-      "something, or when asked what's coming up.",
+      "List workouts on this site's own calendar in a date range - only used when TrainingPeaks isn't " +
+      "connected, or for sessions created here before it was. When TrainingPeaks is connected the plan lives " +
+      "there: use get_trainingpeaks to see it and to find a workout's id.",
     input_schema: {
       type: "object",
       properties: {
@@ -289,7 +297,10 @@ const TOOLS = [
   {
     name: "create_workout",
     description:
-      "Schedule a new structured workout. Build interval structure naturally from what the athlete describes " +
+      "Schedule a new workout. When TrainingPeaks is connected it goes straight into the athlete's TrainingPeaks " +
+      "calendar - and from there to their Garmin and Zwift - otherwise onto this site's calendar. This changes " +
+      "their real plan: unless they asked for exactly this session on exactly this day, describe it and get " +
+      "their yes first. Build interval structure naturally from what the athlete describes " +
       "(e.g. \"4x8min threshold with 3min recovery, 10min warm-up and cool-down\") using percent-of-FTP " +
       "intensity - duration/TSS/IF are auto-computed from the structure when primaryIntensityMetric is " +
       "percentOfFtp, so don't set those yourself unless the athlete gives an explicit target. A plain " +
@@ -302,7 +313,7 @@ const TOOLS = [
           type: "string",
           description: "YYYY-MM-DD for an all-day plan, or YYYY-MM-DDTHH:MM:SS for a specific planned start time.",
         },
-        sport: { type: "string", enum: ["Bike", "Run", "Strength", "Other"] },
+        sport: { type: "string", enum: ["Bike", "Run", "Swim", "Strength", "Walk", "MtnBike", "Crosstrain", "DayOff", "Other"] },
         title: { type: "string" },
         description: { type: "string" },
         primaryIntensityMetric: { type: "string", enum: ["percentOfFtp", "percentOfThresholdHr"] },
@@ -346,14 +357,18 @@ const TOOLS = [
   },
   {
     name: "update_workout",
-    description: "Change any field of an existing planned workout (reschedule, edit structure, rename, etc). Fetch it with get_workouts first if you need its id.",
+    description:
+      "Change a planned workout - move it, rename it, swap its structure. The id comes from get_trainingpeaks " +
+      "(a TrainingPeaks workout, changed in TrainingPeaks) or get_workouts (this site's calendar). Completed " +
+      "workouts can't be changed. Say what you're changing and get the athlete's yes first unless they asked " +
+      "for exactly this change.",
     input_schema: {
       type: "object",
       required: ["id"],
       properties: {
         id: { type: "string" },
         date: { type: "string" },
-        sport: { type: "string", enum: ["Bike", "Run", "Strength", "Other"] },
+        sport: { type: "string", enum: ["Bike", "Run", "Swim", "Strength", "Walk", "MtnBike", "Crosstrain", "DayOff", "Other"] },
         title: { type: "string" },
         description: { type: "string" },
         primaryIntensityMetric: { type: "string", enum: ["percentOfFtp", "percentOfThresholdHr"] },
@@ -365,7 +380,10 @@ const TOOLS = [
   },
   {
     name: "delete_workout",
-    description: "Cancel/remove a planned workout.",
+    description:
+      "Remove a planned workout - from TrainingPeaks for an id from get_trainingpeaks, or from this site's " +
+      "calendar for one from get_workouts. Completed workouts can't be removed. Always name the workout and " +
+      "date and get the athlete's yes first.",
     input_schema: {
       type: "object",
       required: ["id"],
@@ -376,7 +394,14 @@ const TOOLS = [
   },
 ] as const;
 
-async function executeTool(name: string, input: Record<string, unknown>): Promise<unknown> {
+const SITE_SPORTS = new Set(["Bike", "Run", "Strength", "Other"]);
+
+/** A TrainingPeaks workout id is numeric; this site's own are "pw_...". */
+function isTrainingPeaksId(id: string): boolean {
+  return /^\d+$/.test(id);
+}
+
+async function executeTool(name: string, input: Record<string, unknown>, trainingPeaksActive = false): Promise<unknown> {
   try {
     switch (name) {
       case "get_garmin_history": {
@@ -540,17 +565,37 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
         if (typeof date !== "string" || typeof sport !== "string" || typeof title !== "string") {
           return { error: "date, sport, and title are required strings" };
         }
-        return await createPlannedWorkout(input as unknown as Omit<PlannedWorkout, "id" | "createdAt" | "updatedAt">);
+        if (trainingPeaksActive) {
+          if (!(sport in TP_SPORTS)) return { error: `Unknown sport "${sport}".` };
+          const created = await createTrainingPeaksWorkout({ ...(input as unknown as TpWorkoutInput), sport: sport as TpSport });
+          await forgetTrainingPeaksCache();
+          return { createdIn: "TrainingPeaks", ...created };
+        }
+        const siteSport = SITE_SPORTS.has(sport) ? sport : "Other";
+        return { createdIn: "this site's calendar", ...(await createPlannedWorkout({ ...input, sport: siteSport } as unknown as Omit<PlannedWorkout, "id" | "createdAt" | "updatedAt">)) };
       }
       case "update_workout": {
         const { id, ...patch } = input;
         if (typeof id !== "string") return { error: "id is required" };
+        if (isTrainingPeaksId(id)) {
+          if (!trainingPeaksActive) return { error: "TrainingPeaks isn't connected right now, so its workouts can't be changed." };
+          if (typeof patch.sport === "string" && !(patch.sport in TP_SPORTS)) return { error: `Unknown sport "${patch.sport}".` };
+          const updated = await updateTrainingPeaksWorkout(id, patch as Partial<TpWorkoutInput>);
+          await forgetTrainingPeaksCache();
+          return { updatedIn: "TrainingPeaks", ...updated };
+        }
         const workout = await updatePlannedWorkout(id, patch as Partial<PlannedWorkout>);
         return workout ?? { error: `No workout found with id ${id}` };
       }
       case "delete_workout": {
         const { id } = input;
         if (typeof id !== "string") return { error: "id is required" };
+        if (isTrainingPeaksId(id)) {
+          if (!trainingPeaksActive) return { error: "TrainingPeaks isn't connected right now, so its workouts can't be removed." };
+          const deleted = await deleteTrainingPeaksWorkout(id);
+          await forgetTrainingPeaksCache();
+          return { deletedFrom: "TrainingPeaks", ...deleted };
+        }
         const ok = await deletePlannedWorkout(id);
         return { ok };
       }
@@ -682,10 +727,17 @@ function buildSystemPrompt(context: Partial<ChatContext>, tp: TrainingPeaksData 
     "well the athlete is absorbing the work, and TrainingPeaks says what the plan asks of them today and this " +
     "week. When asked whether they're on track, compare current CTL/TSB against this week's Annual Training " +
     "Plan target rather than judging the raw numbers in isolation, and when today's planned session doesn't " +
-    "suit how recovered they are, say so and suggest the adjustment. You can also schedule, edit, and cancel structured workouts " +
-    "directly - when the athlete describes a session in words (e.g. \"give me 4x8min threshold for Tuesday\"), " +
-    "build the interval structure yourself and create it rather than just describing what they should do; " +
-    "check get_workouts first if you need to see what's already planned or find a workout's id to edit. " +
+    "suit how recovered they are, say so and suggest the adjustment. You can also schedule, move, change and " +
+    "cancel workouts directly - in TrainingPeaks itself when it is connected, so the change reaches their " +
+    "calendar, Garmin and Zwift. When the athlete describes a session in words (e.g. \"give me 4x8min " +
+    "threshold for Tuesday\"), build the interval structure yourself rather than just describing it. These " +
+    "change the athlete's real plan. That plan - the workouts and Annual Training Plan in TrainingPeaks, with " +
+    "the athlete's standing rules and coaching material - is the baseline: follow it as written and never " +
+    "rework it on your own initiative; it changes only when the athlete asks for a change in this chat. Even " +
+    "then, unless they asked for exactly that change, say what you intend - the " +
+    "session, the day, what it replaces - and only make it once they agree; afterwards, say what was changed " +
+    "and where. Use get_trainingpeaks (or get_workouts when TrainingPeaks isn't connected) to see what's " +
+    "planned and to find a workout's id. " +
     "Check whether they've already ridden today (in the snapshot below) before asking what's on their " +
     "schedule or suggesting a session for today - if they've already trained, talk about recovery from that " +
     "ride and what's next instead. Answer directly and practically. Keep replies conversational and concise - " +
@@ -840,7 +892,7 @@ export async function generateCoachReply(
       toolUses.map(async (call) => ({
         type: "tool_result" as const,
         tool_use_id: call.id,
-        content: JSON.stringify(await executeTool(call.name, call.input)),
+        content: JSON.stringify(await executeTool(call.name, call.input, trainingPeaksActive)),
       })),
     );
     anthropicMessages.push({ role: "user", content: toolResults });

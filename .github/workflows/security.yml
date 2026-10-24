@@ -98,6 +98,6 @@ jobs:
           # Full history: a secret committed and later removed is still in
           # the history, and still valid until it's rotated.
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
+      - uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

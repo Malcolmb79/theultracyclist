@@ -1,0 +1,326 @@
+import { useEffect, useRef, useState } from "react";
+import { useAuthSession } from "../utils/useAuthSession";
+import { useDashboardTheme } from "../utils/useDashboardTheme";
+import { useStoredState } from "../utils/useStoredState";
+import SignInGate from "../components/shared/SignInGate";
+import TabNav from "../components/shared/TabNav";
+import PageHeader from "../components/shared/PageHeader";
+import ProfileMenu from "../components/shared/ProfileMenu";
+import StatTile from "../components/shared/StatTile";
+import {
+  DEFAULT_SAUCE_ADDRESS,
+  athleteName,
+  connectSauce,
+  type FeedStatus,
+  type SauceAthleteData,
+  type SauceGroup,
+} from "../components/race/sauceFeed";
+import {
+  RaceRecorder,
+  archiveLog,
+  downloadLog,
+  formatElapsed,
+  loadCurrentLog,
+  loadSavedLogs,
+  saveCurrentLog,
+  type RaceEvent,
+  type RaceLog,
+} from "../components/race/raceLog";
+import styles from "./RacePage.module.css";
+
+/** Often enough that a crash costs seconds, not the race. */
+const AUTOSAVE_MS = 10_000;
+const FEED_EVENTS = 25;
+
+export default function RacePage() {
+  useDashboardTheme();
+  const auth = useAuthSession();
+
+  if (auth.status === "loading") {
+    return (
+      <div className={styles.page}>
+        <p className={styles.loading}>Loading…</p>
+      </div>
+    );
+  }
+  if (auth.status === "signed-out") {
+    return <SignInGate title="Race" />;
+  }
+  return <RaceConsole />;
+}
+
+function RaceConsole() {
+  const [address, setAddress] = useStoredState("race:sauce-address", DEFAULT_SAUCE_ADDRESS, (v) =>
+    typeof v === "string" && v.trim() ? v : null,
+  );
+  const [addressDraft, setAddressDraft] = useState(address);
+  const [status, setStatus] = useState<FeedStatus>("connecting");
+  const [watching, setWatching] = useState<SauceAthleteData | null>(null);
+  const [groups, setGroups] = useState<SauceGroup[]>([]);
+  const [recording, setRecording] = useState(false);
+  const [events, setEvents] = useState<RaceEvent[]>([]);
+  const [elapsed, setElapsed] = useState(0);
+  const [saved, setSaved] = useState<RaceLog[]>(() => {
+    // A log still marked current is one a refresh or crash cut short. It's
+    // finished as it stands rather than resumed: the race has moved on.
+    const orphan = loadCurrentLog();
+    if (orphan) {
+      orphan.endedAt ??= new Date().toISOString();
+      return archiveLog(orphan);
+    }
+    return loadSavedLogs();
+  });
+  const recorder = useRef<RaceRecorder | null>(null);
+
+  useEffect(() => {
+    return connectSauce(address, {
+      onStatus: setStatus,
+      onWatching: (data) => {
+        setWatching(data);
+        const r = recorder.current;
+        if (r) {
+          const before = r.log.events.length;
+          r.watching(data);
+          if (r.log.events.length !== before) setEvents(r.log.events.slice(-FEED_EVENTS));
+        }
+      },
+      onGroups: (g) => {
+        setGroups(g);
+        const r = recorder.current;
+        if (r) {
+          const before = r.log.events.length;
+          r.groups(g);
+          if (r.log.events.length !== before) setEvents(r.log.events.slice(-FEED_EVENTS));
+        }
+      },
+      onChat: (chat) => {
+        const r = recorder.current;
+        if (r) {
+          r.chat(chat);
+          setEvents(r.log.events.slice(-FEED_EVENTS));
+        }
+      },
+    });
+  }, [address]);
+
+  useEffect(() => {
+    if (!recording) return;
+    const started = Date.now();
+    const tick = setInterval(() => setElapsed(Date.now() - started), 1000);
+    const autosave = setInterval(() => {
+      if (recorder.current) saveCurrentLog(recorder.current.log);
+    }, AUTOSAVE_MS);
+    return () => {
+      clearInterval(tick);
+      clearInterval(autosave);
+    };
+  }, [recording]);
+
+  const start = () => {
+    const r = new RaceRecorder();
+    recorder.current = r;
+    setEvents(r.log.events.slice());
+    setElapsed(0);
+    setRecording(true);
+    saveCurrentLog(r.log);
+  };
+
+  const stop = () => {
+    const r = recorder.current;
+    if (!r) return;
+    recorder.current = null;
+    setRecording(false);
+    const log = r.stop();
+    setEvents(log.events.slice(-FEED_EVENTS));
+    setSaved(archiveLog(log));
+  };
+
+  const s = watching?.state;
+  const ftp = watching?.athlete?.ftp;
+  const weight = watching?.athlete?.weight;
+  const remaining =
+    watching?.remaining == null
+      ? "—"
+      : watching.remainingMetric === "time"
+        ? formatElapsed(Math.max(0, watching.remaining) * 1000)
+        : `${(Math.max(0, watching.remaining) / 1000).toFixed(1)} km`;
+
+  return (
+    <div className={styles.page}>
+      <div className={styles.topBar}>
+        <TabNav
+          items={[
+            { label: "Dashboard", href: "/dashboard" },
+            { label: "Trends", href: "/dashboard/trends" },
+            { label: "Coaching", href: "/dashboard/coaching" },
+            { label: "Race", href: "/dashboard/race", active: true },
+          ]}
+          trailing={<ProfileMenu />}
+        />
+      </div>
+
+      <PageHeader
+        title="Race"
+        subtitle="Live Zwift race data from Sauce for Zwift, recorded for commentary, tactics and the post-race review. Open this page on the Zwift PC."
+      />
+
+      <section className={styles.card}>
+        <div className={styles.connection}>
+          <span className={`${styles.dot} ${styles[status]}`} aria-hidden />
+          <span className={styles.connectionText}>
+            {status === "connected"
+              ? `Connected to Sauce at ${address}`
+              : status === "connecting"
+                ? `Connecting to Sauce at ${address}…`
+                : `Can't reach Sauce at ${address} - retrying`}
+          </span>
+          <form
+            className={styles.addressForm}
+            onSubmit={(e) => {
+              e.preventDefault();
+              const next = addressDraft.trim();
+              if (next) setAddress(next);
+            }}
+          >
+            <input
+              className={styles.addressInput}
+              value={addressDraft}
+              onChange={(e) => setAddressDraft(e.target.value)}
+              aria-label="Sauce address"
+              spellCheck={false}
+            />
+            <button type="submit" className={styles.secondaryButton} disabled={addressDraft.trim() === address}>
+              Connect
+            </button>
+          </form>
+        </div>
+        {status === "disconnected" && (
+          <p className={styles.hint}>
+            Check that Sauce is running with its web server on, and that this page is open on the same PC. If Chrome
+            asks to let this site access devices on your local network, allow it.
+          </p>
+        )}
+      </section>
+
+      <section className={styles.card}>
+        <div className={styles.riderRow}>
+          <div>
+            <div className={styles.riderLabel}>{watching?.self ? "Riding" : "Watching"}</div>
+            <div className={styles.riderName}>{watching ? athleteName(watching) : "Waiting for Zwift…"}</div>
+            {watching?.eventPosition ? (
+              <div className={styles.riderMeta}>
+                {watching.eventPosition} of {watching.eventParticipants ?? "?"}
+              </div>
+            ) : null}
+          </div>
+          <div className={styles.recordControls}>
+            {recording && <span className={styles.recordingBadge}>● REC {formatElapsed(elapsed)}</span>}
+            {recording ? (
+              <button type="button" className={styles.stopButton} onClick={stop}>
+                Stop and save
+              </button>
+            ) : (
+              <button type="button" className={styles.primaryButton} onClick={start} disabled={status !== "connected"}>
+                Start recording
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className={styles.tiles}>
+          <StatTile
+            value={s?.power != null ? `${s.power} W` : "—"}
+            label="Power"
+            subValue={s?.power != null && weight ? `${(s.power / weight).toFixed(1)} W/kg` : undefined}
+          />
+          <StatTile value={s?.heartrate ? `${s.heartrate}` : "—"} label="Heart rate" />
+          <StatTile value={s?.cadence ? `${s.cadence}` : "—"} label="Cadence" />
+          <StatTile value={s?.speed != null ? `${s.speed.toFixed(1)}` : "—"} label="km/h" />
+          <StatTile value={s?.grade != null ? `${(s.grade * 100).toFixed(1)}%` : "—"} label="Gradient" />
+          <StatTile value={remaining} label="To go" />
+          <StatTile
+            value={watching?.wBal != null ? `${(watching.wBal / 1000).toFixed(1)} kJ` : "—"}
+            label="W′ balance"
+            subValue={ftp ? `FTP ${ftp} W` : undefined}
+          />
+        </div>
+      </section>
+
+      <div className={styles.columns}>
+        <section className={styles.card}>
+          <h2 className={styles.cardTitle}>Groups on the road</h2>
+          {groups.length === 0 ? (
+            <p className={styles.empty}>No riders nearby yet.</p>
+          ) : (
+            <table className={styles.groups}>
+              <thead>
+                <tr>
+                  <th>Gap</th>
+                  <th>Riders</th>
+                  <th>Avg power</th>
+                  <th>Speed</th>
+                </tr>
+              </thead>
+              <tbody>
+                {groups.map((g, i) => (
+                  <tr key={g.id ?? i} className={g.watching ? styles.watchedGroup : undefined}>
+                    <td>{g.watching ? "—" : `${g.gap != null && g.gap > 0 ? "+" : ""}${g.gap?.toFixed(0) ?? "?"}s`}</td>
+                    <td>{g.athletes?.length ?? 0}</td>
+                    <td>{g.power != null ? `${Math.round(g.power)} W` : "—"}</td>
+                    <td>{g.speed != null ? `${g.speed.toFixed(1)} km/h` : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+
+        <section className={styles.card}>
+          <h2 className={styles.cardTitle}>Race log</h2>
+          {events.length === 0 ? (
+            <p className={styles.empty}>Start recording to log the race.</p>
+          ) : (
+            <ol className={styles.events}>
+              {events
+                .slice()
+                .reverse()
+                .map((e, i) => (
+                  <li key={`${e.t}-${i}`} className={styles[`event_${e.kind}`]}>
+                    <span className={styles.eventTime}>{formatElapsed(e.t)}</span>
+                    <span>{e.text}</span>
+                  </li>
+                ))}
+            </ol>
+          )}
+        </section>
+      </div>
+
+      <section className={styles.card}>
+        <h2 className={styles.cardTitle}>Saved races</h2>
+        {saved.length === 0 ? (
+          <p className={styles.empty}>Recorded races are kept here, in this browser.</p>
+        ) : (
+          <ul className={styles.saved}>
+            {saved.map((log) => {
+              const end = log.endedAt ? Date.parse(log.endedAt) : Date.parse(log.startedAt);
+              return (
+                <li key={log.id}>
+                  <span>
+                    <strong>{log.rider?.name ?? "Unknown rider"}</strong>{" "}
+                    <span className={styles.savedMeta}>
+                      {new Date(log.startedAt).toLocaleString()} · {formatElapsed(end - Date.parse(log.startedAt))} ·{" "}
+                      {log.events.length} moments
+                    </span>
+                  </span>
+                  <button type="button" className={styles.secondaryButton} onClick={() => downloadLog(log)}>
+                    Download
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+    </div>
+  );
+}

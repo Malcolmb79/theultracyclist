@@ -438,6 +438,7 @@ function SettingsEditor() {
             { label: "Dashboard", href: "/dashboard" },
             { label: "Trends", href: "/dashboard/trends" },
             { label: "Coaching", href: "/dashboard/coaching" },
+            { label: "Race", href: "/dashboard/race" },
           ]}
           trailing={<ProfileMenu />}
         />

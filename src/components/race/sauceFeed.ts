@@ -48,6 +48,11 @@ export interface SauceAthlete {
   /** ISO 3166 numeric; Sauce maps it to a flag via its countries.json. */
   countryCode?: number;
   racingCategory?: string;
+  /** Zwift Racing Score, from the rider's recent race results. */
+  racingScore?: number;
+  level?: number;
+  /** Riding with a real power meter or smart trainer, not estimated power. */
+  powerMeter?: boolean;
   /** W′ capacity in joules; Sauce assumes 20 kJ when the profile has none. */
   wPrime?: number;
   team?: string;
@@ -71,7 +76,13 @@ export interface SauceAthleteData {
   remainingType?: "event" | "route";
   remainingEnd?: number;
   stats?: {
-    power?: { avg?: number; max?: number; np?: number };
+    power?: {
+      avg?: number;
+      max?: number;
+      np?: number;
+      /** Best average power over 5, 15, 60, 300, 1200 and 3600 seconds, since Sauce first saw the rider. */
+      peaks?: Record<string, { avg?: number | null }>;
+    };
     heartrate?: { avg?: number; max?: number };
   };
 }

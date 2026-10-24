@@ -65,6 +65,58 @@ export interface FieldRider {
   power?: number;
   /** Seconds to the watched rider; negative is ahead. */
   gap?: number;
+  profile?: RiderProfile;
+}
+
+/**
+ * What's known of a rider beyond this moment: Zwift's racing score and
+ * category, their level, and their best efforts so far today as watts per
+ * kilo - which says what kind of rider they are, and how hard they've
+ * already gone.
+ */
+export interface RiderProfile {
+  racingScore?: number;
+  category?: string;
+  level?: number;
+  ftpWkg?: number;
+  /** Not on a power meter or smart trainer: their numbers are estimates. */
+  estimatedPower?: boolean;
+  best5sWkg?: number;
+  best15sWkg?: number;
+  best1minWkg?: number;
+  best5minWkg?: number;
+  best20minWkg?: number;
+  /** A rough read of their strengths from those best efforts. */
+  type?: "sprinter" | "puncheur" | "diesel";
+}
+
+/** A rider's profile from Sauce's data, or nothing when there's nothing to go on. */
+export function riderProfile(a: SauceAthleteData): RiderProfile | undefined {
+  const at = a.athlete;
+  const weight = at?.weight;
+  const peak = (sec: number) => {
+    const w = a.stats?.power?.peaks?.[String(sec)]?.avg;
+    return w && weight ? round(w / weight, 1) : undefined;
+  };
+  const p: RiderProfile = {
+    racingScore: at?.racingScore != null ? Math.round(at.racingScore) : undefined,
+    category: at?.racingCategory || undefined,
+    level: at?.level || undefined,
+    ftpWkg: at?.ftp && weight ? round(at.ftp / weight, 1) : undefined,
+    estimatedPower: at?.powerMeter === false || undefined,
+    best5sWkg: peak(5),
+    best15sWkg: peak(15),
+    best1minWkg: peak(60),
+    best5minWkg: peak(300),
+    best20minWkg: peak(1200),
+  };
+  // Only once there's been a real effort to judge by.
+  if (p.best15sWkg && p.best5minWkg && p.best5minWkg >= 3) {
+    if (p.best15sWkg >= 11 && p.best15sWkg / p.best5minWkg >= 2.4) p.type = "sprinter";
+    else if (p.best1minWkg && p.best1minWkg >= 7.5) p.type = "puncheur";
+    else if (p.best15sWkg / p.best5minWkg < 1.9) p.type = "diesel";
+  }
+  return Object.values(p).some((v) => v != null) ? p : undefined;
 }
 
 /** The riders around the watched one right now: their group and the groups either side. */
@@ -76,6 +128,8 @@ export interface FieldSnapshot {
   groupBehind?: FieldRider[];
   /** The race leader, when Sauce can see them. */
   leader?: FieldRider;
+  /** The strongest riders around, by racing score: the ones to watch. */
+  toWatch?: FieldRider[];
 }
 
 export interface GroupSnapshot {
@@ -114,7 +168,15 @@ export interface RaceLog {
   id: string;
   startedAt: string;
   endedAt?: string;
-  rider?: { athleteId: number; name: string; firstName?: string; lastName?: string; ftp?: number; weight?: number };
+  rider?: {
+    athleteId: number;
+    name: string;
+    firstName?: string;
+    lastName?: string;
+    ftp?: number;
+    weight?: number;
+    profile?: RiderProfile;
+  };
   eventSubgroupId?: number;
   event?: EventBrief;
   /** The latest view of the riders around the watched one (only the latest is kept). */
@@ -228,6 +290,8 @@ export class RaceRecorder {
         this.inSurge = false;
       }
     }
+    // Their best efforts grow as the race goes on, so this is kept current.
+    if (this.log.rider) this.log.rider.profile = riderProfile(data);
     if (data.state?.eventSubgroupId) this.log.eventSubgroupId = data.state.eventSubgroupId;
     if (data.remainingMetric) this.log.remainingMetric = data.remainingMetric;
 
@@ -378,6 +442,7 @@ export class RaceRecorder {
         wkg: power != null && weight ? round(power / weight, 1) : undefined,
         power: round(power),
         gap: round(a.gap, 1),
+        profile: riderProfile(a),
       };
     };
     const own = groups[watchedIdx];
@@ -452,6 +517,12 @@ export class RaceRecorder {
       groupAhead: top(groups[watchedIdx - 1]),
       groupBehind: top(groups[watchedIdx + 1]),
       leader: leader && leader.athleteId !== watchedId ? named(leader) : undefined,
+      toWatch: [own, groups[watchedIdx - 1]]
+        .flatMap((g) => g?.athletes ?? [])
+        .filter((a) => a.athleteId !== watchedId && a.athlete?.racingScore)
+        .sort((x, y) => (y.athlete?.racingScore ?? 0) - (x.athlete?.racingScore ?? 0))
+        .slice(0, 3)
+        .map(named),
     };
   }
 

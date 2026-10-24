@@ -153,6 +153,19 @@ function describeEvent(ev: EventBrief | undefined, riders: number | undefined): 
   return parts.length ? `${parts.join(", ")}.` : "";
 }
 
+/** The strongest riders in sight, by racing score, for the pen briefing. */
+function ridersToWatch(log: RaceLog): string {
+  const riders = log.field?.toWatch ?? [];
+  if (!riders.length) return "";
+  const mine = log.rider?.profile?.racingScore;
+  const list = riders.map((r) => {
+    const p = r.profile;
+    const bits = [p?.racingScore != null ? `racing score ${p.racingScore}` : undefined, p?.category, p?.type].filter(Boolean);
+    return `${r.name}${bits.length ? ` (${bits.join(", ")})` : ""}`;
+  });
+  return ` Riders to watch: ${list.join("; ")}.${mine != null ? ` Your racing score: ${mine}.` : ""}`;
+}
+
 export interface KeyMoment {
   /** Same id, same moment: it isn't called again until the cooldown passes. */
   id: string;
@@ -199,7 +212,7 @@ export function keyMoments(log: RaceLog, sinceT: number, clock = Date.now()): Ke
     if (ev || now.t - penT > 10_000) {
       moments.push({
         id: `briefing@${penT}`,
-        text: `In the start pen. ${describeEvent(ev, now.of)}${startsIn != null && startsIn > 0 ? ` Starts in ${formatWait(startsIn)}.` : ""}`,
+        text: `In the start pen. ${describeEvent(ev, now.of)}${startsIn != null && startsIn > 0 ? ` Starts in ${formatWait(startsIn)}.` : ""}${ridersToWatch(log)}`,
       });
     }
     if (startsIn != null && startsIn > 0) {
@@ -312,6 +325,7 @@ export function buildSnapshot(
           nameStyle,
           ftp: log.rider.ftp,
           weightKg: log.rider.weight,
+          profile: log.rider.profile,
         }
       : undefined,
     // "pen" until the race starts: nothing on the road means anything yet.
@@ -356,6 +370,7 @@ export function buildSnapshot(
       groupAhead: log.field.groupAhead,
       groupBehind: log.field.groupBehind,
       leader: log.field.leader,
+      toWatch: log.field.toWatch,
     },
     groups: groups.map((g) => ({
       gapSec: g.gap,

@@ -11,6 +11,7 @@ import {
   DEFAULT_SAUCE_ADDRESS,
   athleteName,
   connectSauce,
+  localNetworkPermission,
   type FeedStatus,
   type SauceAthleteData,
   type SauceGroup,
@@ -55,6 +56,10 @@ function RaceConsole() {
   );
   const [addressDraft, setAddressDraft] = useState(address);
   const [status, setStatus] = useState<FeedStatus>("connecting");
+  // Sticks once an attempt fails, so the help stays up through the retries
+  // rather than flickering with each "connecting".
+  const [failed, setFailed] = useState(false);
+  const [permission, setPermission] = useState<PermissionState | null>(null);
   const [watching, setWatching] = useState<SauceAthleteData | null>(null);
   const [groups, setGroups] = useState<SauceGroup[]>([]);
   const [recording, setRecording] = useState(false);
@@ -74,7 +79,14 @@ function RaceConsole() {
 
   useEffect(() => {
     return connectSauce(address, {
-      onStatus: setStatus,
+      onStatus: (next) => {
+        setStatus(next);
+        if (next === "connected") setFailed(false);
+        if (next === "disconnected") {
+          setFailed(true);
+          localNetworkPermission().then(setPermission);
+        }
+      },
       onWatching: (data) => {
         setWatching(data);
         const r = recorder.current;
@@ -170,9 +182,9 @@ function RaceConsole() {
           <span className={styles.connectionText}>
             {status === "connected"
               ? `Connected to Sauce at ${address}`
-              : status === "connecting"
-                ? `Connecting to Sauce at ${address}…`
-                : `Can't reach Sauce at ${address} - retrying`}
+              : failed
+                ? `Can't reach Sauce at ${address} - retrying`
+                : `Connecting to Sauce at ${address}…`}
           </span>
           <form
             className={styles.addressForm}
@@ -194,11 +206,31 @@ function RaceConsole() {
             </button>
           </form>
         </div>
-        {status === "disconnected" && (
-          <p className={styles.hint}>
-            Check that Sauce is running with its web server on, and that this page is open on the same PC. If Chrome
-            asks to let this site access devices on your local network, allow it.
-          </p>
+        {status !== "connected" && failed && (
+          <div className={styles.hint}>
+            {permission === "denied" ? (
+              <p>
+                Chrome is blocking this site from reaching Sauce. Click the site settings icon to the left of the
+                address bar, set <strong>Local network access</strong> to <strong>Allow</strong>, then reload.
+              </p>
+            ) : permission === "prompt" ? (
+              <p>
+                Chrome needs your permission to let this site reach Sauce. Look for a prompt under the address bar
+                asking to access devices on your local network, and allow it. If there isn't one, click the site
+                settings icon to the left of the address bar and set <strong>Local network access</strong> to{" "}
+                <strong>Allow</strong>, then reload.
+              </p>
+            ) : (
+              <p>
+                Check that Sauce is running with its web server on, that this page is open on the same PC, and that{" "}
+                <a href={`http://${address}`} target="_blank" rel="noreferrer">
+                  {address}
+                </a>{" "}
+                opens. If Chrome's site settings (the icon left of the address bar) list{" "}
+                <strong>Local network access</strong>, set it to <strong>Allow</strong> and reload.
+              </p>
+            )}
+          </div>
         )}
       </section>
 

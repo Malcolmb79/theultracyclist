@@ -108,6 +108,12 @@ export const DEFAULT_SAUCE_ADDRESS = "localhost:1080";
 /** Starts at 1s and stretches to 15s while Sauce stays down. */
 const MIN_BACKOFF_MS = 1000;
 const MAX_BACKOFF_MS = 15_000;
+/**
+ * Chrome holds a connection to localhost open, neither failing nor
+ * connecting, while it waits on its local network access permission. Give
+ * up after this long so the page can say so instead of spinning forever.
+ */
+const CONNECT_TIMEOUT_MS = 8000;
 
 /**
  * Connects to Sauce and keeps reconnecting until the returned function is
@@ -134,6 +140,9 @@ export function connectSauce(address: string, handlers: FeedHandlers): () => voi
       return;
     }
     ws = socket;
+    const timeout = setTimeout(() => {
+      if (socket.readyState === WebSocket.CONNECTING) socket.close();
+    }, CONNECT_TIMEOUT_MS);
 
     // uid -> event name, for the events subscribed on this socket.
     const subs = new Map<number, string>();
@@ -145,6 +154,7 @@ export function connectSauce(address: string, handlers: FeedHandlers): () => voi
     };
 
     socket.addEventListener("open", () => {
+      clearTimeout(timeout);
       backoff = MIN_BACKOFF_MS;
       handlers.onStatus("connected");
       subscribe("athlete/watching");
@@ -174,6 +184,7 @@ export function connectSauce(address: string, handlers: FeedHandlers): () => voi
     });
 
     socket.addEventListener("close", () => {
+      clearTimeout(timeout);
       if (ws === socket) ws = null;
       if (stopped) return;
       handlers.onStatus("disconnected");
@@ -195,6 +206,23 @@ export function connectSauce(address: string, handlers: FeedHandlers): () => voi
     ws?.close();
     ws = null;
   };
+}
+
+/**
+ * Chrome's answer on letting this site reach localhost, where it can say.
+ * The permission has been renamed as it rolled out, so each name is tried;
+ * a browser that knows none of them returns null and doesn't gate it.
+ */
+export async function localNetworkPermission(): Promise<PermissionState | null> {
+  for (const name of ["loopback-network", "local-network-access", "local-network"]) {
+    try {
+      const result = await navigator.permissions.query({ name: name as PermissionName });
+      return result.state;
+    } catch {
+      // Not a permission this browser knows.
+    }
+  }
+  return null;
 }
 
 export function athleteName(a: SauceAthleteData | undefined): string {

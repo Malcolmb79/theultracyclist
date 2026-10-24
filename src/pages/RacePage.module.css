@@ -283,3 +283,11 @@
     gap: 0;
   }
 }
+
+.hint p {
+  margin: 0;
+}
+
+.hint a {
+  color: var(--color-accent-2);
+}

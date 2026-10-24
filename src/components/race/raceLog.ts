@@ -56,6 +56,28 @@ export interface GroupSummary {
   watching?: boolean;
 }
 
+/** A named rider on the road, for commentary about the rest of the race. */
+export interface FieldRider {
+  name: string;
+  team?: string;
+  pos?: number;
+  wkg?: number;
+  power?: number;
+  /** Seconds to the watched rider; negative is ahead. */
+  gap?: number;
+}
+
+/** The riders around the watched one right now: their group and the groups either side. */
+export interface FieldSnapshot {
+  t: number;
+  /** The rider's own group, hardest-working first. */
+  ridersGroup: FieldRider[];
+  groupAhead?: FieldRider[];
+  groupBehind?: FieldRider[];
+  /** The race leader, when Sauce can see them. */
+  leader?: FieldRider;
+}
+
 export interface GroupSnapshot {
   t: number;
   groups: GroupSummary[];
@@ -75,6 +97,10 @@ export type RaceEventKind =
   | "tactic"
   | "pen"
   | "go"
+  | "attack"
+  | "dropped"
+  | "bridged"
+  | "leader"
   | "stop";
 
 export interface RaceEvent {
@@ -91,6 +117,8 @@ export interface RaceLog {
   rider?: { athleteId: number; name: string; firstName?: string; lastName?: string; ftp?: number; weight?: number };
   eventSubgroupId?: number;
   event?: EventBrief;
+  /** The latest view of the riders around the watched one (only the latest is kept). */
+  field?: FieldSnapshot;
   remainingMetric?: "time" | "distance";
   samples: RaceSample[];
   groups: GroupSnapshot[];
@@ -107,6 +135,18 @@ const POSITION_STEP = 3;
 const SURGE_FTP = 1.5;
 const SURGE_SECONDS = 5;
 /** Nearest first, so the marker just crossed is the first one that matches. */
+/** Riders named per group in the field snapshot - enough to talk about, not a start list. */
+const FIELD_PER_GROUP = 6;
+/** An attack: a rider at this many watts per kilo, and this far over their group's average... */
+const ATTACK_MIN_WKG = 5;
+const ATTACK_RATIO = 1.4;
+/** ...seen in this many group updates running (they come about a second apart). */
+const ATTACK_SAMPLES = 4;
+/** One attack per rider in this long, however many times they kick. */
+const ATTACK_COOLDOWN_MS = 60_000;
+/** Riders named at most per dropped or bridged line. */
+const NAMES_PER_LINE = 3;
+
 const DISTANCE_MARKERS_M = [200, 500, 1000, 2000, 3000, 5000, 10_000, 20_000];
 
 function round(n: number | undefined, dp = 0): number | undefined {
@@ -137,6 +177,14 @@ export class RaceRecorder {
   private lastPowerUp: string | undefined;
   private passedMarkers = new Set<number>();
   private inPen: boolean | undefined;
+  /** Which group each rider was in last time, relative to the watched rider's (0 = same, -1 ahead). */
+  private riderGroup = new Map<number, number>();
+  private attackStreak = new Map<number, number>();
+  private attackedAt = new Map<number, number>();
+  /** When each rider was last called dropped or bridged - riders at a group's edge flicker between groups. */
+  private movedAt = new Map<number, number>();
+  private leaderId: number | undefined;
+  private lastFieldAt = -Infinity;
 
   constructor(now = Date.now()) {
     this.start = now;
@@ -295,6 +343,8 @@ export class RaceRecorder {
       // carries on it is measured against where the group started.
     }
 
+    if (watchedIdx >= 0) this.followField(groups, watchedIdx, now);
+
     if (now - this.lastGroupsAt < GROUPS_EVERY_MS) return;
     this.lastGroupsAt = now;
     const from = Math.max(0, (watchedIdx >= 0 ? watchedIdx : 0) - Math.floor(MAX_GROUPS / 2));
@@ -308,6 +358,101 @@ export class RaceRecorder {
         watching: g.watching || undefined,
       })),
     });
+  }
+
+  /**
+   * The rest of the race: who's in the rider's group and the groups either
+   * side, and the moments involving other riders - an attack, riders
+   * dropped from the group or bridging up to it, a new race leader.
+   */
+  private followField(groups: SauceGroup[], watchedIdx: number, now: number) {
+    const named = (a: SauceGroup["athletes"][number]): FieldRider => {
+      const first = cleanName(a.athlete?.firstName);
+      const last = cleanName(a.athlete?.lastName);
+      const power = a.state?.power;
+      const weight = a.athlete?.weight;
+      return {
+        name: [first, last].filter(Boolean).join(" ") || `Rider ${a.athleteId}`,
+        team: a.athlete?.team?.trim() || undefined,
+        pos: a.eventPosition || undefined,
+        wkg: power != null && weight ? round(power / weight, 1) : undefined,
+        power: round(power),
+        gap: round(a.gap, 1),
+      };
+    };
+    const own = groups[watchedIdx];
+    const watchedId = this.log.rider?.athleteId;
+
+    // Attacks from the rider's own group or the one ahead of it.
+    for (const g of [own, groups[watchedIdx - 1]]) {
+      if (!g?.athletes?.length) continue;
+      const avgWkg = g.weight && g.power ? g.power / g.weight : undefined;
+      for (const a of g.athletes) {
+        const r = named(a);
+        const attacking = r.wkg != null && r.wkg >= ATTACK_MIN_WKG && (!avgWkg || r.wkg >= avgWkg * ATTACK_RATIO);
+        const streak = attacking ? (this.attackStreak.get(a.athleteId) ?? 0) + 1 : 0;
+        this.attackStreak.set(a.athleteId, streak);
+        if (streak === ATTACK_SAMPLES && a.athleteId !== watchedId &&
+            now - (this.attackedAt.get(a.athleteId) ?? -Infinity) >= ATTACK_COOLDOWN_MS) {
+          this.attackedAt.set(a.athleteId, now);
+          const where = g === own ? "from the group" : "in the group ahead";
+          this.event("attack", `${r.name} attacks ${where} at ${r.wkg} W/kg (${r.power} W)`, now);
+        }
+      }
+    }
+
+    // Riders changing group relative to the rider's: dropped, or bridging up.
+    const dropped: string[] = [];
+    const bridged: string[] = [];
+    const seen = new Map<number, number>();
+    groups.forEach((g, i) => {
+      for (const a of g.athletes ?? []) {
+        if (a.athleteId === watchedId) continue;
+        const rel = Math.sign(i - watchedIdx);
+        seen.set(a.athleteId, rel);
+        const before = this.riderGroup.get(a.athleteId);
+        const settled = now - (this.movedAt.get(a.athleteId) ?? -Infinity) >= ATTACK_COOLDOWN_MS;
+        if (before === 0 && rel > 0 && settled) {
+          dropped.push(named(a).name);
+          this.movedAt.set(a.athleteId, now);
+        }
+        if (before != null && before > 0 && rel === 0 && settled) {
+          bridged.push(named(a).name);
+          this.movedAt.set(a.athleteId, now);
+        }
+      }
+    });
+    // A whole-group split or merge is already its own event; this is for
+    // riders coming and going one or two at a time.
+    const lines = (names: string[]) => names.slice(0, NAMES_PER_LINE).join(", ") + (names.length > NAMES_PER_LINE ? ` and ${names.length - NAMES_PER_LINE} more` : "");
+    if (dropped.length && dropped.length <= 4) this.event("dropped", `${lines(dropped)} ${dropped.length === 1 ? "has" : "have"} been dropped from the group`, now);
+    if (bridged.length && bridged.length <= 4) this.event("bridged", `${lines(bridged)} ${bridged.length === 1 ? "has" : "have"} bridged up to the group`, now);
+    this.riderGroup = seen;
+
+    // The race leader, when they're in sight.
+    const leader = groups.flatMap((g) => g.athletes ?? []).find((a) => a.eventPosition === 1);
+    if (leader && leader.athleteId !== this.leaderId) {
+      if (this.leaderId != null) this.event("leader", `${named(leader).name} takes the lead of the race`, now);
+      this.leaderId = leader.athleteId;
+    }
+
+    if (now - this.lastFieldAt < GROUPS_EVERY_MS) return;
+    this.lastFieldAt = now;
+    const top = (g: SauceGroup | undefined) =>
+      g?.athletes?.length
+        ? g.athletes
+            .filter((a) => a.athleteId !== watchedId)
+            .map(named)
+            .sort((x, y) => (y.wkg ?? 0) - (x.wkg ?? 0))
+            .slice(0, FIELD_PER_GROUP)
+        : undefined;
+    this.log.field = {
+      t: this.at(now),
+      ridersGroup: top(own) ?? [],
+      groupAhead: top(groups[watchedIdx - 1]),
+      groupBehind: top(groups[watchedIdx + 1]),
+      leader: leader && leader.athleteId !== watchedId ? named(leader) : undefined,
+    };
   }
 
   /** A line of commentary or a tactical call, kept so the review can see what was said. */

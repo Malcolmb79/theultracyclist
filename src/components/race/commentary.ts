@@ -75,11 +75,23 @@ const CLIMB_PCT = 4;
  */
 export const MOMENT_COOLDOWN_MS = 45_000;
 /** Race events that are key moments for the coach in their own right. */
-const MOMENT_EVENTS = new Set<RaceEvent["kind"]>(["split", "merge", "distance", "position", "go"]);
+const MOMENT_EVENTS = new Set<RaceEvent["kind"]>(["split", "merge", "distance", "position", "go", "attack"]);
 /** Countdown calls in the pen, seconds before the start - the last one just before the off. */
 const COUNTDOWN_CALLS_SEC = [120, 60, 15];
 /** Moments worth cutting in for, rather than waiting for the next line. */
-const NEWSWORTHY = new Set<RaceEvent["kind"]>(["position", "split", "merge", "surge", "powerup", "distance", "watching"]);
+const NEWSWORTHY = new Set<RaceEvent["kind"]>([
+  "position",
+  "split",
+  "merge",
+  "surge",
+  "powerup",
+  "distance",
+  "watching",
+  "attack",
+  "dropped",
+  "bridged",
+  "leader",
+]);
 const WINDOW_MS = 60_000;
 const RECENT_EVENTS = 8;
 /** Enough of what was just said to carry the conversation on from it. */
@@ -338,6 +350,13 @@ export function buildSnapshot(
           climbedM: climb,
         }
       : undefined,
+    // The other riders, by name: the rider's group and the groups either side.
+    field: log.field && {
+      ridersGroup: log.field.ridersGroup,
+      groupAhead: log.field.groupAhead,
+      groupBehind: log.field.groupBehind,
+      leader: log.field.leader,
+    },
     groups: groups.map((g) => ({
       gapSec: g.gap,
       riders: g.size,

@@ -129,7 +129,7 @@ export const TACTICS_FINALE_GAP_MS = 6_000;
  * and of the distance markers only the ones where positioning and the
  * timing of the final effort are decided count (TACTIC_MARKERS).
  */
-const MOMENT_EVENTS = new Set<RaceEvent["kind"]>(["split", "merge", "distance", "go", "attack"]);
+const MOMENT_EVENTS = new Set<RaceEvent["kind"]>(["split", "merge", "distance", "go", "attack", "powerup"]);
 const TACTIC_MARKERS = /^(1 km|500 m|200 m) to go$/;
 /** Countdown calls in the pen, seconds before the start - the last one just before the off. */
 const COUNTDOWN_CALLS_SEC = [120, 60, 15];
@@ -398,6 +398,8 @@ export function keyMoments(log: RaceLog, sinceT: number, clock = Date.now()): Ke
   for (const e of log.events) {
     if (e.t <= sinceT || !MOMENT_EVENTS.has(e.kind)) continue;
     if (e.kind === "distance" && !TACTIC_MARKERS.test(e.text)) continue;
+    // A rival's power-up is a decision (chase the Feather or let it burn out); the rider's own isn't news to them.
+    if (e.kind === "powerup" && log.rider && e.text.startsWith(log.rider.name)) continue;
     // A split with the rider behind: say how big the gap and the groups are.
     if (e.kind === "split" && ahead && ahead.gapSec <= CLOSE_GAP_SEC) {
       const b = bridgeTarget(ahead.gapSec, ahead.speedKmh, now);

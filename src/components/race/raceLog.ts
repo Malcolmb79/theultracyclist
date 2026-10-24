@@ -1,3 +1,4 @@
+import { powerUp } from "./powerUps";
 import { athleteName, cleanName, type SauceAthleteData, type SauceChat, type SauceGroup } from "./sauceFeed";
 
 // A race as a timestamped record: a one-second trace of the watched rider,
@@ -28,6 +29,7 @@ export interface RaceSample {
   remaining?: number;
   /** Joules. */
   wBal?: number;
+  /** The active power-up by its Zwift name: Feather, Van, Aero helmet... */
   powerUp?: string;
   /** In an event's start pen: signed in to it, not yet under way. */
   pen?: boolean;
@@ -310,6 +312,8 @@ export class RaceRecorder {
   private attackedAt = new Map<number, number>();
   /** When each rider was last called dropped or bridged - riders at a group's edge flicker between groups. */
   private movedAt = new Map<number, number>();
+  /** Each rival's power-up last time, so using one is logged once. */
+  private riderPowerUp = new Map<number, string | undefined>();
   private leaderId: number | undefined;
   private lastFieldAt = -Infinity;
 
@@ -378,7 +382,7 @@ export class RaceRecorder {
       of: data.eventParticipants || undefined,
       remaining: round(data.remaining),
       wBal: round(data.wBal),
-      powerUp: s.activePowerUp || undefined,
+      powerUp: powerUp(s.activePowerUp)?.name,
       // Zwift counts event distance from the start banner, so a rider signed
       // in to an event with none of it ridden and not moving is in the pen.
       pen: (!!s.eventSubgroupId && !(s.eventDistance && s.eventDistance > 0) && (s.speed ?? 0) < 2) || undefined,
@@ -434,8 +438,9 @@ export class RaceRecorder {
       }
     }
 
-    if (sample.powerUp && sample.powerUp !== this.lastPowerUp) {
-      this.event("powerup", `${name} uses a ${sample.powerUp.toLowerCase().replace(/_/g, " ")} power-up`, now);
+    const pu = powerUp(data.state?.activePowerUp);
+    if (pu && sample.powerUp !== this.lastPowerUp) {
+      this.event("powerup", `${name} uses the ${pu.name}${pu.effect ? ` (${pu.effect})` : ""}`, now);
     }
     this.lastPowerUp = sample.powerUp;
 
@@ -576,6 +581,20 @@ export class RaceRecorder {
             now,
           );
         }
+      }
+    }
+
+    // Power-ups used by the riders around - a rival on the Feather is a story.
+    for (const g of [own, groups[watchedIdx - 1], groups[watchedIdx + 1]]) {
+      for (const a of g?.athletes ?? []) {
+        if (a.athleteId === watchedId) continue;
+        const pu = powerUp(a.state?.activePowerUp);
+        const before = this.riderPowerUp.get(a.athleteId);
+        if (pu && pu.name !== before && this.riderPowerUp.has(a.athleteId)) {
+          const where = g === own ? "" : g === groups[watchedIdx - 1] ? " in the group ahead" : " in the group behind";
+          this.event("powerup", `${named(a).name}${where} uses the ${pu.name}${pu.effect ? ` (${pu.effect})` : ""}`, now);
+        }
+        this.riderPowerUp.set(a.athleteId, pu?.name);
       }
     }
 

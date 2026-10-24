@@ -388,3 +388,9 @@
   font: inherit;
   font-size: 0.9rem;
 }
+
+.voiceNote {
+  flex-basis: 100%;
+  color: var(--color-amber);
+  font-size: 0.85rem;
+}

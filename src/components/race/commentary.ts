@@ -156,7 +156,59 @@ export function speak(text: string, voiceName?: string | null) {
   }
 }
 
+/**
+ * OpenAI's voices (api/_routes/race-voice.ts keeps the same list). Ash is
+ * the default: low and warm, which suits a commentary box.
+ */
+export const NATURAL_VOICES = ["ash", "ballad", "cedar", "coral", "echo", "fable", "marin", "onyx", "nova", "sage", "shimmer", "verse", "alloy"];
+
+let natural: HTMLAudioElement | null = null;
+
+export class VoiceUnavailableError extends Error {
+  readonly notConfigured: boolean;
+
+  constructor(message: string, notConfigured = false) {
+    super(message);
+    this.notConfigured = notConfigured;
+  }
+}
+
+/**
+ * Speaks a line with OpenAI's text-to-speech via /api/race-voice. Resolves
+ * once it starts playing; throws VoiceUnavailableError so the caller can
+ * fall back to the browser's voice.
+ */
+export async function speakNatural(apiBase: string, token: string | null, text: string, voice: string) {
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (token) headers.authorization = `Bearer ${token}`;
+  const res = await fetch(`${apiBase}/api/race-voice`, {
+    method: "POST",
+    headers,
+    credentials: apiBase ? "omit" : "same-origin",
+    body: JSON.stringify({ text, voice }),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { code?: string };
+    throw new VoiceUnavailableError(`Natural voice failed (${res.status}).`, body.code === "not-configured");
+  }
+  const url = URL.createObjectURL(await res.blob());
+  stopSpeaking();
+  const audio = new Audio(url);
+  audio.addEventListener("ended", () => URL.revokeObjectURL(url), { once: true });
+  natural = audio;
+  try {
+    await audio.play();
+  } catch {
+    URL.revokeObjectURL(url);
+    throw new VoiceUnavailableError("The browser blocked the audio - click anywhere on the page and it'll play.");
+  }
+}
+
 export function stopSpeaking() {
+  if (natural) {
+    natural.pause();
+    natural = null;
+  }
   try {
     window.speechSynthesis?.cancel();
   } catch {
@@ -165,6 +217,7 @@ export function stopSpeaking() {
 }
 
 export function isSpeaking(): boolean {
+  if (natural && !natural.paused && !natural.ended) return true;
   try {
     return !!window.speechSynthesis?.speaking;
   } catch {

@@ -5,12 +5,15 @@ import {
   COMMENTARY_EVERY_MS,
   COMMENTARY_MIN_GAP_MS,
   buildSnapshot,
+  NATURAL_VOICES,
+  VoiceUnavailableError,
   englishVoices,
   onlyBasicVoices,
   isNewsworthy,
   isSpeaking,
   requestCommentary,
   speak,
+  speakNatural,
   stopSpeaking,
 } from "./commentary";
 import styles from "./RaceConsole.module.css";
@@ -18,6 +21,9 @@ import styles from "./RaceConsole.module.css";
 const SHOWN_LINES = 6;
 /** Waiting on the voice to finish is polite, up to a point. */
 const MAX_WAIT_FOR_VOICE_MS = 15_000;
+const TEST_LINE = "And they're off! Let's see who's got the legs today.";
+
+type Engine = "natural" | "browser";
 
 interface Props {
   recorder: RefObject<RaceRecorder | null>;
@@ -40,14 +46,41 @@ export default function CommentaryCard({ recorder, recording, apiBase, needsKey,
     typeof v === "string" ? v : null,
   );
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>(() => englishVoices());
+  const [engine, setEngine] = useStoredState<Engine>("race:commentary-engine", "natural", (v) =>
+    v === "natural" || v === "browser" ? v : null,
+  );
+  const [naturalVoice, setNaturalVoice] = useStoredState("race:commentary-natural-voice", NATURAL_VOICES[0], (v) =>
+    typeof v === "string" && NATURAL_VOICES.includes(v) ? v : null,
+  );
+  // Why the last line fell back to the browser's voice, if it did.
+  const [voiceNote, setVoiceNote] = useState<string | null>(null);
   const [keyDraft, setKeyDraft] = useState("");
   const [lines, setLines] = useState<{ at: number; text: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  /** Speaks a line in the chosen voice, falling back to the browser's own. */
+  const say = async (text: string) => {
+    if (engine === "browser") {
+      speak(text, voiceName);
+      return;
+    }
+    try {
+      await speakNatural(apiBase, needsKey ? key : null, text, naturalVoice);
+      setVoiceNote(null);
+    } catch (e) {
+      setVoiceNote(
+        e instanceof VoiceUnavailableError && e.notConfigured
+          ? "The natural voice isn't set up yet: add OPENAI_API_KEY to the site's Vercel settings. Using the browser voice meanwhile."
+          : `${e instanceof Error ? e.message : "Natural voice failed."} Using the browser voice for now.`,
+      );
+      speak(text, voiceName);
+    }
+  };
+
   // Read inside the timer, which is set up once per recording.
-  const live = useRef({ enabled, voice, voiceName, key, onLine });
-  live.current = { enabled, voice, voiceName, key, onLine };
+  const live = useRef({ enabled, voice, key, onLine, say });
+  live.current = { enabled, voice, key, onLine, say };
 
   // Voices load after the page does, and Edge's online ones can arrive late.
   useEffect(() => {
@@ -88,7 +121,7 @@ export default function CommentaryCard({ recorder, recording, apiBase, needsKey,
         if (text && recorder.current === r && live.current.enabled) {
           r.commentary(text);
           setLines((prev) => [{ at: snapshotT, text }, ...prev].slice(0, SHOWN_LINES));
-          if (live.current.voice) speak(text, live.current.voiceName);
+          if (live.current.voice) void live.current.say(text);
           live.current.onLine();
         }
       } catch (e) {
@@ -130,33 +163,55 @@ export default function CommentaryCard({ recorder, recording, apiBase, needsKey,
         </div>
       </div>
 
-      {voice && voices.length > 0 && (
+      {voice && (
         <div className={styles.voiceRow}>
           <select
             className={styles.voiceSelect}
-            value={voices.some((v) => v.name === voiceName) ? (voiceName ?? "") : voices[0].name}
-            onChange={(e) => setVoiceName(e.target.value)}
-            aria-label="Commentary voice"
+            value={engine}
+            onChange={(e) => setEngine(e.target.value as Engine)}
+            aria-label="Voice type"
           >
-            {voices.map((v) => (
-              <option key={v.name} value={v.name}>
-                {v.name}
-              </option>
-            ))}
+            <option value="natural">Natural voice (OpenAI)</option>
+            <option value="browser">Browser voice</option>
           </select>
-          <button
-            type="button"
-            className={styles.secondaryButton}
-            onClick={() => speak("And they're off! Let's see who's got the legs today.", voiceName)}
-          >
+          {engine === "natural" ? (
+            <select
+              className={styles.voiceSelect}
+              value={naturalVoice}
+              onChange={(e) => setNaturalVoice(e.target.value)}
+              aria-label="Commentary voice"
+            >
+              {NATURAL_VOICES.map((v) => (
+                <option key={v} value={v}>
+                  {v[0].toUpperCase() + v.slice(1)}
+                </option>
+              ))}
+            </select>
+          ) : (
+            voices.length > 0 && (
+              <select
+                className={styles.voiceSelect}
+                value={voices.some((v) => v.name === voiceName) ? (voiceName ?? "") : voices[0].name}
+                onChange={(e) => setVoiceName(e.target.value)}
+                aria-label="Commentary voice"
+              >
+                {voices.map((v) => (
+                  <option key={v.name} value={v.name}>
+                    {v.name}
+                  </option>
+                ))}
+              </select>
+            )
+          )}
+          <button type="button" className={styles.secondaryButton} onClick={() => void say(TEST_LINE)}>
             Test voice
           </button>
-          {onlyBasicVoices(voices) && (
+          {engine === "browser" && onlyBasicVoices(voices) && (
             <span className={styles.savedMeta}>
-              These voices are the basic Windows ones. For far more natural speech, open this page in Microsoft Edge
-              and pick a voice with "Natural" in its name.
+              These are the basic Windows voices. The natural voice sounds far more human.
             </span>
           )}
+          {voiceNote && <span className={styles.voiceNote}>{voiceNote}</span>}
         </div>
       )}
 

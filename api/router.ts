@@ -42,6 +42,7 @@ const ROUTES: Record<string, () => Promise<RouteModule>> = {
   "progress-photos": () => import("./_routes/progress-photos.js"),
   "race-commentary": () => import("./_routes/race-commentary.js"),
   "race-token": () => import("./_routes/race-token.js"),
+  "race-voice": () => import("./_routes/race-voice.js"),
   "send-checkin": () => import("./_routes/send-checkin.js"),
   "site-photos": () => import("./_routes/site-photos.js"),
   "site-portrait": () => import("./_routes/site-portrait.js"),

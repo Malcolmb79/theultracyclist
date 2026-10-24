@@ -9,6 +9,7 @@ import {
   RADIO_TIMING,
   nextSilenceMs,
   MOMENT_COOLDOWN_MS,
+  fetchRiderFitness,
   keyMoments,
   buildSnapshot,
   VoiceUnavailableError,
@@ -22,11 +23,13 @@ import {
   stopSpeaking,
   type CommentaryPace,
   type NameStyle,
+  type RiderFitness,
   type RadioMode,
 } from "./commentary";
 import styles from "./RaceConsole.module.css";
 
 const SHOWN_LINES = 6;
+const FITNESS_REFRESH_MS = 30 * 60_000;
 /** Waiting on the voice to finish is polite, up to a point. */
 const MAX_WAIT_FOR_VOICE_MS = 15_000;
 const TEST_LINE: Record<RadioMode, string> = {
@@ -96,6 +99,7 @@ export default function RadioCard({
   const [keyDraft, setKeyDraft] = useState("");
   const [lines, setLines] = useState<{ at: number; text: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [fitness, setFitness] = useState<RiderFitness | undefined>(undefined);
   const [busy, setBusy] = useState(false);
 
   /** Speaks a line in the chosen voice, falling back to the browser's own. */
@@ -118,8 +122,26 @@ export default function RadioCard({
   };
 
   // Read inside the timer, which is set up once per recording.
-  const live = useRef({ enabled, voice, key, onLine, say, nameStyle });
-  live.current = { enabled, voice, key, onLine, say, nameStyle };
+  const live = useRef({ enabled, voice, key, onLine, say, nameStyle, fitness, ridingSelf });
+  live.current = { enabled, voice, key, onLine, say, nameStyle, fitness, ridingSelf };
+
+  // The athlete's own fitness, read when the radio starts and every half
+  // hour - it changes day to day, not lap to lap. Not having it costs
+  // nothing but the extra context.
+  useEffect(() => {
+    if (needsKey && !key) return;
+    let cancelled = false;
+    const load = () =>
+      fetchRiderFitness(apiBase, needsKey ? key : null)
+        .then((f) => !cancelled && setFitness(f))
+        .catch(() => {});
+    void load();
+    const timer = setInterval(load, FITNESS_REFRESH_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [apiBase, needsKey, key]);
 
   // Voices load after the page does, and Edge's online ones can arrive late.
   useEffect(() => {
@@ -171,7 +193,14 @@ export default function RadioCard({
         const text = await requestCommentary(
           apiBase,
           needsKey ? live.current.key : null,
-          buildSnapshot(r.log, lastT, mode, moments, live.current.nameStyle),
+          buildSnapshot(
+            r.log,
+            lastT,
+            mode,
+            moments,
+            live.current.nameStyle,
+            live.current.ridingSelf ? live.current.fitness : undefined,
+          ),
           mode,
         );
         lastT = snapshotT;

@@ -69,7 +69,7 @@ export function applyRaceCors(req: VercelRequest, setHeader: (name: string, valu
   const origin = req.headers.origin;
   if (typeof origin === "string" && (origin === "null" || origin === "file://" || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin))) {
     setHeader("Access-Control-Allow-Origin", origin);
-    setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
     setHeader("Access-Control-Max-Age", "600");
     setHeader("Vary", "Origin");

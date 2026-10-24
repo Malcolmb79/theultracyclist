@@ -304,6 +304,8 @@ export function buildSnapshot(
   mode: RadioMode = "commentary",
   moments: KeyMoment[] = [],
   nameStyle: NameStyle = "surname",
+  /** The athlete's own fitness - pass it only while they're the one riding. */
+  yourFitness?: RiderFitness,
 ) {
   const samples = log.samples;
   const now: RaceSample | undefined = samples.at(-1);
@@ -328,6 +330,7 @@ export function buildSnapshot(
           profile: log.rider.profile,
         }
       : undefined,
+    yourFitness,
     // "pen" until the race starts: nothing on the road means anything yet.
     phase: now?.pen ? ("pen" as const) : ("racing" as const),
     event: log.event && {
@@ -409,6 +412,23 @@ export function buildSnapshot(
     // What the coach is being asked to call; everything else is context.
     keyMoments: moments.map((m) => m.text),
   };
+}
+
+/**
+ * The athlete's own fitness going into the race, from /api/race-fitness:
+ * fitness, fatigue and form, Garmin readiness, sleep and HRV, and what's
+ * already been ridden today. Only ever about the athlete at this computer,
+ * so it's only given to the commentator and coach while they're the one
+ * riding.
+ */
+export type RiderFitness = Record<string, string | number | null>;
+
+export async function fetchRiderFitness(apiBase: string, token: string | null): Promise<RiderFitness> {
+  const headers: Record<string, string> = {};
+  if (token) headers.authorization = `Bearer ${token}`;
+  const res = await fetch(`${apiBase}/api/race-fitness`, { headers, credentials: apiBase ? "omit" : "same-origin" });
+  if (!res.ok) throw new Error(`Fitness unavailable (${res.status})`);
+  return (await res.json()) as RiderFitness;
 }
 
 export async function requestCommentary(

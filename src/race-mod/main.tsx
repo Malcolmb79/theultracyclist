@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "../styles/global.css";
 import RaceConsole from "../components/race/RaceConsole";
+import { sauceAddressForModPage } from "../components/race/sauceFeed";
 import { SITE } from "./site";
 import styles from "./RaceMod.module.css";
 
@@ -12,7 +13,7 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <div className={styles.page}>
       <h1 className={styles.title}>Ultra Cyclist Race</h1>
-      <RaceConsole defaultAddress={window.location.host} apiBase={SITE} needsKey tacticsOverlay />
+      <RaceConsole defaultAddress={sauceAddressForModPage()} apiBase={SITE} needsKey tacticsOverlay />
     </div>
   </StrictMode>,
 );

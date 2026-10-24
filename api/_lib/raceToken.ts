@@ -59,13 +59,15 @@ export function getRaceAuthEmail(req: VercelRequest): string | null {
 }
 
 /**
- * CORS for the mod. Only pages served from this machine's loopback address
- * (where Sauce serves mods) are let in, and only with a bearer key - no
- * cookies cross over, so this opens nothing a random site could ride on.
+ * CORS for the mod. Only the places Sauce serves mod pages from are let in:
+ * this machine's loopback address in a browser, and file:// pages (origin
+ * "file://" or "null"), which is how Sauce's own windows load them. The routes behind it need a
+ * bearer key and no cookies cross over, so this opens nothing another page
+ * could ride on without the key.
  */
 export function applyRaceCors(req: VercelRequest, setHeader: (name: string, value: string) => void): void {
   const origin = req.headers.origin;
-  if (typeof origin === "string" && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+  if (typeof origin === "string" && (origin === "null" || origin === "file://" || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin))) {
     setHeader("Access-Control-Allow-Origin", origin);
     setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
     setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");

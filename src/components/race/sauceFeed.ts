@@ -105,6 +105,23 @@ export interface FeedHandlers {
 
 export const DEFAULT_SAUCE_ADDRESS = "localhost:1080";
 
+/**
+ * Where Sauce is, for a page Sauce itself serves. In a browser that's the
+ * address the page came from. Sauce's own windows (Electron) load mod pages
+ * from file:///mods/..., which has no host, so they fall back to the
+ * address saved in the console, or Sauce's default port.
+ */
+export function sauceAddressForModPage(): string {
+  if (/^https?:$/.test(window.location.protocol) && window.location.host) return window.location.host;
+  try {
+    const saved: unknown = JSON.parse(window.localStorage.getItem("race:sauce-address") ?? "null");
+    if (typeof saved === "string" && saved.trim()) return saved;
+  } catch {
+    // Nothing saved, or no storage - the default it is.
+  }
+  return DEFAULT_SAUCE_ADDRESS;
+}
+
 /** Starts at 1s and stretches to 15s while Sauce stays down. */
 const MIN_BACKOFF_MS = 1000;
 const MAX_BACKOFF_MS = 15_000;

@@ -3,7 +3,13 @@ import { createRoot } from "react-dom/client";
 import "../styles/global.css";
 import RadioCard from "../components/race/RadioCard";
 import { RaceRecorder } from "../components/race/raceLog";
-import { athleteName, connectSauce, type FeedStatus, type SauceAthleteData } from "../components/race/sauceFeed";
+import {
+  athleteName,
+  connectSauce,
+  sauceAddressForModPage,
+  type FeedStatus,
+  type SauceAthleteData,
+} from "../components/race/sauceFeed";
 import { SITE } from "./site";
 import styles from "./Tactics.module.css";
 
@@ -21,7 +27,7 @@ function TacticsOverlay() {
 
   useEffect(() => {
     document.documentElement.classList.add(styles.transparent);
-    return connectSauce(window.location.host, {
+    return connectSauce(sauceAddressForModPage(), {
       onStatus: setStatus,
       onWatching: (data) => {
         setWatching(data);

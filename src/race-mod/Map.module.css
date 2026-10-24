@@ -1,0 +1,233 @@
+/* Sauce draws frameless mod windows transparent; the map's own background
+   fades with --map-alpha (the Background setting), down to nothing. */
+.transparent,
+.transparent body {
+  background: transparent !important;
+}
+
+.map {
+  --map-alpha: 0.8;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  font-size: 0.85rem;
+  color: var(--color-text);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.map button,
+.map input,
+.map select,
+.map label {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  background: rgba(11, 14, 17, calc(var(--map-alpha) + 0.1));
+  border-bottom: 2px solid var(--color-accent-2);
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.title {
+  flex: 1;
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  letter-spacing: 0.03em;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.on {
+  background: var(--color-accent-2);
+}
+
+.off {
+  background: var(--color-accent);
+}
+
+.gear {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0 var(--space-1);
+}
+
+.gear:hover {
+  color: var(--color-text);
+}
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  background: rgba(20, 24, 29, 0.95);
+  border-bottom: 1px solid var(--color-border);
+  text-shadow: none;
+}
+
+.setting {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.setting > span:first-child {
+  width: 5.5rem;
+  color: var(--color-text-muted);
+}
+
+.setting input[type="range"] {
+  flex: 1;
+  accent-color: var(--color-accent-2);
+}
+
+.setting input[type="checkbox"] {
+  accent-color: var(--color-accent-2);
+}
+
+.setting select {
+  background: var(--color-bg);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font: inherit;
+  padding: 2px var(--space-1);
+}
+
+.settingValue {
+  width: 2.5rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.canvas {
+  flex: 1;
+  min-height: 0;
+  background: rgba(11, 14, 17, var(--map-alpha));
+}
+
+.svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.road {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-width: 1.5px;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.routeGlow {
+  fill: none;
+  stroke: rgba(46, 230, 166, 0.25);
+  stroke-width: 9px;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.route {
+  fill: none;
+  stroke: var(--color-accent-2);
+  stroke-width: 3.5px;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.trail {
+  fill: none;
+  stroke: var(--color-accent);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.rider {
+  fill: rgba(245, 246, 247, 0.85);
+  stroke: rgba(11, 14, 17, 0.8);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.teammate {
+  fill: var(--color-amber);
+  stroke: rgba(11, 14, 17, 0.8);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.me {
+  fill: var(--color-accent-2);
+  stroke: #fff;
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
+}
+
+.meHalo {
+  fill: rgba(46, 230, 166, 0.25);
+  animation: pulse 2s ease-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@keyframes pulse {
+  from {
+    opacity: 0.9;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .meHalo {
+    animation: none;
+  }
+}
+
+.empty {
+  margin: 0;
+  padding: var(--space-3);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  letter-spacing: 0.03em;
+  background: rgba(11, 14, 17, calc(var(--map-alpha) + 0.1));
+  border-top: 2px solid var(--color-accent);
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+
+.grade {
+  color: var(--color-accent-2);
+}

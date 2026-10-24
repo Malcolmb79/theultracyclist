@@ -35,6 +35,9 @@ export interface SauceState {
   eventSubgroupId?: number;
   routeId?: number;
   courseId?: number;
+  /** World position, in centimetres - the same space as Sauce's road paths. */
+  x?: number;
+  y?: number;
 }
 
 export interface SauceAthlete {
@@ -258,4 +261,23 @@ export function athleteName(a: SauceAthleteData | undefined): string {
   const last = a?.athlete?.lastName?.trim() ?? "";
   const name = `${first} ${last}`.trim();
   return name || (a ? `Rider ${a.athleteId}` : "—");
+}
+
+/**
+ * Calls one of Sauce's RPC functions over its REST API
+ * (GET /api/rpc/v2/<name>/<base64url JSON arg>...), which answers
+ * {success, value}. Sauce serves the API with open CORS, so mod pages can
+ * use it from file:// as well as from Sauce's own address.
+ */
+export async function sauceRpc<T>(address: string, name: string, ...args: unknown[]): Promise<T> {
+  const encoded = args.map((a) =>
+    btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(a))))
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, ""),
+  );
+  const res = await fetch(`http://${address}/api/rpc/v2/${[name, ...encoded].join("/")}`);
+  const body = (await res.json()) as { success?: boolean; value?: T; error?: { message?: string } };
+  if (!res.ok || !body.success) throw new Error(body.error?.message ?? `Sauce ${name} failed (${res.status})`);
+  return body.value as T;
 }

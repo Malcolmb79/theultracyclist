@@ -42,6 +42,7 @@ export interface SauceAthlete {
   lastName?: string;
   ftp?: number | null;
   weight?: number;
+  /** ISO 3166 numeric; Sauce maps it to a flag via its countries.json. */
   countryCode?: number;
   racingCategory?: string;
   team?: string;
@@ -96,11 +97,14 @@ export interface SauceChat {
 
 export type FeedStatus = "connecting" | "connected" | "disconnected";
 
+/** Only the events a page has a handler for are subscribed to. */
 export interface FeedHandlers {
   onStatus: (status: FeedStatus) => void;
-  onWatching: (data: SauceAthleteData) => void;
-  onGroups: (groups: SauceGroup[]) => void;
-  onChat: (chat: SauceChat) => void;
+  onWatching?: (data: SauceAthleteData) => void;
+  onGroups?: (groups: SauceGroup[]) => void;
+  onChat?: (chat: SauceChat) => void;
+  /** Every rider Sauce can see, nearest first. */
+  onNearby?: (riders: SauceAthleteData[]) => void;
 }
 
 export const DEFAULT_SAUCE_ADDRESS = "localhost:1080";
@@ -177,9 +181,10 @@ export function connectSauce(address: string, handlers: FeedHandlers): () => voi
       clearTimeout(timeout);
       backoff = MIN_BACKOFF_MS;
       handlers.onStatus("connected");
-      subscribe("athlete/watching");
-      subscribe("groups");
-      subscribe("chat");
+      if (handlers.onWatching) subscribe("athlete/watching");
+      if (handlers.onGroups) subscribe("groups");
+      if (handlers.onChat) subscribe("chat");
+      if (handlers.onNearby) subscribe("nearby");
     });
 
     socket.addEventListener("message", (ev) => {
@@ -192,13 +197,16 @@ export function connectSauce(address: string, handlers: FeedHandlers): () => voi
       if (msg.type !== "event" || msg.uid == null || msg.data == null) return;
       switch (subs.get(msg.uid)) {
         case "athlete/watching":
-          handlers.onWatching(msg.data as SauceAthleteData);
+          handlers.onWatching?.(msg.data as SauceAthleteData);
           break;
         case "groups":
-          if (Array.isArray(msg.data)) handlers.onGroups(msg.data as SauceGroup[]);
+          if (Array.isArray(msg.data)) handlers.onGroups?.(msg.data as SauceGroup[]);
           break;
         case "chat":
-          handlers.onChat(msg.data as SauceChat);
+          handlers.onChat?.(msg.data as SauceChat);
+          break;
+        case "nearby":
+          if (Array.isArray(msg.data)) handlers.onNearby?.(msg.data as SauceAthleteData[]);
           break;
       }
     });

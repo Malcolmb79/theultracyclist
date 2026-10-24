@@ -3,7 +3,7 @@
   "id": "ultracyclist-race",
   "name": "Ultra Cyclist Race",
   "description": "Live race console and tactics coach for The Ultra Cyclist: follows the race through Sauce, gives spoken commentary and tactical calls, and records the race for the post-race review.",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "Malcolm Barske",
   "website_url": "https://theultracyclist.com/dashboard/race",
   "web_root": "web",
@@ -31,6 +31,20 @@
         "height": 240,
         "x": -460,
         "y": 0.08
+      }
+    },
+    {
+      "file": "web/board.html",
+      "id": "ultracyclist-race-board",
+      "name": "Ultra Cyclist Race Board",
+      "description": "The riders around you - position, gap, watts per kilo, power, heart rate - in The Ultra Cyclist's look, with an adjustable see-through background",
+      "overlay": true,
+      "frame": false,
+      "default_bounds": {
+        "width": 360,
+        "height": 0.62,
+        "x": -370,
+        "y": 0.3
       }
     }
   ]

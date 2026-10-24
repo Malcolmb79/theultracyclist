@@ -1,0 +1,241 @@
+/* Sauce draws frameless mod windows transparent; the board's own background
+   fades with --board-alpha (the Background setting), down to nothing. Text
+   carries a shadow so it still reads with Zwift showing through. */
+.transparent,
+.transparent body {
+  background: transparent !important;
+}
+
+.board {
+  --board-alpha: 0.85;
+  display: flex;
+  flex-direction: column;
+  max-height: 100vh;
+  font-size: 0.85rem;
+  color: var(--color-text);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.board button,
+.board input,
+.board select,
+.board label {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  background: rgba(11, 14, 17, calc(var(--board-alpha) + 0.1));
+  border-bottom: 2px solid var(--color-accent-2);
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.title {
+  flex: 1;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  letter-spacing: 0.03em;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.on {
+  background: var(--color-accent-2);
+}
+
+.off {
+  background: var(--color-accent);
+}
+
+.gear {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0 var(--space-1);
+}
+
+.gear:hover {
+  color: var(--color-text);
+}
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  background: rgba(20, 24, 29, 0.95);
+  border-bottom: 1px solid var(--color-border);
+  text-shadow: none;
+}
+
+.setting {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.setting > span:first-child {
+  width: 5.5rem;
+  color: var(--color-text-muted);
+}
+
+.setting input[type="range"] {
+  flex: 1;
+  accent-color: var(--color-accent-2);
+}
+
+.setting select {
+  background: var(--color-bg);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font: inherit;
+  padding: 2px var(--space-1);
+}
+
+.settingValue {
+  width: 2.5rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  background: rgba(11, 14, 17, var(--board-alpha));
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 2rem 1fr auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 2px var(--space-2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.watched {
+  background: rgba(46, 230, 166, 0.22);
+  box-shadow: inset 3px 0 0 var(--color-accent-2);
+}
+
+.teammate {
+  background: rgba(255, 176, 32, 0.14);
+  box-shadow: inset 3px 0 0 var(--color-amber);
+}
+
+.pos {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  color: var(--color-text-muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.watched .pos {
+  color: var(--color-accent-2);
+}
+
+.who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.nameLine {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.flag {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  object-fit: contain;
+}
+
+.name {
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.team {
+  flex: none;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: rgba(255, 77, 46, 0.85);
+  color: #fff;
+  text-shadow: none;
+}
+
+.stats {
+  display: flex;
+  gap: var(--space-2);
+  font-size: 0.7rem;
+  line-height: 1.2;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.hr {
+  color: #ff8a73;
+}
+
+.gap {
+  color: var(--color-text);
+}
+
+.wkg {
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+  line-height: 1;
+  color: var(--color-accent-2);
+  font-variant-numeric: tabular-nums;
+  min-width: 2.4rem;
+  text-align: right;
+}
+
+.empty {
+  padding: var(--space-2);
+  color: var(--color-text-muted);
+}
+
+.footer {
+  padding: var(--space-1) var(--space-2);
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  letter-spacing: 0.03em;
+  text-align: center;
+  background: rgba(11, 14, 17, calc(var(--board-alpha) + 0.1));
+  border-top: 2px solid var(--color-accent);
+  border-radius: 0 0 var(--radius) var(--radius);
+}

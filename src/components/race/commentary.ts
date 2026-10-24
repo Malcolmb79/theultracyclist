@@ -188,8 +188,11 @@ export async function speakNatural(apiBase: string, token: string | null, text: 
     body: JSON.stringify({ text, voice }),
   });
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { code?: string };
-    throw new VoiceUnavailableError(`Natural voice failed (${res.status}).`, body.code === "not-configured");
+    const body = (await res.json().catch(() => ({}))) as { code?: string; error?: string };
+    throw new VoiceUnavailableError(
+      body.error && res.status === 502 ? body.error : `Natural voice failed (${res.status}).`,
+      body.code === "not-configured",
+    );
   }
   const url = URL.createObjectURL(await res.blob());
   stopSpeaking();

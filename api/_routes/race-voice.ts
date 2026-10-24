@@ -66,8 +66,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       body: JSON.stringify({ model: MODEL, voice, input: text, instructions: INSTRUCTIONS, response_format: "mp3" }),
     });
     if (!response.ok) {
-      console.error("race-voice", response.status, await response.text().catch(() => ""));
-      res.status(502).json({ error: `Voice failed (${response.status}).` });
+      const detail = await response.text().catch(() => "");
+      console.error("race-voice", response.status, detail);
+      // OpenAI's own reason (no credit, bad key, unknown voice) is what the
+      // athlete needs to fix it, so it goes back rather than a bare status.
+      let reason = "";
+      try {
+        reason = (JSON.parse(detail) as { error?: { message?: string } }).error?.message ?? "";
+      } catch {
+        // Not JSON - the status alone will have to do.
+      }
+      res.status(502).json({
+        error: `OpenAI refused the voice request (${response.status})${reason ? `: ${reason.slice(0, 300)}` : "."}`,
+      });
       return;
     }
     const audio = Buffer.from(await response.arrayBuffer());

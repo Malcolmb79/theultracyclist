@@ -11,7 +11,7 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <div className={styles.page}>
       <h1 className={styles.title}>Ultra Cyclist Race</h1>
-      <RaceConsole defaultAddress={window.location.host} />
+      <RaceConsole defaultAddress={window.location.host} apiBase="https://theultracyclist.com" needsKey />
     </div>
   </StrictMode>,
 );

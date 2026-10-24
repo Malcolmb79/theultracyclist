@@ -45,7 +45,18 @@ export interface GroupSnapshot {
   groups: GroupSummary[];
 }
 
-export type RaceEventKind = "start" | "watching" | "position" | "split" | "merge" | "surge" | "powerup" | "distance" | "chat" | "stop";
+export type RaceEventKind =
+  | "start"
+  | "watching"
+  | "position"
+  | "split"
+  | "merge"
+  | "surge"
+  | "powerup"
+  | "distance"
+  | "chat"
+  | "commentary"
+  | "stop";
 
 export interface RaceEvent {
   t: number;
@@ -253,6 +264,11 @@ export class RaceRecorder {
         watching: g.watching || undefined,
       })),
     });
+  }
+
+  /** A line of live commentary, kept so the review can see what was said. */
+  commentary(text: string, now = Date.now()) {
+    this.event("commentary", text, now);
   }
 
   chat(chat: SauceChat, now = Date.now()) {

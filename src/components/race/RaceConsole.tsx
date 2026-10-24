@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useStoredState } from "../../utils/useStoredState";
 import StatTile from "../shared/StatTile";
+import CommentaryCard from "./CommentaryCard";
 import {
   DEFAULT_SAUCE_ADDRESS,
   athleteName,
@@ -27,13 +28,28 @@ import styles from "./RaceConsole.module.css";
 const AUTOSAVE_MS = 10_000;
 const FEED_EVENTS = 25;
 
+/** The race log list: commentary has its own card, so it's left out here. */
+function feed(log: RaceLog): RaceEvent[] {
+  return log.events.filter((e) => e.kind !== "commentary").slice(-FEED_EVENTS);
+}
+
 /**
  * The live race console: the Sauce connection, the watched rider's numbers,
  * the groups on the road and the race log. Shared by the dashboard's Race
  * page and the Sauce mod (sauce-mod/), which serves it from Sauce itself so
  * Chrome's local network rules never come into it.
  */
-export default function RaceConsole({ defaultAddress = DEFAULT_SAUCE_ADDRESS }: { defaultAddress?: string }) {
+export default function RaceConsole({
+  defaultAddress = DEFAULT_SAUCE_ADDRESS,
+  apiBase = "",
+  needsKey = false,
+}: {
+  defaultAddress?: string;
+  /** Where the site's API lives: "" on the site itself, its URL from the mod. */
+  apiBase?: string;
+  /** The mod can't use the site's session, so commentary needs a key. */
+  needsKey?: boolean;
+}) {
   const [address, setAddress] = useStoredState("race:sauce-address", defaultAddress, (v) =>
     typeof v === "string" && v.trim() ? v : null,
   );
@@ -76,7 +92,7 @@ export default function RaceConsole({ defaultAddress = DEFAULT_SAUCE_ADDRESS }: 
         if (r) {
           const before = r.log.events.length;
           r.watching(data);
-          if (r.log.events.length !== before) setEvents(r.log.events.slice(-FEED_EVENTS));
+          if (r.log.events.length !== before) setEvents(feed(r.log));
         }
       },
       onGroups: (g) => {
@@ -85,14 +101,14 @@ export default function RaceConsole({ defaultAddress = DEFAULT_SAUCE_ADDRESS }: 
         if (r) {
           const before = r.log.events.length;
           r.groups(g);
-          if (r.log.events.length !== before) setEvents(r.log.events.slice(-FEED_EVENTS));
+          if (r.log.events.length !== before) setEvents(feed(r.log));
         }
       },
       onChat: (chat) => {
         const r = recorder.current;
         if (r) {
           r.chat(chat);
-          setEvents(r.log.events.slice(-FEED_EVENTS));
+          setEvents(feed(r.log));
         }
       },
     });
@@ -114,7 +130,7 @@ export default function RaceConsole({ defaultAddress = DEFAULT_SAUCE_ADDRESS }: 
   const start = () => {
     const r = new RaceRecorder();
     recorder.current = r;
-    setEvents(r.log.events.slice());
+    setEvents(feed(r.log));
     setElapsed(0);
     setRecording(true);
     saveCurrentLog(r.log);
@@ -126,7 +142,7 @@ export default function RaceConsole({ defaultAddress = DEFAULT_SAUCE_ADDRESS }: 
     recorder.current = null;
     setRecording(false);
     const log = r.stop();
-    setEvents(log.events.slice(-FEED_EVENTS));
+    setEvents(feed(log));
     setSaved(archiveLog(log));
   };
 
@@ -243,6 +259,16 @@ export default function RaceConsole({ defaultAddress = DEFAULT_SAUCE_ADDRESS }: 
           />
         </div>
       </section>
+
+      <CommentaryCard
+        recorder={recorder}
+        recording={recording}
+        apiBase={apiBase}
+        needsKey={needsKey}
+        onLine={() => {
+          if (recorder.current) setEvents(feed(recorder.current.log));
+        }}
+      />
 
       <div className={styles.columns}>
         <section className={styles.card}>

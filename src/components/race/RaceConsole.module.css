@@ -262,3 +262,109 @@
 .hint a {
   color: var(--color-accent-2);
 }
+
+.commentaryHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.commentaryHeader .cardTitle {
+  margin: 0;
+}
+
+.commentaryControls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: 0.9rem;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  cursor: pointer;
+}
+
+.commentaryBusy {
+  color: var(--color-accent);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.commentaryLatest {
+  font-size: 1.25rem;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.commentaryEarlier {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.commentaryEarlier li {
+  padding: var(--space-1) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.commentaryError {
+  color: var(--color-accent);
+  font-size: 0.9rem;
+  margin: var(--space-2) 0 0;
+}
+
+.linkButton {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--color-accent-2);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.keyForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.keyInput {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  padding: 0 var(--space-2);
+  background: var(--color-bg);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.modKey {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+
+.keyText {
+  flex-basis: 100%;
+  overflow-wrap: anywhere;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+

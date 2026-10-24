@@ -40,6 +40,8 @@ const ROUTES: Record<string, () => Promise<RouteModule>> = {
   "passkeys": () => import("./_routes/passkeys.js"),
   "planned-workouts": () => import("./_routes/planned-workouts.js"),
   "progress-photos": () => import("./_routes/progress-photos.js"),
+  "race-commentary": () => import("./_routes/race-commentary.js"),
+  "race-token": () => import("./_routes/race-token.js"),
   "send-checkin": () => import("./_routes/send-checkin.js"),
   "site-photos": () => import("./_routes/site-photos.js"),
   "site-portrait": () => import("./_routes/site-portrait.js"),

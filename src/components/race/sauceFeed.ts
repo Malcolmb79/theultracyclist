@@ -258,6 +258,19 @@ export async function localNetworkPermission(): Promise<PermissionState | null> 
   return null;
 }
 
+/**
+ * A Zwift name without what riders tack on to it: team tags in brackets
+ * ("Lambert (GTR Skeleton Wheelers)", "[WKG] Ules"), and anything after a
+ * bar or a hyphen surrounded by spaces ("Barske | TUC").
+ */
+export function cleanName(name: string | undefined): string {
+  return (name ?? "")
+    .replace(/[([{][^)\]}]*[)\]}]/g, " ")
+    .split(/\s[|/]\s|\s-\s/)[0]
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function athleteName(a: SauceAthleteData | undefined): string {
   const first = a?.athlete?.firstName?.trim() ?? "";
   const last = a?.athlete?.lastName?.trim() ?? "";

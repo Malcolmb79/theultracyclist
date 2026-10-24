@@ -18,6 +18,7 @@ import {
   speak,
   speakNatural,
   stopSpeaking,
+  type NameStyle,
   type RadioMode,
 } from "./commentary";
 import styles from "./RaceConsole.module.css";
@@ -68,6 +69,9 @@ export default function RadioCard({
   const [enabled, setEnabled] = useStoredState(`race:${mode}-on`, true, (v) => (typeof v === "boolean" ? v : null));
   const [voice, setVoice] = useStoredState(`race:${mode}-voice`, true, (v) => (typeof v === "boolean" ? v : null));
   const [settingsOpen, setSettingsOpen] = useState(!compact);
+  const [nameStyle, setNameStyle] = useStoredState<NameStyle>(`race:${mode}-names`, "surname", (v) =>
+    v === "surname" || v === "first" || v === "full" ? v : null,
+  );
   const [key, setKey] = useStoredState<string | null>("race:commentary-key", null, (v) =>
     typeof v === "string" && v ? v : null,
   );
@@ -108,8 +112,8 @@ export default function RadioCard({
   };
 
   // Read inside the timer, which is set up once per recording.
-  const live = useRef({ enabled, voice, key, onLine, say });
-  live.current = { enabled, voice, key, onLine, say };
+  const live = useRef({ enabled, voice, key, onLine, say, nameStyle });
+  live.current = { enabled, voice, key, onLine, say, nameStyle };
 
   // Voices load after the page does, and Edge's online ones can arrive late.
   useEffect(() => {
@@ -159,7 +163,7 @@ export default function RadioCard({
         const text = await requestCommentary(
           apiBase,
           needsKey ? live.current.key : null,
-          buildSnapshot(r.log, lastT, mode, moments),
+          buildSnapshot(r.log, lastT, mode, moments, live.current.nameStyle),
           mode,
         );
         lastT = snapshotT;
@@ -219,6 +223,24 @@ export default function RadioCard({
           )}
         </div>
       </div>
+
+      {settingsOpen && (
+        <div className={styles.voiceRow}>
+          <label className={styles.toggle}>
+            Names
+            <select
+              className={styles.voiceSelect}
+              value={nameStyle}
+              onChange={(e) => setNameStyle(e.target.value as NameStyle)}
+              aria-label="How riders are named"
+            >
+              <option value="surname">Surname</option>
+              <option value="first">First name</option>
+              <option value="full">Full name</option>
+            </select>
+          </label>
+        </div>
+      )}
 
       {voice && settingsOpen && (
         <div className={styles.voiceRow}>

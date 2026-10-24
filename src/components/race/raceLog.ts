@@ -1,4 +1,4 @@
-import { athleteName, type SauceAthleteData, type SauceChat, type SauceGroup } from "./sauceFeed";
+import { athleteName, cleanName, type SauceAthleteData, type SauceChat, type SauceGroup } from "./sauceFeed";
 
 // A race as a timestamped record: a one-second trace of the watched rider,
 // a summary of the groups on the road every few seconds, and the moments
@@ -88,7 +88,7 @@ export interface RaceLog {
   id: string;
   startedAt: string;
   endedAt?: string;
-  rider?: { athleteId: number; name: string; ftp?: number; weight?: number };
+  rider?: { athleteId: number; name: string; firstName?: string; lastName?: string; ftp?: number; weight?: number };
   eventSubgroupId?: number;
   event?: EventBrief;
   remainingMetric?: "time" | "distance";
@@ -166,6 +166,8 @@ export class RaceRecorder {
       this.log.rider = {
         athleteId: data.athleteId,
         name,
+        firstName: cleanName(data.athlete?.firstName) || undefined,
+        lastName: cleanName(data.athlete?.lastName) || undefined,
         ftp: data.athlete?.ftp ?? undefined,
         weight: round(data.athlete?.weight, 1),
       };

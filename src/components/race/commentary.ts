@@ -8,6 +8,20 @@ import type { EventBrief, GroupSummary, RaceEvent, RaceLog, RaceSample } from ".
 
 export type RadioMode = "commentary" | "tactics";
 
+/** How the commentator and coach call riders: the viewer's choice. */
+export type NameStyle = "surname" | "first" | "full";
+
+/** The name to say for the rider, in the chosen style, team tags left off. */
+export function callName(rider: RaceLog["rider"], style: NameStyle): string | undefined {
+  if (!rider) return undefined;
+  const first = rider.firstName;
+  const last = rider.lastName;
+  const full = [first, last].filter(Boolean).join(" ") || rider.name;
+  if (style === "first") return first || full;
+  if (style === "surname") return last || full;
+  return full;
+}
+
 /**
  * How often each mode speaks. Commentary keeps a steady flow so the
  * broadcast never goes quiet. The coach never speaks on a timer: only when
@@ -245,6 +259,7 @@ export function buildSnapshot(
   sinceT: number,
   mode: RadioMode = "commentary",
   moments: KeyMoment[] = [],
+  nameStyle: NameStyle = "surname",
 ) {
   const samples = log.samples;
   const now: RaceSample | undefined = samples.at(-1);
@@ -258,7 +273,16 @@ export function buildSnapshot(
 
   const climb = first?.alt != null && now?.alt != null ? Math.round(now.alt - first.alt) : undefined;
   const base = {
-    rider: log.rider ? { name: log.rider.name, ftp: log.rider.ftp, weightKg: log.rider.weight } : undefined,
+    rider: log.rider
+      ? {
+          name: log.rider.name,
+          // What to call them on air - see NameStyle.
+          callName: callName(log.rider, nameStyle),
+          nameStyle,
+          ftp: log.rider.ftp,
+          weightKg: log.rider.weight,
+        }
+      : undefined,
     // "pen" until the race starts: nothing on the road means anything yet.
     phase: now?.pen ? ("pen" as const) : ("racing" as const),
     event: log.event && {

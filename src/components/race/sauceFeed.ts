@@ -136,6 +136,9 @@ export function connectSauce(address: string, handlers: FeedHandlers): () => voi
     try {
       socket = new WebSocket(`${scheme}://${address}/api/ws/events`);
     } catch {
+      // Thrown, not closed, when the page's Content-Security-Policy or the
+      // browser refuses the address outright.
+      handlers.onStatus("disconnected");
       scheduleRetry();
       return;
     }

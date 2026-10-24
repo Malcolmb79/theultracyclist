@@ -130,6 +130,22 @@ export interface FieldSnapshot {
   leader?: FieldRider;
   /** The strongest riders around, by racing score: the ones to watch. */
   toWatch?: FieldRider[];
+  /** In the start pen: who's lined up, for the commentator to talk through. */
+  pen?: PenField;
+}
+
+/** The start pen, for pre-race talk about the field. */
+export interface PenField {
+  /** Everyone Sauce can see, the watched rider included. */
+  riders: number;
+  /** The strongest by racing score, best first. */
+  topRiders: FieldRider[];
+  /** Where the watched rider ranks in the pen by racing score. */
+  riderRankByScore?: number;
+  /** Teams with the most riders in the pen. */
+  teams: { team: string; riders: number; names: string[] }[];
+  /** How the pen breaks down by category. */
+  categories: Record<string, number>;
 }
 
 /** One finisher, from Zwift's results via Sauce (see ./eventInfo). */
@@ -220,6 +236,9 @@ const ATTACK_SAMPLES = 4;
 const ATTACK_COOLDOWN_MS = 60_000;
 /** Riders named at most per dropped or bridged line. */
 const NAMES_PER_LINE = 3;
+/** Riders and teams described in the start pen - plenty to talk through, not a start list. */
+const PEN_TOP_RIDERS = 12;
+const PEN_TEAMS = 5;
 
 /** Denser in the last kilometre, where every hundred metres changes the race. */
 const DISTANCE_MARKERS_M = [100, 200, 300, 400, 500, 600, 800, 1000, 2000, 3000, 5000, 10_000, 20_000];
@@ -592,6 +611,36 @@ export class RaceRecorder {
         .sort((x, y) => (y.athlete?.racingScore ?? 0) - (x.athlete?.racingScore ?? 0))
         .slice(0, 3)
         .map(named),
+      pen: this.log.samples.at(-1)?.pen ? this.penField(groups, named) : undefined,
+    };
+  }
+
+  /** Who's lined up in the pen: the favourites, the big teams, the categories. */
+  private penField(groups: SauceGroup[], named: (a: SauceGroup["athletes"][number]) => FieldRider): PenField {
+    const everyone = groups.flatMap((g) => g.athletes ?? []);
+    const watchedId = this.log.rider?.athleteId;
+    const byScore = everyone
+      .filter((a) => a.athlete?.racingScore)
+      .sort((x, y) => (y.athlete?.racingScore ?? 0) - (x.athlete?.racingScore ?? 0));
+    const rank = byScore.findIndex((a) => a.athleteId === watchedId);
+    const teams = new Map<string, string[]>();
+    const categories: Record<string, number> = {};
+    for (const a of everyone) {
+      const team = a.athlete?.team?.trim();
+      const r = named(a);
+      if (team) teams.set(team, [...(teams.get(team) ?? []), r.name]);
+      const cat = a.athlete?.racingCategory;
+      if (cat) categories[cat] = (categories[cat] ?? 0) + 1;
+    }
+    return {
+      riders: everyone.length,
+      topRiders: byScore.filter((a) => a.athleteId !== watchedId).slice(0, PEN_TOP_RIDERS).map(named),
+      riderRankByScore: rank >= 0 ? rank + 1 : undefined,
+      teams: Array.from(teams, ([team, names]) => ({ team, riders: names.length, names: names.slice(0, 4) }))
+        .filter((t) => t.riders > 1)
+        .sort((x, y) => y.riders - x.riders)
+        .slice(0, PEN_TEAMS),
+      categories,
     };
   }
 

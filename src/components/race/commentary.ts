@@ -113,6 +113,8 @@ export function racePhase(log: RaceLog): RacePhase {
  * the finish it only speaks as results come in.
  */
 export const PHASE_TIMING: Partial<Record<RacePhase, { everyMs: number; minGapMs: number }>> = {
+  // The pen is the build-up: the field to talk through, and nothing else happening.
+  pen: { everyMs: 25_000, minGapMs: 12_000 },
   finale: { everyMs: 12_000, minGapMs: 5_000 },
   finished: { everyMs: Infinity, minGapMs: 8_000 },
 };
@@ -401,6 +403,7 @@ export function buildSnapshot(
       groupBehind: log.field.groupBehind,
       leader: log.field.leader,
       toWatch: log.field.toWatch,
+      pen: log.field.pen,
     },
     groups: groups.map((g) => ({
       gapSec: g.gap,

@@ -132,6 +132,27 @@ export interface FieldSnapshot {
   toWatch?: FieldRider[];
   /** In the start pen: who's lined up, for the commentator to talk through. */
   pen?: PenField;
+  /** The riders racing the watched one for places, and how they compare. */
+  rivals?: Rival[];
+}
+
+/**
+ * A rider within a few places of the watched one, and how they compare:
+ * each difference is theirs minus the watched rider's, so positive means
+ * the rival is stronger there.
+ */
+export interface Rival extends FieldRider {
+  vsRider: {
+    racingScore?: number;
+    /** Watts per kilo over their best 15 seconds today: the sprint. */
+    sprintWkg?: number;
+    /** Over their best minute: the punch for short climbs and attacks. */
+    punchWkg?: number;
+    /** Over their best five minutes: what they can hold on a long climb or a break. */
+    fiveMinWkg?: number;
+  };
+  /** Plain words for where they're stronger or weaker, from those numbers. */
+  edge: string[];
 }
 
 /** The start pen, for pre-race talk about the field. */
@@ -238,6 +259,10 @@ const ATTACK_COOLDOWN_MS = 60_000;
 const NAMES_PER_LINE = 3;
 /** Riders and teams described in the start pen - plenty to talk through, not a start list. */
 const PEN_TOP_RIDERS = 12;
+/** Rivals are riders within this many places of the watched rider... */
+const RIVAL_PLACES = 4;
+/** ...at most this many, nearest first. */
+const RIVALS = 5;
 const PEN_TEAMS = 5;
 
 /** Denser in the last kilometre, where every hundred metres changes the race. */
@@ -612,7 +637,45 @@ export class RaceRecorder {
         .slice(0, 3)
         .map(named),
       pen: this.log.samples.at(-1)?.pen ? this.penField(groups, named) : undefined,
+      rivals: this.rivals(groups, named),
     };
+  }
+
+  /** The riders closest in the race, and where each is stronger or weaker. */
+  private rivals(groups: SauceGroup[], named: (a: SauceGroup["athletes"][number]) => FieldRider): Rival[] | undefined {
+    const watchedId = this.log.rider?.athleteId;
+    const everyone = groups.flatMap((g) => g.athletes ?? []);
+    const me = everyone.find((a) => a.athleteId === watchedId);
+    const myPos = me?.eventPosition;
+    const mine = this.log.rider?.profile;
+    if (!myPos) return undefined;
+    const diff = (theirs: number | undefined, ours: number | undefined, dp = 1) =>
+      theirs != null && ours != null ? round(theirs - ours, dp) : undefined;
+    return everyone
+      .filter((a) => a.athleteId !== watchedId && a.eventPosition && Math.abs(a.eventPosition - myPos) <= RIVAL_PLACES)
+      .sort((x, y) => Math.abs((x.eventPosition ?? 0) - myPos) - Math.abs((y.eventPosition ?? 0) - myPos))
+      .slice(0, RIVALS)
+      .map((a) => {
+        const r = named(a);
+        const p = r.profile;
+        const vsRider = {
+          racingScore: diff(p?.racingScore, mine?.racingScore, 0),
+          sprintWkg: diff(p?.best15sWkg, mine?.best15sWkg),
+          punchWkg: diff(p?.best1minWkg, mine?.best1minWkg),
+          fiveMinWkg: diff(p?.best5minWkg, mine?.best5minWkg),
+        };
+        const edge: string[] = [];
+        const say = (v: number | undefined, margin: number, better: string, worse: string) => {
+          if (v == null) return;
+          if (v >= margin) edge.push(better);
+          else if (v <= -margin) edge.push(worse);
+        };
+        say(vsRider.racingScore, 40, "higher racing score", "lower racing score");
+        say(vsRider.sprintWkg, 0.8, "stronger sprint", "weaker sprint");
+        say(vsRider.punchWkg, 0.5, "more punch", "less punch");
+        say(vsRider.fiveMinWkg, 0.3, "stronger over five minutes", "weaker over five minutes");
+        return { ...r, vsRider, edge };
+      });
   }
 
   /** Who's lined up in the pen: the favourites, the big teams, the categories. */

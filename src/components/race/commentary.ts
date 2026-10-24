@@ -29,7 +29,8 @@ export function callName(rider: RaceLog["rider"], style: NameStyle): string | un
  */
 export const RADIO_TIMING: Record<RadioMode, { everyMs: number; minGapMs: number }> = {
   commentary: { everyMs: 60_000, minGapMs: 20_000 },
-  tactics: { everyMs: Infinity, minGapMs: 6_000 },
+  // At least 20s between calls in the race; the finale has its own gap (TACTICS_FINALE_GAP_MS).
+  tactics: { everyMs: Infinity, minGapMs: 20_000 },
 };
 
 /**
@@ -102,16 +103,34 @@ const GAP_MOVE_SEC = 1.5;
 const SURGE_RATIO = 1.2;
 const SURGE_MIN_WATTS = 40;
 /** Riding this far over the group's average for 20 seconds is towing it. */
-const TOWING_WATTS = 40;
+const TOWING_WATTS = 60;
+const TOWING_MS = 30_000;
 /** The road tipping up: from under 2% to at least this. */
 const CLIMB_PCT = 4;
+/** A climb worth calling the top of: at least this long at CLIMB_PCT or more. */
+const CLIMB_MIN_MS = 45_000;
+/** Over the limit on a climb: this far over FTP for 20 seconds... */
+const CLIMB_OVER_FTP = 1.08;
+/** ...with the anaerobic reserve under this share of a fresh 20 kJ. */
+const CLIMB_WBAL_J = 12_000;
+/** A smaller group going clear just in front: within this many seconds, and growing. */
+const GAP_OPENING_SEC = 5;
 /**
  * How long a moment stays said before the same one can be called again.
  * Moments whose id carries "@" (an event, a pen briefing) are called once.
  */
-export const MOMENT_COOLDOWN_MS = 45_000;
+export const MOMENT_COOLDOWN_MS = 90_000;
+/** In the finale every few seconds matter: the coach can call as often as this. */
+export const TACTICS_FINALE_GAP_MS = 6_000;
 /** Race events that are key moments for the coach in their own right. */
-const MOMENT_EVENTS = new Set<RaceEvent["kind"]>(["split", "merge", "distance", "position", "go", "attack"]);
+/**
+ * Race events that are decision points for the coach in their own right.
+ * Moves through the field aren't - the coach isn't there to narrate them -
+ * and of the distance markers only the ones where positioning and the
+ * timing of the final effort are decided count (TACTIC_MARKERS).
+ */
+const MOMENT_EVENTS = new Set<RaceEvent["kind"]>(["split", "merge", "distance", "go", "attack"]);
+const TACTIC_MARKERS = /^(1 km|500 m|200 m) to go$/;
 /** Countdown calls in the pen, seconds before the start - the last one just before the off. */
 const COUNTDOWN_CALLS_SEC = [120, 60, 15];
 
@@ -312,12 +331,12 @@ export function keyMoments(log: RaceLog, sinceT: number, clock = Date.now()): Ke
     }
   }
   if (own?.power != null && own.size > 2) {
-    const recent = samples.filter((s) => s.t >= now.t - 20_000);
+    const recent = samples.filter((s) => s.t >= now.t - TOWING_MS);
     const mine = avg(recent.map((s) => s.power));
-    if (recent.length >= 15 && mine != null && mine - own.power >= TOWING_WATTS) {
+    if (recent.length >= (TOWING_MS / 1000) * 0.75 && mine != null && mine - own.power >= TOWING_WATTS) {
       moments.push({
         id: "towing",
-        text: `You've averaged ${mine} W for 20s, ${Math.round(mine - own.power)} W more than your group of ${own.size} (${Math.round(own.power)} W).`,
+        text: `You've averaged ${mine} W for ${TOWING_MS / 1000}s, ${Math.round(mine - own.power)} W more than your group of ${own.size} (${Math.round(own.power)} W).`,
       });
     }
   }
@@ -325,7 +344,51 @@ export function keyMoments(log: RaceLog, sinceT: number, clock = Date.now()): Ke
   const gradeNow = avg(samples.filter((s) => s.t >= now.t - 10_000).map((s) => s.grade));
   const gradeBefore = avg(samples.filter((s) => s.t >= now.t - 40_000 && s.t < now.t - 20_000).map((s) => s.grade));
   if (gradeNow != null && gradeBefore != null && gradeNow >= CLIMB_PCT && gradeBefore < 2) {
-    moments.push({ id: "climb", text: `The road has kicked up to ${gradeNow}% (from ${gradeBefore}%).` });
+    const ftp = log.rider?.ftp;
+    moments.push({
+      id: "climb",
+      text:
+        `The road has kicked up to ${gradeNow}% (from ${gradeBefore}%).` +
+        (ftp ? ` FTP is ${ftp} W; anaerobic reserve ${now.wBal != null ? `${(now.wBal / 1000).toFixed(1)} kJ` : "unknown"}.` : ""),
+    });
+  }
+
+  // On a climb: how long it has gone on, and whether the rider is over the limit.
+  const climbing: RaceSample[] = [];
+  for (let i = samples.length - 1; i >= 0 && (samples[i].grade ?? 0) >= CLIMB_PCT - 1; i--) climbing.push(samples[i]);
+  const climbMs = climbing.length ? now.t - climbing[climbing.length - 1].t : 0;
+  const ftp = log.rider?.ftp;
+  if (ftp && climbMs >= 20_000) {
+    const last20 = avg(samples.filter((s) => s.t >= now.t - 20_000).map((s) => s.power));
+    if (last20 != null && last20 >= ftp * CLIMB_OVER_FTP && now.wBal != null && now.wBal < CLIMB_WBAL_J) {
+      moments.push({
+        id: "climb-limit",
+        text: `${Math.round(climbMs / 1000)}s into the climb at ${avg(climbing.map((s) => s.grade))}%: ${last20} W for 20s, ${Math.round((last20 / ftp) * 100)}% of FTP, anaerobic reserve down to ${(now.wBal / 1000).toFixed(1)} kJ.`,
+      });
+    }
+  }
+
+  // The top: the road easing after a real climb - where moves go.
+  const gradeEarlier = avg(samples.filter((s) => s.t >= now.t - 60_000 && s.t < now.t - 15_000).map((s) => s.grade));
+  const climbBefore = samples.filter((s) => s.t >= now.t - 60_000 - CLIMB_MIN_MS && s.t < now.t - 15_000 && (s.grade ?? 0) >= CLIMB_PCT);
+  if (gradeNow != null && gradeEarlier != null && gradeNow < 2 && gradeEarlier >= CLIMB_PCT && climbBefore.length * 1000 >= CLIMB_MIN_MS) {
+    moments.push({
+      id: "climb-top",
+      text: `Over the top: the road has eased to ${gradeNow}% after ${Math.round((climbBefore.length * 1000) / 1000)}s at ${gradeEarlier}% or so.` +
+        (ahead ? ` Group ahead ${ahead.gapSec.toFixed(1)}s up.` : "") +
+        (behind ? ` Group behind ${behind.gapSec.toFixed(1)}s back.` : ""),
+    });
+  }
+
+  // A smaller group going clear just in front: the gap is still closable.
+  if (ahead && ahead.gapSec <= GAP_OPENING_SEC && (ahead.gapChange30s ?? 0) > 0.5 && own && ahead.riders < own.size) {
+    const b = bridgeTarget(ahead.gapSec, ahead.speedKmh, now);
+    moments.push({
+      id: "gap-opening",
+      text:
+        `A gap is opening in front: ${ahead.riders} riders ${ahead.gapSec.toFixed(1)}s clear of your ${own.size} and growing.` +
+        (b ? ` About ${b.roughWatts} W for 30s closes it.` : ""),
+    });
   }
 
   if (now.wBal != null && now.wBal < LOW_WBAL_J) {
@@ -333,8 +396,21 @@ export function keyMoments(log: RaceLog, sinceT: number, clock = Date.now()): Ke
   }
 
   for (const e of log.events) {
-    if (e.t > sinceT && MOMENT_EVENTS.has(e.kind)) moments.push({ id: `${e.kind}@${e.t}`, text: e.text });
+    if (e.t <= sinceT || !MOMENT_EVENTS.has(e.kind)) continue;
+    if (e.kind === "distance" && !TACTIC_MARKERS.test(e.text)) continue;
+    // A split with the rider behind: say how big the gap and the groups are.
+    if (e.kind === "split" && ahead && ahead.gapSec <= CLOSE_GAP_SEC) {
+      const b = bridgeTarget(ahead.gapSec, ahead.speedKmh, now);
+      moments.push({
+        id: `${e.kind}@${e.t}`,
+        text: `${e.text}. Wrong side of it: the front group (${ahead.riders} riders) is ${ahead.gapSec.toFixed(1)}s up.` + (b ? ` About ${b.roughWatts} W for 30s closes it.` : ""),
+      });
+      continue;
+    }
+    moments.push({ id: `${e.kind}@${e.t}`, text: e.text });
   }
+  // A gap opening just in front is the sharper read of the same thing as the group ahead slipping away.
+  if (moments.some((m) => m.id === "gap-opening")) return moments.filter((m) => m.id !== "slipping");
   return moments;
 }
 
@@ -422,6 +498,7 @@ export function buildSnapshot(
       leader: log.field.leader,
       toWatch: log.field.toWatch,
       pen: log.field.pen,
+      rivals: log.field.rivals,
     },
     groups: groups.map((g) => ({
       gapSec: g.gap,

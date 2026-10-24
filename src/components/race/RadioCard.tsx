@@ -12,6 +12,7 @@ import {
   RADIO_TIMING,
   nextSilenceMs,
   MOMENT_COOLDOWN_MS,
+  TACTICS_FINALE_GAP_MS,
   fetchRiderFitness,
   keyMoments,
   buildSnapshot,
@@ -182,7 +183,8 @@ export default function RadioCard({
       });
       let due: boolean;
       if (mode === "tactics") {
-        due = moments.length > 0 && since >= minGapMs;
+        // Decision points only, and room between them - closer together in the finale.
+        due = moments.length > 0 && since >= (racePhase(r.log) === "finale" ? TACTICS_FINALE_GAP_MS : minGapMs);
       } else {
         // The commentator speaks when enough has happened to be worth a line.
         const phased = PHASE_TIMING[racePhase(r.log)];

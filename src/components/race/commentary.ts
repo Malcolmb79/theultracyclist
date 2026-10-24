@@ -195,7 +195,10 @@ export async function requestCommentary(
     body: JSON.stringify({ context: snapshot, mode }),
   });
   if (res.status === 401) throw new Error(token ? "The commentary key was refused - get a new one." : "Signed out.");
-  if (!res.ok) throw new Error(`Commentary failed (${res.status}).`);
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error && res.status === 502 ? body.error : `${mode === "tactics" ? "Tactics" : "Commentary"} failed (${res.status}).`);
+  }
   const body = (await res.json()) as { text?: string };
   return body.text?.trim() ?? "";
 }

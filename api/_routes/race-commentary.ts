@@ -102,8 +102,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  try {
-    const response = await fetch(ANTHROPIC_URL, {
+  const system = tactics ? TACTICS_SYSTEM : SYSTEM;
+  const call = (withFallbacks: boolean) =>
+    fetch(ANTHROPIC_URL, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -111,21 +112,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         "anthropic-version": "2023-06-01",
         // On a safety decline the API retries on a fallback model in the
         // same call, rather than leaving a gap in the commentary.
-        "anthropic-beta": "server-side-fallback-2026-07-01",
+        ...(withFallbacks ? { "anthropic-beta": "server-side-fallback-2026-07-01" } : {}),
       },
       body: JSON.stringify({
         model: MODEL,
         max_tokens: MAX_TOKENS,
         output_config: { effort: EFFORT },
-        fallbacks: "default",
-        system: tactics ? TACTICS_SYSTEM : SYSTEM,
+        ...(withFallbacks ? { fallbacks: "default" } : {}),
+        system,
         messages: [{ role: "user", content: `Race snapshot:\n${context}` }],
       }),
     });
 
+  try {
+    let response = await call(true);
+    // The fallback beta is a nicety; an account or API version that
+    // rejects it shouldn't cost the commentary, so try once more without.
+    if (response.status === 400) {
+      console.error("race-commentary: retrying without fallbacks", await response.text().catch(() => ""));
+      response = await call(false);
+    }
+
     if (!response.ok) {
-      console.error("race-commentary", response.status, await response.text().catch(() => ""));
-      res.status(502).json({ error: `Commentary failed (${response.status}).` });
+      const detail = await response.text().catch(() => "");
+      console.error("race-commentary", response.status, detail);
+      // Anthropic's own reason (no credit, unknown model, bad key) is what
+      // the athlete needs to fix it, so it goes back rather than a bare status.
+      let reason = "";
+      try {
+        reason = (JSON.parse(detail) as { error?: { message?: string } }).error?.message ?? "";
+      } catch {
+        // Not JSON - the status alone will have to do.
+      }
+      res.status(502).json({
+        error: `Anthropic refused the request (${response.status})${reason ? `: ${reason.slice(0, 300)}` : "."}`,
+      });
       return;
     }
 

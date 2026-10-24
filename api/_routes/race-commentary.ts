@@ -10,17 +10,21 @@ import { applyRaceCors, getRaceAuthEmail } from "../_lib/raceToken.js";
  * line and the last few lines said - and gets back one or two sentences to
  * show and read aloud.
  *
- * Gated by the session cookie on the site, or a race key from the mod (see
- * api/_lib/raceToken.ts): it spends the athlete's Anthropic credit, about a
- * hundred and fifty calls in an hour's race.
+ * Written by an OpenAI text model, on the same OpenAI account and key as
+ * the voice (api/_routes/race-voice.ts), so commentary needs only one AI
+ * account. Gated by the session cookie on the site, or a race key from the
+ * mod (see api/_lib/raceToken.ts): it spends the athlete's OpenAI credit,
+ * about a hundred and fifty calls an hour per radio.
  */
 
-const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
-const MODEL = "claude-opus-5-5";
-// Low effort keeps each line to a few seconds; the call answers what just
-// happened, so a slow answer is a stale one.
-const EFFORT = "low";
-const MAX_TOKENS = 16000;
+const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
+/**
+ * Small, quick models first; the first one this account accepts is kept
+ * for as long as the function stays warm. OPENAI_TEXT_MODEL pins one.
+ */
+const MODEL_CANDIDATES = ["gpt-5.4-mini", "gpt-5-mini", "gpt-4.1-mini", "gpt-4o-mini"];
+/** Room for a reasoning model's thinking as well as the line itself. */
+const MAX_COMPLETION_TOKENS = 2000;
 /** The snapshot is a few hundred bytes; anything far bigger isn't one. */
 const MAX_CONTEXT_CHARS = 12_000;
 
@@ -84,9 +88,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    res.status(500).json({ error: "ANTHROPIC_API_KEY is not configured." });
+    res.status(503).json({ error: "OPENAI_API_KEY is not configured.", code: "not-configured" });
     return;
   }
 
@@ -102,72 +106,79 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const system = tactics ? TACTICS_SYSTEM : SYSTEM;
-  const call = (withFallbacks: boolean) =>
-    fetch(ANTHROPIC_URL, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        // On a safety decline the API retries on a fallback model in the
-        // same call, rather than leaving a gap in the commentary.
-        ...(withFallbacks ? { "anthropic-beta": "server-side-fallback-2026-07-01" } : {}),
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: MAX_TOKENS,
-        output_config: { effort: EFFORT },
-        ...(withFallbacks ? { fallbacks: "default" } : {}),
-        system,
-        messages: [{ role: "user", content: `Race snapshot:\n${context}` }],
-      }),
-    });
-
   try {
-    let response = await call(true);
-    // The fallback beta is a nicety; an account or API version that
-    // rejects it shouldn't cost the commentary, so try once more without.
-    if (response.status === 400) {
-      console.error("race-commentary: retrying without fallbacks", await response.text().catch(() => ""));
-      response = await call(false);
-    }
-
-    if (!response.ok) {
-      const detail = await response.text().catch(() => "");
-      console.error("race-commentary", response.status, detail);
-      // Anthropic's own reason (no credit, unknown model, bad key) is what
-      // the athlete needs to fix it, so it goes back rather than a bare status.
-      let reason = "";
-      try {
-        reason = (JSON.parse(detail) as { error?: { message?: string } }).error?.message ?? "";
-      } catch {
-        // Not JSON - the status alone will have to do.
-      }
-      res.status(502).json({
-        error: `Anthropic refused the request (${response.status})${reason ? `: ${reason.slice(0, 300)}` : "."}`,
-      });
+    const result = await complete(apiKey, tactics ? TACTICS_SYSTEM : SYSTEM, `Race snapshot:\n${context}`);
+    if ("error" in result) {
+      res.status(502).json({ error: result.error });
       return;
     }
-
-    const data = (await response.json()) as {
-      stop_reason?: string;
-      content?: { type: string; text?: string }[];
-    };
-    if (data.stop_reason === "refusal") {
-      // A missed line is better than an apology read out mid-race.
-      res.status(200).json({ text: "" });
-      return;
-    }
-    const text = (data.content ?? [])
-      .filter((block) => block.type === "text")
-      .map((block) => block.text ?? "")
-      .join("")
-      .trim();
     // The coach says NOTHING when there's nothing worth a call.
-    res.status(200).json({ text: text === "NOTHING" ? "" : text });
+    res.status(200).json({ text: result.text === "NOTHING" ? "" : result.text });
   } catch (error) {
     console.error("race-commentary", error);
     res.status(500).json({ error: "Commentary failed." });
   }
+}
+
+/** The model and settings that last worked, so later calls go straight to them. */
+let working: { model: string; reasoning: boolean } | null = null;
+
+/**
+ * One chat completion, finding a model this account can use: a model it
+ * doesn't know moves on to the next candidate, and a model that won't take
+ * a low reasoning effort (an older, non-reasoning one) is asked again
+ * without it. Anything else - no credit, a bad key - is reported as is.
+ */
+async function complete(apiKey: string, system: string, user: string): Promise<{ text: string } | { error: string }> {
+  const pinned = process.env.OPENAI_TEXT_MODEL;
+  const attempts = working
+    ? [working]
+    : (pinned ? [pinned] : MODEL_CANDIDATES).flatMap((model) => [
+        { model, reasoning: true },
+        { model, reasoning: false },
+      ]);
+  let lastError = "No OpenAI text model was available.";
+  let unavailable: string | null = null;
+  for (const attempt of attempts) {
+    if (attempt.model === unavailable) continue;
+    const response = await fetch(OPENAI_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: attempt.model,
+        max_completion_tokens: MAX_COMPLETION_TOKENS,
+        // A slow line is a stale one; the call answers what just happened.
+        ...(attempt.reasoning ? { reasoning_effort: "low" } : {}),
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+      }),
+    });
+    if (response.ok) {
+      const data = (await response.json()) as { choices?: { message?: { content?: string | null; refusal?: string | null } }[] };
+      working = attempt;
+      const message = data.choices?.[0]?.message;
+      // A missed line is better than an apology read out mid-race.
+      return { text: message?.refusal ? "" : (message?.content ?? "").trim() };
+    }
+    const detail = await response.text().catch(() => "");
+    let reason = "";
+    let code = "";
+    try {
+      const err = (JSON.parse(detail) as { error?: { message?: string; code?: string; param?: string } }).error;
+      reason = err?.message ?? "";
+      code = `${err?.code ?? ""} ${err?.param ?? ""}`;
+    } catch {
+      // Not JSON - the status alone will have to do.
+    }
+    console.error("race-commentary", attempt.model, attempt.reasoning, response.status, detail);
+    lastError = `OpenAI refused the request (${response.status})${reason ? `: ${reason.slice(0, 300)}` : "."}`;
+    const unknownModel = response.status === 404 || /model_not_found|does not exist|not have access/i.test(`${code} ${reason}`);
+    const noReasoning = response.status === 400 && /reasoning/i.test(`${code} ${reason}`);
+    if (working === attempt) working = null;
+    if (unknownModel) unavailable = attempt.model;
+    else if (!noReasoning) break;
+  }
+  return { error: lastError };
 }

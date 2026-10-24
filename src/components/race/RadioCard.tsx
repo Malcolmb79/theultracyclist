@@ -5,7 +5,9 @@ import {
   DEFAULT_NATURAL_VOICE,
   LINE_KIND,
   NATURAL_VOICES,
+  COMMENTARY_PACE,
   RADIO_TIMING,
+  nextSilenceMs,
   MOMENT_COOLDOWN_MS,
   keyMoments,
   buildSnapshot,
@@ -18,6 +20,7 @@ import {
   speak,
   speakNatural,
   stopSpeaking,
+  type CommentaryPace,
   type NameStyle,
   type RadioMode,
 } from "./commentary";
@@ -71,6 +74,9 @@ export default function RadioCard({
   const [settingsOpen, setSettingsOpen] = useState(!compact);
   const [nameStyle, setNameStyle] = useStoredState<NameStyle>(`race:${mode}-names`, "surname", (v) =>
     v === "surname" || v === "first" || v === "full" ? v : null,
+  );
+  const [pace, setPace] = useStoredState<CommentaryPace>("race:commentary-pace", "relaxed", (v) =>
+    typeof v === "string" && v in COMMENTARY_PACE ? (v as CommentaryPace) : null,
   );
   const [key, setKey] = useStoredState<string | null>("race:commentary-key", null, (v) =>
     typeof v === "string" && v ? v : null,
@@ -134,7 +140,8 @@ export default function RadioCard({
     let lastT = -1;
     // When each key moment was last called, so it isn't called again and again.
     const called = new Map<string, number>();
-    const { everyMs, minGapMs } = RADIO_TIMING[mode];
+    const { everyMs, minGapMs } = mode === "commentary" ? COMMENTARY_PACE[pace] : RADIO_TIMING[mode];
+    let silence = 0; // The first line comes straight away.
     setLines([]);
     const timer = setInterval(async () => {
       const r = recorder.current;
@@ -150,13 +157,14 @@ export default function RadioCard({
             })
           : [];
       const news = mode === "tactics" ? moments.length > 0 : r.log.events.some((e) => e.t > lastT && isNewsworthy(e));
-      const due = since >= everyMs || (news && since >= minGapMs);
+      const due = since >= silence || (news && since >= minGapMs);
       if (!due) return;
       if (live.current.voice && isSpeaking(mode) && since < MAX_WAIT_FOR_VOICE_MS) return;
 
       inFlight = true;
       setBusy(true);
       lastAt = now;
+      silence = nextSilenceMs(everyMs);
       for (const m of moments) called.set(m.id, now);
       const snapshotT = now - Date.parse(r.log.startedAt);
       try {
@@ -186,7 +194,7 @@ export default function RadioCard({
       clearInterval(timer);
       stopSpeaking(mode);
     };
-  }, [canRun, apiBase, needsKey, recorder, mode]);
+  }, [canRun, apiBase, needsKey, recorder, mode, pace]);
 
   const [latest, ...earlier] = lines;
 
@@ -239,6 +247,23 @@ export default function RadioCard({
               <option value="full">Full name</option>
             </select>
           </label>
+          {mode === "commentary" && (
+            <label className={styles.toggle}>
+              Pace
+              <select
+                className={styles.voiceSelect}
+                value={pace}
+                onChange={(e) => setPace(e.target.value as CommentaryPace)}
+                aria-label="How often the commentator speaks"
+              >
+                {(Object.keys(COMMENTARY_PACE) as CommentaryPace[]).map((p) => (
+                  <option key={p} value={p}>
+                    {COMMENTARY_PACE[p].label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
       )}
 

@@ -23,14 +23,33 @@ export function callName(rider: RaceLog["rider"], style: NameStyle): string | un
 }
 
 /**
- * How often each mode speaks. Commentary keeps a steady flow so the
- * broadcast never goes quiet. The coach never speaks on a timer: only when
+ * How often each mode speaks. The coach never speaks on a timer: only when
  * there's a new key moment (see keyMoments), and not more often than this.
+ * The commentator's timing depends on the chosen pace (COMMENTARY_PACE).
  */
 export const RADIO_TIMING: Record<RadioMode, { everyMs: number; minGapMs: number }> = {
-  commentary: { everyMs: 25_000, minGapMs: 10_000 },
+  commentary: { everyMs: 60_000, minGapMs: 20_000 },
   tactics: { everyMs: Infinity, minGapMs: 6_000 },
 };
+
+/**
+ * How talkative the commentator is. A real commentary box lets the race
+ * play out: a line when something happens, and long spells of quiet in
+ * between when it doesn't. everyMs is the longest silence, roughly - it's
+ * varied by a fifth either way so the lines don't fall on a beat; minGapMs
+ * is the shortest, however busy the race.
+ */
+export type CommentaryPace = "chatty" | "relaxed" | "sparse";
+export const COMMENTARY_PACE: Record<CommentaryPace, { everyMs: number; minGapMs: number; label: string }> = {
+  chatty: { everyMs: 30_000, minGapMs: 12_000, label: "Chatty" },
+  relaxed: { everyMs: 75_000, minGapMs: 25_000, label: "Relaxed" },
+  sparse: { everyMs: 150_000, minGapMs: 45_000, label: "Big moments only" },
+};
+
+/** The next quiet spell: everyMs give or take a fifth. */
+export function nextSilenceMs(everyMs: number): number {
+  return Number.isFinite(everyMs) ? everyMs * (0.8 + Math.random() * 0.4) : everyMs;
+}
 /** The event kind each mode's lines are logged under. */
 export const LINE_KIND: Record<RadioMode, "commentary" | "tactic"> = { commentary: "commentary", tactics: "tactic" };
 /** Five minutes of effort is what tells a coach whether a rider can go again. */

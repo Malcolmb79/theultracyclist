@@ -29,6 +29,22 @@ export interface RaceSample {
   /** Joules. */
   wBal?: number;
   powerUp?: string;
+  /** In an event's start pen: signed in to it, not yet under way. */
+  pen?: boolean;
+}
+
+/** What Sauce knows about the event being ridden, from before the start. */
+export interface EventBrief {
+  name?: string;
+  /** The category, e.g. "A". */
+  label?: string;
+  /** Start time, epoch milliseconds. */
+  startsAt?: number;
+  distanceKm?: number;
+  climbM?: number;
+  laps?: number;
+  durationMin?: number;
+  powerUps?: boolean;
 }
 
 export interface GroupSummary {
@@ -57,6 +73,8 @@ export type RaceEventKind =
   | "chat"
   | "commentary"
   | "tactic"
+  | "pen"
+  | "go"
   | "stop";
 
 export interface RaceEvent {
@@ -72,6 +90,7 @@ export interface RaceLog {
   endedAt?: string;
   rider?: { athleteId: number; name: string; ftp?: number; weight?: number };
   eventSubgroupId?: number;
+  event?: EventBrief;
   remainingMetric?: "time" | "distance";
   samples: RaceSample[];
   groups: GroupSnapshot[];
@@ -117,6 +136,7 @@ export class RaceRecorder {
   private inSurge = false;
   private lastPowerUp: string | undefined;
   private passedMarkers = new Set<number>();
+  private inPen: boolean | undefined;
 
   constructor(now = Date.now()) {
     this.start = now;
@@ -180,9 +200,30 @@ export class RaceRecorder {
       remaining: round(data.remaining),
       wBal: round(data.wBal),
       powerUp: s.activePowerUp || undefined,
+      // Zwift counts event distance from the start banner, so a rider signed
+      // in to an event with none of it ridden and not moving is in the pen.
+      pen: (!!s.eventSubgroupId && !(s.eventDistance && s.eventDistance > 0) && (s.speed ?? 0) < 2) || undefined,
     };
     this.log.samples.push(sample);
+    this.detectStart(sample, now);
     this.detect(data, sample, now);
+  }
+
+  /** Into the start pen, and out of it when the race gets going. */
+  private detectStart(sample: RaceSample, now: number) {
+    const pen = !!sample.pen;
+    if (pen && this.inPen !== true) {
+      const name = this.log.event?.name;
+      this.event("pen", `In the start pen${name ? ` for ${name}` : ""}`, now);
+    } else if (!pen && this.inPen === true && (sample.speed ?? 0) >= 2) {
+      this.event("go", "The race is under way", now);
+    }
+    if (pen || (sample.speed ?? 0) >= 2) this.inPen = pen;
+  }
+
+  /** Event details, once they've been looked up (see ./eventInfo). */
+  setEvent(brief: EventBrief | undefined) {
+    this.log.event = brief;
   }
 
   private detect(data: SauceAthleteData, sample: RaceSample, now: number) {

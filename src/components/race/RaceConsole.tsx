@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useStoredState } from "../../utils/useStoredState";
 import StatTile from "../shared/StatTile";
 import RadioCard from "./RadioCard";
+import { useEventBrief } from "./eventInfo";
 import {
   DEFAULT_SAUCE_ADDRESS,
   athleteName,
@@ -78,6 +79,7 @@ export default function RaceConsole({
     return loadSavedLogs();
   });
   const recorder = useRef<RaceRecorder | null>(null);
+  useEventBrief(address, watching?.state?.eventSubgroupId, recorder, recording);
 
   useEffect(() => {
     return connectSauce(address, {

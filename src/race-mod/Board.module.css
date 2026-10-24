@@ -168,6 +168,27 @@
   min-width: 0;
 }
 
+/* W′ balance: a lighter grey bar behind the name, as wide as the share of
+   the rider's anaerobic capacity left. */
+.withWbal {
+  position: relative;
+  isolation: isolate;
+  padding: 0 4px;
+  margin-left: -4px;
+  border-radius: 4px;
+}
+
+.withWbal::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--wbal, 1) * 100%);
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 4px;
+  z-index: -1;
+  transition: width 0.8s ease;
+}
+
 .flag {
   width: 16px;
   height: 16px;

@@ -18,6 +18,8 @@ import styles from "./Board.module.css";
 // faded right down so Zwift shows through.
 
 const ROW_CHOICES = [10, 15, 20, 25, 30];
+/** Sauce's own default W′ when a rider's profile doesn't set one. */
+const DEFAULT_W_PRIME = 20_000;
 
 interface Country {
   id: number;
@@ -178,6 +180,10 @@ function RaceBoard() {
           const flag = a?.countryCode != null ? flags.get(a.countryCode) : undefined;
           const team = a?.team?.trim();
           const teammate = !r.watching && !!myTeam && team?.toLowerCase() === myTeam;
+          // W′ balance as the share of the rider's capacity left: the grey bar
+          // behind the name, full when fresh, shrinking as they dig in.
+          const wbal =
+            r.wBal != null ? Math.max(0, Math.min(1, r.wBal / (a?.wPrime || DEFAULT_W_PRIME))) : undefined;
           return (
             <li
               key={r.athleteId}
@@ -185,7 +191,11 @@ function RaceBoard() {
             >
               <span className={styles.pos}>{r.eventPosition || ""}</span>
               <span className={styles.who}>
-                <span className={styles.nameLine}>
+                <span
+                  className={`${styles.nameLine} ${wbal != null ? styles.withWbal : ""}`}
+                  style={wbal != null ? { ["--wbal" as string]: String(wbal) } : undefined}
+                  title={wbal != null && r.wBal != null ? `W′ ${(r.wBal / 1000).toFixed(1)} kJ (${Math.round(wbal * 100)}%)` : undefined}
+                >
                   {flag && <img className={styles.flag} src={flag.src} alt={flag.name} title={flag.name} />}
                   <span className={styles.name}>{athleteName(r)}</span>
                   {team && <span className={styles.team}>{team}</span>}

@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useRef, useState } from "react";
+import { StrictMode, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../styles/global.css";
 import RadioCard from "../components/race/RadioCard";
@@ -10,6 +10,7 @@ import {
   type FeedStatus,
   type SauceAthleteData,
 } from "../components/race/sauceFeed";
+import { useEventBrief } from "../components/race/eventInfo";
 import { SITE } from "./site";
 import styles from "./Tactics.module.css";
 
@@ -24,10 +25,12 @@ function TacticsOverlay() {
   const [status, setStatus] = useState<FeedStatus>("connecting");
   const [watching, setWatching] = useState<SauceAthleteData | null>(null);
   const recorder = useRef<RaceRecorder | null>(new RaceRecorder());
+  const address = useMemo(() => sauceAddressForModPage(), []);
+  useEventBrief(address, watching?.state?.eventSubgroupId, recorder);
 
   useEffect(() => {
     document.documentElement.classList.add(styles.transparent);
-    return connectSauce(sauceAddressForModPage(), {
+    return connectSauce(address, {
       onStatus: setStatus,
       onWatching: (data) => {
         setWatching(data);
@@ -36,7 +39,7 @@ function TacticsOverlay() {
       onGroups: (g) => recorder.current?.groups(g),
       onChat: (c) => recorder.current?.chat(c),
     });
-  }, []);
+  }, [address]);
 
   return (
     <div className={styles.overlay}>

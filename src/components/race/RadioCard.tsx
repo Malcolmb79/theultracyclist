@@ -140,7 +140,10 @@ export default function RadioCard({
       // The coach only speaks about key moments it hasn't just called.
       const moments =
         mode === "tactics"
-          ? keyMoments(r.log, lastT).filter((m) => now - (called.get(m.id) ?? -Infinity) >= MOMENT_COOLDOWN_MS)
+          ? keyMoments(r.log, lastT).filter((m) => {
+              const at = called.get(m.id);
+              return at == null || (!m.id.includes("@") && now - at >= MOMENT_COOLDOWN_MS);
+            })
           : [];
       const news = mode === "tactics" ? moments.length > 0 : r.log.events.some((e) => e.t > lastT && isNewsworthy(e));
       const due = since >= everyMs || (news && since >= minGapMs);

@@ -1,4 +1,4 @@
-import type { GroupSummary, RaceEvent, RaceLog, RaceSample } from "./raceLog";
+import type { EventBrief, GroupSummary, RaceEvent, RaceLog, RaceSample } from "./raceLog";
 
 // Live commentary and tactics: a compact snapshot of the race goes to
 // /api/race-commentary, a line comes back, and it's read aloud. Commentary
@@ -36,10 +36,15 @@ const SURGE_MIN_WATTS = 40;
 const TOWING_WATTS = 40;
 /** The road tipping up: from under 2% to at least this. */
 const CLIMB_PCT = 4;
-/** How long a moment stays said before the same one can be called again. */
+/**
+ * How long a moment stays said before the same one can be called again.
+ * Moments whose id carries "@" (an event, a pen briefing) are called once.
+ */
 export const MOMENT_COOLDOWN_MS = 45_000;
 /** Race events that are key moments for the coach in their own right. */
-const MOMENT_EVENTS = new Set<RaceEvent["kind"]>(["split", "merge", "distance", "position"]);
+const MOMENT_EVENTS = new Set<RaceEvent["kind"]>(["split", "merge", "distance", "position", "go"]);
+/** Countdown calls in the pen, seconds before the start - the last one just before the off. */
+const COUNTDOWN_CALLS_SEC = [120, 60, 15];
 /** Moments worth cutting in for, rather than waiting for the next line. */
 const NEWSWORTHY = new Set<RaceEvent["kind"]>(["position", "split", "merge", "surge", "powerup", "distance", "watching"]);
 const WINDOW_MS = 60_000;
@@ -83,6 +88,26 @@ function neighbour(log: RaceLog, side: "ahead" | "behind") {
   };
 }
 
+function formatWait(sec: number): string {
+  if (sec < 60) return `${sec} seconds`;
+  const m = Math.round(sec / 60);
+  return m === 1 ? "a minute" : `${m} minutes`;
+}
+
+/** The event in one breath, from what Sauce knows of it. */
+function describeEvent(ev: EventBrief | undefined, riders: number | undefined): string {
+  if (!ev) return riders ? `${riders} riders signed in.` : "Event details aren't in yet.";
+  const parts = [
+    ev.name ? `${ev.name}${ev.label ? ` (${ev.label})` : ""}` : undefined,
+    ev.durationMin ? `${ev.durationMin} minutes` : ev.distanceKm ? `${ev.distanceKm} km` : undefined,
+    ev.laps && ev.laps > 1 ? `${ev.laps} laps` : undefined,
+    ev.climbM != null ? `${ev.climbM} m of climbing` : undefined,
+    riders ? `${riders} riders` : undefined,
+    ev.powerUps === false ? "no power-ups" : ev.powerUps ? "power-ups on" : undefined,
+  ].filter(Boolean);
+  return parts.length ? `${parts.join(", ")}.` : "";
+}
+
 export interface KeyMoment {
   /** Same id, same moment: it isn't called again until the cooldown passes. */
   id: string;
@@ -112,11 +137,32 @@ function bridgeTarget(gapSec: number, aheadKmh: number | undefined, now: RaceSam
  * up, the tank running dry - plus the race log's splits, merges, moves
  * through the field and distance markers since `sinceT`.
  */
-export function keyMoments(log: RaceLog, sinceT: number): KeyMoment[] {
+export function keyMoments(log: RaceLog, sinceT: number, clock = Date.now()): KeyMoment[] {
   const moments: KeyMoment[] = [];
   const samples = log.samples;
   const now = samples.at(-1);
   if (!now) return moments;
+
+  // In the start pen nothing on the road means anything yet: the coach
+  // briefs the race once, then counts down to the start.
+  // Ids carrying "@" are one-off: called once for this pen, never again.
+  if (now.pen) {
+    const ev = log.event;
+    const penT = log.events.findLast((e) => e.kind === "pen")?.t ?? 0;
+    const startsIn = ev?.startsAt != null ? Math.round((ev.startsAt - clock) / 1000) : undefined;
+    // Give Sauce a few seconds to look the event up before briefing without it.
+    if (ev || now.t - penT > 10_000) {
+      moments.push({
+        id: `briefing@${penT}`,
+        text: `In the start pen. ${describeEvent(ev, now.of)}${startsIn != null && startsIn > 0 ? ` Starts in ${formatWait(startsIn)}.` : ""}`,
+      });
+    }
+    if (startsIn != null && startsIn > 0) {
+      const call = COUNTDOWN_CALLS_SEC.filter((c) => startsIn <= c).at(-1);
+      if (call != null) moments.push({ id: `countdown@${penT}-${call}`, text: `${formatWait(startsIn)} to the start.` });
+    }
+    return moments;
+  }
 
   const ahead = neighbour(log, "ahead");
   if (ahead && ahead.gapSec <= CLOSE_GAP_SEC && ahead.gapChange30s != null) {
@@ -213,6 +259,13 @@ export function buildSnapshot(
   const climb = first?.alt != null && now?.alt != null ? Math.round(now.alt - first.alt) : undefined;
   const base = {
     rider: log.rider ? { name: log.rider.name, ftp: log.rider.ftp, weightKg: log.rider.weight } : undefined,
+    // "pen" until the race starts: nothing on the road means anything yet.
+    phase: now?.pen ? ("pen" as const) : ("racing" as const),
+    event: log.event && {
+      ...log.event,
+      startsAt: undefined,
+      startsInSec: log.event.startsAt != null ? Math.round((log.event.startsAt - Date.now()) / 1000) : undefined,
+    },
     elapsedSec: Math.round(elapsed / 1000),
     toGo:
       now?.remaining != null

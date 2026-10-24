@@ -48,6 +48,8 @@ export interface SauceAthlete {
   /** ISO 3166 numeric; Sauce maps it to a flag via its countries.json. */
   countryCode?: number;
   racingCategory?: string;
+  /** W′ capacity in joules; Sauce assumes 20 kJ when the profile has none. */
+  wPrime?: number;
   team?: string;
 }
 

@@ -6,6 +6,8 @@ import {
   LINE_KIND,
   NATURAL_VOICES,
   COMMENTARY_PACE,
+  PHASE_TIMING,
+  racePhase,
   RADIO_TIMING,
   nextSilenceMs,
   MOMENT_COOLDOWN_MS,
@@ -179,7 +181,11 @@ export default function RadioCard({
             })
           : [];
       const news = mode === "tactics" ? moments.length > 0 : r.log.events.some((e) => e.t > lastT && isNewsworthy(e));
-      const due = since >= silence || (news && since >= minGapMs);
+      // The finale and the results have their own rhythm, whatever the pace.
+      const phased = mode === "commentary" ? PHASE_TIMING[racePhase(r.log)] : undefined;
+      const due = phased
+        ? since >= phased.everyMs || (news && since >= phased.minGapMs)
+        : since >= silence || (news && since >= minGapMs);
       if (!due) return;
       if (live.current.voice && isSpeaking(mode) && since < MAX_WAIT_FOR_VOICE_MS) return;
 

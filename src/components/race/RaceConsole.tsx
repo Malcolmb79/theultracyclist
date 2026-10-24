@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useStoredState } from "../../utils/useStoredState";
 import StatTile from "../shared/StatTile";
 import RadioCard from "./RadioCard";
-import { useEventBrief } from "./eventInfo";
+import { useEventBrief, useEventResults } from "./eventInfo";
 import {
   DEFAULT_SAUCE_ADDRESS,
   athleteName,
@@ -80,6 +80,11 @@ export default function RaceConsole({
   });
   const recorder = useRef<RaceRecorder | null>(null);
   useEventBrief(address, watching?.state?.eventSubgroupId, recorder, recording);
+  // Over the line: the results come in, for the commentator to call.
+  const [finished, setFinished] = useState(false);
+  useEventResults(address, watching?.state?.eventSubgroupId ?? recorder.current?.log.eventSubgroupId, recorder, finished, () => {
+    if (recorder.current) setEvents(feed(recorder.current.log));
+  });
 
   useEffect(() => {
     return connectSauce(address, {
@@ -97,6 +102,7 @@ export default function RaceConsole({
         if (r) {
           const before = r.log.events.length;
           r.watching(data);
+          if (r.hasFinished) setFinished(true);
           if (r.log.events.length !== before) setEvents(feed(r.log));
         }
       },
@@ -136,6 +142,7 @@ export default function RaceConsole({
     const r = new RaceRecorder();
     recorder.current = r;
     setEvents(feed(r.log));
+    setFinished(false);
     setElapsed(0);
     setRecording(true);
     saveCurrentLog(r.log);

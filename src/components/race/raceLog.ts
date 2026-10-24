@@ -132,6 +132,16 @@ export interface FieldSnapshot {
   toWatch?: FieldRider[];
 }
 
+/** One finisher, from Zwift's results via Sauce (see ./eventInfo). */
+export interface RaceResult {
+  athleteId: number;
+  rank: number;
+  name: string;
+  timeMs?: number;
+  avgWatts?: number;
+  scoreChange?: number;
+}
+
 export interface GroupSnapshot {
   t: number;
   groups: GroupSummary[];
@@ -155,6 +165,8 @@ export type RaceEventKind =
   | "dropped"
   | "bridged"
   | "leader"
+  | "finish"
+  | "result"
   | "stop";
 
 export interface RaceEvent {
@@ -209,7 +221,12 @@ const ATTACK_COOLDOWN_MS = 60_000;
 /** Riders named at most per dropped or bridged line. */
 const NAMES_PER_LINE = 3;
 
-const DISTANCE_MARKERS_M = [200, 500, 1000, 2000, 3000, 5000, 10_000, 20_000];
+/** Denser in the last kilometre, where every hundred metres changes the race. */
+const DISTANCE_MARKERS_M = [100, 200, 300, 400, 500, 600, 800, 1000, 2000, 3000, 5000, 10_000, 20_000];
+/** Inside this the race is in its finale, and an attack is the sprint. */
+export const FINALE_M = 1000;
+export const FINALE_SEC = 90;
+const SPRINT_M = 500;
 
 function round(n: number | undefined, dp = 0): number | undefined {
   if (n == null || !Number.isFinite(n)) return undefined;
@@ -238,6 +255,10 @@ export class RaceRecorder {
   private inSurge = false;
   private lastPowerUp: string | undefined;
   private passedMarkers = new Set<number>();
+  private lastRemaining: number | undefined;
+  private finished = false;
+  /** Results already announced, by athlete id. */
+  private resulted = new Set<number>();
   private inPen: boolean | undefined;
   /** Which group each rider was in last time, relative to the watched rider's (0 = same, -1 ahead). */
   private riderGroup = new Map<number, number>();
@@ -385,6 +406,47 @@ export class RaceRecorder {
         }
       }
     }
+
+    // Over the line: the remaining distance (or time) running out.
+    const left = sample.remaining;
+    if (!this.finished && left != null && left <= 0 && this.lastRemaining != null && this.lastRemaining > 0) {
+      this.finished = true;
+      const pos = sample.pos ? ` in ${ordinal(sample.pos)}${sample.of ? ` of ${sample.of}` : ""}` : "";
+      // Race time from the event's start; recording may have begun in the pen.
+      const startsAt = this.log.event?.startsAt;
+      const time = startsAt && now > startsAt ? ` after ${formatElapsed(now - startsAt)}` : "";
+      this.event("finish", `${name} crosses the line${pos}${time}`, now);
+    }
+    if (left != null) this.lastRemaining = left;
+  }
+
+  /** Whether the watched rider has crossed the finish line. */
+  get hasFinished(): boolean {
+    return this.finished;
+  }
+
+  /**
+   * The event's results as Zwift publishes them, finishers in order: each
+   * new finisher is logged once, the watched rider's own result with their
+   * racing score change. Called again as results come in.
+   */
+  results(entries: RaceResult[], now = Date.now()) {
+    const watchedId = this.log.rider?.athleteId;
+    const fresh = entries.filter((e) => !this.resulted.has(e.athleteId));
+    if (!fresh.length) return;
+    for (const e of fresh) this.resulted.add(e.athleteId);
+    const line = (e: RaceResult, named = true) =>
+      `${ordinal(e.rank)}${named ? ` ${e.name}` : ""}${e.timeMs ? ` in ${formatElapsed(e.timeMs)}` : ""}${e.avgWatts ? `, ${e.avgWatts} W average` : ""}`;
+    const mine = fresh.find((e) => e.athleteId === watchedId);
+    const others = fresh.filter((e) => e !== mine);
+    if (others.length) {
+      const shown = others.slice(0, 5).map((e) => line(e)).join("; ");
+      this.event("result", `Results: ${shown}${others.length > 5 ? ` and ${others.length - 5} more` : ""}`, now);
+    }
+    if (mine) {
+      const change = mine.scoreChange ? `, racing score ${mine.scoreChange > 0 ? "up" : "down"} ${Math.abs(mine.scoreChange)}` : "";
+      this.event("result", `Official result for ${this.log.rider?.name ?? mine.name}: ${line(mine, false)}${change}`, now);
+    }
   }
 
   groups(groups: SauceGroup[], now = Date.now()) {
@@ -461,7 +523,14 @@ export class RaceRecorder {
             now - (this.attackedAt.get(a.athleteId) ?? -Infinity) >= ATTACK_COOLDOWN_MS) {
           this.attackedAt.set(a.athleteId, now);
           const where = g === own ? "from the group" : "in the group ahead";
-          this.event("attack", `${r.name} attacks ${where} at ${r.wkg} W/kg (${r.power} W)`, now);
+          const left = this.log.remainingMetric === "distance" ? this.log.samples.at(-1)?.remaining : undefined;
+          this.event(
+            "attack",
+            left != null && left > 0 && left <= SPRINT_M
+              ? `${r.name} launches the sprint ${where} at ${r.wkg} W/kg (${r.power} W), ${Math.round(left)} m out`
+              : `${r.name} attacks ${where} at ${r.wkg} W/kg (${r.power} W)`,
+            now,
+          );
         }
       }
     }

@@ -1,4 +1,4 @@
-import type { EventBrief, GroupSummary, RaceEvent, RaceLog, RaceSample } from "./raceLog";
+import { FINALE_M, FINALE_SEC, type EventBrief, type GroupSummary, type RaceEvent, type RaceLog, type RaceSample } from "./raceLog";
 
 // Live commentary and tactics: a compact snapshot of the race goes to
 // /api/race-commentary, a line comes back, and it's read aloud. Commentary
@@ -91,7 +91,31 @@ const NEWSWORTHY = new Set<RaceEvent["kind"]>([
   "dropped",
   "bridged",
   "leader",
+  "finish",
+  "result",
 ]);
+
+/** Where the race is: waiting to start, under way, the last kilometre, or over. */
+export type RacePhase = "pen" | "racing" | "finale" | "finished";
+
+export function racePhase(log: RaceLog): RacePhase {
+  if (log.events.some((e) => e.kind === "finish")) return "finished";
+  const now = log.samples.at(-1);
+  if (now?.pen) return "pen";
+  const left = now?.remaining;
+  if (left != null && left > 0 && left <= (log.remainingMetric === "time" ? FINALE_SEC : FINALE_M)) return "finale";
+  return "racing";
+}
+
+/**
+ * The commentator's timing in the finale and after the line, whatever the
+ * chosen pace: the last kilometre is called almost blow by blow, and after
+ * the finish it only speaks as results come in.
+ */
+export const PHASE_TIMING: Partial<Record<RacePhase, { everyMs: number; minGapMs: number }>> = {
+  finale: { everyMs: 12_000, minGapMs: 5_000 },
+  finished: { everyMs: Infinity, minGapMs: 8_000 },
+};
 const WINDOW_MS = 60_000;
 const RECENT_EVENTS = 8;
 /** Enough of what was just said to carry the conversation on from it. */
@@ -203,6 +227,9 @@ export function keyMoments(log: RaceLog, sinceT: number, clock = Date.now()): Ke
 
   // In the start pen nothing on the road means anything yet: the coach
   // briefs the race once, then counts down to the start.
+  // The race is over for the rider; the coach has nothing left to call.
+  if (log.events.some((e) => e.kind === "finish")) return moments;
+
   // Ids carrying "@" are one-off: called once for this pen, never again.
   if (now.pen) {
     const ev = log.event;
@@ -332,7 +359,7 @@ export function buildSnapshot(
       : undefined,
     yourFitness,
     // "pen" until the race starts: nothing on the road means anything yet.
-    phase: now?.pen ? ("pen" as const) : ("racing" as const),
+    phase: racePhase(log),
     event: log.event && {
       ...log.event,
       startsAt: undefined,

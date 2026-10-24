@@ -5,6 +5,8 @@ import {
   COMMENTARY_EVERY_MS,
   COMMENTARY_MIN_GAP_MS,
   buildSnapshot,
+  englishVoices,
+  onlyBasicVoices,
   isNewsworthy,
   isSpeaking,
   requestCommentary,
@@ -34,14 +36,28 @@ export default function CommentaryCard({ recorder, recording, apiBase, needsKey,
   const [key, setKey] = useStoredState<string | null>("race:commentary-key", null, (v) =>
     typeof v === "string" && v ? v : null,
   );
+  const [voiceName, setVoiceName] = useStoredState<string | null>("race:commentary-voice-name", null, (v) =>
+    typeof v === "string" ? v : null,
+  );
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>(() => englishVoices());
   const [keyDraft, setKeyDraft] = useState("");
   const [lines, setLines] = useState<{ at: number; text: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   // Read inside the timer, which is set up once per recording.
-  const live = useRef({ enabled, voice, key, onLine });
-  live.current = { enabled, voice, key, onLine };
+  const live = useRef({ enabled, voice, voiceName, key, onLine });
+  live.current = { enabled, voice, voiceName, key, onLine };
+
+  // Voices load after the page does, and Edge's online ones can arrive late.
+  useEffect(() => {
+    const synth = window.speechSynthesis;
+    if (!synth) return;
+    const update = () => setVoices(englishVoices());
+    update();
+    synth.addEventListener("voiceschanged", update);
+    return () => synth.removeEventListener("voiceschanged", update);
+  }, []);
 
   const canRun = recording && enabled && (!needsKey || !!key);
 
@@ -72,7 +88,7 @@ export default function CommentaryCard({ recorder, recording, apiBase, needsKey,
         if (text && recorder.current === r && live.current.enabled) {
           r.commentary(text);
           setLines((prev) => [{ at: snapshotT, text }, ...prev].slice(0, SHOWN_LINES));
-          if (live.current.voice) speak(text);
+          if (live.current.voice) speak(text, live.current.voiceName);
           live.current.onLine();
         }
       } catch (e) {
@@ -113,6 +129,36 @@ export default function CommentaryCard({ recorder, recording, apiBase, needsKey,
           </label>
         </div>
       </div>
+
+      {voice && voices.length > 0 && (
+        <div className={styles.voiceRow}>
+          <select
+            className={styles.voiceSelect}
+            value={voices.some((v) => v.name === voiceName) ? (voiceName ?? "") : voices[0].name}
+            onChange={(e) => setVoiceName(e.target.value)}
+            aria-label="Commentary voice"
+          >
+            {voices.map((v) => (
+              <option key={v.name} value={v.name}>
+                {v.name}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className={styles.secondaryButton}
+            onClick={() => speak("And they're off! Let's see who's got the legs today.", voiceName)}
+          >
+            Test voice
+          </button>
+          {onlyBasicVoices(voices) && (
+            <span className={styles.savedMeta}>
+              These voices are the basic Windows ones. For far more natural speech, open this page in Microsoft Edge
+              and pick a voice with "Natural" in its name.
+            </span>
+          )}
+        </div>
+      )}
 
       {needsKey && !key ? (
         <form

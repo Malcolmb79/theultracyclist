@@ -368,3 +368,23 @@
   color: var(--color-text-muted);
 }
 
+
+.voiceRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.voiceSelect {
+  max-width: 100%;
+  height: 36px;
+  padding: 0 var(--space-2);
+  background: var(--color-bg);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font: inherit;
+  font-size: 0.9rem;
+}

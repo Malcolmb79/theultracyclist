@@ -13,7 +13,8 @@ export const COMMENTARY_MIN_GAP_MS = 10_000;
 const NEWSWORTHY = new Set<RaceEvent["kind"]>(["position", "split", "merge", "surge", "powerup", "distance", "watching"]);
 const WINDOW_MS = 60_000;
 const RECENT_EVENTS = 8;
-const RECENT_LINES = 4;
+/** Enough of what was just said to carry the conversation on from it. */
+const RECENT_LINES = 6;
 
 function avg(values: (number | undefined)[]): number | undefined {
   const xs = values.filter((v): v is number => v != null);
@@ -107,18 +108,48 @@ export async function requestCommentary(
   return body.text?.trim() ?? "";
 }
 
+/**
+ * How natural a voice sounds, best first. The browser's speech comes from
+ * whatever the system has: Edge on Windows offers Microsoft's neural
+ * "Online (Natural)" voices, Chrome its "Google" voices, and the older
+ * Windows desktop voices sound robotic. British and Irish English suit the
+ * commentary best.
+ */
+function voiceScore(v: SpeechSynthesisVoice): number {
+  if (!/^en/i.test(v.lang)) return -1;
+  let score = 0;
+  if (/natural|neural/i.test(v.name)) score += 100;
+  else if (/online/i.test(v.name)) score += 60;
+  else if (/^google/i.test(v.name)) score += 40;
+  if (/en[-_](GB|IE)/i.test(v.lang)) score += 10;
+  if (!v.localService) score += 5;
+  return score;
+}
+
+export function englishVoices(): SpeechSynthesisVoice[] {
+  try {
+    return (window.speechSynthesis?.getVoices() ?? [])
+      .filter((v) => voiceScore(v) >= 0)
+      .sort((a, b) => voiceScore(b) - voiceScore(a) || a.name.localeCompare(b.name));
+  } catch {
+    return [];
+  }
+}
+
+/** True when the best voice on offer is one of the robotic desktop ones. */
+export function onlyBasicVoices(voices: SpeechSynthesisVoice[]): boolean {
+  return voices.length > 0 && voiceScore(voices[0]) < 40;
+}
+
 /** Reads a line aloud, cutting off anything still being said. */
-export function speak(text: string) {
+export function speak(text: string, voiceName?: string | null) {
   try {
     const synth = window.speechSynthesis;
     if (!synth) return;
     synth.cancel();
     const u = new SpeechSynthesisUtterance(text);
-    const voices = synth.getVoices();
-    // An English voice from the British Isles suits the style; otherwise the default.
-    u.voice =
-      voices.find((v) => /en-(GB|IE)/i.test(v.lang)) ?? voices.find((v) => /^en/i.test(v.lang)) ?? null;
-    u.rate = 1.05;
+    const voices = englishVoices();
+    u.voice = voices.find((v) => v.name === voiceName) ?? voices[0] ?? null;
     synth.speak(u);
   } catch {
     // No speech on this browser - the line is still on screen.

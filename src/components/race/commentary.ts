@@ -10,12 +10,12 @@ export type RadioMode = "commentary" | "tactics";
 
 /**
  * How often each mode speaks. Commentary keeps a steady flow so the
- * broadcast never goes quiet; the coach checks in often but may decide
- * there's nothing worth saying, and cuts in sooner when the race changes.
+ * broadcast never goes quiet. The coach never speaks on a timer: only when
+ * there's a new key moment (see keyMoments), and not more often than this.
  */
 export const RADIO_TIMING: Record<RadioMode, { everyMs: number; minGapMs: number }> = {
   commentary: { everyMs: 25_000, minGapMs: 10_000 },
-  tactics: { everyMs: 20_000, minGapMs: 8_000 },
+  tactics: { everyMs: Infinity, minGapMs: 6_000 },
 };
 /** The event kind each mode's lines are logged under. */
 export const LINE_KIND: Record<RadioMode, "commentary" | "tactic"> = { commentary: "commentary", tactics: "tactic" };
@@ -26,7 +26,20 @@ const TREND_MS = 30_000;
 /** Below this the anaerobic reserve is nearly gone - a coach would say so. */
 const LOW_WBAL_J = 5000;
 /** A gap this small can be bridged, or can catch you. */
-const CLOSE_GAP_SEC = 6;
+const CLOSE_GAP_SEC = 8;
+/** A gap moving this much in 30 seconds is a move, not noise. */
+const GAP_MOVE_SEC = 1.5;
+/** A group's power jumping this much in 15 seconds is an attack. */
+const SURGE_RATIO = 1.2;
+const SURGE_MIN_WATTS = 40;
+/** Riding this far over the group's average for 20 seconds is towing it. */
+const TOWING_WATTS = 40;
+/** The road tipping up: from under 2% to at least this. */
+const CLIMB_PCT = 4;
+/** How long a moment stays said before the same one can be called again. */
+export const MOMENT_COOLDOWN_MS = 45_000;
+/** Race events that are key moments for the coach in their own right. */
+const MOMENT_EVENTS = new Set<RaceEvent["kind"]>(["split", "merge", "distance", "position"]);
 /** Moments worth cutting in for, rather than waiting for the next line. */
 const NEWSWORTHY = new Set<RaceEvent["kind"]>(["position", "split", "merge", "surge", "powerup", "distance", "watching"]);
 const WINDOW_MS = 60_000;
@@ -66,29 +79,112 @@ function neighbour(log: RaceLog, side: "ahead" | "behind") {
     gapChange30s: before ? Math.round((gap - Math.abs(before.gap)) * 10) / 10 : undefined,
     riders: g.size,
     avgPower: g.power,
+    speedKmh: g.speed,
   };
 }
 
-/**
- * The things a coach would cut in for straight away, worked out from the
- * numbers rather than left to the model to notice: the tank running dry,
- * a gap you can close, a group closing on you.
- */
-function tacticalAlerts(log: RaceLog) {
-  const now = log.samples.at(-1);
-  const alerts: string[] = [];
-  if (now?.wBal != null && now.wBal < LOW_WBAL_J) alerts.push("anaerobic reserve nearly empty");
-  const ahead = neighbour(log, "ahead");
-  if (ahead && ahead.gapSec <= CLOSE_GAP_SEC && (ahead.gapChange30s ?? 0) < 0) alerts.push("closing on the group ahead");
-  if (ahead && ahead.gapSec <= CLOSE_GAP_SEC && (ahead.gapChange30s ?? 0) > 1) alerts.push("group ahead pulling away");
-  const behind = neighbour(log, "behind");
-  if (behind && behind.gapSec <= CLOSE_GAP_SEC && (behind.gapChange30s ?? 0) < 0) alerts.push("group behind closing in");
-  return alerts;
+export interface KeyMoment {
+  /** Same id, same moment: it isn't called again until the cooldown passes. */
+  id: string;
+  text: string;
 }
 
-/** A fingerprint of the current alerts, so a new one can cut in early. */
-export function alertKey(log: RaceLog): string {
-  return tacticalAlerts(log).join("|");
+/**
+ * A rough power target to close a gap in 30 seconds: the speed needed to
+ * take `gap` seconds out of the group ahead in that time, scaled from the
+ * rider's own power and speed now - by the cube of speed on the flat (air
+ * resistance), roughly in proportion uphill. An estimate for a coach to
+ * round, not a physics model; drafting alone can change it a lot.
+ */
+function bridgeTarget(gapSec: number, aheadKmh: number | undefined, now: RaceSample | undefined) {
+  if (!aheadKmh || !now?.speed || !now.power) return undefined;
+  const targetKmh = aheadKmh * (1 + gapSec / 30);
+  const ratio = targetKmh / now.speed;
+  const watts = (now.grade ?? 0) > 2 ? now.power * ratio : now.power * ratio ** 3;
+  return { targetKmh: Math.round(targetKmh * 10) / 10, roughWatts: Math.round(watts / 10) * 10 };
+}
+
+/**
+ * The moments a coach would get on the radio for, worked out from the
+ * numbers so the coach speaks about something real and specific, each with
+ * the figures that make it actionable: a gap opening or closing either side,
+ * a surge in the rider's own group, the rider towing it, the road tipping
+ * up, the tank running dry - plus the race log's splits, merges, moves
+ * through the field and distance markers since `sinceT`.
+ */
+export function keyMoments(log: RaceLog, sinceT: number): KeyMoment[] {
+  const moments: KeyMoment[] = [];
+  const samples = log.samples;
+  const now = samples.at(-1);
+  if (!now) return moments;
+
+  const ahead = neighbour(log, "ahead");
+  if (ahead && ahead.gapSec <= CLOSE_GAP_SEC && ahead.gapChange30s != null) {
+    const who = `the group ahead (${ahead.riders} riders, ${Math.round(ahead.avgPower ?? 0)} W average)`;
+    if (ahead.gapChange30s <= -GAP_MOVE_SEC) {
+      const b = bridgeTarget(ahead.gapSec, ahead.speedKmh, now);
+      moments.push({
+        id: "bridge",
+        text:
+          `Closing on ${who}: ${ahead.gapSec.toFixed(1)}s now, ${Math.abs(ahead.gapChange30s).toFixed(1)}s taken out in the last 30s.` +
+          (b ? ` To close it in 30s: about ${b.targetKmh} km/h, roughly ${b.roughWatts} W.` : ""),
+      });
+    } else if (ahead.gapChange30s >= GAP_MOVE_SEC) {
+      const b = bridgeTarget(ahead.gapSec, ahead.speedKmh, now);
+      moments.push({
+        id: "slipping",
+        text:
+          `${who[0].toUpperCase()}${who.slice(1)} is getting away: ${ahead.gapSec.toFixed(1)}s, up ${ahead.gapChange30s.toFixed(1)}s in 30s.` +
+          (b ? ` Bridging in 30s would take about ${b.targetKmh} km/h, roughly ${b.roughWatts} W.` : ""),
+      });
+    }
+  }
+
+  const behind = neighbour(log, "behind");
+  if (behind && behind.gapSec <= CLOSE_GAP_SEC && behind.gapChange30s != null && behind.gapChange30s <= -GAP_MOVE_SEC) {
+    moments.push({
+      id: "caught",
+      text: `The group behind (${behind.riders} riders, ${Math.round(behind.avgPower ?? 0)} W average) is ${behind.gapSec.toFixed(1)}s back and has gained ${Math.abs(behind.gapChange30s).toFixed(1)}s in 30s.`,
+    });
+  }
+
+  // The rider's own group: an attack inside it, or the rider towing it.
+  const latest = log.groups.at(-1);
+  const own = latest?.groups.find((g) => g.watching);
+  const earlier = log.groups.findLast((x) => latest && x.t <= latest.t - 15_000)?.groups.find((g) => g.watching);
+  if (own?.power != null && earlier?.power != null && own.size > 1) {
+    if (own.power >= earlier.power * SURGE_RATIO && own.power - earlier.power >= SURGE_MIN_WATTS) {
+      moments.push({
+        id: "surge",
+        text: `Your group's average jumped from ${Math.round(earlier.power)} W to ${Math.round(own.power)} W in 15s - the pace is going up.`,
+      });
+    }
+  }
+  if (own?.power != null && own.size > 2) {
+    const recent = samples.filter((s) => s.t >= now.t - 20_000);
+    const mine = avg(recent.map((s) => s.power));
+    if (recent.length >= 15 && mine != null && mine - own.power >= TOWING_WATTS) {
+      moments.push({
+        id: "towing",
+        text: `You've averaged ${mine} W for 20s, ${Math.round(mine - own.power)} W more than your group of ${own.size} (${Math.round(own.power)} W).`,
+      });
+    }
+  }
+
+  const gradeNow = avg(samples.filter((s) => s.t >= now.t - 10_000).map((s) => s.grade));
+  const gradeBefore = avg(samples.filter((s) => s.t >= now.t - 40_000 && s.t < now.t - 20_000).map((s) => s.grade));
+  if (gradeNow != null && gradeBefore != null && gradeNow >= CLIMB_PCT && gradeBefore < 2) {
+    moments.push({ id: "climb", text: `The road has kicked up to ${gradeNow}% (from ${gradeBefore}%).` });
+  }
+
+  if (now.wBal != null && now.wBal < LOW_WBAL_J) {
+    moments.push({ id: "tank", text: `Anaerobic reserve is down to ${(now.wBal / 1000).toFixed(1)} kJ.` });
+  }
+
+  for (const e of log.events) {
+    if (e.t > sinceT && MOMENT_EVENTS.has(e.kind)) moments.push({ id: `${e.kind}@${e.t}`, text: e.text });
+  }
+  return moments;
 }
 
 /**
@@ -98,7 +194,12 @@ export function alertKey(log: RaceLog): string {
  * also gets the rider's effort against FTP, how hard they're working
  * compared with their group, and which way the gaps either side are going.
  */
-export function buildSnapshot(log: RaceLog, sinceT: number, mode: RadioMode = "commentary") {
+export function buildSnapshot(
+  log: RaceLog,
+  sinceT: number,
+  mode: RadioMode = "commentary",
+  moments: KeyMoment[] = [],
+) {
   const samples = log.samples;
   const now: RaceSample | undefined = samples.at(-1);
   const elapsed = now?.t ?? 0;
@@ -175,7 +276,8 @@ export function buildSnapshot(log: RaceLog, sinceT: number, mode: RadioMode = "c
     },
     groupAhead: neighbour(log, "ahead"),
     groupBehind: neighbour(log, "behind"),
-    alerts: tacticalAlerts(log),
+    // What the coach is being asked to call; everything else is context.
+    keyMoments: moments.map((m) => m.text),
   };
 }
 

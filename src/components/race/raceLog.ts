@@ -88,7 +88,7 @@ const POSITION_STEP = 3;
 const SURGE_FTP = 1.5;
 const SURGE_SECONDS = 5;
 /** Nearest first, so the marker just crossed is the first one that matches. */
-const DISTANCE_MARKERS_M = [500, 1000, 2000, 5000, 10_000, 20_000];
+const DISTANCE_MARKERS_M = [200, 500, 1000, 2000, 3000, 5000, 10_000, 20_000];
 
 function round(n: number | undefined, dp = 0): number | undefined {
   if (n == null || !Number.isFinite(n)) return undefined;

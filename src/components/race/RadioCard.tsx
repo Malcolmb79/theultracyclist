@@ -6,7 +6,8 @@ import {
   LINE_KIND,
   NATURAL_VOICES,
   RADIO_TIMING,
-  alertKey,
+  MOMENT_COOLDOWN_MS,
+  keyMoments,
   buildSnapshot,
   VoiceUnavailableError,
   englishVoices,
@@ -127,7 +128,8 @@ export default function RadioCard({
     let inFlight = false;
     let lastAt = 0;
     let lastT = -1;
-    let lastAlerts = "";
+    // When each key moment was last called, so it isn't called again and again.
+    const called = new Map<string, number>();
     const { everyMs, minGapMs } = RADIO_TIMING[mode];
     setLines([]);
     const timer = setInterval(async () => {
@@ -135,24 +137,26 @@ export default function RadioCard({
       if (!r || inFlight || r.log.samples.length === 0) return;
       const now = Date.now();
       const since = now - lastAt;
-      const news = r.log.events.some((e) => e.t > lastT && isNewsworthy(e));
-      // A new tactical alert (tank empty, a gap to close) is news for the coach.
-      const alerts = mode === "tactics" ? alertKey(r.log) : "";
-      const alerted = alerts !== "" && alerts !== lastAlerts;
-      const due = since >= everyMs || ((news || alerted) && since >= minGapMs);
+      // The coach only speaks about key moments it hasn't just called.
+      const moments =
+        mode === "tactics"
+          ? keyMoments(r.log, lastT).filter((m) => now - (called.get(m.id) ?? -Infinity) >= MOMENT_COOLDOWN_MS)
+          : [];
+      const news = mode === "tactics" ? moments.length > 0 : r.log.events.some((e) => e.t > lastT && isNewsworthy(e));
+      const due = since >= everyMs || (news && since >= minGapMs);
       if (!due) return;
       if (live.current.voice && isSpeaking(mode) && since < MAX_WAIT_FOR_VOICE_MS) return;
 
       inFlight = true;
       setBusy(true);
       lastAt = now;
-      lastAlerts = alerts;
+      for (const m of moments) called.set(m.id, now);
       const snapshotT = now - Date.parse(r.log.startedAt);
       try {
         const text = await requestCommentary(
           apiBase,
           needsKey ? live.current.key : null,
-          buildSnapshot(r.log, lastT, mode),
+          buildSnapshot(r.log, lastT, mode, moments),
           mode,
         );
         lastT = snapshotT;
@@ -303,7 +307,7 @@ export default function RadioCard({
         <p className={styles.empty}>
           {mode === "commentary"
             ? "Warming up the commentary box…"
-            : "Your coach is watching the race. Calls come when there's something to act on."}
+            : "Your coach is watching the gaps. Calls come only at key moments: a gap opening or closing, a split, a surge, a climb, the finale."}
         </p>
       ) : (
         <>

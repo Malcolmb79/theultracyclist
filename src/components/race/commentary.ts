@@ -33,18 +33,54 @@ export const RADIO_TIMING: Record<RadioMode, { everyMs: number; minGapMs: number
 };
 
 /**
- * How talkative the commentator is. A real commentary box lets the race
- * play out: a line when something happens, and long spells of quiet in
- * between when it doesn't. everyMs is the longest silence, roughly - it's
- * varied by a fifth either way so the lines don't fall on a beat; minGapMs
- * is the shortest, however busy the race.
+ * How talkative the commentator is. It doesn't speak on a timer: what
+ * happens in the race builds up "interest" (see INTEREST), and it speaks
+ * once enough has built up since its last line - so a quiet stretch stays
+ * quiet and a lively one gets called. threshold is how much it takes;
+ * everyMs is the longest it will stay silent anyway, roughly (varied by a
+ * fifth so the lines don't fall on a beat); minGapMs the shortest gap.
  */
 export type CommentaryPace = "chatty" | "relaxed" | "sparse";
-export const COMMENTARY_PACE: Record<CommentaryPace, { everyMs: number; minGapMs: number; label: string }> = {
-  chatty: { everyMs: 30_000, minGapMs: 12_000, label: "Chatty" },
-  relaxed: { everyMs: 75_000, minGapMs: 25_000, label: "Relaxed" },
-  sparse: { everyMs: 150_000, minGapMs: 45_000, label: "Big moments only" },
+export const COMMENTARY_PACE: Record<
+  CommentaryPace,
+  { threshold: number; everyMs: number; minGapMs: number; label: string }
+> = {
+  chatty: { threshold: 2, everyMs: 90_000, minGapMs: 12_000, label: "Chatty" },
+  relaxed: { threshold: 3, everyMs: 4 * 60_000, minGapMs: 20_000, label: "Relaxed" },
+  sparse: { threshold: 5, everyMs: 8 * 60_000, minGapMs: 40_000, label: "Big moments only" },
 };
+
+/**
+ * How interesting each kind of race event is. A split or an attack is a
+ * story on its own; a rider sliding a few places is worth a line only with
+ * something else going on. Moments read from the numbers (a gap closing, a
+ * surge in the group, the road tipping up) count INTEREST_MOMENT each.
+ */
+const INTEREST: Partial<Record<RaceEvent["kind"], number>> = {
+  split: 3,
+  merge: 2.5,
+  attack: 3,
+  leader: 3,
+  dropped: 2,
+  bridged: 2,
+  surge: 2,
+  position: 1.5,
+  powerup: 1,
+  distance: 1,
+  chat: 0.5,
+  watching: 3,
+  go: 4,
+  finish: 5,
+  result: 4,
+};
+const INTEREST_MOMENT = 2;
+
+/** How much has happened since `sinceT`, by the weights above. */
+export function interestSince(log: RaceLog, sinceT: number, moments: KeyMoment[]): number {
+  let score = moments.length * INTEREST_MOMENT;
+  for (const e of log.events) if (e.t > sinceT) score += INTEREST[e.kind] ?? 0;
+  return score;
+}
 
 /** The next quiet spell: everyMs give or take a fifth. */
 export function nextSilenceMs(everyMs: number): number {
@@ -78,22 +114,7 @@ export const MOMENT_COOLDOWN_MS = 45_000;
 const MOMENT_EVENTS = new Set<RaceEvent["kind"]>(["split", "merge", "distance", "position", "go", "attack"]);
 /** Countdown calls in the pen, seconds before the start - the last one just before the off. */
 const COUNTDOWN_CALLS_SEC = [120, 60, 15];
-/** Moments worth cutting in for, rather than waiting for the next line. */
-const NEWSWORTHY = new Set<RaceEvent["kind"]>([
-  "position",
-  "split",
-  "merge",
-  "surge",
-  "powerup",
-  "distance",
-  "watching",
-  "attack",
-  "dropped",
-  "bridged",
-  "leader",
-  "finish",
-  "result",
-]);
+
 
 /** Where the race is: waiting to start, under way, the last kilometre, or over. */
 export type RacePhase = "pen" | "racing" | "finale" | "finished";
@@ -108,15 +129,15 @@ export function racePhase(log: RaceLog): RacePhase {
 }
 
 /**
- * The commentator's timing in the finale and after the line, whatever the
- * chosen pace: the last kilometre is called almost blow by blow, and after
- * the finish it only speaks as results come in.
+ * The commentator's timing outside the race proper, whatever the chosen
+ * pace. In the pen it's the build-up, with the field to talk through and
+ * nothing else happening; in the finale any event is worth a line, almost
+ * blow by blow; after the finish it only speaks as results come in.
  */
-export const PHASE_TIMING: Partial<Record<RacePhase, { everyMs: number; minGapMs: number }>> = {
-  // The pen is the build-up: the field to talk through, and nothing else happening.
-  pen: { everyMs: 25_000, minGapMs: 12_000 },
-  finale: { everyMs: 12_000, minGapMs: 5_000 },
-  finished: { everyMs: Infinity, minGapMs: 8_000 },
+export const PHASE_TIMING: Partial<Record<RacePhase, { threshold: number; everyMs: number; minGapMs: number }>> = {
+  pen: { threshold: 3, everyMs: 50_000, minGapMs: 15_000 },
+  finale: { threshold: 1, everyMs: 20_000, minGapMs: 5_000 },
+  finished: { threshold: 3, everyMs: Infinity, minGapMs: 8_000 },
 };
 const WINDOW_MS = 60_000;
 const RECENT_EVENTS = 8;
@@ -132,9 +153,6 @@ function eventLine(e: RaceEvent) {
   return { atSec: Math.round(e.t / 1000), kind: e.kind, text: e.text };
 }
 
-export function isNewsworthy(e: RaceEvent): boolean {
-  return NEWSWORTHY.has(e.kind);
-}
 
 /** The nearest group either side of the rider's, and which way its gap is going. */
 function neighbour(log: RaceLog, side: "ahead" | "behind") {
@@ -413,6 +431,8 @@ export function buildSnapshot(
       ridersGroup: g.watching || undefined,
     })),
     newEvents: others.filter((e) => e.t > sinceT).slice(-RECENT_EVENTS).map(eventLine),
+    // What's happening on the road right now, read from the numbers.
+    whatsHappening: mode === "commentary" && moments.length ? moments.map((m) => m.text) : undefined,
     recentEvents: others.filter((e) => e.t <= sinceT).slice(-RECENT_EVENTS).map(eventLine),
     recentLines: lines.slice(-RECENT_LINES).map((e) => e.text),
     secondsSinceLastLine: lines.length ? Math.round((elapsed - lines[lines.length - 1].t) / 1000) : undefined,

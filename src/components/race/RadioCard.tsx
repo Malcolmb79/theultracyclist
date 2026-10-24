@@ -7,6 +7,7 @@ import {
   NATURAL_VOICES,
   COMMENTARY_PACE,
   PHASE_TIMING,
+  interestSince,
   racePhase,
   RADIO_TIMING,
   nextSilenceMs,
@@ -17,7 +18,6 @@ import {
   VoiceUnavailableError,
   englishVoices,
   onlyBasicVoices,
-  isNewsworthy,
   isSpeaking,
   requestCommentary,
   speak,
@@ -165,6 +165,7 @@ export default function RadioCard({
     // When each key moment was last called, so it isn't called again and again.
     const called = new Map<string, number>();
     const { everyMs, minGapMs } = mode === "commentary" ? COMMENTARY_PACE[pace] : RADIO_TIMING[mode];
+    const threshold = mode === "commentary" ? COMMENTARY_PACE[pace].threshold : 1;
     let silence = 0; // The first line comes straight away.
     setLines([]);
     const timer = setInterval(async () => {
@@ -172,20 +173,24 @@ export default function RadioCard({
       if (!r || inFlight || r.log.samples.length === 0) return;
       const now = Date.now();
       const since = now - lastAt;
-      // The coach only speaks about key moments it hasn't just called.
-      const moments =
-        mode === "tactics"
-          ? keyMoments(r.log, lastT).filter((m) => {
-              const at = called.get(m.id);
-              return at == null || (!m.id.includes("@") && now - at >= MOMENT_COOLDOWN_MS);
-            })
-          : [];
-      const news = mode === "tactics" ? moments.length > 0 : r.log.events.some((e) => e.t > lastT && isNewsworthy(e));
-      // The finale and the results have their own rhythm, whatever the pace.
-      const phased = mode === "commentary" ? PHASE_TIMING[racePhase(r.log)] : undefined;
-      const due = phased
-        ? since >= phased.everyMs || (news && since >= phased.minGapMs)
-        : since >= silence || (news && since >= minGapMs);
+      // Key moments not just called: what the coach calls, and for the
+      // commentator what's happening on the road (race-log events, which the
+      // commentator weighs separately, are left out of its list).
+      const moments = keyMoments(r.log, mode === "tactics" ? lastT : Infinity).filter((m) => {
+        const at = called.get(m.id);
+        return at == null || (!m.id.includes("@") && now - at >= MOMENT_COOLDOWN_MS);
+      });
+      let due: boolean;
+      if (mode === "tactics") {
+        due = moments.length > 0 && since >= minGapMs;
+      } else {
+        // The commentator speaks when enough has happened to be worth a line.
+        const phased = PHASE_TIMING[racePhase(r.log)];
+        const interest = interestSince(r.log, lastT, moments);
+        due =
+          since >= (phased ? phased.everyMs : silence) ||
+          (interest >= (phased?.threshold ?? threshold) && since >= (phased?.minGapMs ?? minGapMs));
+      }
       if (!due) return;
       if (live.current.voice && isSpeaking(mode) && since < MAX_WAIT_FOR_VOICE_MS) return;
 

@@ -2,10 +2,12 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 import { useStoredState } from "../../utils/useStoredState";
 import type { RaceRecorder } from "./raceLog";
 import {
-  COMMENTARY_EVERY_MS,
-  COMMENTARY_MIN_GAP_MS,
-  buildSnapshot,
+  DEFAULT_NATURAL_VOICE,
+  LINE_KIND,
   NATURAL_VOICES,
+  RADIO_TIMING,
+  alertKey,
+  buildSnapshot,
   VoiceUnavailableError,
   englishVoices,
   onlyBasicVoices,
@@ -15,17 +17,24 @@ import {
   speak,
   speakNatural,
   stopSpeaking,
+  type RadioMode,
 } from "./commentary";
 import styles from "./RaceConsole.module.css";
 
 const SHOWN_LINES = 6;
 /** Waiting on the voice to finish is polite, up to a point. */
 const MAX_WAIT_FOR_VOICE_MS = 15_000;
-const TEST_LINE = "And they're off! Let's see who's got the legs today.";
+const TEST_LINE: Record<RadioMode, string> = {
+  commentary: "And they're off! Let's see who's got the legs today.",
+  tactics: "Good start. Sit in, stay sheltered, and save it for the finish.",
+};
 
 type Engine = "natural" | "browser";
 
 interface Props {
+  mode: RadioMode;
+  /** The tactics overlay: the latest call, big, and the settings tucked away. */
+  compact?: boolean;
   recorder: RefObject<RaceRecorder | null>;
   recording: boolean;
   /** "" for the site (same origin); the site's URL for the mod. */
@@ -33,23 +42,42 @@ interface Props {
   /** The mod can't use the site's session and needs a key pasted in. */
   needsKey: boolean;
   /** Called after a line lands in the log, so the race log can refresh. */
-  onLine: () => void;
+  onLine?: () => void;
+  /** Whether the rider being followed is the one at this computer. */
+  ridingSelf: boolean;
 }
 
-export default function CommentaryCard({ recorder, recording, apiBase, needsKey, onLine }: Props) {
-  const [enabled, setEnabled] = useStoredState("race:commentary-on", true, (v) => (typeof v === "boolean" ? v : null));
-  const [voice, setVoice] = useStoredState("race:commentary-voice", true, (v) => (typeof v === "boolean" ? v : null));
+const TITLE: Record<RadioMode, string> = { commentary: "Live commentary", tactics: "Tactics coach" };
+
+/**
+ * One race radio: live commentary about the rider, or tactical calls to
+ * them. The two run side by side, each with its own voice and settings, and
+ * take turns speaking (see the voice notes in ./commentary).
+ */
+export default function RadioCard({
+  mode,
+  compact = false,
+  recorder,
+  recording,
+  apiBase,
+  needsKey,
+  onLine,
+  ridingSelf,
+}: Props) {
+  const [enabled, setEnabled] = useStoredState(`race:${mode}-on`, true, (v) => (typeof v === "boolean" ? v : null));
+  const [voice, setVoice] = useStoredState(`race:${mode}-voice`, true, (v) => (typeof v === "boolean" ? v : null));
+  const [settingsOpen, setSettingsOpen] = useState(!compact);
   const [key, setKey] = useStoredState<string | null>("race:commentary-key", null, (v) =>
     typeof v === "string" && v ? v : null,
   );
-  const [voiceName, setVoiceName] = useStoredState<string | null>("race:commentary-voice-name", null, (v) =>
+  const [voiceName, setVoiceName] = useStoredState<string | null>(`race:${mode}-voice-name`, null, (v) =>
     typeof v === "string" ? v : null,
   );
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>(() => englishVoices());
-  const [engine, setEngine] = useStoredState<Engine>("race:commentary-engine", "natural", (v) =>
+  const [engine, setEngine] = useStoredState<Engine>(`race:${mode}-engine`, "natural", (v) =>
     v === "natural" || v === "browser" ? v : null,
   );
-  const [naturalVoice, setNaturalVoice] = useStoredState("race:commentary-natural-voice", NATURAL_VOICES[0], (v) =>
+  const [naturalVoice, setNaturalVoice] = useStoredState(`race:${mode}-natural-voice`, DEFAULT_NATURAL_VOICE[mode], (v) =>
     typeof v === "string" && NATURAL_VOICES.includes(v) ? v : null,
   );
   // Why the last line fell back to the browser's voice, if it did.
@@ -62,11 +90,11 @@ export default function CommentaryCard({ recorder, recording, apiBase, needsKey,
   /** Speaks a line in the chosen voice, falling back to the browser's own. */
   const say = async (text: string) => {
     if (engine === "browser") {
-      speak(text, voiceName);
+      speak(text, voiceName, mode);
       return;
     }
     try {
-      await speakNatural(apiBase, needsKey ? key : null, text, naturalVoice);
+      await speakNatural(apiBase, needsKey ? key : null, text, naturalVoice, mode);
       setVoiceNote(null);
     } catch (e) {
       setVoiceNote(
@@ -74,7 +102,7 @@ export default function CommentaryCard({ recorder, recording, apiBase, needsKey,
           ? "The natural voice isn't set up yet: add OPENAI_API_KEY to the site's Vercel settings. Using the browser voice meanwhile."
           : `${e instanceof Error ? e.message : "Natural voice failed."} Using the browser voice for now.`,
       );
-      speak(text, voiceName);
+      speak(text, voiceName, mode);
     }
   };
 
@@ -99,30 +127,42 @@ export default function CommentaryCard({ recorder, recording, apiBase, needsKey,
     let inFlight = false;
     let lastAt = 0;
     let lastT = -1;
+    let lastAlerts = "";
+    const { everyMs, minGapMs } = RADIO_TIMING[mode];
+    setLines([]);
     const timer = setInterval(async () => {
       const r = recorder.current;
       if (!r || inFlight || r.log.samples.length === 0) return;
       const now = Date.now();
       const since = now - lastAt;
       const news = r.log.events.some((e) => e.t > lastT && isNewsworthy(e));
-      const due = since >= COMMENTARY_EVERY_MS || (news && since >= COMMENTARY_MIN_GAP_MS);
+      // A new tactical alert (tank empty, a gap to close) is news for the coach.
+      const alerts = mode === "tactics" ? alertKey(r.log) : "";
+      const alerted = alerts !== "" && alerts !== lastAlerts;
+      const due = since >= everyMs || ((news || alerted) && since >= minGapMs);
       if (!due) return;
-      if (live.current.voice && isSpeaking() && since < MAX_WAIT_FOR_VOICE_MS) return;
+      if (live.current.voice && isSpeaking(mode) && since < MAX_WAIT_FOR_VOICE_MS) return;
 
       inFlight = true;
       setBusy(true);
       lastAt = now;
+      lastAlerts = alerts;
       const snapshotT = now - Date.parse(r.log.startedAt);
       try {
-        const text = await requestCommentary(apiBase, needsKey ? live.current.key : null, buildSnapshot(r.log, lastT));
+        const text = await requestCommentary(
+          apiBase,
+          needsKey ? live.current.key : null,
+          buildSnapshot(r.log, lastT, mode),
+          mode,
+        );
         lastT = snapshotT;
         setError(null);
         // The recording may have been stopped while the line was in flight.
         if (text && recorder.current === r && live.current.enabled) {
-          r.commentary(text);
+          r.radio(LINE_KIND[mode], text);
           setLines((prev) => [{ at: snapshotT, text }, ...prev].slice(0, SHOWN_LINES));
           if (live.current.voice) void live.current.say(text);
-          live.current.onLine();
+          live.current.onLine?.();
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : "Commentary failed.");
@@ -133,21 +173,21 @@ export default function CommentaryCard({ recorder, recording, apiBase, needsKey,
     }, 1000);
     return () => {
       clearInterval(timer);
-      stopSpeaking();
+      stopSpeaking(mode);
     };
-  }, [canRun, apiBase, needsKey, recorder]);
+  }, [canRun, apiBase, needsKey, recorder, mode]);
 
   const [latest, ...earlier] = lines;
 
   return (
-    <section className={styles.card}>
+    <section className={compact ? styles.overlayCard : styles.card}>
       <div className={styles.commentaryHeader}>
-        <h2 className={styles.cardTitle}>Live commentary</h2>
+        <h2 className={styles.cardTitle}>{TITLE[mode]}</h2>
         <div className={styles.commentaryControls}>
-          {busy && <span className={styles.commentaryBusy}>On air…</span>}
+          {busy && <span className={styles.commentaryBusy}>{mode === "tactics" ? "Thinking…" : "On air…"}</span>}
           <label className={styles.toggle}>
             <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
-            Commentary
+            On
           </label>
           <label className={styles.toggle}>
             <input
@@ -155,15 +195,25 @@ export default function CommentaryCard({ recorder, recording, apiBase, needsKey,
               checked={voice}
               onChange={(e) => {
                 setVoice(e.target.checked);
-                if (!e.target.checked) stopSpeaking();
+                if (!e.target.checked) stopSpeaking(mode);
               }}
             />
             Voice
           </label>
+          {compact && (
+            <button
+              type="button"
+              className={styles.linkButton}
+              onClick={() => setSettingsOpen((o) => !o)}
+              aria-expanded={settingsOpen}
+            >
+              {settingsOpen ? "Done" : "Settings"}
+            </button>
+          )}
         </div>
       </div>
 
-      {voice && (
+      {voice && settingsOpen && (
         <div className={styles.voiceRow}>
           <select
             className={styles.voiceSelect}
@@ -179,7 +229,7 @@ export default function CommentaryCard({ recorder, recording, apiBase, needsKey,
               className={styles.voiceSelect}
               value={naturalVoice}
               onChange={(e) => setNaturalVoice(e.target.value)}
-              aria-label="Commentary voice"
+              aria-label={`${TITLE[mode]} voice`}
             >
               {NATURAL_VOICES.map((v) => (
                 <option key={v} value={v}>
@@ -193,7 +243,7 @@ export default function CommentaryCard({ recorder, recording, apiBase, needsKey,
                 className={styles.voiceSelect}
                 value={voices.some((v) => v.name === voiceName) ? (voiceName ?? "") : voices[0].name}
                 onChange={(e) => setVoiceName(e.target.value)}
-                aria-label="Commentary voice"
+                aria-label={`${TITLE[mode]} voice`}
               >
                 {voices.map((v) => (
                   <option key={v.name} value={v.name}>
@@ -203,7 +253,7 @@ export default function CommentaryCard({ recorder, recording, apiBase, needsKey,
               </select>
             )
           )}
-          <button type="button" className={styles.secondaryButton} onClick={() => void say(TEST_LINE)}>
+          <button type="button" className={styles.secondaryButton} onClick={() => void say(TEST_LINE[mode])}>
             Test voice
           </button>
           {engine === "browser" && onlyBasicVoices(voices) && (
@@ -224,7 +274,7 @@ export default function CommentaryCard({ recorder, recording, apiBase, needsKey,
           }}
         >
           <p className={styles.empty}>
-            Commentary needs a key from your site: open theultracyclist.com/dashboard/race, click{" "}
+            {mode === "tactics" ? "Tactics" : "Commentary"} needs a key from your site: open theultracyclist.com/dashboard/race, click{" "}
             <strong>Copy key for the Sauce mod</strong>, and paste it here.
           </p>
           <div className={styles.addressForm}>
@@ -242,15 +292,23 @@ export default function CommentaryCard({ recorder, recording, apiBase, needsKey,
           </div>
         </form>
       ) : !recording ? (
-        <p className={styles.empty}>Start recording and the commentary begins with the race.</p>
+        <p className={styles.empty}>
+          {mode === "commentary"
+            ? "Start recording and the commentary begins with the race."
+            : "Start recording and your coach starts calling the race: when to sit in, when to move, when to go."}
+        </p>
       ) : !enabled ? (
-        <p className={styles.empty}>Commentary is off.</p>
+        <p className={styles.empty}>{mode === "commentary" ? "Commentary" : "Tactics"} is off.</p>
       ) : !latest ? (
-        <p className={styles.empty}>Warming up the commentary box…</p>
+        <p className={styles.empty}>
+          {mode === "commentary"
+            ? "Warming up the commentary box…"
+            : "Your coach is watching the race. Calls come when there's something to act on."}
+        </p>
       ) : (
         <>
-          <p className={styles.commentaryLatest}>{latest.text}</p>
-          {earlier.length > 0 && (
+          <p className={compact ? styles.tacticLatest : styles.commentaryLatest}>{latest.text}</p>
+          {!compact && earlier.length > 0 && (
             <ol className={styles.commentaryEarlier}>
               {earlier.map((l) => (
                 <li key={l.at}>{l.text}</li>
@@ -258,6 +316,12 @@ export default function CommentaryCard({ recorder, recording, apiBase, needsKey,
             </ol>
           )}
         </>
+      )}
+
+      {mode === "tactics" && recording && !ridingSelf && (
+        <p className={styles.voiceNote}>
+          You're watching another rider, so the calls are for them. Tactics is meant for when you're racing.
+        </p>
       )}
 
       {error && (
@@ -274,7 +338,7 @@ export default function CommentaryCard({ recorder, recording, apiBase, needsKey,
         </p>
       )}
 
-      {!needsKey && <ModKeyButton />}
+      {!needsKey && mode === "commentary" && <ModKeyButton />}
     </section>
   );
 }
@@ -310,7 +374,7 @@ function ModKeyButton() {
       </button>
       <span className={styles.savedMeta}>
         {state === "copied"
-          ? "Copied - paste it into the mod's commentary box. It lasts 90 days."
+          ? "Copied - paste it into the mod's commentary or tactics box. It lasts 90 days."
           : state === "error"
             ? "Couldn't create a key - try signing in again."
             : "Only needed when running commentary from the Sauce mod."}

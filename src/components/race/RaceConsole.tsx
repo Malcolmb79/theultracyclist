@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useStoredState } from "../../utils/useStoredState";
 import StatTile from "../shared/StatTile";
-import CommentaryCard from "./CommentaryCard";
+import RadioCard from "./RadioCard";
 import {
   DEFAULT_SAUCE_ADDRESS,
   athleteName,
@@ -28,9 +28,9 @@ import styles from "./RaceConsole.module.css";
 const AUTOSAVE_MS = 10_000;
 const FEED_EVENTS = 25;
 
-/** The race log list: commentary has its own card, so it's left out here. */
+/** The race log list: commentary and tactics have their own card, so they're left out here. */
 function feed(log: RaceLog): RaceEvent[] {
-  return log.events.filter((e) => e.kind !== "commentary").slice(-FEED_EVENTS);
+  return log.events.filter((e) => e.kind !== "commentary" && e.kind !== "tactic").slice(-FEED_EVENTS);
 }
 
 /**
@@ -43,12 +43,15 @@ export default function RaceConsole({
   defaultAddress = DEFAULT_SAUCE_ADDRESS,
   apiBase = "",
   needsKey = false,
+  tacticsOverlay = false,
 }: {
   defaultAddress?: string;
   /** Where the site's API lives: "" on the site itself, its URL from the mod. */
   apiBase?: string;
   /** The mod can't use the site's session, so commentary needs a key. */
   needsKey?: boolean;
+  /** In the mod, tactics lives in its own Sauce overlay window instead. */
+  tacticsOverlay?: boolean;
 }) {
   const [address, setAddress] = useStoredState("race:sauce-address", defaultAddress, (v) =>
     typeof v === "string" && v.trim() ? v : null,
@@ -260,15 +263,33 @@ export default function RaceConsole({
         </div>
       </section>
 
-      <CommentaryCard
+      <RadioCard
+        mode="commentary"
         recorder={recorder}
         recording={recording}
         apiBase={apiBase}
         needsKey={needsKey}
+        ridingSelf={!!watching?.self}
         onLine={() => {
           if (recorder.current) setEvents(feed(recorder.current.log));
         }}
       />
+
+      {tacticsOverlay ? (
+        <p className={styles.overlayHint}>
+          Tactics runs in its own overlay: open <strong>Ultra Cyclist Tactics</strong> from Sauce's list of windows. It
+          works alongside the commentary, and the coach's calls take priority over it.
+        </p>
+      ) : (
+        <RadioCard
+          mode="tactics"
+          recorder={recorder}
+          recording={recording}
+          apiBase={apiBase}
+          needsKey={needsKey}
+          ridingSelf={!!watching?.self}
+        />
+      )}
 
       <div className={styles.columns}>
         <section className={styles.card}>

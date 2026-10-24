@@ -2,8 +2,8 @@
   "manifest_version": 1,
   "id": "ultracyclist-race",
   "name": "Ultra Cyclist Race",
-  "description": "Live race console for The Ultra Cyclist: follows the rider you're watching, the groups on the road and the key moments, and records the race for commentary, tactics and the post-race review.",
-  "version": "1.0.0",
+  "description": "Live race console and tactics coach for The Ultra Cyclist: follows the race through Sauce, gives spoken commentary and tactical calls, and records the race for the post-race review.",
+  "version": "1.1.0",
   "author": "Malcolm Barske",
   "website_url": "https://theultracyclist.com/dashboard/race",
   "web_root": "web",
@@ -14,7 +14,24 @@
       "name": "Ultra Cyclist Race",
       "description": "Live race data and race recording",
       "frame": true,
-      "default_bounds": { "width": 0.5, "height": 0.8 }
+      "default_bounds": {
+        "width": 0.5,
+        "height": 0.8
+      }
+    },
+    {
+      "file": "web/tactics.html",
+      "id": "ultracyclist-race-tactics",
+      "name": "Ultra Cyclist Tactics",
+      "description": "Overlay with spoken tactical calls from your coach",
+      "overlay": true,
+      "frame": false,
+      "default_bounds": {
+        "width": 440,
+        "height": 240,
+        "x": -460,
+        "y": 0.08
+      }
     }
   ]
 }

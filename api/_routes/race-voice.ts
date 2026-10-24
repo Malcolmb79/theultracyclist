@@ -23,11 +23,19 @@ const VOICES = ["ash", "ballad", "cedar", "coral", "echo", "fable", "marin", "on
 /** A commentary line is ~45 words; this leaves room without inviting essays. */
 const MAX_TEXT_CHARS = 600;
 
-const INSTRUCTIONS = [
+const COMMENTARY_INSTRUCTIONS = [
   "Voice: a seasoned British cycling commentator, live on TV, in the commentary box.",
   "Tone: warm, conversational and genuinely into the race, like chatting to friends watching along.",
   "Delivery: animated and expressive. Lift the energy and pace for big moments and exclamation marks, settle down when it's calm.",
   "Pacing: natural broadcast rhythm, brief pauses at commas and full stops, never rushed or monotone.",
+].join(" ");
+
+/** The tactics coach sounds like race radio, not a broadcast. */
+const TACTICS_INSTRUCTIONS = [
+  "Voice: a calm, experienced British cycling coach speaking to their rider over race radio.",
+  "Tone: focused, direct and encouraging. Clear and close, like talking right into an earpiece.",
+  "Delivery: brisk and decisive. Urgent and punchy when it's time to act, steady and reassuring otherwise.",
+  "Pacing: short, clipped phrases with natural pauses. Never theatrical.",
 ].join(" ");
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -51,7 +59,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const body = req.body as { text?: unknown; voice?: unknown };
+  const body = req.body as { text?: unknown; voice?: unknown; mode?: unknown };
   const text = typeof body?.text === "string" ? body.text.trim() : "";
   if (!text || text.length > MAX_TEXT_CHARS) {
     res.status(400).json({ error: "No line to speak, or too long." });
@@ -63,7 +71,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const response = await fetch(OPENAI_URL, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model: MODEL, voice, input: text, instructions: INSTRUCTIONS, response_format: "mp3" }),
+      body: JSON.stringify({ model: MODEL, voice, input: text, instructions: body.mode === "tactics" ? TACTICS_INSTRUCTIONS : COMMENTARY_INSTRUCTIONS, response_format: "mp3" }),
     });
     if (!response.ok) {
       const detail = await response.text().catch(() => "");

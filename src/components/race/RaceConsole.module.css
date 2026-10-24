@@ -394,3 +394,30 @@
   color: var(--color-amber);
   font-size: 0.85rem;
 }
+
+
+
+
+.overlayHint {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius);
+}
+
+.overlayCard {
+  background: rgba(11, 14, 17, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3);
+  backdrop-filter: blur(6px);
+}
+
+.tacticLatest {
+  font-size: 1.35rem;
+  font-weight: 600;
+  line-height: 1.35;
+  margin: 0;
+}

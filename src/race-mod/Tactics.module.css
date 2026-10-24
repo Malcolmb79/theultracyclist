@@ -1,0 +1,60 @@
+/* Sauce draws frameless mod windows transparent, so the overlay is just the
+   card floating over Zwift. The whole window drags, except its controls. */
+.transparent,
+.transparent body {
+  background: transparent !important;
+}
+
+.overlay {
+  padding: var(--space-1);
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.overlay button,
+.overlay input,
+.overlay select,
+.overlay label,
+.overlay a {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.strip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  margin-bottom: var(--space-1);
+  background: rgba(11, 14, 17, 0.82);
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.on {
+  background: var(--color-accent-2);
+}
+
+.off {
+  background: var(--color-accent);
+}
+
+.rider {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meta {
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}

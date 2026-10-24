@@ -56,6 +56,7 @@ export type RaceEventKind =
   | "distance"
   | "chat"
   | "commentary"
+  | "tactic"
   | "stop";
 
 export interface RaceEvent {
@@ -266,9 +267,9 @@ export class RaceRecorder {
     });
   }
 
-  /** A line of live commentary, kept so the review can see what was said. */
-  commentary(text: string, now = Date.now()) {
-    this.event("commentary", text, now);
+  /** A line of commentary or a tactical call, kept so the review can see what was said. */
+  radio(kind: "commentary" | "tactic", text: string, now = Date.now()) {
+    this.event(kind, text, now);
   }
 
   chat(chat: SauceChat, now = Date.now()) {

@@ -2,7 +2,7 @@ import { StrictMode, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../styles/global.css";
 import { athleteName, cleanName, type SauceAthleteData, type SauceGroup } from "../components/race/sauceFeed";
-import { OverlayShell, useSettings, type SettingDef } from "./overlay";
+import { OverlayShell, textScale, useSettings, type SettingDef } from "./overlay";
 import { useSauce } from "./useSauce";
 import shell from "./Overlay.module.css";
 import styles from "./Groups.module.css";
@@ -124,8 +124,17 @@ interface Item {
 
 type Label = "full" | "short" | "none";
 
-/** Per layout: how close marks may sit, how far a label runs along the view, and the margin at each end. */
-const GEOMETRY = {
+function geometry(settings: Settings) {
+  const g = BASE_GEOMETRY[settings.orientation === "vertical" ? "vertical" : "horizontal"];
+  const k = textScale();
+  return { mergePx: g.mergePx * k, minPx: g.minPx * k, edge: g.edge * k, label: { full: g.label.full * k, short: g.label.short * k } };
+}
+
+/**
+ * Per layout, at normal text size: how close marks may sit, how far a label
+ * runs along the view, and the margin at each end. All scale with the text.
+ */
+const BASE_GEOMETRY = {
   horizontal: { mergePx: 36, minPx: 56, edge: 30, label: { full: 104, short: 50 } },
   vertical: { mergePx: 22, minPx: 34, edge: 26, label: { full: 32, short: 15 } },
 };
@@ -153,7 +162,7 @@ const squash = (gap: number) => Math.log1p(Math.abs(gap) / 4);
  * there are more than fit.
  */
 function layout(groups: SauceGroup[], mine: number, settings: Settings, length: number): Item[] {
-  const geo = GEOMETRY[settings.orientation === "vertical" ? "vertical" : "horizontal"];
+  const geo = geometry(settings);
   const centre = length / 2;
   const half = Math.max(40, centre - geo.edge);
   // Outwards from the rider: ahead runs back up the list (the front comes first).
@@ -208,7 +217,7 @@ function labelling(items: Item[], settings: Settings): Label[] {
   const mode = settings.labels;
   if (mode === "all") return items.map(() => "full");
   if (mode === "mine") return items.map((it) => (it.side === "mine" ? "full" : "none"));
-  const geo = GEOMETRY[settings.orientation === "vertical" ? "vertical" : "horizontal"];
+  const geo = geometry(settings);
   const out: Label[] = items.map(() => "none");
   const order = items.map((_, i) => i).sort((a, b) => items[a].d - items[b].d);
   const taken: [number, number][] = [];
@@ -261,6 +270,7 @@ function GroupsView({ groups, mine, settings }: { groups: SauceGroup[]; mine: nu
   const labels = labelling(items, settings);
   const sorted = items.map((it, i) => ({ it, label: labels[i] })).sort((a, b) => a.it.at - b.it.at);
   const hasLeader = groups.some((g) => g.athletes?.some((a) => a.eventPosition === 1));
+  const scale = textScale();
   const place = (at: number) => (vertical ? { top: at } : { left: at });
 
   return (
@@ -281,7 +291,7 @@ function GroupsView({ groups, mine, settings }: { groups: SauceGroup[]; mine: nu
           k > 0 ? it.at - sorted[k - 1].it.at : Infinity,
           k < sorted.length - 1 ? sorted[k + 1].it.at - it.at : Infinity,
         );
-        const capsule = Math.max(20, Math.min(70, room - 10, 18 + (g.lengthTime ?? 0) * 6 + Math.log2(size + 1) * 4));
+        const capsule = Math.max(20 * scale, Math.min(70 * scale, room - 10, (18 + (g.lengthTime ?? 0) * 6 + Math.log2(size + 1) * 4) * scale));
         const nameCount = label === "full" ? (size > 3 ? 2 : 3) : 1;
         const names = settings.names && label !== "none" ? leaders(g, nameCount).map(surname) : [];
         const more = label === "full" && size > names.length ? size - names.length : 0;
@@ -323,7 +333,7 @@ function GroupsView({ groups, mine, settings }: { groups: SauceGroup[]; mine: nu
         sorted.slice(1).map(({ it }, k) => {
           const prev = sorted[k].it;
           // The split between two neighbouring marks, if there's room to say it.
-          if (it.at - prev.at < (vertical ? 46 : 72)) return null;
+          if (it.at - prev.at < (vertical ? 46 : 72) * scale) return null;
           // Each mark's groups run outwards, so the facing groups are the
           // inner mark's last and the outer mark's first.
           const [inner, outer] = prev.d < it.d ? [prev, it] : [it, prev];

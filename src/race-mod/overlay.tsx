@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import styles from "./Overlay.module.css";
 import { THEMES, THEME_KEY, applyTheme, readTheme, saveTheme } from "./themes";
 
@@ -63,6 +63,31 @@ export function useSettings<T extends Record<string, SettingValue>>(
 /** Every overlay's background setting, the same everywhere. */
 export const OPACITY_SETTING: SettingDef = { key: "opacity", label: "Background", type: "range", min: 0, max: 100, step: 5, suffix: "%" };
 
+/**
+ * Each window's text size, as a percentage. Kept apart from an overlay's own
+ * settings (under its title) so every overlay gets it without declaring it.
+ * Overlay sizes are in rem, so scaling the root font scales the lot.
+ */
+const TEXT_SIZES = [70, 80, 90, 100, 110, 125, 150, 175, 200];
+
+function textKey(title: string) {
+  return `overlay-text:${title}`;
+}
+
+function readTextSize(title: string): number {
+  try {
+    const v = Number(window.localStorage.getItem(textKey(title)));
+    return TEXT_SIZES.includes(v) ? v : 100;
+  } catch {
+    return 100;
+  }
+}
+
+/** The text size as a factor (1 = normal), for layouts that measure in pixels. */
+export function textScale(): number {
+  return (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16) / 16;
+}
+
 interface ShellProps<T extends Record<string, SettingValue>> {
   title: string;
   settings: T & { opacity: number };
@@ -89,6 +114,18 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
 }: ShellProps<T>) {
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [theme, setTheme] = useState(() => readTheme().id);
+  const [textSize, setTextSize] = useState(() => readTextSize(title));
+
+  useLayoutEffect(() => {
+    document.documentElement.style.fontSize = `${textSize}%`;
+    try {
+      window.localStorage.setItem(textKey(title), String(textSize));
+    } catch {
+      // Unavailable - the size just won't stick.
+    }
+    // Layouts that measure themselves (groups) hear about it as a resize.
+    window.dispatchEvent(new Event("resize"));
+  }, [textSize, title]);
 
   // Another overlay changing the theme changes this one too.
   useEffect(() => {
@@ -149,6 +186,16 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
                 {THEMES.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className={styles.row}>
+              <span className={styles.label}>Text size</span>
+              <select value={textSize} onChange={(e) => setTextSize(Number(e.target.value))}>
+                {TEXT_SIZES.map((v) => (
+                  <option key={v} value={v}>
+                    {v}%
                   </option>
                 ))}
               </select>

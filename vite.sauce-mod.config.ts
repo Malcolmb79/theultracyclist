@@ -15,12 +15,17 @@ export default defineConfig({
     outDir: '../dist-sauce-mod/web',
     emptyOutDir: true,
     rollupOptions: {
-      // The console and each overlay (tactics, race board, map) are separate Sauce windows.
+      // The console and each overlay are separate Sauce windows.
       input: {
         index: fileURLToPath(new URL('./sauce-mod/index.html', import.meta.url)),
         tactics: fileURLToPath(new URL('./sauce-mod/tactics.html', import.meta.url)),
         board: fileURLToPath(new URL('./sauce-mod/board.html', import.meta.url)),
         map: fileURLToPath(new URL('./sauce-mod/map.html', import.meta.url)),
+        power: fileURLToPath(new URL('./sauce-mod/power.html', import.meta.url)),
+        stats: fileURLToPath(new URL('./sauce-mod/stats.html', import.meta.url)),
+        profile: fileURLToPath(new URL('./sauce-mod/profile.html', import.meta.url)),
+        groups: fileURLToPath(new URL('./sauce-mod/groups.html', import.meta.url)),
+        chat: fileURLToPath(new URL('./sauce-mod/chat.html', import.meta.url)),
       },
     },
   },

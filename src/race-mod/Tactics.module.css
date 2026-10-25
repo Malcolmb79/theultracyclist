@@ -1,24 +1,10 @@
-/* Sauce draws frameless mod windows transparent, so the overlay is just the
-   card floating over Zwift. The whole window drags, except its controls. */
-.transparent,
-.transparent body {
-  background: transparent !important;
-}
+/* The tactics overlay's rider strip; the frame round it (transparency, the
+   right-click settings, the drag grip) is ./Overlay.module.css. */
 
 .overlay {
   padding: var(--space-1);
-  -webkit-app-region: drag;
-  app-region: drag;
 }
 
-.overlay button,
-.overlay input,
-.overlay select,
-.overlay label,
-.overlay a {
-  -webkit-app-region: no-drag;
-  app-region: no-drag;
-}
 
 .strip {
   display: flex;
@@ -26,7 +12,7 @@
   gap: var(--space-2);
   padding: var(--space-1) var(--space-2);
   margin-bottom: var(--space-1);
-  background: rgba(11, 14, 17, 0.82);
+  background: rgba(11, 14, 17, var(--overlay-alpha, 0.82));
   border-radius: var(--radius);
   font-size: 0.8rem;
 }

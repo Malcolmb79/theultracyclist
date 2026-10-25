@@ -1,14 +1,9 @@
-import { StrictMode, useEffect, useMemo, useState } from "react";
+import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../styles/global.css";
-import { useStoredState } from "../utils/useStoredState";
-import {
-  athleteName,
-  connectSauce,
-  sauceAddressForModPage,
-  type FeedStatus,
-  type SauceAthleteData,
-} from "../components/race/sauceFeed";
+import { athleteName, type SauceAthleteData } from "../components/race/sauceFeed";
+import { OverlayShell, useSettings, type SettingDef } from "./overlay";
+import { useSauce } from "./useSauce";
 import styles from "./Board.module.css";
 
 // The race board: Zwift's rider list on the right of the screen, redone in
@@ -88,30 +83,36 @@ function around(riders: SauceAthleteData[], rows: number): SauceAthleteData[] {
   return riders.slice(start, start + rows);
 }
 
+const DEFAULTS = {
+  opacity: 85,
+  rows: 20,
+  flags: true,
+  teams: true,
+  speed: true,
+  power: true,
+  heartRate: true,
+  gaps: true,
+  wbal: true,
+  toGo: true,
+};
+const DEFS: SettingDef[] = [
+  { key: "rows", label: "Riders shown", type: "select", options: ROW_CHOICES.map((n) => ({ value: n, label: String(n) })) },
+  { key: "flags", label: "Flags", type: "toggle" },
+  { key: "teams", label: "Team tags", type: "toggle" },
+  { key: "speed", label: "Speed", type: "toggle" },
+  { key: "power", label: "Power", type: "toggle" },
+  { key: "heartRate", label: "Heart rate", type: "toggle" },
+  { key: "gaps", label: "Gaps", type: "toggle" },
+  { key: "wbal", label: "W′ balance bar", type: "toggle" },
+  { key: "toGo", label: "Distance to finish", type: "toggle" },
+];
+
 function RaceBoard() {
-  const sauceAddress = useMemo(() => sauceAddressForModPage(), []);
-  const [status, setStatus] = useState<FeedStatus>("connecting");
-  const [watching, setWatching] = useState<SauceAthleteData | null>(null);
-  const [nearby, setNearby] = useState<SauceAthleteData[]>([]);
-  const [opacity, setOpacity] = useStoredState("board:opacity", 85, (v) =>
-    typeof v === "number" && v >= 0 && v <= 100 ? v : null,
-  );
-  const [rows, setRows] = useStoredState("board:rows", 20, (v) =>
-    typeof v === "number" && ROW_CHOICES.includes(v) ? v : null,
-  );
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const flags = useFlags(sauceAddress);
+  const [settings, set] = useSettings("board", DEFAULTS);
+  const { address, status, watching, nearby } = useSauce({ nearby: true });
+  const flags = useFlags(address);
 
-  useEffect(() => {
-    document.documentElement.classList.add(styles.transparent);
-    return connectSauce(sauceAddress, {
-      onStatus: setStatus,
-      onWatching: setWatching,
-      onNearby: setNearby,
-    });
-  }, [sauceAddress]);
-
-  const shown = around(order(nearby), rows);
+  const shown = around(order(nearby), settings.rows);
   const myTeam = watching?.athlete?.team?.trim().toLowerCase();
   const toGo =
     watching?.remaining == null
@@ -121,7 +122,7 @@ function RaceBoard() {
         : `${(Math.max(0, watching.remaining) / 1000).toFixed(2)} km to finish`;
 
   return (
-    <div className={styles.board} style={{ ["--board-alpha" as string]: String(opacity / 100) }}>
+    <OverlayShell title="Race board" settings={settings} setSetting={set} defs={DEFS} className={styles.board}>
       <header className={styles.header}>
         <span className={`${styles.dot} ${status === "connected" ? styles.on : styles.off}`} aria-hidden />
         <span className={styles.title}>
@@ -133,57 +134,20 @@ function RaceBoard() {
                 ? "Waiting for Zwift…"
                 : "Connecting to Sauce…"}
         </span>
-        <button
-          type="button"
-          className={styles.gear}
-          onClick={() => setSettingsOpen((o) => !o)}
-          aria-label="Board settings"
-          aria-expanded={settingsOpen}
-        >
-          ⚙
-        </button>
       </header>
-
-      {settingsOpen && (
-        <div className={styles.settings}>
-          <label className={styles.setting}>
-            <span>Background</span>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              step={5}
-              value={opacity}
-              onChange={(e) => setOpacity(Number(e.target.value))}
-              aria-label="Background opacity"
-            />
-            <span className={styles.settingValue}>{opacity}%</span>
-          </label>
-          <label className={styles.setting}>
-            <span>Riders</span>
-            <select value={rows} onChange={(e) => setRows(Number(e.target.value))} aria-label="Riders shown">
-              {ROW_CHOICES.map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-      )}
 
       <ol className={styles.rows}>
         {shown.map((r) => {
           const a = r.athlete;
           const s = r.state;
           const wkg = s?.power != null && a?.weight ? s.power / a.weight : undefined;
-          const flag = a?.countryCode != null ? flags.get(a.countryCode) : undefined;
+          const flag = settings.flags && a?.countryCode != null ? flags.get(a.countryCode) : undefined;
           const team = a?.team?.trim();
           const teammate = !r.watching && !!myTeam && team?.toLowerCase() === myTeam;
           // W′ balance as the share of the rider's capacity left: the grey bar
           // behind the name, full when fresh, shrinking as they dig in.
           const wbal =
-            r.wBal != null ? Math.max(0, Math.min(1, r.wBal / (a?.wPrime || DEFAULT_W_PRIME))) : undefined;
+            settings.wbal && r.wBal != null ? Math.max(0, Math.min(1, r.wBal / (a?.wPrime || DEFAULT_W_PRIME))) : undefined;
           return (
             <li
               key={r.athleteId}
@@ -198,13 +162,13 @@ function RaceBoard() {
                 >
                   {flag && <img className={styles.flag} src={flag.src} alt={flag.name} title={flag.name} />}
                   <span className={styles.name}>{athleteName(r)}</span>
-                  {team && <span className={styles.team}>{team}</span>}
+                  {settings.teams && team && <span className={styles.team}>{team}</span>}
                 </span>
                 <span className={styles.stats}>
-                  {s?.speed != null && <span>{Math.round(s.speed)} km/h</span>}
-                  {s?.power != null && <span>{Math.round(s.power)} W</span>}
-                  {s?.heartrate ? <span className={styles.hr}>{s.heartrate} ♥</span> : null}
-                  {!r.watching && r.gap != null && <span className={styles.gap}>{formatGap(r.gap)}</span>}
+                  {settings.speed && s?.speed != null && <span>{Math.round(s.speed)} km/h</span>}
+                  {settings.power && s?.power != null && <span>{Math.round(s.power)} W</span>}
+                  {settings.heartRate && s?.heartrate ? <span className={styles.hr}>{s.heartrate} ♥</span> : null}
+                  {settings.gaps && !r.watching && r.gap != null && <span className={styles.gap}>{formatGap(r.gap)}</span>}
                 </span>
               </span>
               <span className={styles.wkg}>{wkg != null ? wkg.toFixed(1) : "–"}</span>
@@ -214,8 +178,8 @@ function RaceBoard() {
         {shown.length === 0 && <li className={styles.empty}>No riders nearby yet.</li>}
       </ol>
 
-      {toGo && <footer className={styles.footer}>{toGo}</footer>}
-    </div>
+      {settings.toGo && toGo && <footer className={styles.footer}>{toGo}</footer>}
+    </OverlayShell>
   );
 }
 

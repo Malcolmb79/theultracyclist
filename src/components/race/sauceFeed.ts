@@ -35,6 +35,11 @@ export interface SauceState {
   eventSubgroupId?: number;
   routeId?: number;
   courseId?: number;
+  /** Metres along the current route, lead-in included (Sauce works it out). */
+  routeDistance?: number;
+  /** Metres climbed this session, and seconds ridden. */
+  climbing?: number;
+  time?: number;
   /** World position, in centimetres - the same space as Sauce's road paths. */
   x?: number;
   y?: number;
@@ -111,6 +116,14 @@ export interface SauceChat {
   eventSweeper?: boolean;
 }
 
+/** A Ride On given to someone in the game, as Sauce relays it. */
+export interface SauceRideOn {
+  from?: number;
+  to?: number;
+  firstName?: string;
+  lastName?: string;
+}
+
 export type FeedStatus = "connecting" | "connected" | "disconnected";
 
 /** Only the events a page has a handler for are subscribed to. */
@@ -121,6 +134,7 @@ export interface FeedHandlers {
   onChat?: (chat: SauceChat) => void;
   /** Every rider Sauce can see, nearest first. */
   onNearby?: (riders: SauceAthleteData[]) => void;
+  onRideOn?: (rideOn: SauceRideOn) => void;
 }
 
 export const DEFAULT_SAUCE_ADDRESS = "localhost:1080";
@@ -201,6 +215,7 @@ export function connectSauce(address: string, handlers: FeedHandlers): () => voi
       if (handlers.onGroups) subscribe("groups");
       if (handlers.onChat) subscribe("chat");
       if (handlers.onNearby) subscribe("nearby");
+      if (handlers.onRideOn) subscribe("rideon");
     });
 
     socket.addEventListener("message", (ev) => {
@@ -223,6 +238,9 @@ export function connectSauce(address: string, handlers: FeedHandlers): () => voi
           break;
         case "nearby":
           if (Array.isArray(msg.data)) handlers.onNearby?.(msg.data as SauceAthleteData[]);
+          break;
+        case "rideon":
+          handlers.onRideOn?.(msg.data as SauceRideOn);
           break;
       }
     });

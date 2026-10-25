@@ -46,6 +46,8 @@ interface Props {
   mode: RadioMode;
   /** The tactics overlay: the latest call, big, and the settings tucked away. */
   compact?: boolean;
+  /** Set by an overlay that opens the settings itself (from its right-click menu). */
+  showSettings?: boolean;
   recorder: RefObject<RaceRecorder | null>;
   recording: boolean;
   /** "" for the site (same origin); the site's URL for the mod. */
@@ -74,10 +76,12 @@ export default function RadioCard({
   needsKey,
   onLine,
   ridingSelf,
+  showSettings,
 }: Props) {
   const [enabled, setEnabled] = useStoredState(`race:${mode}-on`, true, (v) => (typeof v === "boolean" ? v : null));
   const [voice, setVoice] = useStoredState(`race:${mode}-voice`, true, (v) => (typeof v === "boolean" ? v : null));
-  const [settingsOpen, setSettingsOpen] = useState(!compact);
+  const [ownSettingsOpen, setSettingsOpen] = useState(!compact);
+  const settingsOpen = showSettings ?? ownSettingsOpen;
   const [nameStyle, setNameStyle] = useStoredState<NameStyle>(`race:${mode}-names`, "surname", (v) =>
     v === "surname" || v === "first" || v === "full" ? v : null,
   );
@@ -261,7 +265,7 @@ export default function RadioCard({
             />
             Voice
           </label>
-          {compact && (
+          {compact && showSettings == null && (
             <button
               type="button"
               className={styles.linkButton}

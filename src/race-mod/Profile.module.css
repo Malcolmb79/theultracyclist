@@ -1,0 +1,79 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 4px);
+  padding: 4px var(--space-2) var(--space-1);
+  border-top: 2px solid var(--color-accent-2);
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 22px;
+  font-size: 0.8rem;
+}
+
+.banner {
+  position: relative;
+  overflow: hidden;
+  padding: 1px var(--space-2);
+  border-radius: 4px;
+  font-weight: 700;
+  white-space: nowrap;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.banner.sprint {
+  background: rgba(46, 230, 166, 0.28);
+}
+
+.banner.climb {
+  background: rgba(255, 77, 46, 0.3);
+}
+
+.banner.segment {
+  background: rgba(255, 176, 32, 0.25);
+}
+
+.progress {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  background: #fff;
+}
+
+.next {
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.grade {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  color: var(--color-accent-2);
+}
+
+.toGo {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.chart {
+  flex: 1;
+  min-height: 0;
+}
+
+.empty {
+  margin: 0;
+  padding: var(--space-2);
+  color: var(--color-text-muted);
+  text-align: center;
+}

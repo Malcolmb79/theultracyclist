@@ -2,8 +2,8 @@
   "manifest_version": 1,
   "id": "ultracyclist-race",
   "name": "Ultra Cyclist Race",
-  "description": "Live race console and tactics coach for The Ultra Cyclist: follows the race through Sauce, gives spoken commentary and tactical calls, and records the race for the post-race review.",
-  "version": "1.3.0",
+  "description": "The Ultra Cyclist's race overlays for Sauce: a full HUD in its own look (power, ride stats, race board, map, route profile, groups, chat) to use with Zwift's HUD off, plus live commentary and a tactics coach. Right-click any overlay for its settings.",
+  "version": "2.0.0",
   "author": "Malcolm Barske",
   "website_url": "https://theultracyclist.com/dashboard/race",
   "web_root": "web",
@@ -59,6 +59,76 @@
         "height": 300,
         "x": -350,
         "y": 0.02
+      }
+    },
+    {
+      "file": "web/power.html",
+      "id": "ultracyclist-race-power",
+      "name": "Ultra Cyclist Power",
+      "description": "Power, watts per kilo, cadence, heart rate and zone (Zwift's top-left panel)",
+      "overlay": true,
+      "frame": false,
+      "default_bounds": {
+        "width": 300,
+        "height": 150,
+        "x": 0.01,
+        "y": 0.02
+      }
+    },
+    {
+      "file": "web/stats.html",
+      "id": "ultracyclist-race-stats",
+      "name": "Ultra Cyclist Ride Stats",
+      "description": "Speed, distance, climbing and time, and who you're watching (Zwift's top centre)",
+      "overlay": true,
+      "frame": false,
+      "default_bounds": {
+        "width": 0.36,
+        "height": 120,
+        "x": 0.32,
+        "y": 0.01
+      }
+    },
+    {
+      "file": "web/profile.html",
+      "id": "ultracyclist-race-profile",
+      "name": "Ultra Cyclist Route Profile",
+      "description": "The route's elevation with sprints, climbs and riders, the current segment and the distance to finish (Zwift's bottom strip)",
+      "overlay": true,
+      "frame": false,
+      "default_bounds": {
+        "width": 0.6,
+        "height": 0.15,
+        "x": 0.2,
+        "y": 0.84
+      }
+    },
+    {
+      "file": "web/groups.html",
+      "id": "ultracyclist-race-groups",
+      "name": "Ultra Cyclist Groups",
+      "description": "The groups ahead and behind with their gaps (Zwift's group bubbles)",
+      "overlay": true,
+      "frame": false,
+      "default_bounds": {
+        "width": 0.4,
+        "height": 110,
+        "x": 0.3,
+        "y": 0.27
+      }
+    },
+    {
+      "file": "web/chat.html",
+      "id": "ultracyclist-race-chat",
+      "name": "Ultra Cyclist Chat",
+      "description": "Chat and Ride Ons (Zwift's message bubbles)",
+      "overlay": true,
+      "frame": false,
+      "default_bounds": {
+        "width": 300,
+        "height": 0.38,
+        "x": 0.62,
+        "y": 0.5
       }
     }
   ]

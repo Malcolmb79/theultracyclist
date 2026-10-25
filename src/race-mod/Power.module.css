@@ -1,0 +1,79 @@
+.panel {
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--color-accent-2);
+}
+
+.main {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  line-height: 1;
+}
+
+.watts {
+  font-family: var(--font-display);
+  font-size: 4rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.unit {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  color: var(--color-text-muted);
+}
+
+.wkg {
+  margin-left: auto;
+  font-family: var(--font-display);
+  font-size: 2rem;
+  color: var(--color-accent-2);
+}
+
+.wkg small {
+  font-size: 0.9rem;
+  margin-left: 2px;
+  color: var(--color-text-muted);
+}
+
+.zoneBar {
+  position: relative;
+  height: 8px;
+  margin: 6px 0;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.zoneFill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.4s ease, background 0.4s;
+}
+
+.zoneName {
+  position: absolute;
+  right: 4px;
+  top: -1px;
+  font-size: 0.55rem;
+  font-weight: 700;
+  line-height: 10px;
+}
+
+.row {
+  display: flex;
+  gap: var(--space-3);
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.row b {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1.5rem;
+  color: var(--color-text);
+  margin-right: 2px;
+}
+
+.hr b {
+  color: #ff8a73;
+}

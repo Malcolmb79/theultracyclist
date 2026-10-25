@@ -1,24 +1,11 @@
 import { StrictMode, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../styles/global.css";
-import { useStoredState } from "../utils/useStoredState";
-import {
-  connectSauce,
-  sauceAddressForModPage,
-  type FeedStatus,
-  type SauceAthleteData,
-} from "../components/race/sauceFeed";
-import {
-  bounds,
-  eventRouteId,
-  loadCourse,
-  loadRoute,
-  pathData,
-  toScreen,
-  type CourseGeometry,
-  type Point,
-  type RouteGeometry,
-} from "../components/race/courseMap";
+import { bounds, pathData, toScreen, type Point } from "../components/race/courseMap";
+import { OverlayShell, useSettings, type SettingDef } from "./overlay";
+import { useSauce } from "./useSauce";
+import { routePosition, useCourse } from "./useCourse";
+import ProfileChart from "./ProfileChart";
 import styles from "./Map.module.css";
 
 // The course map: Zwift's minimap redone in The Ultra Cyclist's look as a
@@ -28,74 +15,34 @@ import styles from "./Map.module.css";
 // show the whole route or follow the rider, with a background that fades
 // right down so Zwift shows through.
 
-type View = "route" | "follow";
 const ZOOMS_KM = [0.5, 1, 2, 5];
 /** Enough of the ridden line to see the shape of the last few kilometres. */
 const TRAIL_POINTS = 600;
 /** Margin round the route in "whole route" view, as a fraction of its size. */
 const PAD = 0.06;
 
+const DEFAULTS = { opacity: 80, view: "route", zoom: 2, otherRoads: true, riders: true, trail: true, profile: true, title: true, toGo: true };
+const DEFS: SettingDef[] = [
+  { key: "view", label: "View", type: "select", options: [{ value: "route", label: "Whole route" }, { value: "follow", label: "Follow rider" }] },
+  { key: "zoom", label: "Follow zoom", type: "select", options: ZOOMS_KM.map((z) => ({ value: z, label: `${z} km` })) },
+  { key: "otherRoads", label: "Other roads", type: "toggle" },
+  { key: "riders", label: "Riders", type: "toggle" },
+  { key: "trail", label: "Ridden line", type: "toggle" },
+  { key: "profile", label: "Route profile", type: "toggle" },
+  { key: "title", label: "Route name", type: "toggle" },
+  { key: "toGo", label: "Distance to go", type: "toggle" },
+];
+
 function MapOverlay() {
-  const address = useMemo(() => sauceAddressForModPage(), []);
-  const [status, setStatus] = useState<FeedStatus>("connecting");
-  const [watching, setWatching] = useState<SauceAthleteData | null>(null);
-  const [nearby, setNearby] = useState<SauceAthleteData[]>([]);
-  const [course, setCourse] = useState<CourseGeometry | null>(null);
-  const [route, setRoute] = useState<RouteGeometry | null>(null);
-  const [problem, setProblem] = useState<string | null>(null);
+  const [settings, set] = useSettings("map", DEFAULTS);
+  const { address, status, watching, nearby } = useSauce({ nearby: true });
+  const { course, route, problem } = useCourse(address, watching);
   const [trail, setTrail] = useState<Point[]>([]);
-  const [opacity, setOpacity] = useStoredState("map:opacity", 80, (v) =>
-    typeof v === "number" && v >= 0 && v <= 100 ? v : null,
-  );
-  const [view, setView] = useStoredState<View>("map:view", "route", (v) => (v === "route" || v === "follow" ? v : null));
-  const [zoomKm, setZoomKm] = useStoredState("map:zoom", 2, (v) =>
-    typeof v === "number" && ZOOMS_KM.includes(v) ? v : null,
-  );
-  const [otherRoads, setOtherRoads] = useStoredState("map:other-roads", true, (v) =>
-    typeof v === "boolean" ? v : null,
-  );
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const lastPos = useRef<Point | null>(null);
-
-  useEffect(() => {
-    document.documentElement.classList.add(styles.transparent);
-    return connectSauce(address, { onStatus: setStatus, onWatching: setWatching, onNearby: setNearby });
-  }, [address]);
-
   const s = watching?.state;
   const courseId = s?.courseId;
-  const subgroupId = s?.eventSubgroupId;
-  const ownRouteId = s?.routeId;
-
-  // The world's roads, once per course.
-  useEffect(() => {
-    if (courseId == null) return;
-    let cancelled = false;
-    loadCourse(address, courseId)
-      .then((c) => {
-        if (cancelled) return;
-        setCourse(c);
-        setProblem(null);
-      })
-      .catch((e) => !cancelled && setProblem(`Couldn't load the course from Sauce: ${e instanceof Error ? e.message : e}`));
-    return () => {
-      cancelled = true;
-    };
-  }, [address, courseId]);
-
-  // The route: the event's, when racing, otherwise the rider's own.
-  useEffect(() => {
-    if (!course) return;
-    let cancelled = false;
-    (async () => {
-      const id = (subgroupId ? await eventRouteId(address, subgroupId) : undefined) ?? ownRouteId;
-      const r = id != null ? await loadRoute(address, course, id).catch(() => null) : null;
-      if (!cancelled) setRoute(r && r.path.length > 1 ? r : null);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [address, course, subgroupId, ownRouteId]);
+  const view = settings.view;
+  const zoomKm = settings.zoom;
 
   // The ridden line: a point whenever the rider has moved on a bit. A jump
   // (a new world, a teleport) starts it again.
@@ -149,66 +96,23 @@ function MapOverlay() {
         ? `${Math.max(0, Math.round(watching.remaining / 60))} min to go`
         : `${(Math.max(0, watching.remaining) / 1000).toFixed(1)} km to go`;
 
-  return (
-    <div className={styles.map} style={{ ["--map-alpha" as string]: String(opacity / 100) }}>
-      <header className={styles.header}>
-        <span className={`${styles.dot} ${status === "connected" ? styles.on : styles.off}`} aria-hidden />
-        <span className={styles.title}>
-          {route?.name ?? course?.worldName ?? (status === "connected" ? "Waiting for Zwift…" : "Connecting to Sauce…")}
-        </span>
-        <button
-          type="button"
-          className={styles.gear}
-          onClick={() => setSettingsOpen((o) => !o)}
-          aria-label="Map settings"
-          aria-expanded={settingsOpen}
-        >
-          ⚙
-        </button>
-      </header>
+  const at = route ? routePosition(route, s?.routeDistance) : undefined;
 
-      {settingsOpen && (
-        <div className={styles.settings}>
-          <label className={styles.setting}>
-            <span>Background</span>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              step={5}
-              value={opacity}
-              onChange={(e) => setOpacity(Number(e.target.value))}
-              aria-label="Background opacity"
-            />
-            <span className={styles.settingValue}>{opacity}%</span>
-          </label>
-          <label className={styles.setting}>
-            <span>View</span>
-            <select value={view} onChange={(e) => setView(e.target.value as View)} aria-label="Map view">
-              <option value="route">Whole route</option>
-              <option value="follow">Follow rider</option>
-            </select>
-            {view === "follow" && (
-              <select value={zoomKm} onChange={(e) => setZoomKm(Number(e.target.value))} aria-label="Map zoom">
-                {ZOOMS_KM.map((z) => (
-                  <option key={z} value={z}>
-                    {z} km
-                  </option>
-                ))}
-              </select>
-            )}
-          </label>
-          <label className={styles.setting}>
-            <span>Other roads</span>
-            <input type="checkbox" checked={otherRoads} onChange={(e) => setOtherRoads(e.target.checked)} />
-          </label>
-        </div>
+  return (
+    <OverlayShell title="Map" settings={settings} setSetting={set} defs={DEFS} className={styles.map}>
+      {settings.title && (
+        <header className={styles.header}>
+          <span className={`${styles.dot} ${status === "connected" ? styles.on : styles.off}`} aria-hidden />
+          <span className={styles.title}>
+            {route?.name ?? course?.worldName ?? (status === "connected" ? "Waiting for Zwift…" : "Connecting to Sauce…")}
+          </span>
+        </header>
       )}
 
       <div className={styles.canvas}>
         {box ? (
           <svg viewBox={`${box.x} ${box.y} ${box.w} ${box.h}`} preserveAspectRatio="xMidYMid meet" className={styles.svg}>
-            {otherRoads &&
+            {settings.otherRoads &&
               roadPaths.map((d, i) => <path key={i} d={d} className={styles.road} vectorEffect="non-scaling-stroke" />)}
             {routePath && (
               <>
@@ -216,21 +120,22 @@ function MapOverlay() {
                 <path d={routePath} className={styles.route} vectorEffect="non-scaling-stroke" />
               </>
             )}
-            {trail.length > 1 && <path d={trailPath} className={styles.trail} vectorEffect="non-scaling-stroke" />}
-            {nearby.map((r) => {
-              if (r.watching || r.state?.x == null || r.state?.y == null) return null;
-              const [x, y] = toScreen([r.state.x, r.state.y], flipped);
-              const teammate = !!myTeam && r.athlete?.team?.trim().toLowerCase() === myTeam;
-              return (
-                <circle
-                  key={r.athleteId}
-                  cx={x}
-                  cy={y}
-                  r={unit * (teammate ? 1.4 : 1.1)}
-                  className={teammate ? styles.teammate : styles.rider}
-                />
-              );
-            })}
+            {settings.trail && trail.length > 1 && <path d={trailPath} className={styles.trail} vectorEffect="non-scaling-stroke" />}
+            {settings.riders &&
+              nearby.map((r) => {
+                if (r.watching || r.state?.x == null || r.state?.y == null) return null;
+                const [x, y] = toScreen([r.state.x, r.state.y], flipped);
+                const teammate = !!myTeam && r.athlete?.team?.trim().toLowerCase() === myTeam;
+                return (
+                  <circle
+                    key={r.athleteId}
+                    cx={x}
+                    cy={y}
+                    r={unit * (teammate ? 1.4 : 1.1)}
+                    className={teammate ? styles.teammate : styles.rider}
+                  />
+                );
+              })}
             {me && (
               <>
                 <circle cx={me[0]} cy={me[1]} r={unit * 4} className={styles.meHalo} />
@@ -243,13 +148,19 @@ function MapOverlay() {
         )}
       </div>
 
-      {(toGo || s?.grade != null) && (
+      {settings.profile && route && (
+        <div className={styles.profile}>
+          <ProfileChart route={route} at={at} showSegmentNames={false} />
+        </div>
+      )}
+
+      {((settings.toGo && toGo) || s?.grade != null) && (
         <footer className={styles.footer}>
-          {toGo && <span>{toGo}</span>}
+          {settings.toGo && toGo && <span>{toGo}</span>}
           {s?.grade != null && <span className={styles.grade}>{(s.grade * 100).toFixed(1)}%</span>}
         </footer>
       )}
-    </div>
+    </OverlayShell>
   );
 }
 

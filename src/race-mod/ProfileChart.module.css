@@ -1,0 +1,82 @@
+.chart {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.line {
+  fill: none;
+  stroke: var(--color-accent-2);
+  stroke-width: 2px;
+}
+
+.ridden {
+  fill: rgba(11, 14, 17, 0.45);
+}
+
+.sprint {
+  fill: rgba(46, 230, 166, 0.18);
+}
+
+.climb {
+  fill: rgba(255, 77, 46, 0.2);
+}
+
+.segment {
+  fill: rgba(255, 176, 32, 0.15);
+}
+
+.segLabel {
+  position: absolute;
+  top: 2px;
+  transform: translateX(2px);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--color-text);
+  opacity: 0.85;
+}
+
+.dot {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: rgba(245, 246, 247, 0.9);
+  box-shadow: 0 0 0 1px rgba(11, 14, 17, 0.8);
+}
+
+.teammate {
+  background: var(--color-amber);
+}
+
+.marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.me {
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  margin: -5.5px 0 0 -5.5px;
+  border-radius: 50%;
+  background: var(--color-accent-2);
+  border: 2px solid #fff;
+  box-shadow: 0 0 6px rgba(46, 230, 166, 0.8);
+}

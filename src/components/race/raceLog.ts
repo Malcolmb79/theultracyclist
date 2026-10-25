@@ -265,6 +265,8 @@ export interface RaceLog {
   /** The latest view of the riders around the watched one (only the latest is kept). */
   field?: FieldSnapshot;
   remainingMetric?: "time" | "distance";
+  /** A race, or a ride (training, a group ride): set by the radios from the rider's choice. */
+  sessionType?: "race" | "ride";
   /** The road ahead, from the route - kept up to date by a page that knows the course. */
   courseAhead?: CourseAhead;
   samples: RaceSample[];

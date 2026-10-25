@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
+import { SESSION_OPTIONS, useSession, type SessionChoice } from "./useSession";
 import { useStoredState } from "../../utils/useStoredState";
 import type { RaceRecorder } from "./raceLog";
 import {
@@ -15,6 +16,7 @@ import {
   TACTICS_FINALE_GAP_MS,
   fetchRiderFitness,
   keyMoments,
+  sessionKind,
   buildSnapshot,
   VoiceUnavailableError,
   englishVoices,
@@ -91,6 +93,7 @@ export default function RadioCard({
   const enabled = on ?? storedEnabled;
   const voice = voiceOn ?? storedVoice;
   const switchesOutside = on != null;
+  const [session, setSession] = useSession();
   const [ownSettingsOpen, setSettingsOpen] = useState(!compact);
   const settingsOpen = showSettings ?? ownSettingsOpen;
   const [nameStyle, setNameStyle] = useStoredState<NameStyle>(`race:${mode}-names`, "surname", (v) =>
@@ -144,8 +147,8 @@ export default function RadioCard({
     if (!voice) stopSpeaking(mode);
   }, [voice, mode]);
 
-  const live = useRef({ enabled, voice, key, onLine, say, nameStyle, fitness, ridingSelf });
-  live.current = { enabled, voice, key, onLine, say, nameStyle, fitness, ridingSelf };
+  const live = useRef({ enabled, voice, key, onLine, say, nameStyle, fitness, ridingSelf, session });
+  live.current = { enabled, voice, key, onLine, say, nameStyle, fitness, ridingSelf, session };
 
   // The athlete's own fitness, read when the radio starts and every half
   // hour - it changes day to day, not lap to lap. Not having it costs
@@ -191,6 +194,8 @@ export default function RadioCard({
     const timer = setInterval(async () => {
       const r = recorder.current;
       if (!r || inFlight || r.log.samples.length === 0) return;
+      // Race or ride, as chosen - it decides what counts as a moment and the tone.
+      r.log.sessionType = sessionKind(r.log, live.current.session);
       const now = Date.now();
       const since = now - lastAt;
       // Key moments not just called: what the coach calls, and for the
@@ -299,6 +304,21 @@ export default function RadioCard({
 
       {settingsOpen && (
         <div className={styles.voiceRow}>
+          <label className={styles.toggle}>
+            Session
+            <select
+              className={styles.voiceSelect}
+              value={session}
+              onChange={(e) => setSession(e.target.value as SessionChoice)}
+              aria-label="Race or ride"
+            >
+              {SESSION_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className={styles.toggle}>
             Names
             <select

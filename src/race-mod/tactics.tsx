@@ -11,10 +11,12 @@ import {
   type SauceAthleteData,
 } from "../components/race/sauceFeed";
 import { useEventBrief } from "../components/race/eventInfo";
+import { SESSION_OPTIONS, useSession, type SessionChoice } from "../components/race/useSession";
 import { OverlayShell, useSettings, type SettingDef } from "./overlay";
 import { SITE } from "./site";
 import { useCourse } from "./useCourse";
 import { courseAhead } from "./courseAhead";
+import shell from "./Overlay.module.css";
 import styles from "./Tactics.module.css";
 
 /**
@@ -34,6 +36,7 @@ const DEFS: SettingDef[] = [
 
 function TacticsOverlay() {
   const [settings, set] = useSettings("tactics", DEFAULTS);
+  const [session, setSession] = useSession();
   const [status, setStatus] = useState<FeedStatus>("connecting");
   const [watching, setWatching] = useState<SauceAthleteData | null>(null);
   const recorder = useRef<RaceRecorder | null>(new RaceRecorder());
@@ -63,7 +66,26 @@ function TacticsOverlay() {
   }, [address]);
 
   return (
-    <OverlayShell title="Tactics coach" settings={settings} setSetting={set} defs={DEFS} className={styles.overlay}>
+    <OverlayShell
+      title="Tactics coach"
+      settings={settings}
+      setSetting={set}
+      defs={DEFS}
+      className={styles.overlay}
+      extraSettings={
+        // Shared with the commentary: race tactics, or saving energy on a ride.
+        <label className={shell.row}>
+          <span className={shell.label}>Session</span>
+          <select value={session} onChange={(e) => setSession(e.target.value as SessionChoice)}>
+            {SESSION_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      }
+    >
       {settings.rider && (
         <div className={styles.strip}>
           <span className={`${styles.dot} ${status === "connected" ? styles.on : styles.off}`} aria-hidden />

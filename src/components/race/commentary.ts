@@ -258,6 +258,81 @@ function bridgeTarget(gapSec: number, aheadKmh: number | undefined, now: RaceSam
  * up, the tank running dry - plus the race log's splits, merges, moves
  * through the field and distance markers since `sinceT`.
  */
+/** What the radios take the session to be: the rider's choice, or for "auto", an event is a race. */
+export function sessionKind(log: RaceLog, choice: "auto" | "race" | "ride" = "auto"): "race" | "ride" {
+  if (choice !== "auto") return choice;
+  return log.eventSubgroupId ? "race" : "ride";
+}
+
+/**
+ * On a ride, only the moments about the rider's own effort and the road
+ * count - nothing about gaps to chase, rivals or attacks. These ids are the
+ * ones kept; the ride's own moments are added on top.
+ */
+const RIDE_MOMENTS = /^(climb|climb-limit|climb-top|tank|towing|surge|upcoming@|briefing@|countdown@|go@|dropped@|wind|spiky|zone-drift|check-in@)/;
+/** How long in the wind, in a group, before it's worth a word. */
+const WIND_MS = 30_000;
+/** Watts the draft has to save for the rider to count as sheltered. */
+const SHELTERED_W = 15;
+/** Spikes: seconds over this share of FTP in the last minute, and how many make a habit. */
+const SPIKE_FTP = 1.5;
+const SPIKES = 5;
+/** Five minutes over this share of FTP is past an easy ride. */
+const DRIFT_FTP = 0.88;
+const DRIFT_MS = 5 * 60_000;
+/** A summary of the ride so far, this often. */
+const CHECK_IN_MS = 10 * 60_000;
+
+/** The ride's own moments: wasted energy, effort creeping up, and a regular check on how it's going. */
+function rideMoments(log: RaceLog, now: RaceSample): KeyMoment[] {
+  const out: KeyMoment[] = [];
+  const samples = log.samples;
+  const ftp = log.rider?.ftp;
+  const own = log.groups.at(-1)?.groups.find((g) => g.watching);
+
+  const windy = samples.filter((s) => s.t >= now.t - WIND_MS);
+  const draft = avg(windy.map((s) => s.draft));
+  if (own && own.size >= 3 && windy.length >= (WIND_MS / 1000) * 0.75 && draft != null && draft < SHELTERED_W && (now.speed ?? 0) > 25) {
+    out.push({ id: "wind", text: `In the wind for ${WIND_MS / 1000}s while riding with ${own.size - 1} others: the draft is saving only ${draft} W.` });
+  }
+
+  if (ftp) {
+    const minute = samples.filter((s) => s.t >= now.t - 60_000);
+    const spikes = minute.filter((s) => (s.power ?? 0) >= ftp * SPIKE_FTP);
+    if (spikes.length >= SPIKES) {
+      out.push({
+        id: "spiky",
+        text: `${spikes.length} seconds over ${Math.round(SPIKE_FTP * 100)}% of FTP in the last minute (peak ${Math.max(...spikes.map((s) => s.power ?? 0))} W) - surges that cost energy.`,
+      });
+    }
+    const five = samples.filter((s) => s.t >= now.t - DRIFT_MS);
+    const fiveAvg = avg(five.map((s) => s.power));
+    if (five.length >= (DRIFT_MS / 1000) * 0.8 && fiveAvg != null && fiveAvg >= ftp * DRIFT_FTP) {
+      out.push({ id: "zone-drift", text: `The last 5 minutes have averaged ${fiveAvg} W, ${Math.round((fiveAvg / ftp) * 100)}% of FTP - well above an easy ride.` });
+    }
+  }
+
+  // Every ten minutes: what the ride has cost so far.
+  const first = samples[0];
+  const n = first ? Math.floor((now.t - first.t) / CHECK_IN_MS) : 0;
+  if (n >= 1 && now.t - first.t - n * CHECK_IN_MS < 60_000) {
+    const block = samples.filter((s) => s.t >= now.t - CHECK_IN_MS);
+    const p = avg(block.map((s) => s.power));
+    const d = avg(block.map((s) => s.draft));
+    const kj = Math.round(samples.reduce((sum, s) => sum + (s.power ?? 0), 0) / 1000);
+    out.push({
+      id: `check-in@${n}`,
+      text:
+        `${n * 10} minutes in. Last 10 minutes: ${p ?? "?"} W average` +
+        (ftp && p != null ? ` (${Math.round((p / ftp) * 100)}% of FTP)` : "") +
+        (d != null ? `, draft saving ${d} W on average` : "") +
+        `. ${kj} kJ so far` +
+        (now.wBal != null ? `, anaerobic reserve ${(now.wBal / 1000).toFixed(1)} kJ.` : "."),
+    });
+  }
+  return out;
+}
+
 /** A rival with this little W′ left, and falling, is a moment: attack them, or watch them go. */
 const LIMIT_W_BAL_PCT = 20;
 
@@ -442,6 +517,8 @@ export function keyMoments(log: RaceLog, sinceT: number, clock = Date.now()): Ke
     }
     moments.push({ id: `${e.kind}@${e.t}`, text: e.text });
   }
+  // A ride: the effort and the road only, plus the ride's own moments.
+  if (log.sessionType === "ride") return [...moments.filter((m) => RIDE_MOMENTS.test(m.id)), ...rideMoments(log, now)];
   // A gap opening just in front is the sharper read of the same thing as the group ahead slipping away.
   if (moments.some((m) => m.id === "gap-opening")) return moments.filter((m) => m.id !== "slipping");
   return moments;
@@ -488,6 +565,8 @@ export function buildSnapshot(
         }
       : undefined,
     yourFitness,
+    // A race, or a ride - training or a group ride - which changes the whole tone.
+    session: sessionKind(log, log.sessionType ?? "auto"),
     // "pen" until the race starts: nothing on the road means anything yet.
     phase: racePhase(log),
     event: log.event && {

@@ -40,7 +40,7 @@
   height: 8px;
   margin: 6px 0;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(var(--hud-ink), 0.12);
   overflow: hidden;
 }
 
@@ -75,5 +75,77 @@
 }
 
 .hr b {
-  color: #ff8a73;
+  color: var(--color-accent);
+}
+
+.zoneTime {
+  margin-top: 6px;
+}
+
+.stack {
+  display: flex;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: rgba(var(--hud-ink), 0.12);
+}
+
+.stack span {
+  transition: flex-grow 0.6s ease;
+}
+
+.stackLabels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px var(--space-2);
+  margin-top: 3px;
+  font-size: 0.68rem;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.zoneList {
+  display: grid;
+  gap: 2px;
+  margin-top: 6px;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.zoneLine {
+  display: grid;
+  grid-template-columns: 1.6rem 1fr 3.4rem 2rem;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.zoneLabel {
+  font-weight: 700;
+}
+
+.zoneTrack {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(var(--hud-ink), 0.1);
+  overflow: hidden;
+}
+
+.zoneTrack span {
+  display: block;
+  height: 100%;
+  transition: width 0.6s ease;
+}
+
+.zoneClock {
+  text-align: right;
+}
+
+.zonePct {
+  text-align: right;
+  color: var(--color-text-muted);
+}
+
+:global(:root[data-hud-light]) .stackLabels b,
+:global(:root[data-hud-light]) .zoneLabel {
+  filter: brightness(0.62) saturate(1.4);
 }

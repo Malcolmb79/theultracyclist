@@ -1,5 +1,9 @@
 import { useEffect, useState, type ReactNode } from "react";
 import styles from "./Overlay.module.css";
+import { THEMES, THEME_KEY, applyTheme, readTheme, saveTheme } from "./themes";
+
+// The theme goes on before the first paint, so an overlay never flashes the default look.
+applyTheme(readTheme());
 
 // The frame every Ultra Cyclist overlay sits in, so they look and behave
 // alike: a background that fades down to nothing so Zwift shows through,
@@ -84,6 +88,19 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
   children,
 }: ShellProps<T>) {
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const [theme, setTheme] = useState(() => readTheme().id);
+
+  // Another overlay changing the theme changes this one too.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== THEME_KEY) return;
+      const next = readTheme();
+      applyTheme(next);
+      setTheme(next.id);
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   useEffect(() => {
     document.documentElement.classList.add(styles.transparent);
@@ -118,6 +135,24 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
                 ×
               </button>
             </div>
+            <label className={styles.row}>
+              <span className={styles.label}>Theme (all overlays)</span>
+              <select
+                value={theme}
+                onChange={(e) => {
+                  const next = THEMES.find((t) => t.id === e.target.value) ?? THEMES[0];
+                  saveTheme(next.id);
+                  applyTheme(next);
+                  setTheme(next.id);
+                }}
+              >
+                {THEMES.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </label>
             {[OPACITY_SETTING, ...defs].map((d) => {
               const value = settings[d.key as keyof T];
               return (

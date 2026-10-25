@@ -59,7 +59,7 @@ function ClimbProfile({ route, climb, at }: { route: RouteGeometry; climb: Climb
         {slices.map((s, i) => (
           <path key={i} d={s.d} fill={s.color} fillOpacity={0.85} />
         ))}
-        {at >= climb.start && <rect x={0} width={x(pos)} y={0} height={100} fill="rgba(11,14,17,0.45)" />}
+        {at >= climb.start && <rect x={0} width={x(pos)} y={0} height={100} fill="rgba(var(--hud-bg), 0.45)" />}
       </svg>
       {at >= climb.start && <span className={styles.me} style={{ left: `${(x(pos) / 1000) * 100}%`, top: `${y(pos)}%` }} />}
     </div>

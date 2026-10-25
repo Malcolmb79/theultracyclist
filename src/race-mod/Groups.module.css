@@ -19,7 +19,7 @@
   position: absolute;
   top: 30px;
   height: 2px;
-  background: rgba(255, 255, 255, 0.35);
+  background: rgba(var(--hud-ink), 0.35);
   transition:
     left 0.8s ease,
     width 0.8s ease;
@@ -37,8 +37,8 @@
   border-radius: 50%;
   font-family: var(--font-display);
   font-size: 1.2rem;
-  background: rgba(11, 14, 17, calc(var(--overlay-alpha) + 0.1));
-  border: 2px solid rgba(255, 255, 255, 0.5);
+  background: rgba(var(--hud-bg), calc(var(--overlay-alpha) + 0.1));
+  border: 2px solid rgba(var(--hud-ink), 0.5);
   z-index: 1;
 }
 
@@ -49,8 +49,8 @@
 
 .mine .bubble {
   border-color: var(--color-accent-2);
-  background: rgba(46, 230, 166, 0.35);
-  box-shadow: 0 0 10px rgba(46, 230, 166, 0.6);
+  background: rgba(var(--hud-accent), 0.35);
+  box-shadow: 0 0 10px rgba(var(--hud-accent), 0.6);
 }
 
 .meta {
@@ -86,7 +86,7 @@
   height: calc(100vh - 4px);
   min-height: 90px;
   margin-top: 4px;
-  background: rgba(11, 14, 17, var(--overlay-alpha));
+  background: rgba(var(--hud-bg), var(--overlay-alpha));
   border-radius: var(--radius);
   overflow: hidden;
 }
@@ -100,8 +100,8 @@
   margin-top: -5px;
   border-radius: 5px;
   background:
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.5) 0 10px, transparent 10px 22px) center / 100% 2px no-repeat,
-    rgba(255, 255, 255, 0.1);
+    repeating-linear-gradient(90deg, rgba(var(--hud-ink), 0.5) 0 10px, transparent 10px 22px) center / 100% 2px no-repeat,
+    rgba(var(--hud-ink), 0.1);
 }
 
 .direction {
@@ -109,7 +109,7 @@
   right: -2px;
   top: -6px;
   font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(var(--hud-ink), 0.45);
 }
 
 .spot {
@@ -170,16 +170,16 @@
   border-radius: 10px;
   font-family: var(--font-display);
   font-size: 0.95rem;
-  background: rgba(245, 246, 247, 0.85);
-  color: #0b0e11;
+  background: rgba(var(--hud-ink), 0.85);
+  color: rgb(var(--hud-bg));
   text-shadow: none;
-  box-shadow: 0 0 0 2px rgba(11, 14, 17, 0.6);
+  box-shadow: 0 0 0 2px rgba(var(--hud-bg), 0.6);
   z-index: 1;
 }
 
 .mine .capsule {
   background: var(--color-accent-2);
-  box-shadow: 0 0 0 2px rgba(11, 14, 17, 0.6), 0 0 12px rgba(46, 230, 166, 0.7);
+  box-shadow: 0 0 0 2px rgba(var(--hud-bg), 0.6), 0 0 12px rgba(var(--hud-accent), 0.7);
 }
 
 .mine .names {
@@ -195,6 +195,6 @@
   font-family: var(--font-display);
   font-size: 0.95rem;
   color: var(--color-text);
-  background: rgba(11, 14, 17, 0.7);
+  background: rgba(var(--hud-bg), 0.7);
   z-index: 2;
 }

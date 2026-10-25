@@ -51,7 +51,7 @@
   height: 6px;
   margin: 5px 0;
   border-radius: 3px;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(var(--hud-ink), 0.12);
   overflow: hidden;
 }
 
@@ -69,7 +69,7 @@
 }
 
 .area {
-  fill: rgba(46, 230, 166, 0.15);
+  fill: rgba(var(--hud-accent), 0.15);
 }
 
 .line {

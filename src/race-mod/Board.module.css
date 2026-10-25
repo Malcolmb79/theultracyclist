@@ -14,7 +14,7 @@
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-1) var(--space-2);
-  background: rgba(11, 14, 17, calc(var(--overlay-alpha) + 0.1));
+  background: rgba(var(--hud-bg), calc(var(--overlay-alpha) + 0.1));
   border-bottom: 2px solid var(--color-accent-2);
   border-radius: var(--radius) var(--radius) 0 0;
 }
@@ -58,7 +58,7 @@
   margin: 0;
   padding: 0;
   overflow-y: auto;
-  background: rgba(11, 14, 17, var(--overlay-alpha));
+  background: rgba(var(--hud-bg), var(--overlay-alpha));
 }
 
 .row {
@@ -67,11 +67,11 @@
   align-items: center;
   gap: var(--space-2);
   padding: 2px var(--space-2);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(var(--hud-ink), 0.06);
 }
 
 .watched {
-  background: rgba(46, 230, 166, 0.22);
+  background: rgba(var(--hud-accent), 0.22);
   box-shadow: inset 3px 0 0 var(--color-accent-2);
 }
 
@@ -120,7 +120,7 @@
   position: absolute;
   inset: 0 auto 0 0;
   width: calc(var(--wbal, 1) * 100%);
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(var(--hud-ink), 0.14);
   border-radius: 4px;
   z-index: -1;
   transition: width 0.8s ease;
@@ -162,6 +162,15 @@
   color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  /* Wide theme fonts wrap onto a second line rather than running under W/kg. */
+  flex-wrap: wrap;
+  row-gap: 0;
+}
+
+/* Zone colours are bright for dark backgrounds; deepened on light themes. */
+:global(:root[data-hud-light]) .ftp,
+:global(:root[data-hud-light]) .tss {
+  filter: brightness(0.62) saturate(1.4);
 }
 
 .hr {
@@ -203,7 +212,7 @@
   font-size: 1.15rem;
   letter-spacing: 0.03em;
   text-align: center;
-  background: rgba(11, 14, 17, calc(var(--overlay-alpha) + 0.1));
+  background: rgba(var(--hud-bg), calc(var(--overlay-alpha) + 0.1));
   border-top: 2px solid var(--color-accent);
   border-radius: 0 0 var(--radius) var(--radius);
 }

@@ -16,7 +16,7 @@
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-1) var(--space-2);
-  background: rgba(11, 14, 17, calc(var(--overlay-alpha) + 0.1));
+  background: rgba(var(--hud-bg), calc(var(--overlay-alpha) + 0.1));
   border-bottom: 2px solid var(--color-accent-2);
   border-radius: var(--radius) var(--radius) 0 0;
 }
@@ -59,7 +59,7 @@
 .canvas {
   flex: 1;
   min-height: 0;
-  background: rgba(11, 14, 17, var(--overlay-alpha));
+  background: rgba(var(--hud-bg), var(--overlay-alpha));
 }
 
 .svg {
@@ -81,7 +81,7 @@
 
 .road {
   fill: none;
-  stroke: rgba(255, 255, 255, 0.16);
+  stroke: rgba(var(--hud-ink), 0.16);
   stroke-width: 1.5px;
   stroke-linejoin: round;
   stroke-linecap: round;
@@ -89,7 +89,7 @@
 
 .routeGlow {
   fill: none;
-  stroke: rgba(46, 230, 166, 0.25);
+  stroke: rgba(var(--hud-accent), 0.25);
   stroke-width: 9px;
   stroke-linejoin: round;
   stroke-linecap: round;
@@ -112,15 +112,15 @@
 }
 
 .rider {
-  fill: rgba(245, 246, 247, 0.85);
-  stroke: rgba(11, 14, 17, 0.8);
+  fill: rgba(var(--hud-ink), 0.85);
+  stroke: rgba(var(--hud-bg), 0.8);
   stroke-width: 1px;
   vector-effect: non-scaling-stroke;
 }
 
 .teammate {
   fill: var(--color-amber);
-  stroke: rgba(11, 14, 17, 0.8);
+  stroke: rgba(var(--hud-bg), 0.8);
   stroke-width: 1px;
   vector-effect: non-scaling-stroke;
 }
@@ -133,7 +133,7 @@
 }
 
 .meHalo {
-  fill: rgba(46, 230, 166, 0.25);
+  fill: rgba(var(--hud-accent), 0.25);
   animation: pulse 2s ease-out infinite;
   transform-box: fill-box;
   transform-origin: center;
@@ -171,7 +171,7 @@
   font-family: var(--font-display);
   font-size: 1.15rem;
   letter-spacing: 0.03em;
-  background: rgba(11, 14, 17, calc(var(--overlay-alpha) + 0.1));
+  background: rgba(var(--hud-bg), calc(var(--overlay-alpha) + 0.1));
   border-top: 2px solid var(--color-accent);
   border-radius: 0 0 var(--radius) var(--radius);
 }
@@ -182,6 +182,6 @@
 
 .profile {
   height: 46px;
-  background: rgba(11, 14, 17, var(--overlay-alpha));
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(var(--hud-bg), var(--overlay-alpha));
+  border-top: 1px solid rgba(var(--hud-ink), 0.08);
 }

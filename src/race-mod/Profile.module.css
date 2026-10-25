@@ -20,11 +20,11 @@
   border-radius: 4px;
   font-weight: 700;
   white-space: nowrap;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(var(--hud-ink), 0.1);
 }
 
 .banner.sprint {
-  background: rgba(46, 230, 166, 0.28);
+  background: rgba(var(--hud-accent), 0.28);
 }
 
 .banner.climb {

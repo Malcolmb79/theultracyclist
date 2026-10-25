@@ -22,6 +22,7 @@ const DEFAULTS = {
   opacity: 70,
   style: "road",
   orientation: "horizontal",
+  who: "all",
   ahead: 3,
   behind: 2,
   gap: true,
@@ -43,6 +44,15 @@ const DEFS: SettingDef[] = [
     options: [
       { value: "horizontal", label: "Horizontal" },
       { value: "vertical", label: "Vertical" },
+    ],
+  },
+  {
+    key: "who",
+    label: "Show",
+    type: "select",
+    options: [
+      { value: "all", label: "Groups ahead and behind" },
+      { value: "group", label: "My group only" },
     ],
   },
   { key: "ahead", label: "Groups ahead", type: "select", options: [0, 1, 2, 3, 4, 5].map((n) => ({ value: n, label: String(n) })) },
@@ -352,8 +362,9 @@ function GroupsOverlay() {
   const [settings, set] = useSettings("groups", DEFAULTS);
   const { groups, status } = useSauce({ groups: true });
   const i = groups.findIndex((g) => g.watching);
-  const from = Math.max(0, i - settings.ahead);
-  const shown = i < 0 ? [] : groups.slice(from, i + 1 + settings.behind);
+  const groupOnly = settings.who === "group";
+  const from = groupOnly ? i : Math.max(0, i - settings.ahead);
+  const shown = i < 0 ? [] : groups.slice(from, i + 1 + (groupOnly ? 0 : settings.behind));
 
   return (
     <OverlayShell title="Groups" settings={settings} setSetting={set} defs={DEFS}>

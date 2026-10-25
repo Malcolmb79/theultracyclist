@@ -258,6 +258,9 @@ function bridgeTarget(gapSec: number, aheadKmh: number | undefined, now: RaceSam
  * up, the tank running dry - plus the race log's splits, merges, moves
  * through the field and distance markers since `sinceT`.
  */
+/** How far before a climb or sprint the coach is asked to plan for it. */
+const SEGMENT_WARNING_KM = 1.5;
+
 export function keyMoments(log: RaceLog, sinceT: number, clock = Date.now()): KeyMoment[] {
   const moments: KeyMoment[] = [];
   const samples = log.samples;
@@ -395,6 +398,15 @@ export function keyMoments(log: RaceLog, sinceT: number, clock = Date.now()): Ke
     moments.push({ id: "tank", text: `Anaerobic reserve is down to ${(now.wBal / 1000).toFixed(1)} kJ.` });
   }
 
+  // A climb or sprint coming up: the time to plan for it, before it starts.
+  // Called once each time round (the id is the segment and roughly where it starts).
+  const upcoming = log.courseAhead?.next.find((n) => n.kind !== "segment" && n.inKm <= SEGMENT_WARNING_KM);
+  if (upcoming) {
+    const startsAt = Math.round(((now.dist ?? 0) + upcoming.inKm * 1000) / 2000);
+    const what = upcoming.kind === "climb" ? `${upcoming.lengthKm} km at ${upcoming.avgPct}%` : `${Math.round(upcoming.lengthKm * 1000)} m`;
+    moments.push({ id: `upcoming@${upcoming.name}-${startsAt}`, text: `${upcoming.name} (${upcoming.kind}) starts in ${upcoming.inKm} km: ${what}.` });
+  }
+
   for (const e of log.events) {
     if (e.t <= sinceT || !MOMENT_EVENTS.has(e.kind)) continue;
     if (e.kind === "distance" && !TACTIC_MARKERS.test(e.text)) continue;
@@ -453,6 +465,7 @@ export function buildSnapshot(
           ftp: log.rider.ftp,
           weightKg: log.rider.weight,
           profile: log.rider.profile,
+          team: log.rider.team,
         }
       : undefined,
     yourFitness,
@@ -492,6 +505,8 @@ export function buildSnapshot(
           climbedM: climb,
         }
       : undefined,
+    // The road ahead: the next climbs and sprints, and the next five kilometres.
+    courseAhead: log.courseAhead,
     // The other riders, by name: the rider's group and the groups either side.
     field: log.field && {
       ridersGroup: log.field.ridersGroup,
@@ -538,9 +553,26 @@ export function buildSnapshot(
     },
     groupAhead: neighbour(log, "ahead"),
     groupBehind: neighbour(log, "behind"),
+    teammates: teammates(log),
     // What the coach is being asked to call; everything else is context.
     keyMoments: moments.map((m) => m.text),
   };
+}
+
+/** Riders in sight wearing the rider's team tag, and where they are relative to the rider. */
+function teammates(log: RaceLog) {
+  const team = log.rider?.team?.toLowerCase();
+  const f = log.field;
+  if (!team || !f) return undefined;
+  const where = [
+    ["in your group", f.ridersGroup],
+    ["in the group ahead", f.groupAhead ?? []],
+    ["in the group behind", f.groupBehind ?? []],
+  ] as const;
+  const found = where.flatMap(([place, riders]) =>
+    riders.filter((r) => r.team?.toLowerCase() === team && r.name !== log.rider?.name).map((r) => ({ name: r.name, where: place, gap: r.gap })),
+  );
+  return found.length ? found : undefined;
 }
 
 /**

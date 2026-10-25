@@ -122,6 +122,16 @@ export function riderProfile(a: SauceAthleteData): RiderProfile | undefined {
 }
 
 /** The riders around the watched one right now: their group and the groups either side. */
+/** What's coming up on the route: the next climbs and sprints, and the shape of the next few kilometres. */
+export interface CourseAhead {
+  /** The segment being ridden now, if any. */
+  current?: { name: string; kind: string; toGoM: number; avgPct?: number };
+  next: { name: string; kind: string; inKm: number; lengthKm: number; avgPct: number }[];
+  next5km: { climbM: number; descentM: number; steepestPct: number };
+  /** Where the finish is, when it's within the distance looked at. */
+  finishInKm?: number;
+}
+
 export interface FieldSnapshot {
   t: number;
   /** The rider's own group, hardest-working first. */
@@ -227,12 +237,15 @@ export interface RaceLog {
     ftp?: number;
     weight?: number;
     profile?: RiderProfile;
+    team?: string;
   };
   eventSubgroupId?: number;
   event?: EventBrief;
   /** The latest view of the riders around the watched one (only the latest is kept). */
   field?: FieldSnapshot;
   remainingMetric?: "time" | "distance";
+  /** The road ahead, from the route - kept up to date by a page that knows the course. */
+  courseAhead?: CourseAhead;
   samples: RaceSample[];
   groups: GroupSnapshot[];
   events: RaceEvent[];
@@ -349,6 +362,7 @@ export class RaceRecorder {
         lastName: cleanName(data.athlete?.lastName) || undefined,
         ftp: data.athlete?.ftp ?? undefined,
         weight: round(data.athlete?.weight, 1),
+        team: data.athlete?.team?.trim() || undefined,
       };
       if (rider) {
         this.event("watching", `Now following ${name}`, now);

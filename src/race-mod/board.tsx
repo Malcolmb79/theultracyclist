@@ -109,6 +109,7 @@ function tssOf(r: SauceAthleteData): number | undefined {
 
 const DEFAULTS = {
   opacity: 85,
+  who: "all",
   rows: 20,
   flags: true,
   teams: true,
@@ -122,6 +123,15 @@ const DEFAULTS = {
   toGo: true,
 };
 const DEFS: SettingDef[] = [
+  {
+    key: "who",
+    label: "Show",
+    type: "select",
+    options: [
+      { value: "all", label: "Everyone nearby" },
+      { value: "group", label: "My group only" },
+    ],
+  },
   { key: "rows", label: "Riders shown", type: "select", options: ROW_CHOICES.map((n) => ({ value: n, label: String(n) })) },
   { key: "flags", label: "Flags", type: "toggle" },
   { key: "teams", label: "Team tags", type: "toggle" },
@@ -137,10 +147,14 @@ const DEFS: SettingDef[] = [
 
 function RaceBoard() {
   const [settings, set] = useSettings("board", DEFAULTS);
-  const { address, status, watching, nearby } = useSauce({ nearby: true });
+  const groupOnly = settings.who === "group";
+  const { address, status, watching, nearby, groups } = useSauce({ nearby: true, groups: groupOnly });
   const flags = useFlags(address);
 
-  const shown = around(order(nearby), settings.rows);
+  // Just the riders in the watched rider's group, when that's what's chosen.
+  const mine = groupOnly ? new Set(groups.find((g) => g.watching)?.athletes?.map((a) => a.athleteId)) : null;
+  const riders = mine ? nearby.filter((r) => r.watching || mine.has(r.athleteId)) : nearby;
+  const shown = around(order(riders), settings.rows);
   const myTeam = watching?.athlete?.team?.trim().toLowerCase();
   const toGo =
     watching?.remaining == null

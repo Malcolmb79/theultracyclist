@@ -149,3 +149,66 @@
 :global(:root[data-hud-light]) .zoneLabel {
   filter: brightness(0.62) saturate(1.4);
 }
+
+.wbal {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: 6px;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.wbalText b {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1.15rem;
+}
+
+/* A battery: the case, its terminal nub, and the charge inside. */
+.battery {
+  position: relative;
+  flex: 1;
+  max-width: 9rem;
+  height: 0.9rem;
+  padding: 2px;
+  border: 2px solid rgba(var(--hud-ink), 0.6);
+  border-radius: 4px;
+}
+
+.battery::after {
+  content: "";
+  position: absolute;
+  right: -5px;
+  top: 50%;
+  width: 3px;
+  height: 45%;
+  transform: translateY(-50%);
+  border-radius: 0 2px 2px 0;
+  background: rgba(var(--hud-ink), 0.6);
+}
+
+.charge {
+  display: block;
+  height: 100%;
+  border-radius: 1px;
+  transition:
+    width 0.6s ease,
+    background 0.6s;
+}
+
+.low {
+  animation: flash 1s ease-in-out infinite alternate;
+}
+
+@keyframes flash {
+  to {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .low {
+    animation: none;
+  }
+}

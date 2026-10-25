@@ -13,6 +13,8 @@ import {
 import { useEventBrief } from "../components/race/eventInfo";
 import { OverlayShell, useSettings, type SettingDef } from "./overlay";
 import { SITE } from "./site";
+import { useCourse } from "./useCourse";
+import { courseAhead } from "./courseAhead";
 import styles from "./Tactics.module.css";
 
 /**
@@ -22,8 +24,10 @@ import styles from "./Tactics.module.css";
  * own in-memory record of the race, never saved - so it works whether or
  * not the console is open or recording.
  */
-const DEFAULTS = { opacity: 80, rider: true, coachSettings: false };
+const DEFAULTS = { opacity: 80, on: true, voice: true, rider: true, coachSettings: false };
 const DEFS: SettingDef[] = [
+  { key: "on", label: "Coach on", type: "toggle" },
+  { key: "voice", label: "Voice", type: "toggle" },
   { key: "rider", label: "Rider strip", type: "toggle" },
   { key: "coachSettings", label: "Coach settings (voice, names)", type: "toggle" },
 ];
@@ -35,6 +39,16 @@ function TacticsOverlay() {
   const recorder = useRef<RaceRecorder | null>(new RaceRecorder());
   const address = useMemo(() => sauceAddressForModPage(), []);
   useEventBrief(address, watching?.state?.eventSubgroupId, recorder);
+
+  // The road ahead, so the coach can plan around the next climb or sprint.
+  const { route } = useCourse(address, watching);
+  useEffect(() => {
+    const log = recorder.current?.log;
+    const at = watching?.state?.routeDistance;
+    if (!log) return;
+    const remaining = watching?.remainingMetric === "distance" ? watching.remaining : undefined;
+    log.courseAhead = route && at != null ? courseAhead(route, at, remaining) : undefined;
+  }, [route, watching]);
 
   useEffect(() => {
     return connectSauce(address, {
@@ -71,6 +85,8 @@ function TacticsOverlay() {
         apiBase={SITE}
         needsKey
         ridingSelf={!!watching?.self}
+        on={settings.on}
+        voiceOn={settings.voice}
       />
     </OverlayShell>
   );

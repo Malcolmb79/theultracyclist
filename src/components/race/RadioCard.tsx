@@ -58,6 +58,12 @@ interface Props {
   onLine?: () => void;
   /** Whether the rider being followed is the one at this computer. */
   ridingSelf: boolean;
+  /**
+   * Set by an overlay that switches the radio and its voice from its own
+   * right-click menu; the card then shows no On / Voice switches of its own.
+   */
+  on?: boolean;
+  voiceOn?: boolean;
 }
 
 const TITLE: Record<RadioMode, string> = { commentary: "Live commentary", tactics: "Tactics coach" };
@@ -77,9 +83,14 @@ export default function RadioCard({
   onLine,
   ridingSelf,
   showSettings,
+  on,
+  voiceOn,
 }: Props) {
-  const [enabled, setEnabled] = useStoredState(`race:${mode}-on`, true, (v) => (typeof v === "boolean" ? v : null));
-  const [voice, setVoice] = useStoredState(`race:${mode}-voice`, true, (v) => (typeof v === "boolean" ? v : null));
+  const [storedEnabled, setEnabled] = useStoredState(`race:${mode}-on`, true, (v) => (typeof v === "boolean" ? v : null));
+  const [storedVoice, setVoice] = useStoredState(`race:${mode}-voice`, true, (v) => (typeof v === "boolean" ? v : null));
+  const enabled = on ?? storedEnabled;
+  const voice = voiceOn ?? storedVoice;
+  const switchesOutside = on != null;
   const [ownSettingsOpen, setSettingsOpen] = useState(!compact);
   const settingsOpen = showSettings ?? ownSettingsOpen;
   const [nameStyle, setNameStyle] = useStoredState<NameStyle>(`race:${mode}-names`, "surname", (v) =>
@@ -129,6 +140,10 @@ export default function RadioCard({
   };
 
   // Read inside the timer, which is set up once per recording.
+  useEffect(() => {
+    if (!voice) stopSpeaking(mode);
+  }, [voice, mode]);
+
   const live = useRef({ enabled, voice, key, onLine, say, nameStyle, fitness, ridingSelf });
   live.current = { enabled, voice, key, onLine, say, nameStyle, fitness, ridingSelf };
 
@@ -250,21 +265,25 @@ export default function RadioCard({
         <h2 className={styles.cardTitle}>{TITLE[mode]}</h2>
         <div className={styles.commentaryControls}>
           {busy && <span className={styles.commentaryBusy}>{mode === "tactics" ? "Thinking…" : "On air…"}</span>}
-          <label className={styles.toggle}>
-            <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
-            On
-          </label>
-          <label className={styles.toggle}>
-            <input
-              type="checkbox"
-              checked={voice}
-              onChange={(e) => {
-                setVoice(e.target.checked);
-                if (!e.target.checked) stopSpeaking(mode);
-              }}
-            />
-            Voice
-          </label>
+          {!switchesOutside && (
+            <>
+              <label className={styles.toggle}>
+                <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+                On
+              </label>
+              <label className={styles.toggle}>
+                <input
+                  type="checkbox"
+                  checked={voice}
+                  onChange={(e) => {
+                    setVoice(e.target.checked);
+                    if (!e.target.checked) stopSpeaking(mode);
+                  }}
+                />
+                Voice
+              </label>
+            </>
+          )}
           {compact && showSettings == null && (
             <button
               type="button"

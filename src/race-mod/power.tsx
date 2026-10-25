@@ -8,9 +8,10 @@ import styles from "./Power.module.css";
 
 // Power, the way Zwift shows it top left - watts, watts per kilo, cadence,
 // heart rate - in The Ultra Cyclist's look, with a bar for the training zone
-// and how long has been spent in each zone this race (or ride).
+// and how long has been spent in each zone this race (or ride), and the W′
+// battery: how much of the anaerobic tank is left.
 
-const DEFAULTS = { opacity: 80, smoothing: 3, wkg: true, cadence: true, heartRate: true, zone: true, ftpPct: false, zoneTime: "bar" };
+const DEFAULTS = { opacity: 80, smoothing: 3, wkg: true, cadence: true, heartRate: true, zone: true, ftpPct: false, wbal: true, zoneTime: "bar" };
 const DEFS: SettingDef[] = [
   { key: "smoothing", label: "Smoothing", type: "select", options: [1, 3, 5, 10].map((s) => ({ value: s, label: s === 1 ? "None" : `${s}s` })) },
   { key: "wkg", label: "Watts per kilo", type: "toggle" },
@@ -18,6 +19,7 @@ const DEFS: SettingDef[] = [
   { key: "heartRate", label: "Heart rate", type: "toggle" },
   { key: "zone", label: "Zone bar", type: "toggle" },
   { key: "ftpPct", label: "% of FTP", type: "toggle" },
+  { key: "wbal", label: "W′ battery", type: "toggle" },
   {
     key: "zoneTime",
     label: "Time in zone",
@@ -39,6 +41,25 @@ const ZONES = [
   { upTo: 1.18, name: "Z5", color: "#ff9a2e" },
   { upTo: Infinity, name: "Z6", color: "#ff4d2e" },
 ];
+
+/** Sauce's own assumption when a rider's profile has no W′. */
+const DEFAULT_W_PRIME = 20_000;
+
+/** The W′ tank as a battery: full when fresh, draining as the rider goes over FTP. */
+function WbalBattery({ wBal, wPrime }: { wBal: number; wPrime: number }) {
+  const share = Math.max(0, Math.min(1, wBal / wPrime));
+  const color = share > 0.5 ? "var(--color-accent-2)" : share > 0.25 ? "var(--color-amber)" : "var(--color-accent)";
+  return (
+    <div className={styles.wbal} title={`W′ balance ${(wBal / 1000).toFixed(1)} of ${(wPrime / 1000).toFixed(1)} kJ`}>
+      <span className={styles.battery} aria-hidden>
+        <span className={`${styles.charge} ${share <= 0.25 ? styles.low : ""}`} style={{ width: `${share * 100}%`, background: color }} />
+      </span>
+      <span className={styles.wbalText}>
+        <b style={{ color }}>{Math.round(share * 100)}%</b> W′ · {(wBal / 1000).toFixed(1)} kJ
+      </span>
+    </div>
+  );
+}
 
 const ZONE_TIME_KEY = "power:zone-time";
 /** A gap in updates longer than this isn't counted (Zwift paused, Sauce reconnecting). */
@@ -210,6 +231,9 @@ function PowerOverlay() {
             </span>
           )}
         </div>
+        {settings.wbal && watching?.wBal != null && (
+          <WbalBattery wBal={watching.wBal} wPrime={watching.athlete?.wPrime || DEFAULT_W_PRIME} />
+        )}
         {settings.zoneTime !== "off" && <ZoneTimes secs={zoneSecs} style={settings.zoneTime} />}
       </div>
     </OverlayShell>

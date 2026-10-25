@@ -258,6 +258,9 @@ function bridgeTarget(gapSec: number, aheadKmh: number | undefined, now: RaceSam
  * up, the tank running dry - plus the race log's splits, merges, moves
  * through the field and distance markers since `sinceT`.
  */
+/** A rival with this little W′ left, and falling, is a moment: attack them, or watch them go. */
+const LIMIT_W_BAL_PCT = 20;
+
 /** How far before a climb or sprint the coach is asked to plan for it. */
 const SEGMENT_WARNING_KM = 1.5;
 
@@ -398,6 +401,22 @@ export function keyMoments(log: RaceLog, sinceT: number, clock = Date.now()): Ke
     moments.push({ id: "tank", text: `Anaerobic reserve is down to ${(now.wBal / 1000).toFixed(1)} kJ.` });
   }
 
+  // A rival close to empty, in the rider's group or the one ahead: the
+  // moment to attack them, or the warning that they're about to be dropped.
+  const rivals = log.field?.rivals ?? [];
+  const nearby = [...(log.field?.ridersGroup ?? []), ...(log.field?.groupAhead ?? [])];
+  for (const r of nearby) {
+    const c = r.condition;
+    if (r.name === log.rider?.name || !c || c.wBalPct == null) continue;
+    const isRival = rivals.some((x) => x.name === r.name);
+    if (c.wBalPct <= LIMIT_W_BAL_PCT && (c.wBalChange1MinKj ?? 0) < 0 && (isRival || (r.pos != null && now.pos != null && r.pos < now.pos))) {
+      moments.push({
+        id: `limit-${r.name}`,
+        text: `${r.name}${r.pos ? ` (P${r.pos})` : ""} is on the limit: W′ down to ${c.wBalPct}% and still falling, ${c.pctFtpLastMinute ?? "?"}% of FTP over the last minute.`,
+      });
+    }
+  }
+
   // A climb or sprint coming up: the time to plan for it, before it starts.
   // Called once each time round (the id is the segment and roughly where it starts).
   const upcoming = log.courseAhead?.next.find((n) => n.kind !== "segment" && n.inKm <= SEGMENT_WARNING_KM);
@@ -516,6 +535,8 @@ export function buildSnapshot(
       toWatch: log.field.toWatch,
       pen: log.field.pen,
       rivals: log.field.rivals,
+      // Who's suffering and who's fresh, from the riders in sight.
+      condition: fieldCondition(log),
     },
     groups: groups.map((g) => ({
       gapSec: g.gap,
@@ -556,6 +577,38 @@ export function buildSnapshot(
     teammates: teammates(log),
     // What the coach is being asked to call; everything else is context.
     keyMoments: moments.map((m) => m.text),
+  };
+}
+
+/**
+ * The read on the riders in sight: the ones deepest into their W′ (the
+ * vulnerable), the freshest (the dangerous), and how the rider's own group
+ * is doing overall.
+ */
+function fieldCondition(log: RaceLog) {
+  const f = log.field;
+  if (!f) return undefined;
+  const everyone = [
+    ...f.ridersGroup.map((r) => ({ ...r, where: "rider's group" })),
+    ...(f.groupAhead ?? []).map((r) => ({ ...r, where: "group ahead" })),
+    ...(f.groupBehind ?? []).map((r) => ({ ...r, where: "group behind" })),
+  ].filter((r) => r.condition?.wBalPct != null && r.name !== log.rider?.name);
+  if (!everyone.length) return undefined;
+  const brief = (r: (typeof everyone)[number]) => ({
+    name: r.name,
+    where: r.where,
+    wBalPct: r.condition?.wBalPct,
+    wBalChange1MinKj: r.condition?.wBalChange1MinKj,
+    pctFtpLastMinute: r.condition?.pctFtpLastMinute,
+    state: r.condition?.state,
+  });
+  const byTank = everyone.slice().sort((a, b) => (a.condition?.wBalPct ?? 0) - (b.condition?.wBalPct ?? 0));
+  const own = f.ridersGroup.map((r) => r.condition?.wBalPct).filter((v): v is number => v != null);
+  return {
+    deepest: byTank.slice(0, 3).filter((r) => (r.condition?.wBalPct ?? 100) < 60).map(brief),
+    freshest: byTank.slice(-3).reverse().filter((r) => (r.condition?.wBalPct ?? 0) >= 80).map(brief),
+    ridersGroupAvgWBalPct: own.length ? Math.round(own.reduce((a, b) => a + b, 0) / own.length) : undefined,
+    ridersGroupOnTheLimit: f.ridersGroup.filter((r) => r.condition?.state === "on the limit" || r.condition?.state === "empty").length,
   };
 }
 

@@ -68,6 +68,26 @@ export interface FieldRider {
   /** Seconds to the watched rider; negative is ahead. */
   gap?: number;
   profile?: RiderProfile;
+  /** How they're doing right now: see RiderCondition. */
+  condition?: RiderCondition;
+}
+
+/**
+ * A rider's state in the race this moment, from what Sauce sees of them:
+ * how much of their anaerobic tank (W′) is left and which way it's going,
+ * and how hard they're riding against their FTP, now and over the last
+ * minute - the read a team car has on who's suffering and who's fresh.
+ */
+export interface RiderCondition {
+  /** Share of W′ left, 0-100. */
+  wBalPct?: number;
+  wBalKj?: number;
+  /** Change in W′ over the last minute, in kJ: negative means they're digging into it. */
+  wBalChange1MinKj?: number;
+  pctFtpNow?: number;
+  pctFtpLastMinute?: number;
+  /** In words: fresh, comfortable, working, digging deep, on the limit, empty, recovering. */
+  state?: string;
 }
 
 /**
@@ -270,6 +290,10 @@ const ATTACK_RATIO = 1.4;
 const ATTACK_SAMPLES = 4;
 /** One attack per rider in this long, however many times they kick. */
 const ATTACK_COOLDOWN_MS = 60_000;
+/** Sauce's own assumption when a rider's profile has no W′. */
+const DEFAULT_W_PRIME = 20_000;
+/** How long each rider's recent power and W′ are kept, to read their last minute. */
+const CONDITION_WINDOW_MS = 60_000;
 /** Riders named at most per dropped or bridged line. */
 const NAMES_PER_LINE = 3;
 /** Riders and teams described in the start pen - plenty to talk through, not a start list. */
@@ -322,6 +346,8 @@ export class RaceRecorder {
   /** Which group each rider was in last time, relative to the watched rider's (0 = same, -1 ahead). */
   private riderGroup = new Map<number, number>();
   private attackStreak = new Map<number, number>();
+  /** Each rider's recent power and W′, for their condition. */
+  private recent = new Map<number, { t: number; w?: number; wBal?: number }[]>();
   private attackedAt = new Map<number, number>();
   /** When each rider was last called dropped or bridged - riders at a group's edge flicker between groups. */
   private movedAt = new Map<number, number>();
@@ -555,6 +581,45 @@ export class RaceRecorder {
    * dropped from the group or bridging up to it, a new race leader.
    */
   private followField(groups: SauceGroup[], watchedIdx: number, now: number) {
+    // Everyone's last minute, kept up to date before anyone is described.
+    const inSight = new Set<number>();
+    for (const g of groups) {
+      for (const a of g.athletes ?? []) {
+        inSight.add(a.athleteId);
+        const list = (this.recent.get(a.athleteId) ?? []).filter((x) => now - x.t <= CONDITION_WINDOW_MS);
+        if (list.at(-1)?.t !== now) list.push({ t: now, w: a.state?.power, wBal: a.wBal });
+        this.recent.set(a.athleteId, list);
+      }
+    }
+    for (const id of this.recent.keys()) if (!inSight.has(id)) this.recent.delete(id);
+
+    const condition = (a: SauceGroup["athletes"][number]): RiderCondition | undefined => {
+      const ftp = a.athlete?.ftp;
+      const list = this.recent.get(a.athleteId) ?? [];
+      const watts = list.map((x) => x.w).filter((w): w is number => w != null);
+      const avgW = watts.length ? watts.reduce((x, y) => x + y, 0) / watts.length : undefined;
+      const capacity = a.athlete?.wPrime || DEFAULT_W_PRIME;
+      const wBalPct = a.wBal != null ? Math.max(0, Math.min(100, Math.round((a.wBal / capacity) * 100))) : undefined;
+      const oldest = list.find((x) => x.wBal != null);
+      const change = a.wBal != null && oldest?.wBal != null && now - oldest.t >= 15_000 ? round((a.wBal - oldest.wBal) / 1000, 1) : undefined;
+      const pctNow = ftp && a.state?.power != null ? Math.round((a.state.power / ftp) * 100) : undefined;
+      const pctMin = ftp && avgW != null ? Math.round((avgW / ftp) * 100) : undefined;
+      if (wBalPct == null && pctNow == null) return undefined;
+      const state =
+        wBalPct != null && wBalPct < 10
+          ? "empty"
+          : wBalPct != null && wBalPct < 30
+            ? change != null && change > 0.5 ? "recovering" : "on the limit"
+            : change != null && change < -2
+              ? "digging deep"
+              : pctMin != null && pctMin >= 100
+                ? "working"
+                : wBalPct != null && wBalPct >= 90 && (pctMin == null || pctMin < 85)
+                  ? "fresh"
+                  : "comfortable";
+      return { wBalPct, wBalKj: a.wBal != null ? round(a.wBal / 1000, 1) : undefined, wBalChange1MinKj: change, pctFtpNow: pctNow, pctFtpLastMinute: pctMin, state };
+    };
+
     const named = (a: SauceGroup["athletes"][number]): FieldRider => {
       const first = cleanName(a.athlete?.firstName);
       const last = cleanName(a.athlete?.lastName);
@@ -568,6 +633,7 @@ export class RaceRecorder {
         power: round(power),
         gap: round(a.gap, 1),
         profile: riderProfile(a),
+        condition: condition(a),
       };
     };
     const own = groups[watchedIdx];

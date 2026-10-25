@@ -3,7 +3,6 @@
   flex-direction: column;
   height: calc(100vh - 4px);
   padding: 4px var(--space-2) var(--space-1);
-  border-top: 2px solid var(--color-accent-2);
 }
 
 .top {

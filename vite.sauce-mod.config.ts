@@ -26,6 +26,8 @@ export default defineConfig({
         profile: fileURLToPath(new URL('./sauce-mod/profile.html', import.meta.url)),
         groups: fileURLToPath(new URL('./sauce-mod/groups.html', import.meta.url)),
         chat: fileURLToPath(new URL('./sauce-mod/chat.html', import.meta.url)),
+        climbView: fileURLToPath(new URL('./sauce-mod/climbView.html', import.meta.url)),
+        draft: fileURLToPath(new URL('./sauce-mod/draft.html', import.meta.url)),
       },
     },
   },

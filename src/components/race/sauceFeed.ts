@@ -30,6 +30,7 @@ export interface SauceState {
   altitude?: number;
   /** Fraction, e.g. 0.05 for 5%. */
   grade?: number;
+  /** Watts the draft is saving right now. */
   draft?: number;
   activePowerUp?: string;
   eventSubgroupId?: number;
@@ -89,6 +90,8 @@ export interface SauceAthleteData {
       peaks?: Record<string, { avg?: number | null }>;
     };
     heartrate?: { avg?: number; max?: number };
+    /** Watts the draft has saved: on average, and energy in total. */
+    draft?: { avg?: number; kj?: number };
   };
 }
 

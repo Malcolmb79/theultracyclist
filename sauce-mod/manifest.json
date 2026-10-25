@@ -3,7 +3,7 @@
   "id": "ultracyclist-race",
   "name": "Ultra Cyclist Race",
   "description": "The Ultra Cyclist's race overlays for Sauce: a full HUD in its own look (power, ride stats, race board, map, route profile, groups, chat) to use with Zwift's HUD off, plus live commentary and a tactics coach. Right-click any overlay for its settings.",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "author": "Malcolm Barske",
   "website_url": "https://theultracyclist.com/dashboard/race",
   "web_root": "web",
@@ -129,6 +129,34 @@
         "height": 0.38,
         "x": 0.62,
         "y": 0.5
+      }
+    },
+    {
+      "file": "web/climbView.html",
+      "id": "ultracyclist-race-climb",
+      "name": "Ultra Cyclist Climb",
+      "description": "The climb pop-up: gradient now, what's left to the top and the climb's profile, shown on climbs",
+      "overlay": true,
+      "frame": false,
+      "default_bounds": {
+        "width": 300,
+        "height": 200,
+        "x": 0.01,
+        "y": 0.3
+      }
+    },
+    {
+      "file": "web/draft.html",
+      "id": "ultracyclist-race-draft",
+      "name": "Ultra Cyclist Draft",
+      "description": "How much shelter you're getting: watts saved, a gauge and the last minute",
+      "overlay": true,
+      "frame": false,
+      "default_bounds": {
+        "width": 240,
+        "height": 150,
+        "x": 0.01,
+        "y": 0.17
       }
     }
   ]

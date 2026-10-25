@@ -3,7 +3,7 @@
   "id": "ultracyclist-race",
   "name": "Ultra Cyclist Race",
   "description": "The Ultra Cyclist's race overlays for Sauce: a full HUD in its own look (power, ride stats, race board, map, route profile, groups, chat) to use with Zwift's HUD off, plus live commentary and a tactics coach. Right-click any overlay for its settings.",
-  "version": "2.7.1",
+  "version": "2.8.0",
   "author": "Malcolm Barske",
   "website_url": "https://theultracyclist.com/dashboard/race",
   "web_root": "web",
@@ -157,6 +157,20 @@
         "height": 150,
         "x": 0.01,
         "y": 0.17
+      }
+    },
+    {
+      "file": "web/segments.html",
+      "id": "ultracyclist-race-segments",
+      "name": "Ultra Cyclist Segment Results",
+      "description": "Sprint and KOM results as they pop up in Zwift: the leaderboard on the segment, then your place and time",
+      "overlay": true,
+      "frame": false,
+      "default_bounds": {
+        "width": 300,
+        "height": 270,
+        "x": 0.4,
+        "y": 0.12
       }
     }
   ]

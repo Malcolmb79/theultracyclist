@@ -28,6 +28,7 @@ export default defineConfig({
         chat: fileURLToPath(new URL('./sauce-mod/chat.html', import.meta.url)),
         climbView: fileURLToPath(new URL('./sauce-mod/climbView.html', import.meta.url)),
         draft: fileURLToPath(new URL('./sauce-mod/draft.html', import.meta.url)),
+        segments: fileURLToPath(new URL('./sauce-mod/segments.html', import.meta.url)),
       },
     },
   },

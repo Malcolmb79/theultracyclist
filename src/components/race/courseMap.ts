@@ -54,6 +54,8 @@ export interface CourseGeometry {
 export type SegmentKind = "sprint" | "climb" | "segment";
 
 export interface RouteSegment {
+  /** Zwift's segment id, for its leaderboard. */
+  id: number;
   name: string;
   kind: SegmentKind;
   /** Metres along the route, lead-in included. */
@@ -192,7 +194,7 @@ export function loadRoute(address: string, course: CourseGeometry, routeId: numb
         segments = route.segments
           .map((x) => {
             const name = names.get(x.id) || "Segment";
-            return { name, kind: segmentKind(name), start: leadinM + x.offset, end: leadinM + x.offset + x.distance };
+            return { id: x.id, name, kind: segmentKind(name), start: leadinM + x.offset, end: leadinM + x.offset + x.distance };
           })
           .filter((x) => x.start <= d);
       }

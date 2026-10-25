@@ -107,12 +107,12 @@
       "file": "web/groups.html",
       "id": "ultracyclist-race-groups",
       "name": "Ultra Cyclist Groups",
-      "description": "The groups ahead and behind with their gaps (Zwift's group bubbles)",
+      "description": "The groups on the road - where each is, how big, the gaps, who's in them - as a road view or Zwift-style bubbles",
       "overlay": true,
       "frame": false,
       "default_bounds": {
         "width": 0.4,
-        "height": 110,
+        "height": 130,
         "x": 0.3,
         "y": 0.27
       }

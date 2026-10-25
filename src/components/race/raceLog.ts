@@ -538,7 +538,8 @@ export class RaceRecorder {
     }
   }
 
-  groups(groups: SauceGroup[], now = Date.now()) {
+  groups(all: SauceGroup[], now = Date.now()) {
+    const groups = this.sameRace(all);
     const watchedIdx = groups.findIndex((g) => g.watching);
     if (watchedIdx >= 0) {
       const size = groups[watchedIdx].athletes?.length ?? 0;
@@ -572,6 +573,37 @@ export class RaceRecorder {
         speed: round(g.speed, 1),
         watching: g.watching || undefined,
       })),
+    });
+  }
+
+  /**
+   * The groups as this race sees them. Zwift puts every category on the
+   * same road, so a bunch can carry riders from another race - the A riders
+   * coming through, the C riders being caught. In an event only the
+   * rider's own category counts: the others are left out of each group (its
+   * numbers worked out again from who's left) and groups of only them go.
+   * Riders whose category Sauce doesn't know are kept.
+   */
+  private sameRace(groups: SauceGroup[]): SauceGroup[] {
+    const sg = this.log.eventSubgroupId;
+    if (!sg) return groups;
+    const avg = (xs: (number | undefined)[]) => {
+      const known = xs.filter((x): x is number => x != null);
+      return known.length ? known.reduce((a, b) => a + b, 0) / known.length : undefined;
+    };
+    return groups.flatMap((g) => {
+      const athletes = (g.athletes ?? []).filter((a) => a.watching || !a.state?.eventSubgroupId || a.state.eventSubgroupId === sg);
+      if (!g.watching && !athletes.length) return [];
+      if (athletes.length === (g.athletes?.length ?? 0)) return [g];
+      return [
+        {
+          ...g,
+          athletes,
+          power: avg(athletes.map((a) => a.state?.power)) ?? g.power,
+          speed: avg(athletes.map((a) => a.state?.speed)) ?? g.speed,
+          weight: avg(athletes.map((a) => a.athlete?.weight)) ?? g.weight,
+        },
+      ];
     });
   }
 

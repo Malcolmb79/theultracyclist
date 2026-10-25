@@ -1,4 +1,4 @@
-import { StrictMode } from "react";
+import { StrictMode, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../styles/global.css";
 import { athleteName, cleanName, type SauceAthleteData, type SauceGroup } from "../components/race/sauceFeed";
@@ -26,6 +26,8 @@ const DEFAULTS = {
   power: false,
   speed: false,
   spacing: "gap",
+  merge: true,
+  labels: "room",
 };
 const DEFS: SettingDef[] = [
   { key: "style", label: "Style", type: "select", options: [{ value: "road", label: "Road" }, { value: "bubbles", label: "Bubbles" }] },
@@ -44,6 +46,17 @@ const DEFS: SettingDef[] = [
     options: [
       { value: "gap", label: "By time gap" },
       { value: "even", label: "Evenly" },
+    ],
+  },
+  { key: "merge", label: "Bubbles: merge close groups", type: "toggle" },
+  {
+    key: "labels",
+    label: "Bubbles: labels",
+    type: "select",
+    options: [
+      { value: "room", label: "Where there's room" },
+      { value: "all", label: "All" },
+      { value: "mine", label: "My group only" },
     ],
   },
 ];
@@ -169,27 +182,155 @@ function Road({ groups, settings }: { groups: SauceGroup[]; settings: Settings }
   );
 }
 
+/** A bubble: one group, or close groups drawn as one. */
+interface Bubble {
+  key: string;
+  groups: SauceGroup[];
+  x: number;
+  watching: boolean;
+}
+
+/** Bubbles whose centres would be closer than this merge into one. */
+const MERGE_PX = 36;
+/** And no two bubbles are drawn closer than this. */
+const MIN_PX = 54;
+/** Roughly how wide each kind of label is, to tell whether it fits. */
+const LABEL_PX = { full: 100, gap: 44 };
+
+function useWidth(): [React.RefObject<HTMLDivElement | null>, number] {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [width, setWidth] = useState(() => window.innerWidth);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setWidth(el.clientWidth));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return [ref, width];
+}
+
+/**
+ * Where the bubbles go, in pixels: placed by gap like the road, close groups
+ * merged (never the rider's own), then nudged apart so none overlap -
+ * squeezed together if there are too many for the window.
+ */
+function layout(groups: SauceGroup[], settings: Settings, width: number): Bubble[] {
+  const pct = positions(groups, settings.spacing);
+  const bubbles: Bubble[] = [];
+  groups.forEach((g, k) => {
+    const x = (pct(k) / 100) * width;
+    const last = bubbles[bubbles.length - 1];
+    if (settings.merge && last && !last.watching && !g.watching && Math.abs(last.x - x) < MERGE_PX) {
+      last.groups.push(g);
+      // Centred between the groups it's made of.
+      last.x = last.groups.reduce((sum, _, j) => sum + (pct(k - last.groups.length + 1 + j) / 100) * width, 0) / last.groups.length;
+    } else {
+      bubbles.push({ key: String(g.id ?? k), groups: [g], x, watching: !!g.watching });
+    }
+  });
+  // Left to right, then spread: push right, then back from the right edge.
+  const xs = bubbles.map((b) => b.x).reverse();
+  const gapPx = Math.min(MIN_PX, xs.length > 1 ? (width - 40) / (xs.length - 1) : MIN_PX);
+  for (let i = 1; i < xs.length; i++) xs[i] = Math.max(xs[i], xs[i - 1] + gapPx);
+  xs[xs.length - 1] = Math.min(xs[xs.length - 1], width - 20);
+  for (let i = xs.length - 2; i >= 0; i--) xs[i] = Math.min(xs[i], xs[i + 1] - gapPx);
+  xs[0] = Math.max(xs[0], 20);
+  for (let i = 1; i < xs.length; i++) xs[i] = Math.max(xs[i], xs[i - 1] + gapPx);
+  xs.reverse().forEach((x, i) => (bubbles[i].x = x));
+  return bubbles;
+}
+
+/** A merged bubble's numbers: the groups' riders and effort taken together. */
+function combine(groups: SauceGroup[]): SauceGroup {
+  if (groups.length === 1) return groups[0];
+  const n = (g: SauceGroup) => g.athletes?.length || 1;
+  const avg = (f: (g: SauceGroup) => number | null | undefined) => {
+    const known = groups.filter((g) => f(g) != null);
+    return known.length ? known.reduce((sum, g) => sum + (f(g) ?? 0) * n(g), 0) / known.reduce((sum, g) => sum + n(g), 0) : undefined;
+  };
+  return {
+    athletes: groups.flatMap((g) => g.athletes ?? []),
+    gap: groups[0].gap,
+    power: avg((g) => g.power),
+    weight: avg((g) => g.weight),
+    speed: avg((g) => g.speed),
+  };
+}
+
+function gapRange(groups: SauceGroup[]): string {
+  const first = groups[0].gap ?? 0;
+  const last = groups[groups.length - 1].gap ?? 0;
+  const sign = (first + last) / 2 < 0 ? "−" : "+";
+  const a = gapText(Math.min(Math.abs(first), Math.abs(last)));
+  const b = gapText(Math.max(Math.abs(first), Math.abs(last)));
+  // "+8–9s" rather than "+8s–9s".
+  return a === b ? `${sign}${a}` : `${sign}${a.replace(/s$/, "")}–${b}`;
+}
+
+/**
+ * Which bubbles get which label. The rider's group and its neighbours are
+ * labelled first, then outwards; a label that would run into one already
+ * placed drops to just the gap, then to nothing.
+ */
+function labelling(bubbles: Bubble[], mode: string): ("full" | "gap" | "none")[] {
+  const out = bubbles.map((): "full" | "gap" | "none" => (mode === "all" ? "full" : "none"));
+  const mine = bubbles.findIndex((b) => b.watching);
+  if (mode === "all") return out;
+  if (mode === "mine") {
+    if (mine >= 0) out[mine] = "full";
+    return out;
+  }
+  const order = bubbles.map((_, i) => i).sort((a, b) => Math.abs(a - mine) - Math.abs(b - mine));
+  const taken: [number, number][] = [];
+  const fits = (x: number, w: number) => taken.every(([l, r]) => x + w / 2 + 6 <= l || x - w / 2 - 6 >= r);
+  for (const i of order) {
+    const x = bubbles[i].x;
+    for (const kind of ["full", "gap"] as const) {
+      // The rider's own bubble has no gap to show, so it's names or nothing.
+      if (kind === "gap" && bubbles[i].watching) continue;
+      if (fits(x, LABEL_PX[kind])) {
+        out[i] = kind;
+        taken.push([x - LABEL_PX[kind] / 2, x + LABEL_PX[kind] / 2]);
+        break;
+      }
+    }
+  }
+  return out;
+}
+
 /** Zwift's bubbles, placed along a line by their gaps like the road. */
 function Bubbles({ groups, settings }: { groups: SauceGroup[]; settings: Settings }) {
-  const pos = positions(groups, settings.spacing);
+  const [ref, width] = useWidth();
+  const bubbles = layout(groups, settings, width);
+  const labels = labelling(bubbles, settings.labels);
   return (
-    <div className={styles.line}>
-      {groups.slice(1).map((g, k) => (
+    <div ref={ref} className={styles.line}>
+      {bubbles.slice(1).map((b, k) => (
         // A link from each bubble to the one ahead, stretching as the gap does.
-        <span key={`link-${g.id ?? k}`} className={styles.link} style={{ left: `${pos(k + 1)}%`, width: `${pos(k) - pos(k + 1)}%` }} aria-hidden />
+        <span key={`link-${b.key}`} className={styles.link} style={{ left: b.x, width: bubbles[k].x - b.x }} aria-hidden />
       ))}
-      {groups.map((g, k) => {
+      {bubbles.map((b, k) => {
+        const g = combine(b.groups);
         const size = g.athletes?.length ?? 0;
+        const label = labels[k];
         return (
-          <div key={g.id ?? k} className={`${styles.group} ${g.watching ? styles.mine : ""}`} style={{ left: `${pos(k)}%` }}>
+          <div
+            key={b.key}
+            className={`${styles.group} ${b.watching ? styles.mine : ""} ${b.groups.length > 1 ? styles.merged : ""}`}
+            style={{ left: b.x }}
+            title={b.groups.length > 1 ? `${b.groups.length} groups: ${b.groups.map((x) => x.athletes?.length ?? 0).join(" + ")} riders` : undefined}
+          >
             <span className={styles.bubble} style={{ ["--size" as string]: String(Math.min(1, Math.log2(size + 1) / 5)) }}>
               {settings.riders ? size : ""}
             </span>
-            <span className={styles.meta}>
-              {settings.gap && !g.watching && <b>{`${(g.gap ?? 0) < 0 ? "−" : "+"}${gapText(g.gap)}`}</b>}
-              {settings.names && <span className={styles.bubbleNames}>{leaders(g, 2).map(surname).join(", ")}</span>}
-              <Stats g={g} settings={settings} />
-            </span>
+            {label !== "none" && (
+              <span className={styles.meta}>
+                {settings.gap && !b.watching && <b>{gapRange(b.groups)}</b>}
+                {label === "full" && settings.names && <span className={styles.bubbleNames}>{leaders(g, 2).map(surname).join(", ")}</span>}
+                {label === "full" && <Stats g={g} settings={settings} />}
+              </span>
+            )}
           </div>
         );
       })}

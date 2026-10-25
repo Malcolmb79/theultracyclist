@@ -68,6 +68,17 @@
   height: 100%;
 }
 
+.world {
+  transform-box: view-box;
+  transition: transform 1s linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .world {
+    transition: none;
+  }
+}
+
 .road {
   fill: none;
   stroke: rgba(255, 255, 255, 0.16);

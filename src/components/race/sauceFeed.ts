@@ -82,10 +82,15 @@ export interface SauceAthleteData {
   remainingType?: "event" | "route";
   remainingEnd?: number;
   stats?: {
+    /** Seconds spent moving, and since Sauce first saw the rider. */
+    activeTime?: number;
+    elapsedTime?: number;
     power?: {
       avg?: number;
       max?: number;
       np?: number;
+      /** Training Stress Score so far, which Sauce works out when it knows the rider's FTP. */
+      tss?: number;
       /** Best average power over 5, 15, 60, 300, 1200 and 3600 seconds, since Sauce first saw the rider. */
       peaks?: Record<string, { avg?: number | null }>;
     };

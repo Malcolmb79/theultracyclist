@@ -93,6 +93,20 @@ function zoneColor(pct: number): string {
   return "#ff453a";
 }
 
+/**
+ * A rider's TSS so far: Sauce's own figure, or worked out the standard way
+ * from normalised power, time and FTP when it hasn't sent one.
+ */
+function tssOf(r: SauceAthleteData): number | undefined {
+  const p = r.stats?.power;
+  if (p?.tss != null) return p.tss;
+  const ftp = r.athlete?.ftp;
+  const secs = r.stats?.activeTime ?? r.stats?.elapsedTime;
+  if (!p?.np || !ftp || !secs) return undefined;
+  const intensity = p.np / ftp;
+  return ((secs * p.np * intensity) / (ftp * 3600)) * 100;
+}
+
 const DEFAULTS = {
   opacity: 85,
   rows: 20,
@@ -101,6 +115,7 @@ const DEFAULTS = {
   speed: true,
   power: true,
   ftp: true,
+  tss: true,
   heartRate: true,
   gaps: true,
   wbal: true,
@@ -113,6 +128,7 @@ const DEFS: SettingDef[] = [
   { key: "speed", label: "Speed", type: "toggle" },
   { key: "power", label: "Power", type: "toggle" },
   { key: "ftp", label: "% of FTP", type: "toggle" },
+  { key: "tss", label: "TSS", type: "toggle" },
   { key: "heartRate", label: "Heart rate", type: "toggle" },
   { key: "gaps", label: "Gaps", type: "toggle" },
   { key: "wbal", label: "W′ balance bar", type: "toggle" },
@@ -154,6 +170,7 @@ function RaceBoard() {
           const s = r.state;
           const wkg = s?.power != null && a?.weight ? s.power / a.weight : undefined;
           // Riders who hide their FTP (or have none set) just go without.
+          const tss = settings.tss ? tssOf(r) : undefined;
           const ftpPct = settings.ftp && s?.power != null && a?.ftp ? (s.power / a.ftp) * 100 : undefined;
           const flag = settings.flags && a?.countryCode != null ? flags.get(a.countryCode) : undefined;
           const team = a?.team?.trim();
@@ -186,6 +203,7 @@ function RaceBoard() {
                       {Math.round(ftpPct)}% FTP
                     </span>
                   )}
+                  {tss != null && <span className={styles.tss}>{Math.round(tss)} TSS</span>}
                   {settings.heartRate && s?.heartrate ? <span className={styles.hr}>{s.heartrate} ♥</span> : null}
                   {settings.gaps && !r.watching && r.gap != null && <span className={styles.gap}>{formatGap(r.gap)}</span>}
                 </span>

@@ -9,6 +9,14 @@
   min-height: calc(100vh - 12px);
 }
 
+.down {
+  justify-content: flex-start;
+}
+
+.down .item {
+  animation-name: arrive-down;
+}
+
 .item {
   display: flex;
   flex-direction: column;
@@ -41,6 +49,13 @@
   from {
     opacity: 0;
     transform: translateY(6px);
+  }
+}
+
+@keyframes arrive-down {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
   }
 }
 

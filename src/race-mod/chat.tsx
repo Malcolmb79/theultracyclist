@@ -6,11 +6,21 @@ import { useSauce } from "./useSauce";
 import shell from "./Overlay.module.css";
 import styles from "./Chat.module.css";
 
-// Chat and Ride Ons - the bubbles Zwift stacks on the right - newest at the
-// bottom, fading out after a while so the screen clears when it's quiet.
+// Chat and Ride Ons - the bubbles Zwift stacks on the right - stacking up
+// from the bottom (newest at the bottom) or down from the top (newest at the
+// top), fading out after a while so the screen clears when it's quiet.
 
-const DEFAULTS = { opacity: 75, messages: 5, fadeAfter: 60, rideOns: true };
+const DEFAULTS = { opacity: 75, direction: "up", messages: 5, fadeAfter: 60, rideOns: true };
 const DEFS: SettingDef[] = [
+  {
+    key: "direction",
+    label: "Direction",
+    type: "select",
+    options: [
+      { value: "up", label: "Bottom to top" },
+      { value: "down", label: "Top to bottom" },
+    ],
+  },
   { key: "messages", label: "Messages shown", type: "select", options: [3, 5, 8, 12].map((n) => ({ value: n, label: String(n) })) },
   {
     key: "fadeAfter",
@@ -47,10 +57,13 @@ function ChatOverlay() {
     .filter((c) => settings.rideOns || c.kind === "chat")
     .filter((c) => !settings.fadeAfter || now - c.at < settings.fadeAfter * 1000)
     .slice(-settings.messages);
+  // Top to bottom: anchored at the top with the newest first, pushing older ones down.
+  const down = settings.direction === "down";
+  if (down) shown.reverse();
 
   return (
     <OverlayShell title="Chat" settings={settings} setSetting={set} defs={DEFS}>
-      <ol className={styles.list}>
+      <ol className={`${styles.list} ${down ? styles.down : ""}`}>
         {shown.map((c) => (
           <li key={c.id} className={`${shell.panel} ${styles.item} ${c.kind === "rideon" ? styles.rideOn : ""}`}>
             <span className={styles.head}>

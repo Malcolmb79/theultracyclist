@@ -172,6 +172,11 @@
   color: var(--color-text);
 }
 
+.tss {
+  color: #c9a7ff;
+  font-variant-numeric: tabular-nums;
+}
+
 .ftp {
   font-weight: 600;
   font-variant-numeric: tabular-nums;

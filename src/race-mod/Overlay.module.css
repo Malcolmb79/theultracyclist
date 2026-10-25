@@ -4,6 +4,9 @@
 .transparent,
 .transparent body {
   background: transparent !important;
+  /* A HUD never scrolls: anything hanging past the edge is clipped rather
+     than giving the window a scrollbar. The settings menu scrolls itself. */
+  overflow: hidden;
 }
 
 .shell {

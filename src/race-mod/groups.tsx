@@ -2,6 +2,7 @@ import { StrictMode, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../styles/global.css";
 import { athleteName, cleanName, type SauceAthleteData, type SauceGroup } from "../components/race/sauceFeed";
+import { sameRaceGroups } from "../components/race/sameRace";
 import { OverlayShell, textScale, useSettings, type SettingDef } from "./overlay";
 import { useSauce } from "./useSauce";
 import shell from "./Overlay.module.css";
@@ -23,6 +24,7 @@ const DEFAULTS = {
   style: "road",
   orientation: "horizontal",
   who: "all",
+  category: true,
   ahead: 3,
   behind: 2,
   gap: true,
@@ -55,6 +57,7 @@ const DEFS: SettingDef[] = [
       { value: "group", label: "My group only" },
     ],
   },
+  { key: "category", label: "Only my category", type: "toggle" },
   { key: "ahead", label: "Groups ahead", type: "select", options: [0, 1, 2, 3, 4, 5].map((n) => ({ value: n, label: String(n) })) },
   { key: "behind", label: "Groups behind", type: "select", options: [0, 1, 2, 3, 4, 5].map((n) => ({ value: n, label: String(n) })) },
   { key: "gap", label: "Gaps", type: "toggle" },
@@ -360,7 +363,9 @@ function GroupsView({ groups, mine, settings }: { groups: SauceGroup[]; mine: nu
 
 function GroupsOverlay() {
   const [settings, set] = useSettings("groups", DEFAULTS);
-  const { groups, status } = useSauce({ groups: true });
+  const { groups: all, status, watching } = useSauce({ groups: true });
+  // In an event, only the rider's own category if chosen.
+  const groups = sameRaceGroups(all, settings.category ? watching?.state?.eventSubgroupId || undefined : undefined);
   const i = groups.findIndex((g) => g.watching);
   const groupOnly = settings.who === "group";
   const from = groupOnly ? i : Math.max(0, i - settings.ahead);

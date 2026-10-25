@@ -1,3 +1,4 @@
+import { sameRaceGroups } from "./sameRace";
 import { powerUp } from "./powerUps";
 import { athleteName, cleanName, type SauceAthleteData, type SauceChat, type SauceGroup } from "./sauceFeed";
 
@@ -596,24 +597,7 @@ export class RaceRecorder {
         else if (theirs === sg) this.otherRaces.delete(a.athleteId);
       }
     }
-    const avg = (xs: (number | undefined)[]) => {
-      const known = xs.filter((x): x is number => x != null);
-      return known.length ? known.reduce((a, b) => a + b, 0) / known.length : undefined;
-    };
-    return groups.flatMap((g) => {
-      const athletes = (g.athletes ?? []).filter((a) => a.watching || !a.state?.eventSubgroupId || a.state.eventSubgroupId === sg);
-      if (!g.watching && !athletes.length) return [];
-      if (athletes.length === (g.athletes?.length ?? 0)) return [g];
-      return [
-        {
-          ...g,
-          athletes,
-          power: avg(athletes.map((a) => a.state?.power)) ?? g.power,
-          speed: avg(athletes.map((a) => a.state?.speed)) ?? g.speed,
-          weight: avg(athletes.map((a) => a.athlete?.weight)) ?? g.weight,
-        },
-      ];
-    });
+    return sameRaceGroups(groups, sg);
   }
 
   /**

@@ -2,6 +2,7 @@ import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../styles/global.css";
 import { athleteName, type SauceAthleteData } from "../components/race/sauceFeed";
+import { inRace } from "../components/race/sameRace";
 import { OverlayShell, useSettings, type SettingDef } from "./overlay";
 import { useSauce } from "./useSauce";
 import styles from "./Board.module.css";
@@ -110,6 +111,7 @@ function tssOf(r: SauceAthleteData): number | undefined {
 const DEFAULTS = {
   opacity: 85,
   who: "all",
+  category: true,
   rows: 20,
   flags: true,
   teams: true,
@@ -132,6 +134,7 @@ const DEFS: SettingDef[] = [
       { value: "group", label: "My group only" },
     ],
   },
+  { key: "category", label: "Only my category", type: "toggle" },
   { key: "rows", label: "Riders shown", type: "select", options: ROW_CHOICES.map((n) => ({ value: n, label: String(n) })) },
   { key: "flags", label: "Flags", type: "toggle" },
   { key: "teams", label: "Team tags", type: "toggle" },
@@ -153,7 +156,9 @@ function RaceBoard() {
 
   // Just the riders in the watched rider's group, when that's what's chosen.
   const mine = groupOnly ? new Set(groups.find((g) => g.watching)?.athletes?.map((a) => a.athleteId)) : null;
-  const riders = mine ? nearby.filter((r) => r.watching || mine.has(r.athleteId)) : nearby;
+  // And, in an event, only the rider's own category if chosen.
+  const subgroup = settings.category ? watching?.state?.eventSubgroupId || undefined : undefined;
+  const riders = (mine ? nearby.filter((r) => r.watching || mine.has(r.athleteId)) : nearby).filter((r) => inRace(r, subgroup));
   const shown = around(order(riders), settings.rows);
   const myTeam = watching?.athlete?.team?.trim().toLowerCase();
   const toGo =

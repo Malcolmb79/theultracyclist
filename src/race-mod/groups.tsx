@@ -39,7 +39,7 @@ const DEFS: SettingDef[] = [
   { key: "speed", label: "Speed", type: "toggle" },
   {
     key: "spacing",
-    label: "Road spacing",
+    label: "Spacing",
     type: "select",
     options: [
       { value: "gap", label: "By time gap" },
@@ -101,19 +101,26 @@ function Stats({ g, settings }: { g: SauceGroup; settings: Settings }) {
 }
 
 /**
+ * Where each group sits across the window, as a percentage from the left,
+ * with the race heading right. By time gap the scale is compressed, so a
+ * group a minute up still fits beside one five seconds up.
+ */
+function positions(groups: SauceGroup[], spacing: string): (k: number) => number {
+  const squash = (gap: number) => Math.sign(gap) * Math.log1p(Math.abs(gap) / 4);
+  // Groups come furthest ahead first, so evenly spaced they count up from the front.
+  const values = spacing === "even" ? groups.map((_, k) => k) : groups.map((g) => squash(g.gap ?? 0));
+  const lo = Math.min(...values);
+  const hi = Math.max(...values);
+  return (k) => (hi === lo ? 50 : 8 + ((hi - values[k]) / (hi - lo)) * 84);
+}
+
+/**
  * The road: groups placed by their time gap to the rider's group, on a
  * compressed scale so a group a minute up still fits beside one five
  * seconds up - or evenly spaced, if that reads better.
  */
 function Road({ groups, settings }: { groups: SauceGroup[]; settings: Settings }) {
-  const gaps = groups.map((g) => g.gap ?? 0);
-  // Race order runs right: the group furthest ahead (most negative gap) on the right.
-  const squash = (gap: number) => Math.sign(gap) * Math.log1p(Math.abs(gap) / 4);
-  // Groups come furthest ahead first, so evenly spaced they count up from the front.
-  const values = settings.spacing === "even" ? groups.map((_, k) => k) : gaps.map(squash);
-  const lo = Math.min(...values);
-  const hi = Math.max(...values);
-  const pos = (k: number) => (hi === lo ? 50 : 8 + ((hi - values[k]) / (hi - lo)) * 84);
+  const pos = positions(groups, settings.spacing);
   const hasLeader = groups.some((g) => g.athletes?.some((a) => a.eventPosition === 1));
 
   return (
@@ -162,15 +169,19 @@ function Road({ groups, settings }: { groups: SauceGroup[]; settings: Settings }
   );
 }
 
-/** Zwift's row of group bubbles. */
+/** Zwift's bubbles, placed along a line by their gaps like the road. */
 function Bubbles({ groups, settings }: { groups: SauceGroup[]; settings: Settings }) {
+  const pos = positions(groups, settings.spacing);
   return (
-    <div className={styles.row}>
+    <div className={styles.line}>
+      {groups.slice(1).map((g, k) => (
+        // A link from each bubble to the one ahead, stretching as the gap does.
+        <span key={`link-${g.id ?? k}`} className={styles.link} style={{ left: `${pos(k + 1)}%`, width: `${pos(k) - pos(k + 1)}%` }} aria-hidden />
+      ))}
       {groups.map((g, k) => {
         const size = g.athletes?.length ?? 0;
         return (
-          <div key={g.id ?? k} className={`${styles.group} ${g.watching ? styles.mine : ""}`}>
-            {k > 0 && <span className={styles.link} aria-hidden />}
+          <div key={g.id ?? k} className={`${styles.group} ${g.watching ? styles.mine : ""}`} style={{ left: `${pos(k)}%` }}>
             <span className={styles.bubble} style={{ ["--size" as string]: String(Math.min(1, Math.log2(size + 1) / 5)) }}>
               {settings.riders ? size : ""}
             </span>

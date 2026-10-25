@@ -346,6 +346,8 @@ export class RaceRecorder {
   /** Which group each rider was in last time, relative to the watched rider's (0 = same, -1 ahead). */
   private riderGroup = new Map<number, number>();
   private attackStreak = new Map<number, number>();
+  /** Riders seen racing another category, whose chat isn't this race's. */
+  private otherRaces = new Set<number>();
   /** Each rider's recent power and W′, for their condition. */
   private recent = new Map<number, { t: number; w?: number; wBal?: number }[]>();
   private attackedAt = new Map<number, number>();
@@ -587,6 +589,13 @@ export class RaceRecorder {
   private sameRace(groups: SauceGroup[]): SauceGroup[] {
     const sg = this.log.eventSubgroupId;
     if (!sg) return groups;
+    for (const g of groups) {
+      for (const a of g.athletes ?? []) {
+        const theirs = a.state?.eventSubgroupId;
+        if (theirs && theirs !== sg) this.otherRaces.add(a.athleteId);
+        else if (theirs === sg) this.otherRaces.delete(a.athleteId);
+      }
+    }
     const avg = (xs: (number | undefined)[]) => {
       const known = xs.filter((x): x is number => x != null);
       return known.length ? known.reduce((a, b) => a + b, 0) / known.length : undefined;
@@ -846,6 +855,8 @@ export class RaceRecorder {
   chat(chat: SauceChat, now = Date.now()) {
     const message = chat.message?.trim();
     if (!message) return;
+    // Chat from a rider in another category's race isn't part of this one.
+    if (chat.from != null && this.otherRaces.has(chat.from)) return;
     const name = `${chat.firstName ?? ""} ${chat.lastName ?? ""}`.trim() || "Someone";
     this.event("chat", `${name}: ${message}`, now);
   }

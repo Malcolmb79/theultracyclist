@@ -83,6 +83,16 @@ function around(riders: SauceAthleteData[], rows: number): SauceAthleteData[] {
   return riders.slice(start, start + rows);
 }
 
+/** Zwift's power zone colours, by share of FTP: grey, blue, green, yellow, orange, red. */
+function zoneColor(pct: number): string {
+  if (pct < 60) return "#b4b9bf";
+  if (pct < 76) return "#4aa8ff";
+  if (pct < 90) return "#4cd964";
+  if (pct < 105) return "#ffd60a";
+  if (pct < 119) return "#ff9500";
+  return "#ff453a";
+}
+
 const DEFAULTS = {
   opacity: 85,
   rows: 20,
@@ -90,6 +100,7 @@ const DEFAULTS = {
   teams: true,
   speed: true,
   power: true,
+  ftp: true,
   heartRate: true,
   gaps: true,
   wbal: true,
@@ -101,6 +112,7 @@ const DEFS: SettingDef[] = [
   { key: "teams", label: "Team tags", type: "toggle" },
   { key: "speed", label: "Speed", type: "toggle" },
   { key: "power", label: "Power", type: "toggle" },
+  { key: "ftp", label: "% of FTP", type: "toggle" },
   { key: "heartRate", label: "Heart rate", type: "toggle" },
   { key: "gaps", label: "Gaps", type: "toggle" },
   { key: "wbal", label: "W′ balance bar", type: "toggle" },
@@ -141,6 +153,8 @@ function RaceBoard() {
           const a = r.athlete;
           const s = r.state;
           const wkg = s?.power != null && a?.weight ? s.power / a.weight : undefined;
+          // Riders who hide their FTP (or have none set) just go without.
+          const ftpPct = settings.ftp && s?.power != null && a?.ftp ? (s.power / a.ftp) * 100 : undefined;
           const flag = settings.flags && a?.countryCode != null ? flags.get(a.countryCode) : undefined;
           const team = a?.team?.trim();
           const teammate = !r.watching && !!myTeam && team?.toLowerCase() === myTeam;
@@ -167,6 +181,11 @@ function RaceBoard() {
                 <span className={styles.stats}>
                   {settings.speed && s?.speed != null && <span>{Math.round(s.speed)} km/h</span>}
                   {settings.power && s?.power != null && <span>{Math.round(s.power)} W</span>}
+                  {ftpPct != null && (
+                    <span className={styles.ftp} style={{ color: zoneColor(ftpPct) }} title={`FTP ${a?.ftp} W`}>
+                      {Math.round(ftpPct)}% FTP
+                    </span>
+                  )}
                   {settings.heartRate && s?.heartrate ? <span className={styles.hr}>{s.heartrate} ♥</span> : null}
                   {settings.gaps && !r.watching && r.gap != null && <span className={styles.gap}>{formatGap(r.gap)}</span>}
                 </span>

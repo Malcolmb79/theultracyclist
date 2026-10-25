@@ -5,7 +5,6 @@ import { OverlayShell, useSettings, type SettingDef } from "./overlay";
 import { useSauce } from "./useSauce";
 import { routePosition, useCourse } from "./useCourse";
 import ProfileChart, { type ProfileRider } from "./ProfileChart";
-import shell from "./Overlay.module.css";
 import styles from "./Profile.module.css";
 
 // The route profile along the bottom of the screen, as Zwift has it: the
@@ -73,7 +72,7 @@ function ProfileOverlay() {
 
   return (
     <OverlayShell title="Route profile" settings={settings} setSetting={set} defs={DEFS}>
-      <div className={`${shell.panel} ${styles.panel}`}>
+      <div className={styles.panel}>
         {(settings.banner || settings.toGo || settings.gradient) && (
           <div className={styles.top}>
             {settings.banner && current && at != null && (

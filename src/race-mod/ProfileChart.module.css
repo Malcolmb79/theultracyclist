@@ -23,15 +23,15 @@
 }
 
 .sprint {
-  fill: rgba(var(--hud-accent), 0.18);
+  fill: rgba(var(--hud-accent), 0.35);
 }
 
 .climb {
-  fill: rgba(255, 77, 46, 0.2);
+  fill: rgba(255, 77, 46, 0.45);
 }
 
 .segment {
-  fill: rgba(255, 176, 32, 0.15);
+  fill: rgba(255, 176, 32, 0.35);
 }
 
 .segLabel {

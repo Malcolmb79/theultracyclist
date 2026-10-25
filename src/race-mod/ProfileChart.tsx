@@ -1,3 +1,4 @@
+import { useId } from "react";
 import type { RouteGeometry, SegmentKind } from "../components/race/courseMap";
 import styles from "./ProfileChart.module.css";
 
@@ -37,6 +38,7 @@ const KIND_CLASS: Record<SegmentKind, string> = {
 };
 
 export default function ProfileChart({ route, at, riders = [], windowM, showSegments = true, showSegmentNames = true, className }: Props) {
+  const clip = `profile-${useId().replace(/:/g, "")}`;
   const { distances, elevations } = route;
   const total = distances.at(-1) ?? 0;
   if (total <= 0) return null;
@@ -82,20 +84,26 @@ export default function ProfileChart({ route, at, riders = [], windowM, showSegm
             <stop offset="0" stopColor="var(--color-accent-2)" stopOpacity="0.55" />
             <stop offset="1" stopColor="var(--color-accent-2)" stopOpacity="0.08" />
           </linearGradient>
+          {/* Shading stays under the profile, so nothing is drawn but the profile itself. */}
+          <clipPath id={clip}>
+            <path d={area} />
+          </clipPath>
         </defs>
-        {segs.map((s, i) => (
-          <rect
-            key={i}
-            x={x(Math.max(s.start, from))}
-            width={Math.max(2, x(Math.min(s.end, to)) - x(Math.max(s.start, from)))}
-            y={0}
-            height={100}
-            className={KIND_CLASS[s.kind]}
-          />
-        ))}
         <path d={area} fill="url(#profileFill)" />
+        <g clipPath={`url(#${clip})`}>
+          {segs.map((s, i) => (
+            <rect
+              key={i}
+              x={x(Math.max(s.start, from))}
+              width={Math.max(2, x(Math.min(s.end, to)) - x(Math.max(s.start, from)))}
+              y={0}
+              height={100}
+              className={KIND_CLASS[s.kind]}
+            />
+          ))}
+          {at != null && visible(at) && <rect x={0} width={x(at)} y={0} height={100} className={styles.ridden} />}
+        </g>
         <path d={line} className={styles.line} vectorEffect="non-scaling-stroke" />
-        {at != null && visible(at) && <rect x={0} width={x(at)} y={0} height={100} className={styles.ridden} />}
       </svg>
       {showSegmentNames &&
         segs.map((s, i) => (

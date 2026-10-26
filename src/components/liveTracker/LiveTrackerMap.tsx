@@ -10,10 +10,35 @@ import { useTheme } from "../../context/ThemeContext";
 // legends don't reskin. That holds when the page is always dark; it doesn't
 // once the page can be light, because the map is the largest thing on it -
 // leaving it dark reads as a failed load rather than a deliberate choice.
-const TILES: Record<"light" | "dark", string> = {
-  dark: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-  light: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-};
+//
+// CARTO's basemaps now need a key (free, requested on carto.com/basemaps -
+// it goes in the browser, so it's a public build-time VITE_ variable).
+// Without one CARTO serves an "API key required" watermark instead of the
+// map, so until the key is set the map uses Esri's grey canvas basemaps,
+// which need no key and are as close to the same look as there is.
+const CARTO_KEY = import.meta.env.VITE_CARTO_BASEMAPS_KEY as string | undefined;
+const BASEMAP: { tiles: Record<"light" | "dark", string>; attribution: string; subdomains: string; maxNativeZoom: number } =
+  CARTO_KEY
+    ? {
+        tiles: {
+          dark: `https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png?key=${encodeURIComponent(CARTO_KEY)}`,
+          light: `https://{s}.basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}{r}.png?key=${encodeURIComponent(CARTO_KEY)}`,
+        },
+        attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
+        subdomains: "abcd",
+        maxNativeZoom: 19,
+      }
+    : {
+        tiles: {
+          dark: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+          light: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+        },
+        attribution: "Tiles &copy; Esri &mdash; Esri, HERE, Garmin, &copy; OpenStreetMap contributors",
+        subdomains: "",
+        // Esri's canvas stops at 16; past that its tiles are scaled up rather than missing.
+        maxNativeZoom: 16,
+      };
+const TILES = BASEMAP.tiles;
 import RouteProfile from "./RouteProfile";
 import styles from "./LiveTrackerMap.module.css";
 
@@ -364,8 +389,9 @@ export default function LiveTrackerMap({
         INITIAL_ZOOM,
       );
       tileLayerRef.current = L.tileLayer(TILES[themeRef.current], {
-        attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
-        subdomains: "abcd",
+        attribution: BASEMAP.attribution,
+        ...(BASEMAP.subdomains ? { subdomains: BASEMAP.subdomains } : {}),
+        maxNativeZoom: BASEMAP.maxNativeZoom,
         maxZoom: 19,
       }).addTo(map);
       fullLineRef.current = L.polyline([], { color: ROUTE_COLOR, weight: 4, opacity: 0.6 }).addTo(map);

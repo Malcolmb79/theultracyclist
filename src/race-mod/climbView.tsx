@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useRef, useState } from "react";
+import { StrictMode, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import "../styles/global.css";
 import type { RouteGeometry } from "../components/race/courseMap";
@@ -43,8 +43,8 @@ const DEFS: SettingDef[] = [
   { key: "steepest", label: "Steepest pitch", type: "toggle" },
 ];
 
-/** How long the pop-up stays after the top, to see the climb out. */
-const LINGER_MS = 6000;
+/** How far past the top the pop-up stays, to see the climb out. */
+const OVER_TOP_M = 150;
 const SLICES = 24;
 
 function ClimbProfile({ route, climb, at }: { route: RouteGeometry; climb: Climb; at: number }) {
@@ -69,7 +69,7 @@ function ClimbProfile({ route, climb, at }: { route: RouteGeometry; climb: Climb
         {slices.map((s, i) => (
           <path key={i} d={s.d} fill={s.color} fillOpacity={0.85} />
         ))}
-        {at >= climb.start && <rect x={0} width={x(pos)} y={0} height={100} fill="rgba(var(--hud-bg), 0.45)" />}
+        {at >= climb.start && <rect x={0} y={0} height={100} className={styles.ridden} style={{ width: x(pos) }} fill="rgba(var(--hud-bg), 0.45)" />}
       </svg>
       {at >= climb.start && <span className={styles.me} style={{ left: `${(x(pos) / 1000) * 100}%`, top: `${y(pos)}%` }} />}
     </div>
@@ -82,18 +82,16 @@ function ClimbOverlay() {
   const { route } = useCourse(address, watching);
   const s = watching?.state;
   const at = route ? routePosition(route, s) : undefined;
-  const found = route && at != null ? findClimb(route, at, settings.ahead, settings.sensitivity as ClimbSensitivity) : undefined;
 
-  // Keep the climb up for a few seconds over the top.
-  const last = useRef<{ climb: Climb; at: number } | null>(null);
-  const [, tick] = useState(0);
-  if (found) last.current = { climb: found, at: Date.now() };
-  const climb = found ?? (last.current && Date.now() - last.current.at < LINGER_MS ? last.current.climb : undefined);
-  useEffect(() => {
-    if (found || !last.current) return;
-    const t = setTimeout(() => tick((n) => n + 1), LINGER_MS);
-    return () => clearTimeout(t);
-  }, [found]);
+  // Like Zwift's: once a climb is picked up it's fixed - the same start,
+  // top and profile - until the rider is over the top and a little beyond,
+  // rather than worked out again every second (which shifted its shape and
+  // colours as the rise's edges moved). Only then is the next one looked for.
+  const locked = useRef<Climb | null>(null);
+  let climb = locked.current;
+  if (climb && at != null && !(at >= climb.start - settings.ahead - 50 && at < climb.top + OVER_TOP_M)) climb = null;
+  if (!climb && route && at != null) climb = findClimb(route, at, settings.ahead, settings.sensitivity as ClimbSensitivity) ?? null;
+  locked.current = climb;
 
   const gradeNow = s?.grade != null ? s.grade * 100 : undefined;
   const before = climb && at != null && at < climb.start;

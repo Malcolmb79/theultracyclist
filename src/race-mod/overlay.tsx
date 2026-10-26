@@ -115,7 +115,7 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [theme, setTheme] = useState(() => readTheme().id);
   const [textSize, setTextSize] = useState(() => readTextSize(title));
-  const content = useRef<HTMLDivElement | null>(null);
+  const shellRef = useRef<HTMLDivElement | null>(null);
   const [clipped, setClipped] = useState(false);
   // Grown once at most: an overlay sized to the window grows with it, so more would never end.
   const grown = useRef(false);
@@ -125,11 +125,13 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
   // text size). Grow the window to fit where Sauce lets the page resize
   // it, and otherwise show that there's more, to drag the edge down to.
   useEffect(() => {
-    const el = content.current;
+    const el = shellRef.current;
     if (!el) return;
+    // How much taller the page is than the window. Measured on the page as
+    // it is - wrapping the overlay to measure it would change its layout.
+    const overflow = () => document.documentElement.scrollHeight - window.innerHeight;
     const check = () => {
-      const need = Math.ceil(el.getBoundingClientRect().height);
-      const over = need - window.innerHeight;
+      const over = overflow();
       if (over > 6 && !grown.current) {
         grown.current = true;
         try {
@@ -139,7 +141,7 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
         }
       }
       // Measured again once any resize has landed.
-      requestAnimationFrame(() => setClipped(Math.ceil(el.getBoundingClientRect().height) - window.innerHeight > 6));
+      requestAnimationFrame(() => setClipped(overflow() > 6));
     };
     const ro = new ResizeObserver(check);
     ro.observe(el);
@@ -182,6 +184,7 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
 
   return (
     <div
+      ref={shellRef}
       className={`${styles.shell} ${className ?? ""}`}
       style={{ ["--overlay-alpha" as string]: String(settings.opacity / 100) }}
       onContextMenu={(e) => {
@@ -195,9 +198,7 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
       }}
     >
       <div className={styles.grip} title="Drag to move" aria-hidden />
-      <div ref={content} className={styles.content}>
-        {children}
-      </div>
+      {children}
       {clipped && (
         <div className={styles.more} title="There's more below - drag the window's bottom edge down to see it">
           ↓ more

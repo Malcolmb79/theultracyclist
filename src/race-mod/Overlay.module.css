@@ -20,11 +20,6 @@
   user-select: none;
 }
 
-/* What the overlay draws: measured to tell whether it fits the window. */
-.content {
-  min-height: inherit;
-}
-
 /* Shown when the content runs past the bottom of the window. */
 .more {
   position: fixed;

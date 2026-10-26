@@ -8,6 +8,8 @@ import shell from "./Overlay.module.css";
 import PowerUpIcon from "./PowerUpIcon";
 import styles from "./PowerUp.module.css";
 
+// In the theme's accent colour, like the rest of the overlays.
+//
 // The power-up the rider is holding, as Zwift shows it beside the power -
 // the Feather, the Van, the Aero helmet - with what it does, and once it's
 // used, the one running with a countdown to when it ends.
@@ -23,18 +25,6 @@ const DEFS: SettingDef[] = [
   { key: "hideWhenEmpty", label: "Hide when there's none", type: "toggle" },
 ];
 
-/** A colour for each power-up, so it reads at a glance. */
-const COLOUR: Record<string, string> = {
-  LIGHTNESS: "#f5f6f7",
-  DRAFTBOOST: "#2ee6a6",
-  AERO: "#4da3ff",
-  UNDRAFTABLE: "#ff9a2e",
-  NINJA: "#b48cff",
-  STEAMROLLER: "#ffd23f",
-  ANVIL: "#9aa4ae",
-  COFFEE_STOP: "#c68b59",
-  BOOST: "#ff4d2e",
-};
 
 /** The countdown ring's radius and length, in the ring's own 44-unit box. */
 const RING_R = 20.5;
@@ -96,7 +86,7 @@ function PowerUpOverlay() {
 
   return (
     <OverlayShell title="Power-up" settings={settings} setSetting={set} defs={DEFS}>
-      <div className={`${shell.panel} ${styles.panel} ${shown?.running ? styles.running : ""}`} style={{ ["--pu" as string]: shown ? (COLOUR[shown.code] ?? "var(--color-accent-2)") : "var(--color-text-muted)" }}>
+      <div className={`${shell.panel} ${styles.panel} ${shown?.running ? styles.running : ""}`} style={{ ["--pu" as string]: shown ? "var(--color-accent-2)" : "var(--color-text-muted)" }}>
         {shown ? (
           <>
             <div className={styles.head}>

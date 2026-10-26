@@ -1,7 +1,7 @@
 .empty {
   padding: 4px var(--space-2);
   font-size: 0.8rem;
-  color: var(--color-text-muted);
+  color: var(--color-text);
 }
 
 .view {
@@ -92,7 +92,7 @@
   z-index: 1;
   font-size: 0.68rem;
   white-space: nowrap;
-  opacity: 0.92;
+  opacity: 1;
 }
 
 .spot.mine {
@@ -177,8 +177,10 @@
   align-self: start;
 }
 
+/* All labels in the full text colour (white on the dark themes) so they hold up over Zwift;
+   only the rider's own group is picked out, in the accent. */
 .below {
-  color: var(--color-text-muted);
+  color: var(--color-text);
 }
 
 .names {
@@ -194,7 +196,7 @@
 
 .names em {
   font-style: normal;
-  color: var(--color-text-muted);
+  color: var(--color-text);
 }
 
 .mine .names {
@@ -205,7 +207,7 @@
   font-family: var(--font-display);
   font-size: 0.8rem;
   letter-spacing: 0.06em;
-  color: var(--color-amber);
+  color: var(--color-text);
 }
 
 .toMe {

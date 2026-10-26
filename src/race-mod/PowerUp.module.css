@@ -25,6 +25,8 @@
   height: var(--size);
 }
 
+/* A dark disc like the other overlays' panels, edged in the theme's accent,
+   with the icon drawn in it - not a solid block of colour. */
 .badge {
   display: flex;
   align-items: center;
@@ -32,26 +34,28 @@
   width: 80%;
   height: 80%;
   border-radius: 50%;
-  color: rgb(var(--hud-bg));
-  background: var(--pu);
+  color: var(--pu);
+  background: rgba(var(--hud-bg), 0.82);
+  border: max(1.5px, calc(var(--size) * 0.02)) solid rgba(var(--hud-accent), 0.45);
   text-shadow: none;
-  box-shadow: 0 0 calc(var(--size) * 0.18) color-mix(in srgb, var(--pu) 60%, transparent);
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
 }
 
 /* The icon scales with the badge. */
 .badge svg {
-  width: 56%;
-  height: 56%;
+  width: 52%;
+  height: 52%;
 }
 
-/* Running: the ring does the talking, so the badge glows rather than pulses over it. */
+/* Running: the ring does the talking, so the edge steps back for it. */
 .running .badge {
-  animation: glow 1s ease-in-out infinite alternate;
+  border-color: rgba(var(--hud-accent), 0.25);
+  animation: pulse 1.2s ease-in-out infinite alternate;
 }
 
-@keyframes glow {
+@keyframes pulse {
   to {
-    box-shadow: 0 0 calc(var(--size) * 0.3) color-mix(in srgb, var(--pu) 85%, transparent);
+    background: rgba(var(--hud-bg), 0.92);
   }
 }
 
@@ -74,11 +78,11 @@
 .ringTrack,
 .ringLeft {
   fill: none;
-  stroke-width: 2.6;
+  stroke-width: 1.8;
 }
 
 .ringTrack {
-  stroke: rgba(var(--hud-ink), 0.25);
+  stroke: rgba(var(--hud-ink), 0.15);
 }
 
 .ringLeft {
@@ -99,35 +103,36 @@
 .advice b {
   font-family: var(--font-display);
   font-weight: 400;
-  font-size: 1.25rem;
-  color: var(--pu);
+  font-size: 1.1rem;
+  color: var(--color-text);
 }
 
 .advice small {
-  font-size: 0.68rem;
-  color: var(--color-text);
+  font-size: 0.66rem;
+  color: var(--color-text-muted);
 }
 
 .now {
   font-family: var(--font-display);
-  font-size: 1.5rem;
+  font-size: 1.3rem;
   letter-spacing: 0.04em;
   color: var(--pu);
-  animation: flash 0.5s ease-in-out infinite alternate;
+  animation: flash 0.8s ease-in-out infinite alternate;
 }
 
 @keyframes flash {
   to {
-    opacity: 0.35;
+    opacity: 0.5;
   }
 }
 
 .name {
   max-width: 100%;
   font-family: var(--font-display);
-  font-size: 1.3rem;
+  font-size: 1rem;
   line-height: 1.3;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

@@ -25,8 +25,8 @@
   height: var(--size);
 }
 
-/* A dark disc like the other overlays' panels, edged in the theme's accent,
-   with the icon drawn in it - not a solid block of colour. */
+/* A faint dark disc, see-through like the other overlays' panels, with the
+   icon drawn in the theme's accent - not a solid block of colour. */
 .badge {
   display: flex;
   align-items: center;
@@ -35,27 +35,25 @@
   height: 80%;
   border-radius: 50%;
   color: var(--pu);
-  background: rgba(var(--hud-bg), 0.82);
-  border: max(1.5px, calc(var(--size) * 0.02)) solid rgba(var(--hud-accent), 0.45);
+  background: rgba(var(--hud-bg), 0.45);
   text-shadow: none;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
 }
 
 /* The icon scales with the badge. */
 .badge svg {
   width: 52%;
   height: 52%;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
 }
 
-/* Running: the ring does the talking, so the edge steps back for it. */
+/* Running: the ring does the talking; the disc just breathes. */
 .running .badge {
-  border-color: rgba(var(--hud-accent), 0.25);
   animation: pulse 1.2s ease-in-out infinite alternate;
 }
 
 @keyframes pulse {
   to {
-    background: rgba(var(--hud-bg), 0.92);
+    background: rgba(var(--hud-bg), 0.65);
   }
 }
 

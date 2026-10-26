@@ -7,8 +7,8 @@ const PATHS: Record<string, string[]> = {
   LIGHTNESS: ["M19 4c-6 1-11 6-12 13", "M19 4c1 6-3 11-9 12", "M7 17l-3 3", "M10 11h5", "M9 14h4"],
   // The van, from the side.
   DRAFTBOOST: ["M3 16V8h11l4 4h3v4", "M3 16h18", "M14 8v4h4", "M7 16a2 2 0 1 0 0.01 0", "M17 16a2 2 0 1 0 0.01 0"],
-  // A rider's head in profile, in an aero helmet.
-  AERO: ["M7 13.5a4.5 4.5 0 1 0 9 0", "M5.5 12.5c1-5 6-7 10-6 3 .8 5.5 3 7 6l-7 1z", "M10 16h2"],
+  // A rounded road aero helmet, with its vents.
+  AERO: ["M3 15a9 8 0 0 1 18 0z", "M3 15h18", "M8 9.5l1.5 2", "M12 8.5v2.5", "M16 9.5l-1.5 2", "M6 17.5h4"],
   // A wrapped burrito.
   UNDRAFTABLE: ["M5 17L17 5a3 3 0 0 1 4 4L9 21a3 3 0 0 1-4-4z", "M9 13l2 2", "M12 10l2 2", "M15 7l2 2"],
   // A ghost.

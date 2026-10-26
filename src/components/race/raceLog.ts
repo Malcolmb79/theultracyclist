@@ -1,4 +1,7 @@
+import { scoreTeams, type TeamStanding } from "./ladder";
 import { sameRaceGroups } from "./sameRace";
+
+export type { TeamStanding } from "./ladder";
 import { powerUp } from "./powerUps";
 import { athleteName, cleanName, type SauceAthleteData, type SauceChat, type SauceGroup } from "./sauceFeed";
 
@@ -162,38 +165,6 @@ export interface CourseAhead {
   next5km: { climbM: number; descentM: number; steepestPct: number };
   /** Where the finish is, when it's within the distance looked at. */
   finishInKm?: number;
-}
-
-/**
- * A Club Ladder race as a team score: the rider's team (the riders sharing
- * their team tag) against the other, each rider's place and the points it
- * is worth if the race finished now.
- */
-export interface TeamStanding {
-  ours: LadderTeam;
-  theirs: LadderTeam;
-  leading: "ours" | "theirs" | "level";
-  margin: number;
-  /** How points are counted, so the commentator can say it. */
-  scoring: string;
-}
-
-export interface LadderTeam {
-  name: string;
-  points: number;
-  riders: { name: string; pos?: number; points: number; gap?: number; state?: string }[];
-}
-
-/** "Club Ladder // DIRTy Strangers v ART Hadrons" - the two teams, by name. */
-export function ladderTeams(eventName: string | undefined): [string, string] | undefined {
-  const m = eventName?.match(/ladder\s*\/\/\s*(.+?)\s+v(?:s|\.)?\s+(.+?)\s*$/i);
-  return m ? [m[1].trim(), m[2].trim()] : undefined;
-}
-
-/** Points for a place: 10 for 1st down to 1 for 10th - Club Ladder's usual count. */
-export const LADDER_SCORING = "10 points for 1st down to 1 for 10th";
-function ladderPoints(pos: number | undefined): number {
-  return pos != null && pos > 0 ? Math.max(0, 11 - pos) : 0;
 }
 
 export interface FieldSnapshot {
@@ -838,35 +809,22 @@ export class RaceRecorder {
     named: (a: SauceGroup["athletes"][number]) => FieldRider,
     now: number,
   ): TeamStanding | undefined {
-    const tag = this.log.rider?.team?.trim().toLowerCase();
-    if (!tag) return undefined;
-    const everyone = groups.flatMap((g) => g.athletes ?? []);
-    const side = (a: (typeof everyone)[number]) => (a.athlete?.team?.trim().toLowerCase() === tag ? "ours" : "theirs");
-    const build = (which: "ours" | "theirs", name: string): LadderTeam => {
-      const riders = everyone
-        .filter((a) => side(a) === which)
-        .map((a) => {
-          const r = named(a);
-          return { name: r.name, pos: r.pos, points: ladderPoints(r.pos), gap: r.gap, state: r.condition?.state };
-        })
-        .sort((x, y) => (x.pos ?? 999) - (y.pos ?? 999));
-      return { name, points: riders.reduce((sum, r) => sum + r.points, 0), riders };
-    };
-    // Which of the two names in the event title is the rider's: the one their tag starts.
-    const names = ladderTeams(this.log.event?.name);
-    const key = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
-    const mine = names?.find((n) => key(n).startsWith(key(tag).slice(0, 3)));
-    const ours = build("ours", mine ?? this.log.rider?.team ?? "Your team");
-    const theirs = build("theirs", names?.find((n) => n !== mine) ?? "The opposition");
-    if (!ours.riders.length || !theirs.riders.length) return undefined;
-    const leading = ours.points === theirs.points ? "level" : ours.points > theirs.points ? "ours" : "theirs";
+    const entries = groups
+      .flatMap((g) => g.athletes ?? [])
+      .map((a) => {
+        const r = named(a);
+        return { name: r.name, team: r.team, pos: r.pos, gap: r.gap, state: r.condition?.state };
+      });
+    const standing = scoreTeams(entries, this.log.rider?.team, this.log.event?.name);
+    if (!standing) return undefined;
+    const { leading, ours, theirs } = standing;
     if (this.ladderLeader && leading !== this.ladderLeader && leading !== "level") {
       const ahead = leading === "ours" ? ours : theirs;
       const behind = leading === "ours" ? theirs : ours;
       this.event("team", `${ahead.name} take the lead on points, ${ahead.points} to ${behind.points}`, now);
     }
     this.ladderLeader = leading;
-    return { ours, theirs, leading, margin: Math.abs(ours.points - theirs.points), scoring: LADDER_SCORING };
+    return standing;
   }
 
   private rivals(groups: SauceGroup[], named: (a: SauceGroup["athletes"][number]) => FieldRider): Rival[] | undefined {

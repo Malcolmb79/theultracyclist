@@ -30,6 +30,7 @@ export default defineConfig({
         draft: fileURLToPath(new URL('./sauce-mod/draft.html', import.meta.url)),
         segments: fileURLToPath(new URL('./sauce-mod/segments.html', import.meta.url)),
         powerUp: fileURLToPath(new URL('./sauce-mod/powerUp.html', import.meta.url)),
+        ladder: fileURLToPath(new URL('./sauce-mod/ladder.html', import.meta.url)),
       },
     },
   },

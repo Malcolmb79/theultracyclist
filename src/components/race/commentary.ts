@@ -8,8 +8,8 @@ import {
   type RaceLog,
   type RaceSample,
   type RiderHistory,
-  ladderTeams,
 } from "./raceLog";
+import { ladderTeams } from "./ladder";
 
 // Live commentary and tactics: a compact snapshot of the race goes to
 // /api/race-commentary, a line comes back, and it's read aloud. Commentary

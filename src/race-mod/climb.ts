@@ -34,10 +34,19 @@ function gradeAt(route: RouteGeometry, d: number, span = 50): number {
 }
 
 const STEP = 25;
-/** A rise worth a pop-up: at least this steep on average, this long and this much height. */
-const MIN_AVG_PCT = 3;
-const MIN_LENGTH_M = 300;
-const MIN_GAIN_M = 15;
+
+/**
+ * What counts as a climb worth a pop-up: how steep the road has to get to
+ * notice it (probePct), and how steep on average, how long and how much
+ * height the whole rise needs. "zwift" is as eager as Zwift's own climb
+ * view, which comes up for short drags as well as real climbs.
+ */
+export type ClimbSensitivity = "zwift" | "standard" | "big";
+const THRESHOLDS: Record<ClimbSensitivity, { probePct: number; avgPct: number; lengthM: number; gainM: number }> = {
+  zwift: { probePct: 2.5, avgPct: 2, lengthM: 150, gainM: 6 },
+  standard: { probePct: 3, avgPct: 3, lengthM: 300, gainM: 15 },
+  big: { probePct: 4, avgPct: 4, lengthM: 800, gainM: 40 },
+};
 
 /** A climb's shape from start to top: its height gain, average and steepest gradient. */
 function describe(route: RouteGeometry, start: number, top: number, name?: string): Climb {
@@ -53,7 +62,13 @@ function describe(route: RouteGeometry, start: number, top: number, name?: strin
  * the profile - back to where the road started going up, and on to where
  * it stops. Nothing if the road isn't climbing to speak of.
  */
-export function findClimb(route: RouteGeometry, at: number, lookAheadM: number): Climb | undefined {
+export function findClimb(
+  route: RouteGeometry,
+  at: number,
+  lookAheadM: number,
+  sensitivity: ClimbSensitivity = "zwift",
+): Climb | undefined {
+  const t = THRESHOLDS[sensitivity];
   const end = route.distances.at(-1) ?? 0;
   const named = route.segments.find((s) => s.kind === "climb" && s.end >= at && s.start <= at + lookAheadM);
   if (named) return describe(route, named.start, named.end, named.name);
@@ -61,7 +76,7 @@ export function findClimb(route: RouteGeometry, at: number, lookAheadM: number):
   // Where the road is climbing: here, or the first steep stretch ahead.
   let probe: number | undefined;
   for (let d = at; d <= Math.min(end, at + lookAheadM); d += STEP) {
-    if (gradeAt(route, d) >= MIN_AVG_PCT) {
+    if (gradeAt(route, d) >= t.probePct) {
       probe = d;
       break;
     }
@@ -85,7 +100,7 @@ export function findClimb(route: RouteGeometry, at: number, lookAheadM: number):
     } else if (high - e > 5 || d - top > 300) break;
   }
   const climb = describe(route, start, top);
-  return top - start >= MIN_LENGTH_M && climb.gainM >= MIN_GAIN_M && climb.avgPct >= MIN_AVG_PCT ? climb : undefined;
+  return top - start >= t.lengthM && climb.gainM >= t.gainM && climb.avgPct >= t.avgPct ? climb : undefined;
 }
 
 /** The colour for a gradient, from easy green through amber to red - how Zwift shades its climbs. */

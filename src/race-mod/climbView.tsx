@@ -5,7 +5,7 @@ import type { RouteGeometry } from "../components/race/courseMap";
 import { OverlayShell, useSettings, type SettingDef } from "./overlay";
 import { useSauce } from "./useSauce";
 import { routePosition, useCourse } from "./useCourse";
-import { elevationAt, findClimb, gradeColor, type Climb } from "./climb";
+import { elevationAt, findClimb, gradeColor, type Climb, type ClimbSensitivity } from "./climb";
 import shell from "./Overlay.module.css";
 import styles from "./ClimbView.module.css";
 
@@ -14,8 +14,18 @@ import styles from "./ClimbView.module.css";
 // the top and a profile of the climb shaded by steepness, and goes once the
 // rider is over the top.
 
-const DEFAULTS = { opacity: 80, ahead: 300, profile: true, average: true, height: true, progress: true, steepest: false };
+const DEFAULTS = { opacity: 80, sensitivity: "zwift", ahead: 300, profile: true, average: true, height: true, progress: true, steepest: false };
 const DEFS: SettingDef[] = [
+  {
+    key: "sensitivity",
+    label: "Pops up for",
+    type: "select",
+    options: [
+      { value: "zwift", label: "Every rise, like Zwift" },
+      { value: "standard", label: "Proper climbs" },
+      { value: "big", label: "Big climbs only" },
+    ],
+  },
   {
     key: "ahead",
     label: "Show before the climb",
@@ -72,7 +82,7 @@ function ClimbOverlay() {
   const { route } = useCourse(address, watching);
   const s = watching?.state;
   const at = route ? routePosition(route, s?.routeDistance) : undefined;
-  const found = route && at != null ? findClimb(route, at, settings.ahead) : undefined;
+  const found = route && at != null ? findClimb(route, at, settings.ahead, settings.sensitivity as ClimbSensitivity) : undefined;
 
   // Keep the climb up for a few seconds over the top.
   const last = useRef<{ climb: Climb; at: number } | null>(null);

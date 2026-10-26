@@ -71,6 +71,8 @@ type StravaActivity = {
   average_heartrate?: number;
   max_heartrate?: number;
   suffer_score?: number;
+  /** For rides: 10 default, 11 race, 12 workout. */
+  workout_type?: number | null;
 };
 
 export type PeriodSummary = {
@@ -129,6 +131,8 @@ export type Ride = {
   relativeEffort: number | null;
   /** Strava's own total for the ride - always present, unlike the profile. */
   elevationGainM: number;
+  /** Marked as a race in Strava. */
+  race?: boolean;
   /**
    * Only populated for the first `profileCount` rides (see fetchStravaRides).
    * Empty is normal for older rides, not an error.
@@ -294,6 +298,7 @@ export async function fetchStravaRides(count: number = RIDE_COUNT, profileCount:
       // Strava's own per-ride total, so the elevation-gain metric no longer
       // depends on a streams call that mostly failed at this volume.
       elevationGainM: Math.round(activity.total_elevation_gain ?? 0),
+      race: activity.workout_type === 11 || undefined,
       elevationProfile: index < profileCount ? await fetchElevationProfile(activity.id, authHeader) : [],
     })),
   );

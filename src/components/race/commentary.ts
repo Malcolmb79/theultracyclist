@@ -738,7 +738,7 @@ function teammates(log: RaceLog) {
  * so it's only given to the commentator and coach while they're the one
  * riding.
  */
-export type RiderFitness = Record<string, string | number | null>;
+export type RiderFitness = Record<string, unknown>;
 
 export async function fetchRiderFitness(apiBase: string, token: string | null): Promise<RiderFitness> {
   const headers: Record<string, string> = {};

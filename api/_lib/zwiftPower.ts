@@ -231,11 +231,24 @@ export async function riderHistory(id: number, steps: string[] = []): Promise<Ri
 }
 
 /** For the diagnostic page: the raw shape of what ZwiftPower sent for a rider, trimmed. */
-export async function rawSample(id: number, steps: string[]) {
+/** The logged-in athlete's own Zwift id: ZwiftPower's profile page without an id is their own. */
+async function ownId(steps: string[]): Promise<number | undefined> {
+  const jar = await session(steps, true);
+  const { res, url } = await go(jar, `${ZP}/profile.php`, {}, steps);
+  const fromUrl = new URL(url).searchParams.get("z");
+  const html = fromUrl ? "" : await res.text();
+  const z = fromUrl ?? html.match(/profile\.php\?z=(\d+)/)?.[1];
+  return z ? Number(z) : undefined;
+}
+
+export async function rawSample(idOrSelf: number | undefined, steps: string[]) {
+  const id = idOrSelf ?? (await ownId(steps));
+  if (!id) return { error: "Logged in, but couldn't find your own Zwift id on ZwiftPower." };
   const results = await zpJSON(`/cache3/profile/${id}_all.json`, steps);
   const list = (Array.isArray(results) ? results : ((results as { data?: unknown[] } | null)?.data ?? [])) as unknown[];
   const power = await zpJSON(`/api3.php?do=critical_power_profile&zwift_id=${id}&zwift_event_id=&type=wkg`, steps).catch((e) => String(e));
   return {
+    zwiftId: id,
     resultCount: list.length,
     firstResult: list[0] ?? null,
     powerKeys: power && typeof power === "object" ? Object.keys(power as object) : power,

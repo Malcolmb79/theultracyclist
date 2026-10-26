@@ -10,7 +10,8 @@ import { rawSample, riderHistory, ZwiftPowerUnavailable, type RiderHistory } fro
  * person's worth of page loads rather than a burst; the console asks again
  * for the rest. Each rider is cached for hours (see _lib/zwiftPower).
  *
- * ?debug=1&ids=<one id>, signed in on the site, shows the login steps and
+ * ?debug=1 (optionally &ids=<one id>; without one, the athlete's own),
+ * signed in on the site, shows the login steps and
  * the raw shape of what came back - for when ZwiftPower changes something.
  */
 
@@ -42,7 +43,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.query.debug && getSessionEmail(req)) {
     const steps: string[] = [];
     try {
-      const sample = ids[0] ? await rawSample(ids[0], steps) : null;
+      // No id: the logged-in athlete's own profile, which also proves the login.
+      const sample = await rawSample(ids[0], steps);
       res.status(200).json({ ok: true, steps, sample });
     } catch (e) {
       res.status(200).json({ ok: false, error: e instanceof Error ? e.message : String(e), steps });

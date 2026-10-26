@@ -15,6 +15,10 @@
   .panel {
     animation: none;
   }
+
+  .me {
+    transition: none;
+  }
 }
 
 .head {
@@ -89,6 +93,10 @@
   border-radius: 50%;
   background: #fff;
   box-shadow: 0 0 0 2px rgba(var(--hud-bg), 0.8);
+  /* Sauce updates about once a second: glide between updates rather than hop. */
+  transition:
+    left 1s linear,
+    top 1s linear;
 }
 
 .progress {

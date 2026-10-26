@@ -102,5 +102,17 @@ export function routePosition(
   }
   // Far off the route (a different road, a teleport): Sauce's distance is all there is.
   if (match.i < 0 || match.cm > ON_ROUTE_CM * 3) return guess;
-  return route.distances[match.i];
+  // Between the nearest point and whichever neighbour the rider is towards,
+  // so the position moves smoothly rather than hopping point to point.
+  const along = (a: number, b: number) => {
+    if (a < 0 || b >= route.path.length) return undefined;
+    const [ax, ay] = route.path[a];
+    const [bx, by] = route.path[b];
+    const len2 = (bx - ax) ** 2 + (by - ay) ** 2;
+    if (!len2) return undefined;
+    const t = ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / len2;
+    if (t < 0 || t > 1) return undefined;
+    return route.distances[a] + t * (route.distances[b] - route.distances[a]);
+  };
+  return along(match.i, match.i + 1) ?? along(match.i - 1, match.i) ?? route.distances[match.i];
 }

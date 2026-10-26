@@ -20,6 +20,28 @@
   user-select: none;
 }
 
+/* What the overlay draws: measured to tell whether it fits the window. */
+.content {
+  min-height: inherit;
+}
+
+/* Shown when the content runs past the bottom of the window. */
+.more {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  z-index: 25;
+  padding: 0 8px;
+  border-radius: 6px 6px 0 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgb(var(--hud-bg));
+  background: var(--color-accent-2);
+  text-shadow: none;
+  pointer-events: none;
+}
+
 /* The only draggable part: a strip along the top, shown on hover. */
 .grip {
   position: absolute;

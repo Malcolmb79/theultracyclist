@@ -55,6 +55,10 @@
   border-radius: 50%;
   background: rgba(var(--hud-ink), 0.9);
   box-shadow: 0 0 0 1px rgba(var(--hud-bg), 0.8);
+  /* Sauce updates about once a second: glide between updates rather than hop. */
+  transition:
+    left 1s linear,
+    top 1s linear;
 }
 
 .teammate {
@@ -79,4 +83,8 @@
   background: var(--color-accent-2);
   border: 2px solid #fff;
   box-shadow: 0 0 6px rgba(var(--hud-accent), 0.8);
+  /* Sauce updates about once a second: glide between updates rather than hop. */
+  transition:
+    left 1s linear,
+    top 1s linear;
 }

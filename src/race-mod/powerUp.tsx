@@ -5,6 +5,7 @@ import { powerUp } from "../components/race/powerUps";
 import { connectSauce, sauceAddressForModPage, sauceRpc, type SauceAthleteData, type SauceGameState } from "../components/race/sauceFeed";
 import { OverlayShell, useSettings, type SettingDef } from "./overlay";
 import shell from "./Overlay.module.css";
+import PowerUpIcon from "./PowerUpIcon";
 import styles from "./PowerUp.module.css";
 
 // The power-up the rider is holding, as Zwift shows it beside the power -
@@ -91,7 +92,7 @@ function PowerUpOverlay() {
           <>
             <div className={styles.head}>
               <span className={styles.badge} aria-hidden>
-                {shown.p.name.slice(0, 1)}
+                <PowerUpIcon code={shown.code} />
               </span>
               <span className={styles.name}>{shown.p.name}</span>
               <span className={styles.state}>{shown.running ? (left != null ? `${Math.ceil(left)}s` : "On") : "Ready"}</span>

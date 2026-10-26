@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import styles from "./Overlay.module.css";
 import { THEMES, THEME_KEY, applyTheme, readTheme, saveTheme } from "./themes";
 
@@ -115,6 +115,40 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [theme, setTheme] = useState(() => readTheme().id);
   const [textSize, setTextSize] = useState(() => readTextSize(title));
+  const content = useRef<HTMLDivElement | null>(null);
+  const [clipped, setClipped] = useState(false);
+  // Grown once at most: an overlay sized to the window grows with it, so more would never end.
+  const grown = useRef(false);
+
+  // Overlays never scroll, so content taller than the window would be lost
+  // off the bottom (a window sized before a new row was added, a bigger
+  // text size). Grow the window to fit where Sauce lets the page resize
+  // it, and otherwise show that there's more, to drag the edge down to.
+  useEffect(() => {
+    const el = content.current;
+    if (!el) return;
+    const check = () => {
+      const need = Math.ceil(el.getBoundingClientRect().height);
+      const over = need - window.innerHeight;
+      if (over > 6 && !grown.current) {
+        grown.current = true;
+        try {
+          window.resizeTo(window.outerWidth, Math.min(window.screen.availHeight, window.outerHeight + over + 4));
+        } catch {
+          // Not allowed - the hint says what to do.
+        }
+      }
+      // Measured again once any resize has landed.
+      requestAnimationFrame(() => setClipped(Math.ceil(el.getBoundingClientRect().height) - window.innerHeight > 6));
+    };
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    window.addEventListener("resize", check);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", check);
+    };
+  }, []);
 
   useLayoutEffect(() => {
     document.documentElement.style.fontSize = `${textSize}%`;
@@ -161,7 +195,14 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
       }}
     >
       <div className={styles.grip} title="Drag to move" aria-hidden />
-      {children}
+      <div ref={content} className={styles.content}>
+        {children}
+      </div>
+      {clipped && (
+        <div className={styles.more} title="There's more below - drag the window's bottom edge down to see it">
+          ↓ more
+        </div>
+      )}
       {menu && (
         <>
           <div className={styles.backdrop} onMouseDown={() => setMenu(null)} onContextMenu={(e) => e.preventDefault()} />

@@ -161,11 +161,21 @@ export const PHASE_TIMING: Partial<Record<RacePhase, { threshold: number; everyM
 const WINDOW_MS = 60_000;
 const RECENT_EVENTS = 8;
 /** Enough of what was just said to carry the conversation on from it. */
-const RECENT_LINES = 6;
+const RECENT_LINES = 12;
 
 function avg(values: (number | undefined)[]): number | undefined {
   const xs = values.filter((v): v is number => v != null);
   return xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : undefined;
+}
+
+/** Race-log events that only make sense in a race. */
+const RACE_ONLY_EVENTS = new Set<RaceEvent["kind"]>(["position", "leader", "result", "attack"]);
+
+/** A race-log event in a ride's words. */
+function rideWording(e: RaceEvent): RaceEvent {
+  if (e.kind === "go") return { ...e, text: "The ride is under way" };
+  if (e.kind === "finish") return { ...e, text: e.text.replace(/ crosses the line.*/, " finishes the ride") };
+  return e;
 }
 
 function eventLine(e: RaceEvent) {
@@ -277,8 +287,10 @@ const SHELTERED_W = 15;
 /** Spikes: seconds over this share of FTP in the last minute, and how many make a habit. */
 const SPIKE_FTP = 1.5;
 const SPIKES = 5;
-/** Five minutes over this share of FTP is past an easy ride. */
+/** Five minutes over this share of FTP is past an easy ride - or, on a recovery ride, past recovery pace. */
 const DRIFT_FTP = 0.88;
+const RECOVERY_DRIFT_FTP = 0.6;
+const RECOVERY_RIDE = /recover|easy|spin|coffee|social/i;
 const DRIFT_MS = 5 * 60_000;
 /** A summary of the ride so far, this often. */
 const CHECK_IN_MS = 10 * 60_000;
@@ -307,8 +319,13 @@ function rideMoments(log: RaceLog, now: RaceSample): KeyMoment[] {
     }
     const five = samples.filter((s) => s.t >= now.t - DRIFT_MS);
     const fiveAvg = avg(five.map((s) => s.power));
-    if (five.length >= (DRIFT_MS / 1000) * 0.8 && fiveAvg != null && fiveAvg >= ftp * DRIFT_FTP) {
-      out.push({ id: "zone-drift", text: `The last 5 minutes have averaged ${fiveAvg} W, ${Math.round((fiveAvg / ftp) * 100)}% of FTP - well above an easy ride.` });
+    const recovery = RECOVERY_RIDE.test(log.event?.name ?? "");
+    const ceiling = recovery ? RECOVERY_DRIFT_FTP : DRIFT_FTP;
+    if (five.length >= (DRIFT_MS / 1000) * 0.8 && fiveAvg != null && fiveAvg >= ftp * ceiling) {
+      out.push({
+        id: "zone-drift",
+        text: `The last 5 minutes have averaged ${fiveAvg} W, ${Math.round((fiveAvg / ftp) * 100)}% of FTP - ${recovery ? "above recovery pace (under 55% of FTP)" : "well above an easy ride"}.`,
+      });
     }
   }
 
@@ -551,6 +568,10 @@ export function buildSnapshot(
   const others = log.events.filter((e) => e.kind !== "commentary" && e.kind !== "tactic" && e.kind !== "start");
 
   const climb = first?.alt != null && now?.alt != null ? Math.round(now.alt - first.alt) : undefined;
+  const ride = sessionKind(log, log.sessionType ?? "auto") === "ride";
+  const phase = racePhase(log);
+  // On a ride, nothing that frames it as a race: places, leaders, results, attacks.
+  const said = ride ? others.filter((e) => !RACE_ONLY_EVENTS.has(e.kind)).map(rideWording) : others;
   const base = {
     rider: log.rider
       ? {
@@ -566,9 +587,10 @@ export function buildSnapshot(
       : undefined,
     yourFitness,
     // A race, or a ride - training or a group ride - which changes the whole tone.
-    session: sessionKind(log, log.sessionType ?? "auto"),
+    session: ride ? "ride" : "race",
     // "pen" until the race starts: nothing on the road means anything yet.
-    phase: racePhase(log),
+    // A ride is just being ridden - no finale to build to.
+    phase: ride && (phase === "racing" || phase === "finale") ? "riding" : phase,
     event: log.event && {
       ...log.event,
       startsAt: undefined,
@@ -588,8 +610,9 @@ export function buildSnapshot(
       speedKmh: now.speed,
       gradientPct: now.grade,
       draft: now.draft,
-      position: now.pos,
-      of: now.of,
+      // A place in the field is race talk.
+      position: ride ? undefined : now.pos,
+      of: ride ? undefined : now.of,
       wBalKj: now.wBal != null ? Math.round(now.wBal / 100) / 10 : undefined,
       powerUp: now.powerUp,
     },
@@ -599,7 +622,7 @@ export function buildSnapshot(
           maxPower: Math.max(...windowed.map((s) => s.power ?? 0)) || undefined,
           avgSpeedKmh: avg(windowed.map((s) => s.speed)),
           avgDraft: avg(windowed.map((s) => s.draft)),
-          positionChange: first?.pos != null && now?.pos != null ? first.pos - now.pos : undefined,
+          positionChange: !ride && first?.pos != null && now?.pos != null ? first.pos - now.pos : undefined,
           climbedM: climb,
         }
       : undefined,
@@ -610,10 +633,11 @@ export function buildSnapshot(
       ridersGroup: log.field.ridersGroup,
       groupAhead: log.field.groupAhead,
       groupBehind: log.field.groupBehind,
-      leader: log.field.leader,
-      toWatch: log.field.toWatch,
-      pen: log.field.pen,
-      rivals: log.field.rivals,
+      // The race's leader, favourites and rivals mean nothing on a ride.
+      leader: ride ? undefined : log.field.leader,
+      toWatch: ride ? undefined : log.field.toWatch,
+      pen: ride ? undefined : log.field.pen,
+      rivals: ride ? undefined : log.field.rivals,
       // Who's suffering and who's fresh, from the riders in sight.
       condition: fieldCondition(log),
     },
@@ -624,10 +648,10 @@ export function buildSnapshot(
       speedKmh: g.speed,
       ridersGroup: g.watching || undefined,
     })),
-    newEvents: others.filter((e) => e.t > sinceT).slice(-RECENT_EVENTS).map(eventLine),
+    newEvents: said.filter((e) => e.t > sinceT).slice(-RECENT_EVENTS).map(eventLine),
     // What's happening on the road right now, read from the numbers.
     whatsHappening: mode === "commentary" && moments.length ? moments.map((m) => m.text) : undefined,
-    recentEvents: others.filter((e) => e.t <= sinceT).slice(-RECENT_EVENTS).map(eventLine),
+    recentEvents: said.filter((e) => e.t <= sinceT).slice(-RECENT_EVENTS).map(eventLine),
     recentLines: lines.slice(-RECENT_LINES).map((e) => e.text),
     secondsSinceLastLine: lines.length ? Math.round((elapsed - lines[lines.length - 1].t) / 1000) : undefined,
   };

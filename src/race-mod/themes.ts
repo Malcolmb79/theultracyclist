@@ -27,8 +27,6 @@ export interface Theme {
   light?: boolean;
   /** Google Fonts families to load for the theme, as in the css2 API. */
   fonts?: string[];
-  /** Everything in shades of grey, the colours fixed in the overlays (zones, flags, teams) too. */
-  grayscale?: boolean;
 }
 
 const DARK_SHADOW = "0 1px 2px rgba(0, 0, 0, 0.75)";
@@ -262,19 +260,18 @@ export const THEMES: Theme[] = [
   },
   {
     id: "mono",
-    name: "Black & White",
-    bg: "0, 0, 0",
+    name: "Grey",
+    bg: "52, 54, 58",
     ink: "255, 255, 255",
-    accent: "255, 255, 255",
-    hot: "#b8b8b8",
-    amber: "#d9d9d9",
-    text: "#ffffff",
-    muted: "#9a9a9a",
+    accent: "214, 216, 220",
+    hot: "#f0f0f0",
+    amber: "#c4c6ca",
+    text: "#f4f4f5",
+    muted: "#a3a6ab",
     display: '"Barlow Condensed", "Arial Narrow", sans-serif',
     radius: "4px",
     shadow: DARK_SHADOW,
     fonts: ["Barlow+Condensed:wght@600"],
-    grayscale: true,
   },
 ];
 
@@ -318,7 +315,6 @@ export function applyTheme(theme: Theme) {
   };
   for (const [k, v] of Object.entries(vars)) root.setProperty(k, v);
   document.documentElement.toggleAttribute("data-hud-light", !!theme.light);
-  root.filter = theme.grayscale ? "grayscale(1)" : "";
   document.getElementById("hud-theme-fonts")?.remove();
   if (theme.fonts?.length) {
     const link = document.createElement("link");

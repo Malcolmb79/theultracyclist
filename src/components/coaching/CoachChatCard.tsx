@@ -52,6 +52,8 @@ const TRAININGPEAKS_QUESTIONS = [
 
 export default function CoachChatCard({ input, settings, onSaveSettings, dataAvailable, widgetData }: CoachChatCardProps) {
   const [status, setStatus] = useState<CardStatus>("loading");
+  // Why the coach couldn't answer, when the server says.
+  const [failure, setFailure] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -98,10 +100,15 @@ export default function CoachChatCard({ input, settings, onSaveSettings, dataAva
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       })
-        .then((res) => res.json())
-        .then((body: { configured: boolean; text?: string }) => {
+        .then(async (res) => ({ ok: res.ok, status: res.status, body: await res.json().catch(() => ({})) }))
+        .then(({ ok, status: code, body }: { ok: boolean; status: number; body: { configured?: boolean; text?: string; error?: string; reason?: string } }) => {
           if (cancelled) return;
-          if (!body.configured) {
+          // Only an explicit "not configured" means the key is missing; any
+          // other failure is shown as what it is.
+          if (!ok) {
+            setFailure(body.reason ?? body.error ?? `The coach answered ${code}.`);
+            setStatus("error");
+          } else if (body.configured === false) {
             setStatus("unconfigured");
           } else {
             setMessages([{ role: "assistant", content: body.text ?? "" }]);
@@ -223,9 +230,14 @@ export default function CoachChatCard({ input, settings, onSaveSettings, dataAva
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ messages: next, context: input }),
     })
-      .then((res) => res.json())
-      .then((body: { configured: boolean; reply?: string }) => {
-        if (!body.configured) {
+      .then(async (res) => ({ ok: res.ok, status: res.status, body: await res.json().catch(() => ({})) }))
+      .then(({ ok, status: code, body }: { ok: boolean; status: number; body: { configured?: boolean; reply?: string; error?: string; reason?: string } }) => {
+        if (!ok) {
+          const why = body.reason ?? body.error ?? `The coach answered ${code}.`;
+          setMessages((prev) => [...prev, { role: "assistant", content: `Couldn't get a reply: ${why}` }]);
+          return;
+        }
+        if (body.configured === false) {
           setStatus("unconfigured");
           return;
         }
@@ -275,7 +287,12 @@ export default function CoachChatCard({ input, settings, onSaveSettings, dataAva
 
       {status === "waiting" && <p className={styles.muted}>Waiting for today's Garmin/Strava data to load…</p>}
       {status === "loading" && <p className={styles.muted}>Generating…</p>}
-      {status === "error" && <p className={styles.muted}>Couldn't reach the coach right now.</p>}
+      {status === "error" && (
+        <p className={styles.muted}>
+          Couldn't reach the coach right now.
+          {failure && <> {failure}</>}
+        </p>
+      )}
       {status === "unconfigured" && (
         <p className={styles.muted}>
           Add an <code>ANTHROPIC_API_KEY</code> in Vercel's project environment variables to enable the AI coach.

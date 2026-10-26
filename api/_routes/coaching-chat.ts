@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { anthropicFailure, failureReason } from "../_lib/anthropicError.js";
 import { requirePasskeySession } from "../_lib/session.js";
 import { irelandTimeContext } from "../_lib/timeContext.js";
 import { DATA_SEMANTICS, LANGUAGE_STYLE, READING_HONESTY, TRAININGPEAKS_PRECEDENCE, TRAININGPEAKS_SOLE_SOURCE, garminSnapshotLines, planContext, trainingPeaksLines } from "../_lib/coachContext.js";
@@ -900,7 +901,7 @@ export async function generateCoachReply(
     });
 
     if (!response.ok) {
-      throw new Error(`Anthropic API error: ${response.status}`);
+      throw await anthropicFailure(response);
     }
 
     const data = (await response.json()) as { content: ContentBlock[]; stop_reason: string };
@@ -986,6 +987,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(200).json({ configured: true, reply });
   } catch (error) {
     console.error(error);
-    res.status(502).json({ error: "Unable to get a reply from the coach" });
+    res.status(502).json({ error: "Unable to get a reply from the coach", reason: failureReason(error) });
   }
 }

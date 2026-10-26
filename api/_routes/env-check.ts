@@ -21,7 +21,28 @@ function describe(name: string, prefix: string) {
   };
 }
 
-export default function handler(req: VercelRequest, res: VercelResponse) {
+/**
+ * One single-token request to Claude with the coaching model, so a key that
+ * is there but refused (no credit, revoked, wrong account) says why.
+ */
+async function testAnthropic() {
+  const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
+  if (!apiKey) return { ran: false };
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+      body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 1, messages: [{ role: "user", content: "ok" }] }),
+    });
+    if (response.ok) return { ran: true, works: true };
+    const body = (await response.json().catch(() => ({}))) as { error?: { type?: string; message?: string } };
+    return { ran: true, works: false, status: response.status, type: body.error?.type, message: body.error?.message };
+  } catch (e) {
+    return { ran: true, works: false, message: e instanceof Error ? e.message : "Request failed" };
+  }
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!getSessionEmail(req)) {
     res.status(401).json({ error: "Sign in to theultracyclist.com first, then open this page again." });
     return;
@@ -35,6 +56,7 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
       commitMessage: process.env.VERCEL_GIT_COMMIT_MESSAGE?.split("\n")[0] ?? null,
       project: process.env.VERCEL_PROJECT_PRODUCTION_URL ?? null,
     },
+    anthropicTest: await testAnthropic(),
     keys: {
       ANTHROPIC_API_KEY: describe("ANTHROPIC_API_KEY", "sk-ant-"),
       OPENAI_API_KEY: describe("OPENAI_API_KEY", "sk-"),

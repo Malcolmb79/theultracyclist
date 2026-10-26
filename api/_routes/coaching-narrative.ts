@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { anthropicFailure, failureReason } from "../_lib/anthropicError.js";
 import { requirePasskeySession } from "../_lib/session.js";
 import { irelandTimeContext, irelandTodayDateStr } from "../_lib/timeContext.js";
 import { DATA_SEMANTICS, LANGUAGE_STYLE, READING_HONESTY, garminSnapshotLines, planContext, trainingPeaksLines } from "../_lib/coachContext.js";
@@ -154,7 +155,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     if (!response.ok) {
-      throw new Error(`Anthropic API error: ${response.status}`);
+      throw await anthropicFailure(response);
     }
 
     const data = (await response.json()) as { content: { type: string; text?: string }[] };
@@ -164,6 +165,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(200).json({ configured: true, text, cached: false });
   } catch (error) {
     console.error(error);
-    res.status(502).json({ error: "Unable to generate coaching note" });
+    res.status(502).json({ error: "Unable to generate coaching note", reason: failureReason(error) });
   }
 }

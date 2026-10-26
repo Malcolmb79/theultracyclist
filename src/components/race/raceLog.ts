@@ -61,6 +61,8 @@ export interface GroupSummary {
 
 /** A named rider on the road, for commentary about the rest of the race. */
 export interface FieldRider {
+  /** Zwift athlete id, for looking the rider up elsewhere (ZwiftPower). */
+  id?: number;
   name: string;
   team?: string;
   pos?: number;
@@ -143,6 +145,15 @@ export function riderProfile(a: SauceAthleteData): RiderProfile | undefined {
 }
 
 /** The riders around the watched one right now: their group and the groups either side. */
+/** A rider's recent racing on ZwiftPower (see api/_lib/zwiftPower.ts). */
+export interface RiderHistory {
+  category?: string;
+  last30Days: { races: number; wins: number; podiums: number; top10: number };
+  last90Days: { races: number; wins: number; podiums: number };
+  recent: { date: string; event: string; place?: number; category?: string; wkg?: number }[];
+  best90Days?: { s15?: number; m1?: number; m5?: number; m20?: number };
+}
+
 /** What's coming up on the route: the next climbs and sprints, and the shape of the next few kilometres. */
 export interface CourseAhead {
   /** The segment being ridden now, if any. */
@@ -267,6 +278,11 @@ export interface RaceLog {
   remainingMetric?: "time" | "distance";
   /** A race, or a ride (training, a group ride): set by the radios from the rider's choice. */
   sessionType?: "race" | "ride";
+  /**
+   * Riders' recent racing from ZwiftPower, by athlete id (null: nothing
+   * shared there), filled in as the radios look riders up.
+   */
+  riderHistory?: Record<string, RiderHistory | null>;
   /** The road ahead, from the route - kept up to date by a page that knows the course. */
   courseAhead?: CourseAhead;
   samples: RaceSample[];
@@ -332,6 +348,10 @@ function formatDistance(m: number): string {
 
 export class RaceRecorder {
   readonly log: RaceLog;
+  /** Riders already asked about on ZwiftPower, so both radios don't ask twice. */
+  readonly historyAsked = new Set<number>();
+  /** Set when the site says ZwiftPower isn't set up, so nobody keeps asking. */
+  historyOff = false;
   private readonly start: number;
   private lastSampleAt = -Infinity;
   private lastGroupsAt = -Infinity;
@@ -653,6 +673,7 @@ export class RaceRecorder {
       const power = a.state?.power;
       const weight = a.athlete?.weight;
       return {
+        id: a.athleteId,
         name: [first, last].filter(Boolean).join(" ") || `Rider ${a.athleteId}`,
         team: a.athlete?.team?.trim() || undefined,
         pos: a.eventPosition || undefined,

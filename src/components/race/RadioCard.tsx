@@ -17,6 +17,8 @@ import {
   fetchRiderFitness,
   keyMoments,
   sessionKind,
+  fetchRiderHistory,
+  ridersToLookUp,
   buildSnapshot,
   VoiceUnavailableError,
   englishVoices,
@@ -35,6 +37,9 @@ import styles from "./RaceConsole.module.css";
 
 const SHOWN_LINES = 6;
 const FITNESS_REFRESH_MS = 30 * 60_000;
+/** Riders looked up on ZwiftPower per round, and how often a round runs. */
+const HISTORY_BATCH = 6;
+const HISTORY_EVERY_MS = 20_000;
 /** Waiting on the voice to finish is polite, up to a point. */
 const MAX_WAIT_FOR_VOICE_MS = 15_000;
 const TEST_LINE: Record<RadioMode, string> = {
@@ -179,6 +184,28 @@ export default function RadioCard({
   }, []);
 
   const canRun = recording && enabled && (!needsKey || !!key);
+
+  // The riders around, looked up on ZwiftPower a few at a time for their
+  // recent racing. Shared through the recorder, so with both radios running
+  // each rider is still asked about once.
+  useEffect(() => {
+    if (!canRun) return;
+    const timer = setInterval(() => {
+      const r = recorder.current;
+      if (!r || r.historyOff) return;
+      const ids = ridersToLookUp(r.log).filter((id) => !r.historyAsked.has(id)).slice(0, HISTORY_BATCH);
+      if (!ids.length) return;
+      for (const id of ids) r.historyAsked.add(id);
+      fetchRiderHistory(apiBase, needsKey ? live.current.key : null, ids)
+        .then(({ configured, riders }) => {
+          if (!configured) r.historyOff = true;
+          r.log.riderHistory = { ...r.log.riderHistory, ...riders };
+        })
+        // Asked again on a later round.
+        .catch(() => ids.forEach((id) => r.historyAsked.delete(id)));
+    }, HISTORY_EVERY_MS);
+    return () => clearInterval(timer);
+  }, [canRun, apiBase, needsKey, recorder]);
 
   useEffect(() => {
     if (!canRun) return;

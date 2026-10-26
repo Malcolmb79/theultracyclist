@@ -1,4 +1,14 @@
-import { FINALE_M, FINALE_SEC, type EventBrief, type GroupSummary, type RaceEvent, type RaceLog, type RaceSample } from "./raceLog";
+import {
+  FINALE_M,
+  FINALE_SEC,
+  type EventBrief,
+  type FieldRider,
+  type GroupSummary,
+  type RaceEvent,
+  type RaceLog,
+  type RaceSample,
+  type RiderHistory,
+} from "./raceLog";
 
 // Live commentary and tactics: a compact snapshot of the race goes to
 // /api/race-commentary, a line comes back, and it's read aloud. Commentary
@@ -629,15 +639,16 @@ export function buildSnapshot(
     // The road ahead: the next climbs and sprints, and the next five kilometres.
     courseAhead: log.courseAhead,
     // The other riders, by name: the rider's group and the groups either side.
+    // Each rider with their ZwiftPower history alongside, where it's been looked up.
     field: log.field && {
-      ridersGroup: log.field.ridersGroup,
-      groupAhead: log.field.groupAhead,
-      groupBehind: log.field.groupBehind,
+      ridersGroup: log.field.ridersGroup.map((r) => withHistory(log, r)),
+      groupAhead: log.field.groupAhead?.map((r) => withHistory(log, r)),
+      groupBehind: log.field.groupBehind?.map((r) => withHistory(log, r)),
       // The race's leader, favourites and rivals mean nothing on a ride.
-      leader: ride ? undefined : log.field.leader,
-      toWatch: ride ? undefined : log.field.toWatch,
-      pen: ride ? undefined : log.field.pen,
-      rivals: ride ? undefined : log.field.rivals,
+      leader: ride || !log.field.leader ? undefined : withHistory(log, log.field.leader),
+      toWatch: ride ? undefined : log.field.toWatch?.map((r) => withHistory(log, r)),
+      pen: ride || !log.field.pen ? undefined : { ...log.field.pen, topRiders: log.field.pen.topRiders.map((r) => withHistory(log, r)) },
+      rivals: ride ? undefined : log.field.rivals?.map((r) => withHistory(log, r)),
       // Who's suffering and who's fresh, from the riders in sight.
       condition: fieldCondition(log),
     },
@@ -713,6 +724,45 @@ function fieldCondition(log: RaceLog) {
     ridersGroupAvgWBalPct: own.length ? Math.round(own.reduce((a, b) => a + b, 0) / own.length) : undefined,
     ridersGroupOnTheLimit: f.ridersGroup.filter((r) => r.condition?.state === "on the limit" || r.condition?.state === "empty").length,
   };
+}
+
+/** A rider as the radios see them: their ZwiftPower history alongside, when it's been looked up. */
+function withHistory<T extends FieldRider>(log: RaceLog, r: T): T & { zwiftPower?: unknown } {
+  const h = r.id != null ? log.riderHistory?.[r.id] : undefined;
+  if (!h) return r;
+  return {
+    ...r,
+    zwiftPower: {
+      category: h.category,
+      last30Days: h.last30Days,
+      last90Days: h.last90Days,
+      recent: h.recent.slice(0, 2),
+      best90DaysWkg: h.best90Days,
+    },
+  };
+}
+
+/** Riders in the field worth looking up on ZwiftPower: rivals and the strongest first. */
+export function ridersToLookUp(log: RaceLog): number[] {
+  const f = log.field;
+  if (!f) return [];
+  const lists = [f.rivals, f.toWatch, f.leader ? [f.leader] : [], f.pen?.topRiders, f.ridersGroup, f.groupAhead, f.groupBehind];
+  const ids = lists.flatMap((l) => (l ?? []).map((r) => r.id)).filter((id): id is number => id != null && id !== log.rider?.athleteId);
+  return Array.from(new Set(ids));
+}
+
+/** Riders' recent racing from ZwiftPower, through the site (api/_routes/zwiftpower-riders.ts). */
+export async function fetchRiderHistory(
+  apiBase: string,
+  token: string | null,
+  ids: number[],
+): Promise<{ configured: boolean; riders: Record<string, RiderHistory | null> }> {
+  const headers: Record<string, string> = {};
+  if (token) headers.authorization = `Bearer ${token}`;
+  const res = await fetch(`${apiBase}/api/zwiftpower-riders?ids=${ids.join(",")}`, { headers, credentials: apiBase ? "omit" : "same-origin" });
+  const body = (await res.json().catch(() => ({}))) as { configured?: boolean; riders?: Record<string, RiderHistory | null> };
+  if (!res.ok) throw new Error(`ZwiftPower lookup failed (${res.status})`);
+  return { configured: body.configured !== false, riders: body.riders ?? {} };
 }
 
 /** Riders in sight wearing the rider's team tag, and where they are relative to the rider. */

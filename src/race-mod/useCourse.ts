@@ -46,13 +46,61 @@ export function useCourse(address: string, watching: SauceAthleteData | null) {
   return { course, route, problem };
 }
 
+/** How far either side of Sauce's distance to look for the rider on the route. */
+const SEARCH_M = 3000;
+/** Closer than this to the route line (in world centimetres) and the match is trusted. */
+const ON_ROUTE_CM = 6000;
+
 /**
- * Where a rider is on the route's one-lap profile, in metres: Sauce's
- * distance along the route, folded back onto the lap after the first.
+ * Where a rider is on the route's one-lap profile, in metres.
+ *
+ * Sauce's distance along the route is only a guide: after the first lap it
+ * restarts each lap from the short weld between laps rather than the
+ * lead-in, and the profile's own length, measured from the road shapes, is
+ * never exactly Zwift's. Both put the rider out of step with the profile -
+ * on the wrong side of a hill, by the second lap. So the rider's world
+ * position is matched to the nearest point on the route, looking near
+ * where Sauce's distance says first (roads can be ridden twice in a lap),
+ * then anywhere; Sauce's distance is used alone only without a position.
  */
-export function routePosition(route: RouteGeometry, routeDistance: number | undefined): number | undefined {
-  if (routeDistance == null || !Number.isFinite(routeDistance)) return undefined;
+export function routePosition(
+  route: RouteGeometry,
+  state: { routeDistance?: number; x?: number; y?: number } | null | undefined,
+): number | undefined {
   const total = route.distances.at(-1) ?? 0;
-  if (routeDistance <= total || route.lapM <= 0) return Math.max(0, routeDistance);
-  return route.leadinM + ((routeDistance - route.leadinM) % route.lapM);
+  const rd = state?.routeDistance;
+  const guess =
+    rd == null || !Number.isFinite(rd)
+      ? undefined
+      : rd <= total || route.lapM <= 0
+        ? Math.max(0, rd)
+        : route.leadinM + ((rd - route.leadinM) % route.lapM);
+  const x = state?.x;
+  const y = state?.y;
+  if (x == null || y == null || !route.path.length) return guess;
+
+  const nearest = (from: number, to: number) => {
+    let best = -1;
+    let bestD = Infinity;
+    for (let i = 0; i < route.path.length; i++) {
+      const d = route.distances[i];
+      if (d < from || d > to) continue;
+      const dx = route.path[i][0] - x;
+      const dy = route.path[i][1] - y;
+      const dd = dx * dx + dy * dy;
+      if (dd < bestD) {
+        bestD = dd;
+        best = i;
+      }
+    }
+    return { i: best, cm: Math.sqrt(bestD) };
+  };
+  let match = guess != null ? nearest(guess - SEARCH_M, guess + SEARCH_M) : { i: -1, cm: Infinity };
+  if (match.cm > ON_ROUTE_CM) {
+    const anywhere = nearest(-Infinity, Infinity);
+    if (anywhere.cm < match.cm) match = anywhere;
+  }
+  // Far off the route (a different road, a teleport): Sauce's distance is all there is.
+  if (match.i < 0 || match.cm > ON_ROUTE_CM * 3) return guess;
+  return route.distances[match.i];
 }

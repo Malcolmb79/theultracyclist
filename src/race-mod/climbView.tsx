@@ -81,7 +81,7 @@ function ClimbOverlay() {
   const { address, watching } = useSauce({});
   const { route } = useCourse(address, watching);
   const s = watching?.state;
-  const at = route ? routePosition(route, s?.routeDistance) : undefined;
+  const at = route ? routePosition(route, s) : undefined;
   const found = route && at != null ? findClimb(route, at, settings.ahead, settings.sensitivity as ClimbSensitivity) : undefined;
 
   // Keep the climb up for a few seconds over the top.

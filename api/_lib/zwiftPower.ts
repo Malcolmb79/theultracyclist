@@ -147,6 +147,10 @@ function num(v: unknown): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
+function positive(n: number | undefined): number | undefined {
+  return n != null && n > 0 ? n : undefined;
+}
+
 function str(v: unknown): string | undefined {
   const x = Array.isArray(v) ? v[0] : v;
   return typeof x === "string" && x.trim() ? x.trim() : undefined;
@@ -173,8 +177,9 @@ export function summarise(results: unknown): RiderHistory | null {
       return {
         at: t != null ? (t > 1e12 ? t : t * 1000) : undefined,
         event: str(r.event_title) ?? "Race",
-        place: num(r.position_in_cat) ?? num(r.pos),
-        category: str(r.category),
+        // Ladder races carry no place (0) and "SEE LADDER SITE" for a category.
+        place: positive(num(r.position_in_cat) ?? num(r.pos)),
+        category: /^[A-E]\+?$/i.test(str(r.category) ?? "") ? str(r.category) : undefined,
         wkg: num(r.avg_wkg),
         // Each result carries the rider's best efforts in that race, as W/kg.
         efforts: { s15: num(r.wkg15), m1: num(r.wkg60), m5: num(r.wkg300), m20: num(r.wkg1200) },
@@ -205,7 +210,7 @@ export function summarise(results: unknown): RiderHistory | null {
   const best90Days = recentRaces.length ? { s15: best("s15"), m1: best("m1"), m5: best("m5"), m20: best("m20") } : undefined;
 
   return {
-    category: races[0]?.category,
+    category: races.find((r) => r.category)?.category,
     last30Days: m30,
     last90Days: { races: m90.races, wins: m90.wins, podiums: m90.podiums },
     recent: races.slice(0, 3).map((r) => ({

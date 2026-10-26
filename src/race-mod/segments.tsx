@@ -106,7 +106,7 @@ function SegmentsOverlay() {
   const { address, watching } = useSauce({});
   const { route } = useCourse(address, watching);
   const s = watching?.state;
-  const at = route ? routePosition(route, s?.routeDistance) : undefined;
+  const at = route ? routePosition(route, s) : undefined;
   const [phase, setPhase] = useState<Phase>(null);
   const [results, setResults] = useState<SegmentResult[]>([]);
   const last = useRef<{ segment?: RouteSegment; at?: number }>({});

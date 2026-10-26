@@ -14,7 +14,7 @@ import { useEventBrief } from "../components/race/eventInfo";
 import { SESSION_OPTIONS, useSession, type SessionChoice } from "../components/race/useSession";
 import { OverlayShell, useSettings, type SettingDef } from "./overlay";
 import { SITE } from "./site";
-import { useCourse } from "./useCourse";
+import { routePosition, useCourse } from "./useCourse";
 import { courseAhead } from "./courseAhead";
 import shell from "./Overlay.module.css";
 import styles from "./Tactics.module.css";
@@ -47,7 +47,8 @@ function TacticsOverlay() {
   const { route } = useCourse(address, watching);
   useEffect(() => {
     const log = recorder.current?.log;
-    const at = watching?.state?.routeDistance;
+    // Where the rider really is on the route (see routePosition), not Sauce's raw distance.
+    const at = route ? routePosition(route, watching?.state) : undefined;
     if (!log) return;
     const remaining = watching?.remainingMetric === "distance" ? watching.remaining : undefined;
     log.courseAhead = route && at != null ? courseAhead(route, at, remaining) : undefined;

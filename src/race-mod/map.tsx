@@ -128,7 +128,7 @@ function MapOverlay() {
         ? `${Math.max(0, Math.round(watching.remaining / 60))} min to go`
         : `${(Math.max(0, watching.remaining) / 1000).toFixed(1)} km to go`;
 
-  const at = route ? routePosition(route, s?.routeDistance) : undefined;
+  const at = route ? routePosition(route, s) : undefined;
 
   return (
     <OverlayShell title="Map" settings={settings} setSetting={set} defs={DEFS} className={styles.map}>

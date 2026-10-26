@@ -48,12 +48,12 @@ function ProfileOverlay() {
   const { address, status, watching, nearby } = useSauce({ nearby: true });
   const { route, problem } = useCourse(address, watching);
   const s = watching?.state;
-  const at = route ? routePosition(route, s?.routeDistance) : undefined;
+  const at = route ? routePosition(route, s) : undefined;
   const myTeam = watching?.athlete?.team?.trim().toLowerCase();
   const riders: ProfileRider[] =
     route && settings.riders
       ? nearby.flatMap((r) => {
-          const p = routePosition(route, r.state?.routeDistance);
+          const p = routePosition(route, r.state);
           return p == null
             ? []
             : [{ id: r.athleteId, at: p, watching: r.watching, teammate: !!myTeam && r.athlete?.team?.trim().toLowerCase() === myTeam }];

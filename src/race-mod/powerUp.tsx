@@ -6,6 +6,8 @@ import { connectSauce, sauceAddressForModPage, sauceRpc, type SauceAthleteData, 
 import { OverlayShell, useSettings, type SettingDef } from "./overlay";
 import shell from "./Overlay.module.css";
 import PowerUpIcon from "./PowerUpIcon";
+import { routePosition, useCourse } from "./useCourse";
+import { NOW_M, adviseUse, type Advice } from "./powerUpAdvice";
 import styles from "./PowerUp.module.css";
 
 // In the theme's accent colour, like the rest of the overlays.
@@ -21,9 +23,19 @@ import styles from "./PowerUp.module.css";
 // The badge fills the window, so resizing the window sizes the badge; the
 // name, the seconds left and what it does sit under it, each switched on
 // in the settings.
-const DEFAULTS = { opacity: 0, example: false, showName: false, showSeconds: false, showEffect: false, hideWhenEmpty: false };
+const DEFAULTS = { opacity: 0, example: false, advice: true, featherAt: "steepest", showName: false, showSeconds: false, showEffect: false, hideWhenEmpty: false };
 const DEFS: SettingDef[] = [
   { key: "example", label: "Show an example (for placing it)", type: "toggle" },
+  { key: "advice", label: "When to use it", type: "toggle" },
+  {
+    key: "featherAt",
+    label: "Feather on a climb",
+    type: "select",
+    options: [
+      { value: "steepest", label: "The steepest part" },
+      { value: "top", label: "To last to the top" },
+    ],
+  },
   { key: "showName", label: "Name", type: "toggle" },
   { key: "showSeconds", label: "Seconds left", type: "toggle" },
   { key: "showEffect", label: "What it does", type: "toggle" },
@@ -41,6 +53,8 @@ function PowerUpOverlay() {
   const [game, setGame] = useState<SauceGameState | null>(null);
   const [watching, setWatching] = useState<SauceAthleteData | null>(null);
   const [, tick] = useState(0);
+  // The route, for working out where to use a power-up.
+  const { route } = useCourse(address, watching);
 
   useEffect(() => {
     // The game state as it is now, then every change to it.
@@ -89,10 +103,27 @@ function PowerUpOverlay() {
     );
   }
 
+  // Where to use the one held, from the road ahead - not once it's running.
+  const at = route ? routePosition(route, watching?.state) : undefined;
+  let advice: Advice | undefined;
+  if (settings.advice && shown && !shown.running) {
+    advice = example
+      ? { inM: 420, why: "so it lasts to the sprint line" }
+      : route && at != null
+        ? adviseUse(shown.code, route, {
+            at,
+            remainingM: watching?.remainingMetric === "distance" ? (watching.remaining ?? undefined) : undefined,
+            kmh: watching?.state?.speed ?? 35,
+            watts: watching?.state?.power ?? 250,
+            weightKg: watching?.athlete?.weight ?? 75,
+          }, settings.featherAt === "top" ? "top" : "steepest")
+        : undefined;
+  }
+  const useNow = advice?.inM != null && advice.inM <= NOW_M;
   const fraction = shown?.running && left != null ? Math.min(1, left / total.current) : null;
   const seconds = settings.showSeconds && shown?.running && left != null ? `${Math.ceil(left)}s` : null;
   // Room under the badge for whatever's switched on, so the badge takes the rest of the window.
-  const labelsRem = (settings.showName ? 1.8 : 0) + (seconds ? 1.6 : 0) + (settings.showEffect && shown?.p.effect ? 2.4 : 0) + (example ? 1.1 : 0);
+  const labelsRem = (advice ? (advice.inM != null ? 2.6 : 2.2) : 0) + (settings.showName ? 1.8 : 0) + (seconds ? 1.6 : 0) + (settings.showEffect && shown?.p.effect ? 2.4 : 0) + (example ? 1.1 : 0);
 
   return (
     <OverlayShell title="Power-up" settings={settings} setSetting={set} defs={DEFS}>
@@ -121,6 +152,19 @@ function PowerUpOverlay() {
                 </svg>
               )}
             </span>
+            {advice &&
+              (useNow ? (
+                <span className={`${styles.advice} ${styles.now}`}>Use it now</span>
+              ) : advice.inM != null ? (
+                <span className={styles.advice}>
+                  <b>Use in {advice.inM >= 1000 ? `${(advice.inM / 1000).toFixed(1)} km` : `${Math.round(advice.inM / 10) * 10} m`}</b>
+                  <small>{advice.why}</small>
+                </span>
+              ) : (
+                <span className={styles.advice}>
+                  <small>{advice.why}</small>
+                </span>
+              ))}
             {settings.showName && <span className={styles.name}>{shown.p.name}</span>}
             {seconds && <span className={styles.state}>{seconds}</span>}
             {settings.showEffect && shown.p.effect && <p className={styles.effect}>{shown.p.effect}</p>}

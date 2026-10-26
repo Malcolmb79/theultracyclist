@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useState } from "react";
+import { StrictMode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../styles/global.css";
 import { athleteName, type SauceAthleteData } from "../components/race/sauceFeed";
@@ -77,8 +77,8 @@ function order(riders: SauceAthleteData[]): SauceAthleteData[] {
 }
 
 /** A window of rows centred on the watched rider, as Zwift's list does. */
-function around(riders: SauceAthleteData[], rows: number): SauceAthleteData[] {
-  const i = riders.findIndex((r) => r.watching);
+function around(riders: SauceAthleteData[], rows: number, watchedId?: number): SauceAthleteData[] {
+  const i = riders.findIndex((r) => r.watching || r.athleteId === watchedId);
   if (i < 0 || riders.length <= rows) return riders.slice(0, rows);
   const start = Math.max(0, Math.min(riders.length - rows, i - Math.floor(rows / 2)));
   return riders.slice(start, start + rows);
@@ -159,7 +159,28 @@ function RaceBoard() {
   // And, in an event, only the rider's own category if chosen.
   const subgroup = settings.category ? watching?.state?.eventSubgroupId || undefined : undefined;
   const riders = (mine ? nearby.filter((r) => r.watching || mine.has(r.athleteId)) : nearby).filter((r) => inRace(r, subgroup));
-  const shown = around(order(riders), settings.rows);
+  // As many rows as the window has room for (up to the setting), the rider in the middle -
+  // so in a short window they're centred rather than cut off the bottom.
+  const list = useRef<HTMLOListElement | null>(null);
+  const [fit, setFit] = useState(settings.rows);
+  useLayoutEffect(() => {
+    const measure = () => {
+      const el = list.current;
+      const items = el ? Array.from(el.children) as HTMLElement[] : [];
+      if (!el || !items.length) return;
+      const rowH = items.reduce((sum, li) => sum + li.offsetHeight, 0) / items.length;
+      // What sits under the list (the distance to the finish) needs its room too.
+      let below = 0;
+      for (let n = el.nextElementSibling; n; n = n.nextElementSibling) below += (n as HTMLElement).offsetHeight;
+      const room = window.innerHeight - el.getBoundingClientRect().top - below;
+      const rows = Math.max(3, Math.floor(room / Math.max(1, rowH)));
+      setFit((f) => (f === rows ? f : rows));
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  });
+  const shown = around(order(riders), Math.min(settings.rows, fit), watching?.athleteId);
   const myTeam = watching?.athlete?.team?.trim().toLowerCase();
   const toGo =
     watching?.remaining == null
@@ -183,7 +204,7 @@ function RaceBoard() {
         </span>
       </header>
 
-      <ol className={styles.rows}>
+      <ol ref={list} className={styles.rows}>
         {shown.map((r) => {
           const a = r.athlete;
           const s = r.state;

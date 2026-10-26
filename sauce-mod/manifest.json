@@ -3,7 +3,7 @@
   "id": "ultracyclist-race",
   "name": "Ultra Cyclist Race",
   "description": "The Ultra Cyclist's race overlays for Sauce: a full HUD in its own look (power, ride stats, race board, map, route profile, groups, chat) to use with Zwift's HUD off, plus live commentary and a tactics coach. Right-click any overlay for its settings.",
-  "version": "2.11.0",
+  "version": "2.12.0",
   "author": "Malcolm Barske",
   "website_url": "https://theultracyclist.com/dashboard/race",
   "web_root": "web",
@@ -171,6 +171,20 @@
         "height": 270,
         "x": 0.4,
         "y": 0.12
+      }
+    },
+    {
+      "file": "web/powerUp.html",
+      "id": "ultracyclist-race-powerup",
+      "name": "Ultra Cyclist Power-up",
+      "description": "The power-up you're holding and what it does, and a countdown while it runs",
+      "overlay": true,
+      "frame": false,
+      "default_bounds": {
+        "width": 260,
+        "height": 110,
+        "x": 0.01,
+        "y": 0.3
       }
     }
   ]

@@ -29,6 +29,7 @@ export default defineConfig({
         climbView: fileURLToPath(new URL('./sauce-mod/climbView.html', import.meta.url)),
         draft: fileURLToPath(new URL('./sauce-mod/draft.html', import.meta.url)),
         segments: fileURLToPath(new URL('./sauce-mod/segments.html', import.meta.url)),
+        powerUp: fileURLToPath(new URL('./sauce-mod/powerUp.html', import.meta.url)),
       },
     },
   },

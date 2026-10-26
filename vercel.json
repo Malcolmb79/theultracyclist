@@ -31,13 +31,22 @@
           "key": "Strict-Transport-Security",
           "value": "max-age=63072000; includeSubDomains"
         },
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
         {
           "key": "Permissions-Policy",
           "value": "geolocation=(self), camera=(), microphone=(), payment=(), usb=(), magnetometer=(), accelerometer=()"
         },
-        { "key": "X-Frame-Options", "value": "SAMEORIGIN" }
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        }
       ]
     }
   ],
@@ -51,5 +60,10 @@
       "path": "/api/cron-refresh",
       "schedule": "0 5 * * *"
     }
-  ]
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "claude/relaxed-rubin-beyv5d": false
+    }
+  }
 }

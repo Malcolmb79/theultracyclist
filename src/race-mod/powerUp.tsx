@@ -16,8 +16,9 @@ import styles from "./PowerUp.module.css";
 // Zwift's Companion app uses), so without that only the running one shows,
 // from the rider's state.
 
-const DEFAULTS = { opacity: 80, effect: true, hideWhenEmpty: false };
+const DEFAULTS = { opacity: 80, example: false, effect: true, hideWhenEmpty: false };
 const DEFS: SettingDef[] = [
+  { key: "example", label: "Show an example (for placing it)", type: "toggle" },
   { key: "effect", label: "What it does", type: "toggle" },
   { key: "hideWhenEmpty", label: "Hide when there's none", type: "toggle" },
 ];
@@ -72,11 +73,15 @@ function PowerUpOverlay() {
   const left = end && active ? Math.max(0, (end - Date.now()) / 1000) : undefined;
   const connected = !!game?.gameConnection;
 
-  const shown = active
-    ? { code: activeCode!, p: active, running: true }
-    : held
-      ? { code: game!.availablePowerUp!, p: held, running: false }
-      : null;
+  // The example: a power-up held, as it would show, to size and place the window by.
+  const example = settings.example ? powerUp("AERO") : undefined;
+  const shown = example
+    ? { code: "AERO", p: example, running: false }
+    : active
+      ? { code: activeCode!, p: active, running: true }
+      : held
+        ? { code: game!.availablePowerUp!, p: held, running: false }
+        : null;
   if (!shown && settings.hideWhenEmpty) {
     return (
       <OverlayShell title="Power-up" settings={settings} setSetting={set} defs={DEFS}>
@@ -95,7 +100,7 @@ function PowerUpOverlay() {
                 <PowerUpIcon code={shown.code} />
               </span>
               <span className={styles.name}>{shown.p.name}</span>
-              <span className={styles.state}>{shown.running ? (left != null ? `${Math.ceil(left)}s` : "On") : "Ready"}</span>
+              <span className={styles.state}>{example ? "Example" : shown.running ? (left != null ? `${Math.ceil(left)}s` : "On") : "Ready"}</span>
             </div>
             {settings.effect && shown.p.effect && <p className={styles.effect}>{shown.p.effect}</p>}
             {shown.running && left != null && (

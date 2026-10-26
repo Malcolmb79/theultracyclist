@@ -36,6 +36,10 @@ const COLOUR: Record<string, string> = {
   BOOST: "#ff4d2e",
 };
 
+/** The countdown ring's radius and length, in the ring's own 44-unit box. */
+const RING_R = 20.5;
+const RING_C = 2 * Math.PI * RING_R;
+
 function PowerUpOverlay() {
   const [settings, set] = useSettings("powerUp", DEFAULTS);
   const address = useMemo(() => sauceAddressForModPage(), []);
@@ -96,8 +100,24 @@ function PowerUpOverlay() {
         {shown ? (
           <>
             <div className={styles.head}>
-              <span className={styles.badge} aria-hidden>
-                <PowerUpIcon code={shown.code} />
+              <span className={styles.badgeWrap} aria-hidden>
+                <span className={styles.badge}>
+                  <PowerUpIcon code={shown.code} />
+                </span>
+                {shown.running && left != null && (
+                  // Draining round the badge as it runs out, the way Zwift shows it.
+                  <svg className={styles.ring} viewBox="0 0 44 44">
+                    <circle className={styles.ringTrack} cx="22" cy="22" r={RING_R} />
+                    <circle
+                      className={styles.ringLeft}
+                      cx="22"
+                      cy="22"
+                      r={RING_R}
+                      strokeDasharray={RING_C}
+                      strokeDashoffset={RING_C * (1 - Math.min(1, left / total.current))}
+                    />
+                  </svg>
+                )}
               </span>
               <span className={styles.name}>{shown.p.name}</span>
               <span className={styles.state}>{example ? "Example" : shown.running ? (left != null ? `${Math.ceil(left)}s` : "On") : "Ready"}</span>

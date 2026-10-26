@@ -9,6 +9,39 @@
   gap: var(--space-2);
 }
 
+.badgeWrap {
+  position: relative;
+  display: flex;
+  padding: 7px;
+  margin: 2px -4px 2px -6px;
+}
+
+/* The countdown round the badge: a faint track, and what's left in the power-up's colour. */
+.ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+  overflow: visible;
+}
+
+.ringTrack,
+.ringLeft {
+  fill: none;
+  stroke-width: 3.2;
+}
+
+.ringTrack {
+  stroke: rgba(var(--hud-ink), 0.25);
+}
+
+.ringLeft {
+  stroke: var(--pu);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.25s linear;
+}
+
 .badge {
   display: flex;
   align-items: center;
@@ -24,13 +57,14 @@
   box-shadow: 0 0 12px color-mix(in srgb, var(--pu) 60%, transparent);
 }
 
+/* Running: the ring does the talking, so the badge glows rather than pulses over it. */
 .running .badge {
-  animation: pulse 1s ease-in-out infinite alternate;
+  animation: glow 1s ease-in-out infinite alternate;
 }
 
-@keyframes pulse {
+@keyframes glow {
   to {
-    transform: scale(1.08);
+    box-shadow: 0 0 18px color-mix(in srgb, var(--pu) 85%, transparent);
   }
 }
 

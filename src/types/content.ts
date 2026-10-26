@@ -38,6 +38,8 @@ export interface Donation {
 export interface FundraiserInfo {
   campaignName: string;
   goalZAR: number;
+  /** The goal as shown on the site, in euros, when it's set as a round euro figure rather than converted from goalZAR. */
+  goalEUR?: number;
   raisedZAR: number;
   lastUpdated: string; // ISO date
   campaignUrl: string;

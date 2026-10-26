@@ -13,11 +13,15 @@ interface FundraiserProgressProps {
 }
 
 export default function FundraiserProgress({ compact = false }: FundraiserProgressProps) {
-  const percent = Math.min(100, Math.round((fundraiser.raisedZAR / fundraiser.goalZAR) * 100));
   const { rates } = useEurRates();
 
   const raisedEur = convertToEur(fundraiser.raisedZAR, "ZAR", rates);
-  const goalEur = convertToEur(fundraiser.goalZAR, "ZAR", rates);
+  // A set euro goal is shown as it is; otherwise the rand goal at today's rate.
+  const goalEur = fundraiser.goalEUR ?? convertToEur(fundraiser.goalZAR, "ZAR", rates);
+  const percent =
+    fundraiser.goalEUR && raisedEur !== null
+      ? Math.min(100, Math.round((raisedEur / fundraiser.goalEUR) * 100))
+      : Math.min(100, Math.round((fundraiser.raisedZAR / fundraiser.goalZAR) * 100));
   const raisedDisplay = raisedEur !== null ? formatEUR(raisedEur) : "…";
   const goalDisplay = goalEur !== null ? formatEUR(goalEur) : "…";
 

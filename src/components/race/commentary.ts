@@ -8,6 +8,7 @@ import {
   type RaceLog,
   type RaceSample,
   type RiderHistory,
+  ladderTeams,
 } from "./raceLog";
 
 // Live commentary and tactics: a compact snapshot of the race goes to
@@ -73,6 +74,7 @@ const INTEREST: Partial<Record<RaceEvent["kind"], number>> = {
   attack: 3,
   leader: 3,
   dropped: 2,
+  team: 3,
   bridged: 2,
   surge: 2,
   position: 1.5,
@@ -139,7 +141,7 @@ export const TACTICS_FINALE_GAP_MS = 6_000;
  * and of the distance markers only the ones where positioning and the
  * timing of the final effort are decided count (TACTIC_MARKERS).
  */
-const MOMENT_EVENTS = new Set<RaceEvent["kind"]>(["split", "merge", "distance", "go", "attack", "powerup"]);
+const MOMENT_EVENTS = new Set<RaceEvent["kind"]>(["split", "merge", "distance", "go", "attack", "powerup", "team"]);
 const TACTIC_MARKERS = /^(1 km|500 m|200 m) to go$/;
 /** Countdown calls in the pen, seconds before the start - the last one just before the off. */
 const COUNTDOWN_CALLS_SEC = [120, 60, 15];
@@ -279,9 +281,13 @@ function bridgeTarget(gapSec: number, aheadKmh: number | undefined, now: RaceSam
  * through the field and distance markers since `sinceT`.
  */
 /** What the radios take the session to be: the rider's choice, or for "auto", an event is a race. */
-export function sessionKind(log: RaceLog, choice: "auto" | "race" | "ride" = "auto"): "race" | "ride" {
+export function sessionKind(
+  log: RaceLog,
+  choice: "auto" | "race" | "ride" | "ladder" = "auto",
+): "race" | "ride" | "ladder" {
   if (choice !== "auto") return choice;
-  return log.eventSubgroupId ? "race" : "ride";
+  if (!log.eventSubgroupId) return "ride";
+  return ladderTeams(log.event?.name) || /club ladder/i.test(log.event?.name ?? "") ? "ladder" : "race";
 }
 
 /**
@@ -519,6 +525,17 @@ export function keyMoments(log: RaceLog, sinceT: number, clock = Date.now()): Ke
     }
   }
 
+  // A team race: a teammate close to empty is the team's problem - shelter them, or ride for someone else.
+  if (log.sessionType === "ladder") {
+    for (const r of log.field?.ridersGroup ?? []) {
+      const c = r.condition;
+      const teammate = log.rider?.team && r.team?.toLowerCase() === log.rider.team.toLowerCase();
+      if (teammate && r.name !== log.rider?.name && c?.wBalPct != null && c.wBalPct <= LIMIT_W_BAL_PCT) {
+        moments.push({ id: `teammate-limit-${r.name}`, text: `Your teammate ${r.name} is on the limit: W′ down to ${c.wBalPct}%.` });
+      }
+    }
+  }
+
   // A climb or sprint coming up: the time to plan for it, before it starts.
   // Called once each time round (the id is the segment and roughly where it starts).
   const upcoming = log.courseAhead?.next.find((n) => n.kind !== "segment" && n.inKm <= SEGMENT_WARNING_KM);
@@ -578,7 +595,8 @@ export function buildSnapshot(
   const others = log.events.filter((e) => e.kind !== "commentary" && e.kind !== "tactic" && e.kind !== "start");
 
   const climb = first?.alt != null && now?.alt != null ? Math.round(now.alt - first.alt) : undefined;
-  const ride = sessionKind(log, log.sessionType ?? "auto") === "ride";
+  const kind = sessionKind(log, log.sessionType ?? "auto");
+  const ride = kind === "ride";
   const phase = racePhase(log);
   // On a ride, nothing that frames it as a race: places, leaders, results, attacks.
   const said = ride ? others.filter((e) => !RACE_ONLY_EVENTS.has(e.kind)).map(rideWording) : others;
@@ -597,7 +615,7 @@ export function buildSnapshot(
       : undefined,
     yourFitness,
     // A race, or a ride - training or a group ride - which changes the whole tone.
-    session: ride ? "ride" : "race",
+    session: kind,
     // "pen" until the race starts: nothing on the road means anything yet.
     // A ride is just being ridden - no finale to build to.
     phase: ride && (phase === "racing" || phase === "finale") ? "riding" : phase,
@@ -649,6 +667,8 @@ export function buildSnapshot(
       toWatch: ride ? undefined : log.field.toWatch?.map((r) => withHistory(log, r)),
       pen: ride || !log.field.pen ? undefined : { ...log.field.pen, topRiders: log.field.pen.topRiders.map((r) => withHistory(log, r)) },
       rivals: ride ? undefined : log.field.rivals?.map((r) => withHistory(log, r)),
+      // A Club Ladder race: the team score as it stands.
+      teams: kind === "ladder" ? log.field.teams : undefined,
       // Who's suffering and who's fresh, from the riders in sight.
       condition: fieldCondition(log),
     },

@@ -164,6 +164,38 @@ export interface CourseAhead {
   finishInKm?: number;
 }
 
+/**
+ * A Club Ladder race as a team score: the rider's team (the riders sharing
+ * their team tag) against the other, each rider's place and the points it
+ * is worth if the race finished now.
+ */
+export interface TeamStanding {
+  ours: LadderTeam;
+  theirs: LadderTeam;
+  leading: "ours" | "theirs" | "level";
+  margin: number;
+  /** How points are counted, so the commentator can say it. */
+  scoring: string;
+}
+
+export interface LadderTeam {
+  name: string;
+  points: number;
+  riders: { name: string; pos?: number; points: number; gap?: number; state?: string }[];
+}
+
+/** "Club Ladder // DIRTy Strangers v ART Hadrons" - the two teams, by name. */
+export function ladderTeams(eventName: string | undefined): [string, string] | undefined {
+  const m = eventName?.match(/ladder\s*\/\/\s*(.+?)\s+v(?:s|\.)?\s+(.+?)\s*$/i);
+  return m ? [m[1].trim(), m[2].trim()] : undefined;
+}
+
+/** Points for a place: 10 for 1st down to 1 for 10th - Club Ladder's usual count. */
+export const LADDER_SCORING = "10 points for 1st down to 1 for 10th";
+function ladderPoints(pos: number | undefined): number {
+  return pos != null && pos > 0 ? Math.max(0, 11 - pos) : 0;
+}
+
 export interface FieldSnapshot {
   t: number;
   /** The rider's own group, hardest-working first. */
@@ -178,6 +210,8 @@ export interface FieldSnapshot {
   pen?: PenField;
   /** The riders racing the watched one for places, and how they compare. */
   rivals?: Rival[];
+  /** In a Club Ladder race: the team score as it stands. */
+  teams?: TeamStanding;
 }
 
 /**
@@ -248,6 +282,8 @@ export type RaceEventKind =
   | "leader"
   | "finish"
   | "result"
+  /** In a team race: the points lead changing hands. */
+  | "team"
   | "stop";
 
 export interface RaceEvent {
@@ -277,7 +313,7 @@ export interface RaceLog {
   field?: FieldSnapshot;
   remainingMetric?: "time" | "distance";
   /** A race, or a ride (training, a group ride): set by the radios from the rider's choice. */
-  sessionType?: "race" | "ride";
+  sessionType?: "race" | "ride" | "ladder";
   /**
    * Riders' recent racing from ZwiftPower, by athlete id (null: nothing
    * shared there), filled in as the radios look riders up.
@@ -371,6 +407,8 @@ export class RaceRecorder {
   private attackStreak = new Map<number, number>();
   /** Riders seen racing another category, whose chat isn't this race's. */
   private otherRaces = new Set<number>();
+  /** Which team led on points at the last look, for calling the lead changing hands. */
+  private ladderLeader?: "ours" | "theirs" | "level";
   /** Each rider's recent power and W′, for their condition. */
   private recent = new Map<number, { t: number; w?: number; wBal?: number }[]>();
   private attackedAt = new Map<number, number>();
@@ -785,10 +823,52 @@ export class RaceRecorder {
         .map(named),
       pen: this.log.samples.at(-1)?.pen ? this.penField(groups, named) : undefined,
       rivals: this.rivals(groups, named),
+      teams: this.log.sessionType === "ladder" ? this.teamStanding(groups, named, now) : undefined,
     };
   }
 
   /** The riders closest in the race, and where each is stronger or weaker. */
+  /**
+   * The team score in a Club Ladder race, from everyone in sight (a ladder
+   * field is small enough to all be). The rider's team is those wearing
+   * their team tag; the event name gives the two teams' names.
+   */
+  private teamStanding(
+    groups: SauceGroup[],
+    named: (a: SauceGroup["athletes"][number]) => FieldRider,
+    now: number,
+  ): TeamStanding | undefined {
+    const tag = this.log.rider?.team?.trim().toLowerCase();
+    if (!tag) return undefined;
+    const everyone = groups.flatMap((g) => g.athletes ?? []);
+    const side = (a: (typeof everyone)[number]) => (a.athlete?.team?.trim().toLowerCase() === tag ? "ours" : "theirs");
+    const build = (which: "ours" | "theirs", name: string): LadderTeam => {
+      const riders = everyone
+        .filter((a) => side(a) === which)
+        .map((a) => {
+          const r = named(a);
+          return { name: r.name, pos: r.pos, points: ladderPoints(r.pos), gap: r.gap, state: r.condition?.state };
+        })
+        .sort((x, y) => (x.pos ?? 999) - (y.pos ?? 999));
+      return { name, points: riders.reduce((sum, r) => sum + r.points, 0), riders };
+    };
+    // Which of the two names in the event title is the rider's: the one their tag starts.
+    const names = ladderTeams(this.log.event?.name);
+    const key = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const mine = names?.find((n) => key(n).startsWith(key(tag).slice(0, 3)));
+    const ours = build("ours", mine ?? this.log.rider?.team ?? "Your team");
+    const theirs = build("theirs", names?.find((n) => n !== mine) ?? "The opposition");
+    if (!ours.riders.length || !theirs.riders.length) return undefined;
+    const leading = ours.points === theirs.points ? "level" : ours.points > theirs.points ? "ours" : "theirs";
+    if (this.ladderLeader && leading !== this.ladderLeader && leading !== "level") {
+      const ahead = leading === "ours" ? ours : theirs;
+      const behind = leading === "ours" ? theirs : ours;
+      this.event("team", `${ahead.name} take the lead on points, ${ahead.points} to ${behind.points}`, now);
+    }
+    this.ladderLeader = leading;
+    return { ours, theirs, leading, margin: Math.abs(ours.points - theirs.points), scoring: LADDER_SCORING };
+  }
+
   private rivals(groups: SauceGroup[], named: (a: SauceGroup["athletes"][number]) => FieldRider): Rival[] | undefined {
     const watchedId = this.log.rider?.athleteId;
     const everyone = groups.flatMap((g) => g.athletes ?? []);

@@ -159,27 +159,32 @@ export interface RiderHistory {
   last90Days: { races: number; wins: number; podiums: number };
   /** Their latest few results, newest first. */
   recent: { date: string; event: string; place?: number; category?: string; wkg?: number }[];
-  /** Best watts per kilo over the last 90 days, where ZwiftPower has them. */
+  /** Best watts per kilo in races over the last 90 days. */
   best90Days?: { s15?: number; m1?: number; m5?: number; m20?: number };
 }
 
-export function summarise(results: unknown, power: unknown): RiderHistory | null {
+export function summarise(results: unknown): RiderHistory | null {
   const list = (Array.isArray(results) ? results : ((results as { data?: unknown[] } | null)?.data ?? [])) as Record<string, unknown>[];
   const races = list
     .map((r) => {
       const t = num(r.event_date) ?? num(r.date);
+      // f_t is the event type: TYPE_RACE, TYPE_RIDE (group rides), TYPE_GROUP_WORKOUT...
+      const type = str(r.f_t);
       return {
         at: t != null ? (t > 1e12 ? t : t * 1000) : undefined,
-        event: str(r.event_title) ?? str(r.name) ?? "Race",
+        event: str(r.event_title) ?? "Race",
         place: num(r.position_in_cat) ?? num(r.pos),
         category: str(r.category),
         wkg: num(r.avg_wkg),
+        // Each result carries the rider's best efforts in that race, as W/kg.
+        efforts: { s15: num(r.wkg15), m1: num(r.wkg60), m5: num(r.wkg300), m20: num(r.wkg1200) },
+        race: !type || /RACE|TIME_TRIAL|TT/i.test(type),
         dq: !!num(r.dq) || str(r.dq) === "1",
       };
     })
-    .filter((r) => r.at != null && !r.dq)
+    .filter((r) => r.at != null && r.race && !r.dq)
     .sort((a, b) => (b.at ?? 0) - (a.at ?? 0));
-  if (!races.length && !power) return null;
+  if (!races.length) return null;
 
   const since = (days: number) => races.filter((r) => Date.now() - (r.at ?? 0) <= days * 86_400_000);
   const tally = (rs: typeof races) => ({
@@ -191,17 +196,13 @@ export function summarise(results: unknown, power: unknown): RiderHistory | null
   const m30 = tally(since(30));
   const m90 = tally(since(90));
 
-  // The power profile: a curve of best efforts, as {x: seconds, y: value} points.
-  let best90Days: RiderHistory["best90Days"];
-  const curve = (power as { efforts?: Record<string, { x?: unknown; y?: unknown }[]> } | null)?.efforts?.["90days"];
-  if (Array.isArray(curve) && curve.length) {
-    const at = (secs: number) => {
-      const p = curve.find((c) => num(c.x) === secs);
-      const v = p ? num(p.y) : undefined;
-      return v != null ? Math.round(v * 10) / 10 : undefined;
-    };
-    best90Days = { s15: at(15), m1: at(60), m5: at(300), m20: at(1200) };
-  }
+  // Their best efforts over the last 90 days, from the races in it.
+  const recentRaces = since(90);
+  const best = (k: "s15" | "m1" | "m5" | "m20") => {
+    const vals = recentRaces.map((r) => r.efforts[k]).filter((v): v is number => v != null && v > 0);
+    return vals.length ? Math.round(Math.max(...vals) * 10) / 10 : undefined;
+  };
+  const best90Days = recentRaces.length ? { s15: best("s15"), m1: best("m1"), m5: best("m5"), m20: best("m20") } : undefined;
 
   return {
     category: races[0]?.category,
@@ -222,10 +223,8 @@ export function summarise(results: unknown, power: unknown): RiderHistory | null
 export async function riderHistory(id: number, steps: string[] = []): Promise<RiderHistory | null> {
   const cached = await getJSON<{ at: number; history: RiderHistory | null }>(RIDER_KEY(id));
   if (cached && Date.now() - cached.at < RIDER_MS) return cached.history;
-  // One after the other: the first may have to log in, and the second then reuses it.
   const results = await zpJSON(`/cache3/profile/${id}_all.json`, steps);
-  const power = await zpJSON(`/api3.php?do=critical_power_profile&zwift_id=${id}&zwift_event_id=&type=wkg`, steps).catch(() => null);
-  const history = summarise(results, power);
+  const history = summarise(results);
   await setJSON(RIDER_KEY(id), { at: Date.now(), history });
   return history;
 }
@@ -246,11 +245,10 @@ export async function rawSample(idOrSelf: number | undefined, steps: string[]) {
   if (!id) return { error: "Logged in, but couldn't find your own Zwift id on ZwiftPower." };
   const results = await zpJSON(`/cache3/profile/${id}_all.json`, steps);
   const list = (Array.isArray(results) ? results : ((results as { data?: unknown[] } | null)?.data ?? [])) as unknown[];
-  const power = await zpJSON(`/api3.php?do=critical_power_profile&zwift_id=${id}&zwift_event_id=&type=wkg`, steps).catch((e) => String(e));
   return {
     zwiftId: id,
     resultCount: list.length,
-    firstResult: list[0] ?? null,
-    powerKeys: power && typeof power === "object" ? Object.keys(power as object) : power,
+    // What the commentator would be given for them.
+    summary: summarise(results),
   };
 }

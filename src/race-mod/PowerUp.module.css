@@ -1,22 +1,67 @@
+/* The whole window: the badge centred, as big as the window allows once
+   the labels under it (--labels) have their room - so dragging the window's
+   corner sizes the badge. */
 .panel {
-  padding: var(--space-2) var(--space-3);
-  border-left: 4px solid var(--pu);
-}
-
-.head {
+  --labels: 0rem;
+  --size: min(86vw, calc(100vh - var(--labels) - 1.2rem));
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: var(--space-2);
+  justify-content: center;
+  gap: 0.15rem;
+  height: 100vh;
+  padding: 0.3rem;
+  text-align: center;
 }
 
+/* The badge, with room round it for the countdown ring. */
 .badgeWrap {
   position: relative;
   display: flex;
-  padding: 7px;
-  margin: 2px -4px 2px -6px;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--size);
+  height: var(--size);
 }
 
-/* The countdown round the badge: a faint track, and what's left in the power-up's colour. */
+.badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 80%;
+  height: 80%;
+  border-radius: 50%;
+  color: rgb(var(--hud-bg));
+  background: var(--pu);
+  text-shadow: none;
+  box-shadow: 0 0 calc(var(--size) * 0.18) color-mix(in srgb, var(--pu) 60%, transparent);
+}
+
+/* The icon scales with the badge. */
+.badge svg {
+  width: 56%;
+  height: 56%;
+}
+
+/* Running: the ring does the talking, so the badge glows rather than pulses over it. */
+.running .badge {
+  animation: glow 1s ease-in-out infinite alternate;
+}
+
+@keyframes glow {
+  to {
+    box-shadow: 0 0 calc(var(--size) * 0.3) color-mix(in srgb, var(--pu) 85%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .running .badge {
+    animation: none;
+  }
+}
+
+/* The countdown round the badge: a faint track, and what's left in the theme's accent. */
 .ring {
   position: absolute;
   inset: 0;
@@ -29,7 +74,7 @@
 .ringTrack,
 .ringLeft {
   fill: none;
-  stroke-width: 3.2;
+  stroke-width: 2.6;
 }
 
 .ringTrack {
@@ -42,76 +87,39 @@
   transition: stroke-dashoffset 0.25s linear;
 }
 
-.badge {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.4rem;
-  height: 2.4rem;
-  border-radius: 50%;
-  font-family: var(--font-display);
-  font-size: 1.4rem;
-  color: rgb(var(--hud-bg));
-  background: var(--pu);
-  text-shadow: none;
-  box-shadow: 0 0 12px color-mix(in srgb, var(--pu) 60%, transparent);
-}
-
-/* Running: the ring does the talking, so the badge glows rather than pulses over it. */
-.running .badge {
-  animation: glow 1s ease-in-out infinite alternate;
-}
-
-@keyframes glow {
-  to {
-    box-shadow: 0 0 18px color-mix(in srgb, var(--pu) 85%, transparent);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .running .badge {
-    animation: none;
-  }
-}
-
 .name {
-  flex: 1;
-  min-width: 0;
+  max-width: 100%;
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  line-height: 1.3;
+  letter-spacing: 0.03em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-family: var(--font-display);
-  font-size: 1.6rem;
-  letter-spacing: 0.03em;
 }
 
 .state {
-  white-space: nowrap;
   font-family: var(--font-display);
-  font-size: 1.3rem;
+  font-size: 1.2rem;
+  line-height: 1.3;
   color: var(--pu);
   font-variant-numeric: tabular-nums;
 }
 
 .effect {
-  margin: 2px 0 0;
-  font-size: 0.75rem;
+  margin: 0;
+  max-width: 100%;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+.exampleTag {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--color-text-muted);
-}
-
-.timer {
-  height: 4px;
-  margin-top: 6px;
-  border-radius: 2px;
-  background: rgba(var(--hud-ink), 0.15);
-  overflow: hidden;
-}
-
-.timer span {
-  display: block;
-  height: 100%;
-  background: var(--pu);
-  transition: width 0.25s linear;
 }
 
 .none {

@@ -18,10 +18,15 @@ import styles from "./PowerUp.module.css";
 // Zwift's Companion app uses), so without that only the running one shows,
 // from the rider's state.
 
-const DEFAULTS = { opacity: 80, example: false, effect: true, hideWhenEmpty: false };
+// The badge fills the window, so resizing the window sizes the badge; the
+// name, the seconds left and what it does sit under it, each switched on
+// in the settings.
+const DEFAULTS = { opacity: 0, example: false, showName: false, showSeconds: false, showEffect: false, hideWhenEmpty: false };
 const DEFS: SettingDef[] = [
   { key: "example", label: "Show an example (for placing it)", type: "toggle" },
-  { key: "effect", label: "What it does", type: "toggle" },
+  { key: "showName", label: "Name", type: "toggle" },
+  { key: "showSeconds", label: "Seconds left", type: "toggle" },
+  { key: "showEffect", label: "What it does", type: "toggle" },
   { key: "hideWhenEmpty", label: "Hide when there's none", type: "toggle" },
 ];
 
@@ -84,40 +89,42 @@ function PowerUpOverlay() {
     );
   }
 
+  const fraction = shown?.running && left != null ? Math.min(1, left / total.current) : null;
+  const seconds = settings.showSeconds && shown?.running && left != null ? `${Math.ceil(left)}s` : null;
+  // Room under the badge for whatever's switched on, so the badge takes the rest of the window.
+  const labelsRem = (settings.showName ? 1.8 : 0) + (seconds ? 1.6 : 0) + (settings.showEffect && shown?.p.effect ? 2.4 : 0) + (example ? 1.1 : 0);
+
   return (
     <OverlayShell title="Power-up" settings={settings} setSetting={set} defs={DEFS}>
-      <div className={`${shell.panel} ${styles.panel} ${shown?.running ? styles.running : ""}`} style={{ ["--pu" as string]: shown ? "var(--color-accent-2)" : "var(--color-text-muted)" }}>
+      <div
+        className={`${shell.panel} ${styles.panel} ${shown?.running ? styles.running : ""}`}
+        style={{ ["--pu" as string]: shown ? "var(--color-accent-2)" : "var(--color-text-muted)", ["--labels" as string]: `${labelsRem}rem` }}
+      >
         {shown ? (
           <>
-            <div className={styles.head}>
-              <span className={styles.badgeWrap} aria-hidden>
-                <span className={styles.badge}>
-                  <PowerUpIcon code={shown.code} />
-                </span>
-                {shown.running && left != null && (
-                  // Draining round the badge as it runs out, the way Zwift shows it.
-                  <svg className={styles.ring} viewBox="0 0 44 44">
-                    <circle className={styles.ringTrack} cx="22" cy="22" r={RING_R} />
-                    <circle
-                      className={styles.ringLeft}
-                      cx="22"
-                      cy="22"
-                      r={RING_R}
-                      strokeDasharray={RING_C}
-                      strokeDashoffset={RING_C * (1 - Math.min(1, left / total.current))}
-                    />
-                  </svg>
-                )}
+            <span className={styles.badgeWrap} aria-hidden>
+              <span className={styles.badge}>
+                <PowerUpIcon code={shown.code} />
               </span>
-              <span className={styles.name}>{shown.p.name}</span>
-              <span className={styles.state}>{example ? "Example" : shown.running ? (left != null ? `${Math.ceil(left)}s` : "On") : "Ready"}</span>
-            </div>
-            {settings.effect && shown.p.effect && <p className={styles.effect}>{shown.p.effect}</p>}
-            {shown.running && left != null && (
-              <div className={styles.timer} aria-hidden>
-                <span style={{ width: `${Math.min(100, (left / total.current) * 100)}%` }} />
-              </div>
-            )}
+              {fraction != null && (
+                // Draining round the badge as it runs out, the way Zwift shows it.
+                <svg className={styles.ring} viewBox="0 0 44 44">
+                  <circle className={styles.ringTrack} cx="22" cy="22" r={RING_R} />
+                  <circle
+                    className={styles.ringLeft}
+                    cx="22"
+                    cy="22"
+                    r={RING_R}
+                    strokeDasharray={RING_C}
+                    strokeDashoffset={RING_C * (1 - fraction)}
+                  />
+                </svg>
+              )}
+            </span>
+            {settings.showName && <span className={styles.name}>{shown.p.name}</span>}
+            {seconds && <span className={styles.state}>{seconds}</span>}
+            {settings.showEffect && shown.p.effect && <p className={styles.effect}>{shown.p.effect}</p>}
+            {example && <span className={styles.exampleTag}>Example</span>}
           </>
         ) : (
           <p className={styles.none}>

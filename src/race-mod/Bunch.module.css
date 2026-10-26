@@ -1,0 +1,37 @@
+.lane {
+  position: relative;
+  height: 18px;
+  margin: 6px 6px 0;
+  border-radius: 9px;
+  background:
+    linear-gradient(90deg, rgba(var(--hud-ink), 0.06), rgba(var(--hud-accent), 0.18)),
+    rgba(var(--hud-ink), 0.08);
+}
+
+.dot {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  background: rgba(var(--hud-ink), 0.75);
+  transition: left 1s linear;
+}
+
+.me {
+  z-index: 1;
+  width: 13px;
+  height: 13px;
+  margin: -6.5px 0 0 -6.5px;
+  background: var(--color-accent-2);
+  box-shadow: 0 0 8px rgba(var(--hud-accent), 0.8);
+}
+
+.front {
+  position: absolute;
+  right: 4px;
+  top: -15px;
+  font-size: 0.6rem;
+  color: var(--color-text-muted);
+}

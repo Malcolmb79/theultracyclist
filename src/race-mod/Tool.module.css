@@ -1,0 +1,102 @@
+/* Shared by the small single-purpose overlays (bunch position, fuelling,
+   stamina, finish prediction, pacing plan, ghost): a titled panel with
+   one big figure, a line or two under it and an optional bar. */
+
+.panel {
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--color-accent-2);
+}
+
+.top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.label {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
+.tag {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-accent-2);
+  white-space: nowrap;
+}
+
+.big {
+  font-family: var(--font-display);
+  font-size: 2.6rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.big small {
+  font-size: 1.1rem;
+  margin-left: 3px;
+  color: var(--color-text-muted);
+}
+
+.good {
+  color: var(--color-accent-2);
+}
+
+.warn {
+  color: var(--color-amber);
+}
+
+.bad {
+  color: var(--color-accent);
+}
+
+.line {
+  margin: 2px 0 0;
+  font-size: 0.78rem;
+  color: var(--color-text);
+}
+
+.muted {
+  color: var(--color-text-muted);
+}
+
+.bar {
+  position: relative;
+  height: 8px;
+  margin: 6px 0 2px;
+  border-radius: 4px;
+  background: rgba(var(--hud-ink), 0.15);
+  overflow: hidden;
+}
+
+.bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--color-accent-2);
+  transition:
+    width 1s linear,
+    background 0.4s;
+}
+
+.button {
+  margin-top: 6px;
+  padding: 3px 10px;
+  border: none;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: rgb(var(--hud-bg));
+  background: var(--color-accent-2);
+  cursor: pointer;
+}
+
+.waiting {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}

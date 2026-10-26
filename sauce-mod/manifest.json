@@ -3,7 +3,7 @@
   "id": "ultracyclist-race",
   "name": "Ultra Cyclist Race",
   "description": "The Ultra Cyclist's race overlays for Sauce: a full HUD in its own look (power, ride stats, race board, map, route profile, groups, chat) to use with Zwift's HUD off, plus live commentary and a tactics coach. Right-click any overlay for its settings.",
-  "version": "2.15.0",
+  "version": "2.16.0",
   "author": "Malcolm Barske",
   "website_url": "https://theultracyclist.com/dashboard/race",
   "web_root": "web",
@@ -199,6 +199,90 @@
         "height": 420,
         "x": 0.42,
         "y": 0.05
+      }
+    },
+    {
+      "file": "web/bunch.html",
+      "id": "ultracyclist-race-bunch",
+      "name": "Ultra Cyclist Bunch Position",
+      "description": "Where you are in your bunch, front to back: wheels from the front, and every rider along the group",
+      "overlay": true,
+      "frame": false,
+      "default_bounds": {
+        "width": 260,
+        "height": 165,
+        "x": 0.42,
+        "y": 0.75
+      }
+    },
+    {
+      "file": "web/fuel.html",
+      "id": "ultracyclist-race-fuel",
+      "name": "Ultra Cyclist Fuelling",
+      "description": "Energy burned and carbs used, and a reminder to eat and drink on a timer",
+      "overlay": true,
+      "frame": false,
+      "default_bounds": {
+        "width": 240,
+        "height": 140,
+        "x": 0.01,
+        "y": 0.45
+      }
+    },
+    {
+      "file": "web/stamina.html",
+      "id": "ultracyclist-race-stamina",
+      "name": "Ultra Cyclist Stamina",
+      "description": "Real-time stamina for the whole ride, and whether this effort lasts to the finish",
+      "overlay": true,
+      "frame": false,
+      "default_bounds": {
+        "width": 240,
+        "height": 180,
+        "x": 0.01,
+        "y": 0.6
+      }
+    },
+    {
+      "file": "web/eta.html",
+      "id": "ultracyclist-race-eta",
+      "name": "Ultra Cyclist Finish Prediction",
+      "description": "When you'll finish at your recent power, taking in the climbs and descents to come",
+      "overlay": true,
+      "frame": false,
+      "default_bounds": {
+        "width": 240,
+        "height": 130,
+        "x": 0.78,
+        "y": 0.6
+      }
+    },
+    {
+      "file": "web/pacing.html",
+      "id": "ultracyclist-race-pacing",
+      "name": "Ultra Cyclist Pacing Plan",
+      "description": "A power target for the road under you - harder on the climbs, easy down the descents - and what's next",
+      "overlay": true,
+      "frame": false,
+      "default_bounds": {
+        "width": 250,
+        "height": 150,
+        "x": 0.78,
+        "y": 0.45
+      }
+    },
+    {
+      "file": "web/ghost.html",
+      "id": "ultracyclist-race-ghost",
+      "name": "Ultra Cyclist Ghost",
+      "description": "Race your own best or last ride of the route: seconds and metres ahead or behind",
+      "overlay": true,
+      "frame": false,
+      "default_bounds": {
+        "width": 230,
+        "height": 130,
+        "x": 0.78,
+        "y": 0.3
       }
     }
   ]

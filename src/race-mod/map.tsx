@@ -26,7 +26,7 @@ const PAD = 0.06;
 /** How far back along the ridden line to take the direction of travel from, in trail points (about 5 m each). */
 const HEADING_BACK = 6;
 
-const DEFAULTS = { opacity: 80, view: "route", zoom: 2, headingUp: true, riderAt: 0.25, otherRoads: true, riders: true, trail: true, profile: true, title: true, toGo: true };
+const DEFAULTS = { opacity: 80, view: "route", zoom: 2, headingUp: true, riderAt: 0.25, tilt: 0, otherRoads: true, riders: true, trail: true, profile: true, title: true, toGo: true };
 const DEFS: SettingDef[] = [
   { key: "view", label: "View", type: "select", options: [{ value: "route", label: "Whole route" }, { value: "follow", label: "Follow rider" }] },
   { key: "zoom", label: "Follow zoom", type: "select", options: ZOOMS_KM.map((z) => ({ value: z, label: `${z} km` })) },
@@ -42,6 +42,7 @@ const DEFS: SettingDef[] = [
       { value: 0.35, label: "Near the bottom" },
     ],
   },
+  { key: "tilt", label: "Tilt", type: "range", min: 0, max: 80, step: 5, suffix: "°" },
   { key: "otherRoads", label: "Other roads", type: "toggle" },
   { key: "riders", label: "Riders", type: "toggle" },
   { key: "trail", label: "Ridden line", type: "toggle" },
@@ -130,6 +131,15 @@ function MapOverlay() {
 
   const at = route ? routePosition(route, s) : undefined;
 
+  // Tilted back like a camera looking ahead over the rider's shoulder: the map
+  // leans away about the rider (the centre, for the whole route), and grows a
+  // little so the far edge still reaches the top of the window.
+  const tilt = Math.max(0, Math.min(80, settings.tilt));
+  const pivotY = view === "follow" ? 50 + settings.riderAt * 100 : 50;
+  const tiltStyle = tilt
+    ? { transform: `rotateX(${tilt}deg) scale(${(1 + (tilt / 80) * 0.8).toFixed(3)})`, transformOrigin: `50% ${pivotY}%` }
+    : undefined;
+
   return (
     <OverlayShell title="Map" settings={settings} setSetting={set} defs={DEFS} className={styles.map}>
       {settings.title && (
@@ -143,7 +153,7 @@ function MapOverlay() {
 
       <div className={styles.canvas}>
         {box ? (
-          <svg viewBox={`${box.x} ${box.y} ${box.w} ${box.h}`} preserveAspectRatio="xMidYMid meet" className={styles.svg}>
+          <svg viewBox={`${box.x} ${box.y} ${box.w} ${box.h}`} preserveAspectRatio="xMidYMid meet" className={styles.svg} style={tiltStyle}>
             <g
               className={styles.world}
               style={me ? { transform: `rotate(${rotate}deg)`, transformOrigin: `${me[0]}px ${me[1]}px` } : undefined}

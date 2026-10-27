@@ -152,6 +152,9 @@ const BASE_GEOMETRY = {
   vertical: { mergePx: 22, minPx: 34, edge: 26, label: { full: 32, short: 15 } },
 };
 
+/** A group no longer than this, in seconds front to back, is riding together. */
+const TOGETHER_S = 1;
+
 /** The view's length along its axis, kept up to date as the window is resized. */
 function useLength(vertical: boolean): [React.RefObject<HTMLDivElement | null>, number] {
   const ref = useRef<HTMLDivElement | null>(null);
@@ -304,7 +307,14 @@ function GroupsView({ groups, mine, settings }: { groups: SauceGroup[]; mine: nu
           k > 0 ? it.at - sorted[k - 1].it.at : Infinity,
           k < sorted.length - 1 ? sorted[k + 1].it.at - it.at : Infinity,
         );
-        const capsule = Math.max(20 * scale, Math.min(70 * scale, room - 10, (18 + (g.lengthTime ?? 0) * 6 + Math.log2(size + 1) * 4) * scale));
+        // A circle while the group rides together; strung out, it stretches
+        // into a capsule as long as the group - longer for a bigger group -
+        // so a group about to split shows it.
+        const thick = (vertical ? (isMine ? 28 : 22) : isMine ? 26 : 20) * scale;
+        const stretch = Math.max(0, (g.lengthTime ?? 0) - TOGETHER_S) * (6 + Math.log2(size + 1) * 2) * scale;
+        // Clear of the gap label halfway to the next mark.
+        const clear = room - (vertical ? 40 : 76) * scale;
+        const capsule = Math.max(thick, Math.min(thick + stretch, 130 * scale, clear));
         const nameCount = label === "full" ? (size > 3 ? 2 : 3) : 1;
         const names = settings.names && label !== "none" ? leaders(g, nameCount).map(surname) : [];
         const more = label === "full" && size > names.length ? size - names.length : 0;

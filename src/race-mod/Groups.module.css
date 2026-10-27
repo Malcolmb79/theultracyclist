@@ -215,14 +215,14 @@
   color: var(--color-text);
 }
 
-/* Road markers: a capsule as long as the group is strung out. */
+/* Road markers: a circle for a group together, a capsule as long as it's strung out. */
 .capsule {
   grid-area: marker;
   justify-self: center;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 10px;
+  border-radius: 999px;
   font-family: var(--font-display);
   font-size: 0.95rem;
   background: rgba(var(--hud-ink), 0.85);
@@ -252,12 +252,10 @@
 
 .horizontal .mine .capsule {
   height: 1.625rem;
-  border-radius: 0.8125rem;
 }
 
 .vertical .mine .capsule {
   width: 1.75rem;
-  border-radius: 0.875rem;
 }
 
 .merged .capsule {

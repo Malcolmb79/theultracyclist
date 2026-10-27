@@ -32,6 +32,12 @@ const DEFAULTS = {
   riders: true,
   wkg: true,
   power: false,
+  maxWkg: false,
+  maxPower: false,
+  ftpPct: false,
+  np: false,
+  wbal: false,
+  heartrate: false,
   speed: false,
   spacing: "gap",
   merge: true,
@@ -63,8 +69,14 @@ const DEFS: SettingDef[] = [
   { key: "gap", label: "Gaps", type: "toggle" },
   { key: "names", label: "Riders' names", type: "toggle" },
   { key: "riders", label: "Number of riders", type: "toggle" },
-  { key: "wkg", label: "Watts per kilo", type: "toggle" },
-  { key: "power", label: "Average power", type: "toggle" },
+  { key: "wkg", label: "Average W/kg", type: "toggle" },
+  { key: "power", label: "Average watts", type: "toggle" },
+  { key: "maxWkg", label: "Hardest rider's W/kg", type: "toggle" },
+  { key: "maxPower", label: "Hardest rider's watts", type: "toggle" },
+  { key: "ftpPct", label: "Average % of FTP", type: "toggle" },
+  { key: "np", label: "Average normalised power", type: "toggle" },
+  { key: "wbal", label: "Average W′ left", type: "toggle" },
+  { key: "heartrate", label: "Average heart rate", type: "toggle" },
   { key: "speed", label: "Speed", type: "toggle" },
   {
     key: "spacing",
@@ -113,12 +125,36 @@ function surname(a: SauceAthleteData): string {
 }
 
 /** How a group's numbers read, per the settings. */
+/** The mean of what's known for a group's riders. */
+function mean(values: (number | null | undefined)[]): number | undefined {
+  const known = values.filter((v): v is number => v != null && Number.isFinite(v));
+  return known.length ? known.reduce((a, b) => a + b, 0) / known.length : undefined;
+}
+
 function Stats({ g, settings }: { g: SauceGroup; settings: Settings }) {
+  const riders = g.athletes ?? [];
   const wkg = g.power && g.weight ? g.power / g.weight : undefined;
+  // The hardest-working rider right now, by watts per kilo.
+  const each = riders
+    .map((a) => ({ w: a.state?.power, kg: a.athlete?.weight }))
+    .filter((r): r is { w: number; kg: number | undefined } => r.w != null);
+  const maxPower = each.length ? Math.max(...each.map((r) => r.w)) : undefined;
+  const withKg = each.filter((r) => r.kg);
+  const maxWkg = withKg.length ? Math.max(...withKg.map((r) => r.w / r.kg!)) : undefined;
+  const ftpPct = mean(riders.map((a) => (a.state?.power != null && a.athlete?.ftp ? a.state.power / a.athlete.ftp : undefined)));
+  const np = mean(riders.map((a) => a.stats?.power?.np));
+  const wbal = mean(riders.map((a) => (a.wBal != null && a.athlete?.wPrime ? a.wBal / a.athlete.wPrime : undefined)));
+  const hr = mean(riders.map((a) => a.state?.heartrate || undefined)) ?? (g.heartrate || undefined);
   return (
     <>
       {settings.wkg && wkg != null && <span>{wkg.toFixed(1)} W/kg</span>}
       {settings.power && g.power != null && <span>{Math.round(g.power)} W</span>}
+      {settings.maxWkg && maxWkg != null && <span>max {maxWkg.toFixed(1)} W/kg</span>}
+      {settings.maxPower && maxPower != null && <span>max {Math.round(maxPower)} W</span>}
+      {settings.ftpPct && ftpPct != null && <span>{Math.round(ftpPct * 100)}% FTP</span>}
+      {settings.np && np != null && <span>NP {Math.round(np)} W</span>}
+      {settings.wbal && wbal != null && <span>W′ {Math.round(Math.max(0, Math.min(1, wbal)) * 100)}%</span>}
+      {settings.heartrate && hr != null && <span>{Math.round(hr)} bpm</span>}
       {settings.speed && g.speed != null && <span>{Math.round(g.speed)} km/h</span>}
     </>
   );

@@ -175,6 +175,9 @@
 .vertical .below {
   grid-area: below;
   align-self: start;
+  /* Several power figures switched on wrap onto a second line. */
+  flex-wrap: wrap;
+  row-gap: 0;
 }
 
 /* All labels in the full text colour (white on the dark themes) so they hold up over Zwift;

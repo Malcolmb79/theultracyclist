@@ -171,11 +171,13 @@ function PowerUpOverlay() {
             {example && <span className={styles.exampleTag}>Example</span>}
           </>
         ) : (
-          <p className={styles.none}>
-            {connected
-              ? "No power-up - ride through an arch to pick one up."
-              : "No power-up. To see the one you're holding, turn on Sauce's Game Connection (Sauce settings)."}
-          </p>
+          // Nothing held: the badge's place, greyed out, so the window keeps its look.
+          <span
+            className={`${styles.badgeWrap} ${styles.empty}`}
+            title={connected ? "No power-up" : "No power-up. To see the one you're holding, turn on Sauce's Game Connection (Sauce settings)."}
+          >
+            <span className={styles.badge} />
+          </span>
         )}
       </div>
     </OverlayShell>

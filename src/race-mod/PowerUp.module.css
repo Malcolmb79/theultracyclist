@@ -160,10 +160,10 @@
   color: var(--color-text-muted);
 }
 
-.none {
-  margin: 0;
-  font-size: 0.78rem;
-  color: var(--color-text-muted);
+/* The placeholder when none is held: a faint disc with a dashed edge. */
+.empty .badge {
+  background: rgba(var(--hud-bg), 0.3);
+  border: max(1.5px, calc(var(--size) * 0.015)) dashed rgba(var(--hud-ink), 0.22);
 }
 
 .idle {

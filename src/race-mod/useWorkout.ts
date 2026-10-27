@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { sauceRpc, type SauceAthleteData } from "../components/race/sauceFeed";
-import { fromSauceWorkout, parseWorkout, type WorkoutPlan, type XmlNode } from "./workoutPlan";
+import { fromSauceWorkout, parseWorkout, stepAt, targetAt, type WorkoutPlan, type XmlNode } from "./workoutPlan";
 
 // The Zwift workout being ridden, for the workout strip and panel, from
 // whichever source has it:
@@ -53,6 +53,8 @@ export interface Workout {
   /** For picking the workout when it has to come from Zwift. */
   choices: WorkoutChoice[];
   picked?: string;
+  /** How it was chosen: by the rider, planned for today, or matched to their zones. */
+  how?: "picked" | "planned" | "matched";
   pick: (id: string) => void;
   /** What came back, for checking against a real workout. */
   raw: unknown;
@@ -61,7 +63,8 @@ export interface Workout {
 const POLL_MS = 1000;
 const PICK_KEY = "workout:picked";
 
-const today = () => new Date().toISOString().slice(0, 10);
+/** The local day, for keeping a picked workout for the day. */
+const today = () => new Date().toDateString();
 
 function loadPick(): string | undefined {
   try {
@@ -69,6 +72,14 @@ function loadPick(): string | undefined {
     return v?.day === today() ? v.id : undefined;
   } catch {
     return undefined;
+  }
+}
+
+function clearPick() {
+  try {
+    window.localStorage.removeItem(PICK_KEY);
+  } catch {
+    // Nothing kept anyway.
   }
 }
 
@@ -80,20 +91,103 @@ function savePick(id: string) {
   }
 }
 
+interface Candidate {
+  /** Every id Zwift gave it - a schedule entry has its own as well as the workout's. */
+  ids: string[];
+  name: string;
+  /** When it's planned for, if it is. */
+  date?: Date;
+}
+
+/** A date however Zwift writes it: ISO text, a day, or seconds or milliseconds. */
+function toDate(v: unknown): Date | undefined {
+  if (typeof v === "number" && v > 0) return new Date(v < 1e11 ? v * 1000 : v);
+  if (typeof v === "string" && v.trim()) {
+    const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T12:00:00` : v);
+    return Number.isNaN(d.getTime()) ? undefined : d;
+  }
+  return undefined;
+}
+
+const isToday = (d: Date | undefined) => !!d && d.toDateString() === new Date().toDateString();
+
 /** Anything that looks like a workout - an id and a name - wherever it sits in what Zwift returns. */
-function workoutsIn(x: unknown, depth = 0): { id: string; name: string; date?: string }[] {
-  if (depth > 4 || x == null) return [];
+function workoutsIn(x: unknown, depth = 0): Candidate[] {
+  if (depth > 5 || x == null) return [];
   if (Array.isArray(x)) return x.flatMap((v) => workoutsIn(v, depth + 1));
   if (typeof x !== "object") return [];
   const o = x as Record<string, unknown>;
   const inner = o.workout && typeof o.workout === "object" ? (o.workout as Record<string, unknown>) : undefined;
-  const id = o.workoutId ?? inner?.id ?? o.id;
-  const name = o.name ?? inner?.name ?? o.title;
-  if ((typeof id === "number" || typeof id === "string") && typeof name === "string") {
-    const date = [o.date, o.scheduledDate, o.startDate, o.day].find((d) => typeof d === "string") as string | undefined;
-    return [{ id: String(id), name, date }];
+  const name = o.name ?? inner?.name ?? o.title ?? o.workoutName;
+  const ids = [o.workoutId, inner?.id, o.id]
+    .filter((v) => typeof v === "number" || (typeof v === "string" && v !== ""))
+    .map(String)
+    .filter((v, i, all) => all.indexOf(v) === i);
+  if (ids.length && typeof name === "string") {
+    const date = [o.date, o.scheduledDate, o.scheduledFor, o.startDate, o.startTime, o.day, o.plannedDate, inner?.date]
+      .map(toDate)
+      .find(Boolean);
+    return [{ ids, name, date }];
   }
   return Object.values(o).flatMap((v) => (v && typeof v === "object" ? workoutsIn(v, depth + 1) : []));
+}
+
+/** Zwift's zone for a target, as a share of FTP - the zone the rider's data reports. */
+function zoneOf(share: number): number {
+  return [0.6, 0.76, 0.9, 1.05, 1.18].findIndex((upTo) => share < upTo) + 1 || 6;
+}
+
+/** Riding observations, to tell which workout this is: progress and zone over time. */
+interface Seen {
+  t: number;
+  p: number;
+  z: number;
+}
+
+/** Enough to go on, and how sure it must be. */
+const MATCH_MIN_SEEN = 20;
+const MATCH_SCORE = 0.85;
+const MATCH_MARGIN = 0.15;
+/** How far the workout's length may be from the one its progress suggests. */
+const LENGTH_SLACK = 0.25;
+/** Plans looked at: today's, then the rider's other workouts. */
+const MAX_CANDIDATES = 24;
+
+/**
+ * Which workout fits what the rider's data has shown: the zone at each
+ * point of progress, and the length the progress rate gives. Undefined
+ * until one fits clearly better than the rest.
+ */
+export function matchWorkout(seen: Seen[], plans: Map<string, WorkoutPlan>): string | undefined {
+  if (seen.length < MATCH_MIN_SEEN || !plans.size) return undefined;
+  // How fast the progress moves gives the length: it steps 1/255 at a time.
+  const steps = seen.filter((s, k) => k > 0 && s.p > seen[k - 1].p);
+  const estimate =
+    steps.length >= 3 ? (steps[steps.length - 1].t - steps[0].t) / 1000 / (steps[steps.length - 1].p - steps[0].p) : undefined;
+  const scores: { id: string; score: number }[] = [];
+  for (const [id, plan] of plans) {
+    if (estimate && Math.abs(estimate - plan.total) / plan.total > LENGTH_SLACK) continue;
+    let n = 0;
+    let hits = 0;
+    const fuzz = plan.total / 255;
+    for (const s of seen) {
+      const zones = new Set<number>();
+      for (const d of [-fuzz, 0, fuzz]) {
+        const at = Math.min(plan.total - 0.1, Math.max(0, s.p * plan.total + d));
+        const step = plan.steps[stepAt(plan, at)];
+        const share = step && targetAt(step, at);
+        if (share != null) zones.add(zoneOf(share));
+      }
+      if (!zones.size) continue;
+      n++;
+      if (zones.has(s.z)) hits++;
+    }
+    if (n >= MATCH_MIN_SEEN) scores.push({ id, score: hits / n });
+  }
+  scores.sort((a, b) => b.score - a.score);
+  const [best, second] = scores;
+  if (!best || best.score < MATCH_SCORE) return undefined;
+  return !second || best.score - second.score >= MATCH_MARGIN ? best.id : undefined;
 }
 
 export function useWorkout(address: string, watching: SauceAthleteData | null, example: boolean, exampleFile: XmlNode, exampleAt: number): Workout {
@@ -141,11 +235,18 @@ export function useWorkout(address: string, watching: SauceAthleteData | null, e
   const liveFile = status?.info?.file;
   const inWorkout = example || !!liveFile || !!zone;
 
-  // No live file but in a workout: the choices from Zwift, and the one picked.
-  const [choices, setChoices] = useState<WorkoutChoice[]>([]);
+  // No live file but in a workout: the workout from Zwift - the one the
+  // rider picked, else the one planned for today, else whichever fits what
+  // their zone and progress have shown.
+  const needZwift = !example && !liveFile && !!zone;
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [raw, setRaw] = useState<unknown>(null);
   const [picked, setPicked] = useState<string | undefined>(() => loadPick());
-  const needZwift = !example && !liveFile && !!zone;
+  const [plans, setPlans] = useState<Map<string, WorkoutPlan | null>>(new Map());
+  const [matched, setMatched] = useState<string | undefined>();
+  const seen = useRef<Seen[]>([]);
+  const maxProgress = useRef(0);
+
   useEffect(() => {
     if (!needZwift) return;
     let live = true;
@@ -154,39 +255,75 @@ export function useWorkout(address: string, watching: SauceAthleteData | null, e
       sauceRpc<unknown>(address, "getWorkouts").catch((e: Error) => ({ error: e.message })),
     ]).then(([schedule, all]) => {
       if (!live) return;
-      const day = today();
-      const scheduled = workoutsIn(schedule).filter((w) => !w.date || w.date.slice(0, 10) === day);
-      const seen = new Set<string>();
-      const list: WorkoutChoice[] = [];
-      for (const w of scheduled) if (!seen.has(w.id) && seen.add(w.id)) list.push({ id: w.id, name: w.name, scheduled: true });
-      for (const w of workoutsIn(all).sort((a, b) => a.name.localeCompare(b.name)))
-        if (!seen.has(w.id) && seen.add(w.id)) list.push({ id: w.id, name: w.name, scheduled: false });
-      setChoices(list);
+      const planned = workoutsIn(schedule);
+      const mine = workoutsIn(all).sort((a, b) => a.name.localeCompare(b.name));
+      const seenIds = new Set<string>();
+      const list: Candidate[] = [];
+      // Today's first, then the rest of the schedule, then the rider's own workouts.
+      for (const c of [...planned.filter((c) => isToday(c.date)), ...planned.filter((c) => !isToday(c.date)), ...mine]) {
+        if (c.ids.some((id) => seenIds.has(id))) continue;
+        c.ids.forEach((id) => seenIds.add(id));
+        list.push(c);
+      }
+      setCandidates(list);
       setRaw({ schedule, workouts: Array.isArray(all) ? `${all.length} workouts` : all });
-      // Just one planned for today: that's the one.
-      const planned = list.filter((c) => c.scheduled);
-      setPicked((p) => p ?? (planned.length === 1 ? planned[0].id : undefined));
     });
     return () => {
       live = false;
     };
   }, [address, needZwift]);
 
-  const [pickedFile, setPickedFile] = useState<{ id: string; file: XmlNode | null } | null>(null);
+  // Each candidate's blocks, one at a time - trying each of its ids until Zwift has it.
   useEffect(() => {
-    if (!needZwift || !picked || pickedFile?.id === picked) return;
+    if (!needZwift) return;
+    const want = candidates.slice(0, MAX_CANDIDATES).filter((c) => !plans.has(c.ids[0]));
+    // The one picked comes first, wherever it is in the list.
+    const first = candidates.find((c) => c.ids[0] === picked && !plans.has(c.ids[0])) ?? want[0];
+    if (!first) return;
     let live = true;
-    void sauceRpc<unknown>(address, "getWorkout", picked)
-      .then((w) => live && setPickedFile({ id: picked, file: fromSauceWorkout(w) }))
-      .catch(() => live && setPickedFile({ id: picked, file: null }));
+    void (async () => {
+      let plan: WorkoutPlan | null = null;
+      for (const id of first.ids) {
+        const w = await sauceRpc<unknown>(address, "getWorkout", id).catch(() => null);
+        plan = parseWorkout(fromSauceWorkout(w), ftp ?? undefined);
+        if (plan) break;
+      }
+      if (live) setPlans((m) => new Map(m).set(first.ids[0], plan ? { ...plan, name: plan.name ?? first.name } : null));
+    })();
     return () => {
       live = false;
     };
-  }, [address, needZwift, picked, pickedFile?.id]);
+  }, [address, needZwift, candidates, plans, picked, ftp]);
 
-  const source: Workout["source"] = example ? "example" : liveFile ? "live" : needZwift && pickedFile?.file ? "zwift" : null;
-  const file = source === "example" ? exampleFile : source === "live" ? liveFile : source === "zwift" ? pickedFile!.file : null;
-  const plan = useMemo(() => parseWorkout(file, ftp ?? undefined), [file, ftp]);
+  // What the rider's data shows, for matching - started afresh with each new workout.
+  useEffect(() => {
+    if (!needZwift || progress == null || !zone) return;
+    if (progress < maxProgress.current - 0.05) {
+      seen.current = [];
+      setMatched(undefined);
+      setPicked(undefined);
+      clearPick();
+    }
+    maxProgress.current = progress < maxProgress.current - 0.05 ? progress : Math.max(maxProgress.current, progress);
+    seen.current = [...seen.current, { t: Date.now(), p: progress, z: zone }].slice(-900);
+  }, [watching]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const today1 = candidates.filter((c) => isToday(c.date));
+  const plannedToday = today1.length === 1 && plans.get(today1[0].ids[0]) ? today1[0].ids[0] : undefined;
+  useEffect(() => {
+    if (!needZwift || picked || plannedToday || matched) return;
+    const ok = new Map<string, WorkoutPlan>();
+    for (const [id, plan] of plans) if (plan) ok.set(id, plan);
+    setMatched(matchWorkout(seen.current, ok));
+  });
+  const chosen = picked ?? plannedToday ?? matched;
+  const choices: WorkoutChoice[] = candidates.map((c) => ({ id: c.ids[0], name: c.name, scheduled: isToday(c.date) }));
+  const pickedPlan = chosen ? plans.get(chosen) : undefined;
+
+  const source: Workout["source"] = example ? "example" : liveFile ? "live" : needZwift && pickedPlan ? "zwift" : null;
+  const file = source === "example" ? exampleFile : source === "live" ? liveFile : null;
+  const parsed = useMemo(() => parseWorkout(file, ftp ?? undefined), [file, ftp]);
+  const plan = source === "zwift" ? pickedPlan! : parsed;
   const state = source === "live" ? status?.state : undefined;
   const distance = source === "live" && status?.info?.durationType === 1;
 
@@ -232,11 +369,12 @@ export function useWorkout(address: string, watching: SauceAthleteData | null, e
     stars: state?.workoutBlockStates?.reduce((a, s) => a + (s.starsAwarded ?? 0), 0),
     connected,
     choices,
-    picked,
+    picked: chosen,
+    how: picked ? "picked" : plannedToday ? "planned" : matched ? "matched" : undefined,
     pick: (id: string) => {
       savePick(id);
       setPicked(id);
     },
-    raw: source === "live" ? status : { status, zwift: raw, progress, zone },
+    raw: source === "live" ? status : { status, zwift: raw, progress, zone, seen: seen.current.length, candidates: candidates.length, loaded: plans.size },
   };
 }

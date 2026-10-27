@@ -1,0 +1,356 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding: 0.4rem 0.6rem 0.3rem;
+  box-sizing: border-box;
+}
+
+.waitingPanel {
+  padding: 0.5rem 0.7rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.top {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 0.3rem;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* The workout's name gives way first when the window is narrow. */
+.name {
+  flex: 0 1 auto;
+  min-width: 2rem;
+  max-width: 12rem;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.item {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+/* "Next" gives way after the name, so the workout's time left always shows. */
+.shrink {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.shrink .big {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lbl {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.big {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.num {
+  font-family: var(--font-display);
+  font-size: 1.85rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.num small {
+  margin-left: 2px;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.good {
+  color: var(--color-accent-2);
+}
+
+.warn {
+  color: var(--color-amber);
+}
+
+.spacer {
+  flex: 1;
+}
+
+/* How far from the target the rider is: a band for "on target", a needle for now. */
+.gauge {
+  position: relative;
+  flex: none;
+  align-self: center;
+  width: 7rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: rgba(var(--hud-ink), 0.15);
+}
+
+.band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  border-radius: 999px;
+  background: rgba(var(--hud-accent), 0.45);
+}
+
+.needle {
+  position: absolute;
+  top: -0.2rem;
+  bottom: -0.2rem;
+  width: 3px;
+  margin-left: -1.5px;
+  border-radius: 2px;
+  transition: left 0.4s ease;
+}
+
+.needleGood {
+  background: var(--color-accent-2);
+}
+
+.needleWarn {
+  background: var(--color-amber);
+}
+
+.inRange {
+  position: absolute;
+  top: 0.65rem;
+  left: 0;
+  right: 0;
+  font-size: 0.6rem;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.chart {
+  position: relative;
+  flex: 1;
+  min-height: 2.5rem;
+}
+
+.svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.block {
+  fill-opacity: 0.85;
+  stroke: rgba(var(--hud-bg), 0.6);
+  stroke-width: 1px;
+}
+
+.done .block {
+  fill-opacity: 0.4;
+}
+
+.current .block {
+  fill-opacity: 1;
+  stroke: rgba(var(--hud-ink), 0.8);
+}
+
+.ftp {
+  stroke: rgba(var(--hud-ink), 0.35);
+  stroke-dasharray: 4 4;
+  stroke-width: 1px;
+}
+
+.trace {
+  fill: none;
+  stroke: var(--color-text);
+  stroke-width: 1.6px;
+}
+
+/* How each finished interval went: under the block. */
+rect.good {
+  fill: var(--color-accent-2);
+}
+
+rect.close {
+  fill: var(--color-amber);
+}
+
+rect.off {
+  fill: var(--color-accent);
+}
+
+.cursor {
+  position: absolute;
+  top: -4px;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--color-text);
+  box-shadow: 0 0 6px rgba(var(--hud-accent), 0.9);
+}
+
+/* Into the change: the seconds, big, beside the cursor. */
+.countdown {
+  position: absolute;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.45rem 0.2rem;
+  border-radius: var(--radius);
+  background: rgba(var(--hud-bg), 0.85);
+  pointer-events: none;
+}
+
+/* Near the end of the strip, on the cursor's left instead. */
+.countdownLeft {
+  margin-left: 0;
+  transform: translateX(calc(-100% - 0.5rem));
+  align-items: flex-end;
+}
+
+.countdown b {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 2.4rem;
+  line-height: 1;
+  color: var(--color-accent-2);
+  animation: pulse 1s ease-out infinite;
+}
+
+.countdown small {
+  font-size: 0.68rem;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+@keyframes pulse {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.55;
+  }
+}
+
+/* The scorecard for the interval just done. */
+.card {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0.3rem 0.6rem;
+  border-radius: var(--radius);
+  border-left: 3px solid var(--color-accent-2);
+  background: rgba(var(--hud-bg), 0.9);
+  font-size: 0.78rem;
+  white-space: nowrap;
+  animation: slide 0.25s ease-out;
+}
+
+.card b {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1rem;
+  letter-spacing: 0.03em;
+}
+
+.card small {
+  color: var(--color-text-muted);
+}
+
+.card_close {
+  border-left-color: var(--color-amber);
+}
+
+.card_off {
+  border-left-color: var(--color-accent);
+}
+
+@keyframes slide {
+  from {
+    transform: translateY(-6px);
+    opacity: 0;
+  }
+}
+
+/* A message from the workout itself. */
+.cue {
+  position: absolute;
+  left: 50%;
+  bottom: 0.4rem;
+  transform: translateX(-50%);
+  max-width: 70%;
+  padding: 0.15rem 0.6rem;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: center;
+  background: rgba(var(--hud-bg), 0.85);
+}
+
+.foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+  font-size: 0.68rem;
+  color: var(--color-text-muted);
+}
+
+.chips {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.chip {
+  padding: 0 0.35rem;
+  border-radius: 4px;
+  font-weight: 700;
+  color: var(--color-text);
+  background: rgba(var(--hud-ink), 0.12);
+}
+
+.debug {
+  margin: 0.3rem 0 0;
+  max-height: 8rem;
+  overflow: auto;
+  font-size: 0.6rem;
+  white-space: pre-wrap;
+  color: var(--color-text-muted);
+}
+
+.idle {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2);
+  font-size: 0.75rem;
+  text-align: center;
+  color: var(--color-text-muted);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.idle:hover {
+  opacity: 0.8;
+}

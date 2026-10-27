@@ -25,6 +25,8 @@ const TOKEN_FILE = join(HERE, "token.json");
 const DEFAULT_PORT = 8723;
 const SCOPES = ["rpc", "rpc.voice.read"];
 const RETRY_MS = 5000;
+/** After Discord turns the sign-in down, wait longer before asking again. */
+const RETRY_AFTER_ERROR_MS = 60_000;
 
 // ----- Settings -----
 
@@ -221,7 +223,8 @@ async function tokenRequest(fields) {
 
 async function newToken(ipc) {
   setStatus("authorising", "Approve the request in Discord to let the overlay see your voice channel");
-  const { code } = await ipc.send("AUTHORIZE", { client_id: config.clientId, scopes: SCOPES });
+  // Discord wants the redirect here too, matching one in the application's OAuth2 settings.
+  const { code } = await ipc.send("AUTHORIZE", { client_id: config.clientId, scopes: SCOPES, redirect_uri: config.redirectUri });
   try {
     return saveToken(await tokenRequest({ grant_type: "authorization_code", code, redirect_uri: config.redirectUri }));
   } catch (err) {
@@ -299,9 +302,14 @@ async function run() {
     return setTimeout(run, RETRY_MS);
   }
   const ipc = new Ipc(sock);
+  let failed = false;
   ipc.onClose = () => {
     state.channel = null;
     state.members.clear();
+    if (failed) {
+      console.log(`Trying again in ${RETRY_AFTER_ERROR_MS / 1000} seconds (or close this window, fix it and start again).`);
+      return void setTimeout(run, RETRY_AFTER_ERROR_MS);
+    }
     setStatus("no-discord", "Discord closed - waiting for it…");
     setTimeout(run, RETRY_MS);
   };
@@ -313,7 +321,11 @@ async function run() {
       await ipc.send("SUBSCRIBE", {}, "VOICE_CHANNEL_SELECT");
       await follow(ipc, await ipc.send("GET_SELECTED_VOICE_CHANNEL"));
     } catch (err) {
+      failed = true;
       setStatus("error", err.message);
+      if (/redirect/i.test(err.message)) {
+        console.log(`Check that ${config.redirectUri} is in your Discord application's OAuth2 Redirects, exactly as written, and saved.`);
+      }
       sock.end();
     }
   };

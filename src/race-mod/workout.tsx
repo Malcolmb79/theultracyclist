@@ -1,10 +1,12 @@
 import { StrictMode, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../styles/global.css";
-import { sauceRpc } from "../components/race/sauceFeed";
 import { OverlayShell, useSettings, type SettingDef } from "./overlay";
 import { useSauce } from "./useSauce";
-import { parseWorkout, stepAt, stepName, targetAt, type Step, type WorkoutPlan, type XmlNode } from "./workoutPlan";
+import { stepAt, stepName, targetAt, type Step } from "./workoutPlan";
+import { EXAMPLE_AT, EXAMPLE_FILE, clock } from "./workoutExample";
+import { useWorkout } from "./useWorkout";
+import WorkoutPicker from "./WorkoutPicker";
 import { POWER_ZONES, zoneColor } from "./zones";
 import shell from "./Overlay.module.css";
 import styles from "./Workout.module.css";
@@ -65,21 +67,6 @@ const DEFS: SettingDef[] = [
   { key: "debug", label: "Show Zwift's raw workout data", type: "toggle" },
 ];
 
-interface SauceWorkoutStatus {
-  info?: { workoutHash?: number; file?: XmlNode; durationType?: number } | null;
-  state?: {
-    currentProgressValue?: number;
-    workoutBlockStates?: { blockIndex?: number; starsAwarded?: number }[];
-    isPaused?: boolean;
-    isFinished?: boolean;
-    isInERGMode?: boolean;
-    intensityBias?: number;
-    currentBlockTime?: number;
-  } | null;
-}
-
-/** How often Zwift's workout progress is asked for. */
-const POLL_MS = 1000;
 /** A scorecard stays up this long. */
 const CARD_MS = 8000;
 /** A workout message shows for this long from its time. */
@@ -115,111 +102,14 @@ function grade(t: Tally): Grade | undefined {
   return off <= 0.05 && inRange >= 0.7 ? "good" : off <= 0.1 ? "close" : "off";
 }
 
-function clock(sec: number): string {
-  const s = Math.max(0, Math.round(sec));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const ss = String(s % 60).padStart(2, "0");
-  return h ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
-}
-
-/** The example: over-unders, part-way through the second recovery with the countdown running. */
-const EXAMPLE_FILE: XmlNode = {
-  type: "element",
-  name: "workout_file",
-  children: [
-    { type: "element", name: "name", children: [{ type: "text", text: "Over-unders 4×1" }] },
-    {
-      type: "element",
-      name: "workout",
-      children: [
-        { type: "element", name: "Warmup", attributes: { Duration: "600", PowerLow: "0.5", PowerHigh: "0.75" } },
-        { type: "element", name: "SteadyState", attributes: { Duration: "300", Power: "0.65" } },
-        { type: "element", name: "IntervalsT", attributes: { Repeat: "4", OnDuration: "60", OffDuration: "60", OnPower: "1.05", OffPower: "0.9" } },
-        { type: "element", name: "SteadyState", attributes: { Duration: "240", Power: "0.55" } },
-        { type: "element", name: "IntervalsT", attributes: { Repeat: "4", OnDuration: "60", OffDuration: "60", OnPower: "1.05", OffPower: "0.9" } },
-        { type: "element", name: "FreeRide", attributes: { Duration: "180" } },
-        { type: "element", name: "Cooldown", attributes: { Duration: "480", PowerLow: "0.6", PowerHigh: "0.4" } },
-      ],
-    },
-  ],
-};
-const EXAMPLE_AT = 1134;
-
-/**
- * Zwift's workout as Sauce has it, and whether Sauce's Game Connection is
- * up - without it there's no workout file at all.
- */
-function useWorkoutStatus(address: string, on: boolean) {
-  const [status, setStatus] = useState<SauceWorkoutStatus | null>(null);
-  const [polledAt, setPolledAt] = useState(0);
-  const [connected, setConnected] = useState<boolean | null>(null);
-  useEffect(() => {
-    if (!on) return;
-    let live = true;
-    let n = 0;
-    const poll = () => {
-      void sauceRpc<SauceWorkoutStatus | null>(address, "getWorkoutStatus")
-        .then((s) => {
-          if (!live) return;
-          setStatus(s);
-          setPolledAt(Date.now());
-        })
-        .catch(() => live && setStatus(null));
-      if (n++ % 5 === 0) {
-        void sauceRpc<{ gameConnection?: boolean } | null>(address, "getGameState")
-          .then((g) => live && setConnected(!!g?.gameConnection))
-          .catch(() => live && setConnected(false));
-      }
-    };
-    poll();
-    const t = setInterval(poll, POLL_MS);
-    return () => {
-      live = false;
-      clearInterval(t);
-    };
-  }, [address, on]);
-  return { status, polledAt, connected };
-}
-
 function WorkoutOverlay() {
   const [settings, set] = useSettings("workout", DEFAULTS);
   const { address, watching, status: feed } = useSauce({});
   const example = settings.example;
-  const { status, polledAt, connected } = useWorkoutStatus(address, !example);
-  const ftp = watching?.athlete?.ftp ?? (example ? 280 : undefined);
-
-  const file = example ? EXAMPLE_FILE : status?.info?.file;
-  const hash = example ? -1 : (status?.info?.workoutHash ?? 0);
-  const plan: WorkoutPlan | null = useMemo(() => parseWorkout(file, ftp ?? undefined), [file, ftp]);
-  const distance = !example && status?.info?.durationType === 1;
-  const state = status?.state;
-
-  // Where the rider is in it. Zwift's progress is read as seconds (or
-  // metres) into the workout; if it never gets past 1 it must be a fraction.
-  const scale = useRef<{ hash: number; first: number; max: number }>({ hash: 0, first: 0, max: 0 });
-  const p = state?.currentProgressValue;
-  if (scale.current.hash !== hash) scale.current = { hash, first: Date.now(), max: 0 };
-  if (p != null) scale.current.max = Math.max(scale.current.max, p);
-  const fraction = scale.current.max <= 1.0001 && Date.now() - scale.current.first > 20_000;
-  const [, tick] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => tick((n) => n + 1), 250);
-    return () => clearInterval(t);
-  }, []);
-  let at: number | undefined;
-  if (example) at = EXAMPLE_AT + ((Date.now() / 1000) % 6);
-  else if (plan && p != null) {
-    at = fraction ? p * plan.total : p;
-    // Between Zwift's updates, carry on the clock so the countdown runs smoothly.
-    if (!distance && !state?.isPaused && !state?.isFinished) at += Math.min(1.5, (Date.now() - polledAt) / 1000);
-    at = Math.min(plan.total, Math.max(0, at));
-  }
-
-  const bias = (() => {
-    const b = example ? 1 : (state?.intensityBias ?? 1);
-    return b > 3 ? b / 100 : b || 1;
-  })();
+  const w = useWorkout(address, watching, example, EXAMPLE_FILE, EXAMPLE_AT);
+  const { plan, at, ftp, bias, distance } = w;
+  const hash = example ? -1 : plan ? plan.total * 1000 + plan.steps.length : 0;
+  const state = { isPaused: w.paused, isFinished: w.finished, isInERGMode: w.erg };
   const watts = (share: number | undefined) => (share != null && ftp ? share * ftp * bias : undefined);
 
   const i = plan && at != null ? stepAt(plan, at) : -1;
@@ -334,14 +224,13 @@ function WorkoutOverlay() {
     ? { name: "Interval 2/4", avg: 297, target: 294, inRange: 0.92, hr: 164, grade: "good", at: 0 }
     : card;
 
-  // In a workout Sauce has no file for: it only gets the file as the workout
-  // starts, so one begun before Sauce was listening shows just its progress
-  // and zone, which come with the rider's own data.
-  const zone = watching?.state?.workoutZone;
-  if (!plan && zone && !example) {
-    const progress = Math.max(0, Math.min(1, watching?.state?.progress ?? 0));
+  // In a workout without its blocks yet: how far through it, and the
+  // workout to pick from Zwift so the blocks can be drawn.
+  if (!plan && w.inWorkout && !example) {
+    const progress = Math.max(0, Math.min(1, w.progress ?? 0));
+    const zone = w.zone ?? 1;
     const color = POWER_ZONES[Math.min(POWER_ZONES.length, zone) - 1]?.color ?? zoneColor(1);
-    const watts = watching?.state?.power;
+    const now = watching?.state?.power;
     return (
       <OverlayShell title="Workout" settings={settings} setSetting={set} defs={DEFS}>
         <div className={`${shell.panel} ${styles.panel}`}>
@@ -359,19 +248,17 @@ function WorkoutOverlay() {
             <span className={styles.item}>
               <span className={styles.lbl}>You</span>
               <span className={styles.num}>
-                {watts != null ? Math.round(watts) : "–"}
+                {now != null ? Math.round(now) : "–"}
                 <small>W</small>
               </span>
             </span>
+            <span className={styles.spacer} />
+            <WorkoutPicker w={w} />
           </div>
           <div className={styles.progressTrack}>
             <span className={styles.progressFill} style={{ width: `${progress * 100}%`, background: color }} />
           </div>
-          <p className={styles.note}>
-            {connected === false
-              ? "Turn on Sauce's Game Connection (Sauce settings) to see every block of the workout."
-              : "Zwift sends the workout's blocks as it starts - this one began before Sauce was listening. Start the next one with Sauce running to see every block."}
-          </p>
+          {settings.debug && <pre className={styles.debug}>{JSON.stringify(w.raw, null, 1)?.slice(0, 1500)}</pre>}
         </div>
       </OverlayShell>
     );
@@ -381,17 +268,15 @@ function WorkoutOverlay() {
     const why =
       feed !== "connected"
         ? "Connecting to Sauce…"
-        : connected === false
-          ? "Turn on Sauce's Game Connection (Sauce settings) to see your Zwift workout here"
-          : !status
-            ? "Workout strip appears when you start a Zwift workout"
-            : "Reading the workout…";
+        : w.inWorkout
+          ? "Reading the workout…"
+          : "Workout strip appears when you start a Zwift workout";
     return (
       <OverlayShell title="Workout" settings={settings} setSetting={set} defs={DEFS}>
         <div className={settings.hideWhenNone ? styles.idle : `${shell.panel} ${styles.waitingPanel}`}>
           {why}
           {settings.hideWhenNone && " · right-click for settings"}
-          {settings.debug && <pre className={styles.debug}>{JSON.stringify(status?.state ?? status, null, 1)?.slice(0, 1200)}</pre>}
+          {settings.debug && <pre className={styles.debug}>{JSON.stringify(w.raw, null, 1)?.slice(0, 1500)}</pre>}
         </div>
       </OverlayShell>
     );
@@ -413,7 +298,7 @@ function WorkoutOverlay() {
   const onTarget = off != null && Math.abs(off) <= settings.tolerance;
   const tally = tallies.current.byStep.get(i);
   const inRangeNow = example ? 0.94 : tally && tally.n ? tally.inRange / tally.n : undefined;
-  const stars = (state?.workoutBlockStates ?? []).reduce((a, b) => a + (b.starsAwarded ?? 0), 0);
+  const stars = w.stars ?? 0;
   const doneCount = plan.steps.filter((s, k) => k < i && s.kind === "on").length;
   const onCount = plan.steps.filter((s) => s.kind === "on").length;
   const cue = plan.cues.find((c) => at! >= c.at && at! < c.at + CUE_S);
@@ -539,12 +424,13 @@ function WorkoutOverlay() {
             )}
             {stars > 0 && <span>· {"★".repeat(Math.min(stars, 10))}</span>}
             {example && <span className={styles.chip}>Example</span>}
+            {w.source === "zwift" && <WorkoutPicker w={w} compact />}
           </span>
           <span>{fmt(total)}</span>
         </div>
         {settings.debug && (
           <pre className={styles.debug}>
-            {JSON.stringify({ progress: p, fraction, at: at != null ? Math.round(at) : null, step: i, total, state }, null, 1).slice(0, 1500)}
+            {JSON.stringify({ source: w.source, at: at != null ? Math.round(at) : null, step: i, total, raw: w.raw }, null, 1).slice(0, 1500)}
           </pre>
         )}
       </div>

@@ -377,3 +377,31 @@ rect.off {
 .idle:hover {
   opacity: 0.8;
 }
+
+/* Picking the workout from Zwift, when Sauce couldn't hear it. */
+.picker {
+  flex: 0 1 auto;
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-width: 0;
+  -webkit-app-region: no-drag;
+}
+
+.picker select {
+  max-width: 16rem;
+  min-width: 0;
+  padding: 0.1rem 0.3rem;
+  border: 1px solid rgba(var(--hud-ink), 0.25);
+  border-radius: 4px;
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--color-text);
+  background: rgba(var(--hud-bg), 0.9);
+}
+
+.pickerCompact select {
+  max-width: 10rem;
+  font-size: 0.62rem;
+  padding: 0 0.2rem;
+}

@@ -166,3 +166,34 @@ export function stepName(s: Step): string {
       return "Steady";
   }
 }
+
+/**
+ * A workout as Sauce's getWorkout returns it - its own reading of the .zwo:
+ * { name, workout: [{ type: "warmup", Duration, PowerLow, ... , textEvents }] } -
+ * turned back into elements, so it reads like the file Zwift sends.
+ */
+export function fromSauceWorkout(w: unknown): XmlNode | null {
+  const o = w as { name?: unknown; workout?: unknown } | null;
+  if (!o || !Array.isArray(o.workout)) return null;
+  const blocks: XmlNode[] = (o.workout as Record<string, unknown>[]).map((b) => {
+    const { type, textEvents, ...rest } = b;
+    const attributes = Object.fromEntries(Object.entries(rest).map(([k, v]) => [k, String(v)]));
+    const children = Array.isArray(textEvents)
+      ? (textEvents as Record<string, unknown>[]).map((t) => ({
+          type: "element",
+          name: "textevent",
+          attributes: Object.fromEntries(Object.entries(t).map(([k, v]) => [k, String(v)])),
+        }))
+      : [];
+    return { type: "element", name: String(type ?? ""), attributes, children };
+  });
+  const name = typeof o.name === "string" ? o.name : undefined;
+  return {
+    type: "element",
+    name: "workout_file",
+    children: [
+      ...(name ? [{ type: "element", name: "name", children: [{ type: "text", text: name }] }] : []),
+      { type: "element", name: "workout", children: blocks },
+    ],
+  };
+}

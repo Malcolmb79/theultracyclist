@@ -1,0 +1,201 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.55rem 0.65rem 0.45rem;
+}
+
+.waiting {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tag {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* How far through the whole workout. */
+.bar {
+  position: relative;
+  height: 0.45rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(var(--hud-ink), 0.14);
+}
+
+.bar span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 999px;
+  background: var(--color-accent-2);
+  transition: width 1s linear;
+}
+
+.finish {
+  align-self: flex-end;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.finish b {
+  margin-left: 0.25rem;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1.5rem;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The block being ridden: its zone down the side, filling as it goes. */
+.current {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: var(--radius);
+  border-left: 4px solid var(--zone);
+  overflow: hidden;
+  background: rgba(var(--hud-ink), 0.08);
+}
+
+.fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: color-mix(in srgb, var(--zone) 22%, transparent);
+  transition: width 1s linear;
+}
+
+.what,
+.now {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.what {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  line-height: 1.05;
+}
+
+.what small {
+  font-family: var(--font-body);
+  font-size: 0.68rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.now {
+  align-items: flex-end;
+}
+
+.now b {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 2rem;
+  line-height: 1;
+  color: var(--zone);
+  white-space: nowrap;
+}
+
+.now small {
+  font-size: 0.72rem;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* What's coming: each block with its zone down the side. */
+.next {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.next li {
+  padding: 0.18rem 0.5rem;
+  border-radius: calc(var(--radius) * 0.6);
+  border-left: 3px solid var(--zone);
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: rgba(var(--hud-ink), 0.05);
+}
+
+.next .last {
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+.foot {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.chip {
+  padding: 0 0.35rem;
+  border-radius: 4px;
+  font-weight: 700;
+  color: var(--color-text);
+  background: rgba(var(--hud-ink), 0.12);
+}
+
+.stars {
+  color: var(--color-amber);
+  font-weight: 700;
+}
+
+.idle {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2);
+  font-size: 0.75rem;
+  text-align: center;
+  color: var(--color-text-muted);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.idle:hover {
+  opacity: 0.8;
+}

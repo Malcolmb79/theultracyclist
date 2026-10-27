@@ -223,8 +223,10 @@ async function tokenRequest(fields) {
 
 async function newToken(ipc) {
   setStatus("authorising", "Approve the request in Discord to let the overlay see your voice channel");
-  // Discord wants the redirect here too, matching one in the application's OAuth2 settings.
-  const { code } = await ipc.send("AUTHORIZE", { client_id: config.clientId, scopes: SCOPES, redirect_uri: config.redirectUri });
+  // Over IPC Discord won't take a redirect here: asking for a code makes it
+  // use the application's first registered redirect, which the exchange
+  // below then names.
+  const { code } = await ipc.send("AUTHORIZE", { client_id: config.clientId, scopes: SCOPES, response_type: "code" });
   try {
     return saveToken(await tokenRequest({ grant_type: "authorization_code", code, redirect_uri: config.redirectUri }));
   } catch (err) {
@@ -324,7 +326,9 @@ async function run() {
       failed = true;
       setStatus("error", err.message);
       if (/redirect/i.test(err.message)) {
-        console.log(`Check that ${config.redirectUri} is in your Discord application's OAuth2 Redirects, exactly as written, and saved.`);
+        console.log(
+          `Check that ${config.redirectUri} is the first (or only) entry in your Discord application's OAuth2 Redirects, exactly as written, and saved.`,
+        );
       }
       sock.end();
     }

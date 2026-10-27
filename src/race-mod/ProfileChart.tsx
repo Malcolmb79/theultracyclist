@@ -1,5 +1,7 @@
 import { useId } from "react";
 import type { RouteGeometry, SegmentKind } from "../components/race/courseMap";
+import type { Arch } from "./arches";
+import PowerUpIcon from "./PowerUpIcon";
 import styles from "./ProfileChart.module.css";
 
 // The route's elevation profile, the way Zwift draws it along the bottom of
@@ -25,8 +27,15 @@ interface Props {
   windowM?: number;
   showSegments?: boolean;
   showSegmentNames?: boolean;
+  /** Power-up arches to mark on the road. */
+  arches?: Arch[];
+  /** What the arches can give, most likely first, when the event says. */
+  archPowerUps?: { code: string; share: number }[];
   className?: string;
 }
+
+/** At most this many power-ups shown over an arch. */
+const ARCH_ICONS = 3;
 
 /** Points drawn across the chart - plenty for a smooth line at overlay size. */
 const RESOLUTION = 400;
@@ -37,7 +46,17 @@ const KIND_CLASS: Record<SegmentKind, string> = {
   segment: styles.segment,
 };
 
-export default function ProfileChart({ route, at, riders = [], windowM, showSegments = true, showSegmentNames = true, className }: Props) {
+export default function ProfileChart({
+  route,
+  at,
+  riders = [],
+  windowM,
+  showSegments = true,
+  showSegmentNames = true,
+  arches = [],
+  archPowerUps = [],
+  className,
+}: Props) {
   const clip = `profile-${useId().replace(/:/g, "")}`;
   const { distances, elevations } = route;
   const total = distances.at(-1) ?? 0;
@@ -74,6 +93,8 @@ export default function ProfileChart({ route, at, riders = [], windowM, showSegm
   const area = `${line}L1000 100L0 100Z`;
   const pct = (d: number) => `${((d - from) / span) * 100}%`;
   const visible = (d: number) => d >= from && d <= to;
+  // An arch right at either end is drawn inside the chart rather than half off it.
+  const edge = (d: number) => ((d - from) / span < 0.02 ? styles.archStart : (d - from) / span > 0.98 ? styles.archEnd : "");
   const segs = showSegments ? route.segments.filter((s) => s.end >= from && s.start <= to) : [];
 
   return (
@@ -111,6 +132,29 @@ export default function ProfileChart({ route, at, riders = [], windowM, showSegm
             {s.name}
           </span>
         ))}
+      {arches.filter((a) => visible(a.at)).map((a) => {
+        const icons = archPowerUps.slice(0, ARCH_ICONS);
+        const odds = archPowerUps.map((p) => `${p.code.toLowerCase()} ${Math.round(p.share * 100)}%`).join(", ");
+        return (
+          <span
+            key={`${a.kind}-${a.at}`}
+            className={`${styles.arch} ${a.at < (at ?? -1) ? styles.archPassed : ""} ${edge(a.at)}`}
+            style={{ left: pct(a.at), top: `${y(elevAt(route, a.at))}%` }}
+            title={`Power-up arch: ${a.name}${odds ? ` (${odds})` : ""}`}
+          >
+            {icons.length > 0 && (
+              <span className={styles.archIcons}>
+                {icons.map((p) => (
+                  <PowerUpIcon key={p.code} code={p.code} size={12} />
+                ))}
+              </span>
+            )}
+            <svg className={styles.archShape} viewBox="0 0 16 14" aria-hidden>
+              <path d="M2 14V7a6 6 0 0 1 12 0v7" />
+            </svg>
+          </span>
+        );
+      })}
       {riders
         .filter((r) => !r.watching && visible(r.at))
         .map((r) => (

@@ -51,6 +51,8 @@ export interface EventBrief {
   laps?: number;
   durationMin?: number;
   powerUps?: boolean;
+  /** The event's own power-up mix, as shares adding up to 1, when it sets one. */
+  powerUpOdds?: Record<string, number>;
 }
 
 export interface GroupSummary {

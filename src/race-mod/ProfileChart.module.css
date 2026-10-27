@@ -88,3 +88,46 @@
     left 1s linear,
     top 1s linear;
 }
+
+/* A power-up arch standing on the road, with what it can give over it. */
+.arch {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translate(-50%, -100%);
+  color: var(--color-accent-2);
+  pointer-events: auto;
+}
+
+.archShape {
+  width: 0.85rem;
+  height: 0.75rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.7));
+}
+
+.archIcons {
+  display: flex;
+  gap: 1px;
+  padding: 1px 2px;
+  margin-bottom: 1px;
+  border-radius: 4px;
+  background: rgba(var(--hud-bg), 0.75);
+}
+
+.archStart {
+  transform: translate(0, -100%);
+}
+
+.archEnd {
+  transform: translate(-100%, -100%);
+}
+
+/* Behind the rider now: faded, like the road already ridden. */
+.archPassed {
+  opacity: 0.35;
+}

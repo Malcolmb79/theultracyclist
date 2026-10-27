@@ -17,7 +17,10 @@ interface SauceEventSubgroup {
   routeDistance?: number;
   routeClimbing?: number;
   durationInSeconds?: number;
-  powerUps?: unknown;
+  /** The event's power-up mix, by code, from its powerup_percent tag. */
+  powerUps?: Record<string, number>;
+  /** The event's rules, e.g. NO_POWERUPS. */
+  rulesSet?: string[];
 }
 
 const briefs = new Map<string, Promise<EventBrief | undefined>>();
@@ -37,8 +40,10 @@ export function loadEventBrief(address: string, subgroupId: number): Promise<Eve
         climbM: sg.routeClimbing != null ? Math.round(sg.routeClimbing) : undefined,
         laps: sg.laps || undefined,
         durationMin: sg.durationInSeconds ? Math.round(sg.durationInSeconds / 60) : undefined,
-        // Sauce lists the power-up odds when the event has any; none means none.
-        powerUps: sg.powerUps == null ? undefined : Object.keys(sg.powerUps as object).length > 0,
+        // No power-ups when the rules say so; otherwise Sauce lists the odds
+        // when the event sets its own mix, and an empty mix means none.
+        powerUps: sg.rulesSet?.includes("NO_POWERUPS") ? false : sg.powerUps == null ? undefined : Object.keys(sg.powerUps).length > 0,
+        powerUpOdds: sg.powerUps && Object.keys(sg.powerUps).length ? sg.powerUps : undefined,
       };
     });
     // Sauce may not have fetched the event from Zwift yet; ask again later.

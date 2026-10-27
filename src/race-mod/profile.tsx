@@ -1,10 +1,13 @@
-import { StrictMode } from "react";
+import { StrictMode, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../styles/global.css";
 import { OverlayShell, useSettings, type SettingDef } from "./overlay";
 import { useSauce } from "./useSauce";
 import { routePosition, useCourse } from "./useCourse";
 import ProfileChart, { type ProfileRider } from "./ProfileChart";
+import { likelyPowerUps, powerUpArches } from "./arches";
+import { loadEventBrief } from "../components/race/eventInfo";
+import type { EventBrief } from "../components/race/raceLog";
 import styles from "./Profile.module.css";
 
 // The route profile along the bottom of the screen, as Zwift has it: the
@@ -17,6 +20,7 @@ const DEFAULTS = {
   riders: true,
   segments: true,
   segmentNames: true,
+  arches: true,
   banner: true,
   toGo: true,
   gradient: true,
@@ -36,6 +40,7 @@ const DEFS: SettingDef[] = [
   { key: "riders", label: "Riders", type: "toggle" },
   { key: "segments", label: "Sprints & climbs", type: "toggle" },
   { key: "segmentNames", label: "Segment names", type: "toggle" },
+  { key: "arches", label: "Power-up arches", type: "toggle" },
   { key: "banner", label: "Segment banner", type: "toggle" },
   { key: "toGo", label: "Distance to finish", type: "toggle" },
   { key: "gradient", label: "Gradient", type: "toggle" },
@@ -49,6 +54,24 @@ function ProfileOverlay() {
   const { route, problem } = useCourse(address, watching);
   const s = watching?.state;
   const at = route ? routePosition(route, s) : undefined;
+
+  // The event's power-up mix, to show what the arches can give - and none
+  // at all when the event has no power-ups.
+  const subgroup = s?.eventSubgroupId || undefined;
+  const [brief, setBrief] = useState<EventBrief | undefined>();
+  useEffect(() => {
+    setBrief(undefined);
+    if (!subgroup) return;
+    let live = true;
+    void loadEventBrief(address, subgroup)
+      .then((b) => live && setBrief(b))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [address, subgroup]);
+  const arches = useMemo(() => (route && settings.arches && brief?.powerUps !== false ? powerUpArches(route) : []), [route, settings.arches, brief?.powerUps]);
+  const archPowerUps = likelyPowerUps(brief?.powerUpOdds);
   const myTeam = watching?.athlete?.team?.trim().toLowerCase();
   const riders: ProfileRider[] =
     route && settings.riders
@@ -100,6 +123,8 @@ function ProfileOverlay() {
               windowM={settings.window || undefined}
               showSegments={settings.segments}
               showSegmentNames={settings.segmentNames}
+              arches={arches}
+              archPowerUps={archPowerUps}
             />
           ) : (
             <p className={styles.empty}>{problem ?? (status === "connected" ? "Waiting for a route…" : "Connecting to Sauce…")}</p>

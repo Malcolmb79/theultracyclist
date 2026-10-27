@@ -30,8 +30,24 @@ const RETRY_AFTER_ERROR_MS = 60_000;
 
 // ----- Settings -----
 
+/**
+ * config.json, tidied: the client ID read from the raw text, since one typed
+ * without quotes is a number too long for JavaScript and comes out rounded,
+ * and stray spaces or line breaks taken off both.
+ */
+function readConfig() {
+  if (!existsSync(CONFIG_FILE)) return {};
+  const raw = readFileSync(CONFIG_FILE, "utf8").replace(/^\uFEFF/, "");
+  const config = JSON.parse(raw);
+  const id = raw.match(/"clientId"\s*:\s*"?\s*(\d+)/);
+  if (id) config.clientId = id[1];
+  if (config.clientId != null) config.clientId = String(config.clientId).trim();
+  if (config.clientSecret != null) config.clientSecret = String(config.clientSecret).trim();
+  return config;
+}
+
 async function loadConfig() {
-  const config = existsSync(CONFIG_FILE) ? JSON.parse(readFileSync(CONFIG_FILE, "utf8")) : {};
+  const config = readConfig();
   if (config.clientId && config.clientSecret) return { port: DEFAULT_PORT, redirectUri: "http://localhost", ...config };
   console.log(`
 First run: this needs your own Discord application (free, takes a minute).
@@ -210,14 +226,33 @@ function saveToken(t) {
 }
 
 async function tokenRequest(fields) {
-  const body = new URLSearchParams({ client_id: config.clientId, client_secret: config.clientSecret, ...fields });
-  const res = await fetch(`${API}/oauth2/token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`Discord sign-in failed: ${json.error_description ?? json.error ?? res.status}`);
+  // The application's ID and secret in the form, as Discord's docs show; if
+  // it says invalid_client, again as a Basic login, which it also takes.
+  const post = (asBasic) =>
+    fetch(`${API}/oauth2/token`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        ...(asBasic ? { Authorization: `Basic ${Buffer.from(`${config.clientId}:${config.clientSecret}`).toString("base64")}` } : {}),
+      },
+      body: new URLSearchParams(asBasic ? fields : { client_id: config.clientId, client_secret: config.clientSecret, ...fields }),
+    });
+  let res = await post(false);
+  let json = await res.json().catch(() => ({}));
+  if (!res.ok && json.error === "invalid_client") {
+    res = await post(true);
+    json = await res.json().catch(() => ({}));
+  }
+  if (!res.ok) {
+    if (json.error === "invalid_client") {
+      console.log(
+        `Discord didn't accept the application's ID and secret. The bridge is using Client ID ${config.clientId} and a secret of ` +
+          `${config.clientSecret.length} characters ending "${config.clientSecret.slice(-4)}" - compare them with OAuth2 in the ` +
+          `Developer Portal (a reset secret replaces the old one), and fix config.json in this folder.`,
+      );
+    }
+    throw new Error(`Discord sign-in failed: ${json.error_description ?? json.error ?? res.status}`);
+  }
   return json;
 }
 

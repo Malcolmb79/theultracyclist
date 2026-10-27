@@ -5,7 +5,7 @@ import { sauceRpc } from "../components/race/sauceFeed";
 import { OverlayShell, useSettings, type SettingDef } from "./overlay";
 import { useSauce } from "./useSauce";
 import { parseWorkout, stepAt, stepName, targetAt, type Step, type WorkoutPlan, type XmlNode } from "./workoutPlan";
-import { zoneColor } from "./zones";
+import { POWER_ZONES, zoneColor } from "./zones";
 import shell from "./Overlay.module.css";
 import styles from "./Workout.module.css";
 
@@ -146,13 +146,19 @@ const EXAMPLE_FILE: XmlNode = {
 };
 const EXAMPLE_AT = 1134;
 
+/**
+ * Zwift's workout as Sauce has it, and whether Sauce's Game Connection is
+ * up - without it there's no workout file at all.
+ */
 function useWorkoutStatus(address: string, on: boolean) {
   const [status, setStatus] = useState<SauceWorkoutStatus | null>(null);
   const [polledAt, setPolledAt] = useState(0);
+  const [connected, setConnected] = useState<boolean | null>(null);
   useEffect(() => {
     if (!on) return;
     let live = true;
-    const poll = () =>
+    let n = 0;
+    const poll = () => {
       void sauceRpc<SauceWorkoutStatus | null>(address, "getWorkoutStatus")
         .then((s) => {
           if (!live) return;
@@ -160,6 +166,12 @@ function useWorkoutStatus(address: string, on: boolean) {
           setPolledAt(Date.now());
         })
         .catch(() => live && setStatus(null));
+      if (n++ % 5 === 0) {
+        void sauceRpc<{ gameConnection?: boolean } | null>(address, "getGameState")
+          .then((g) => live && setConnected(!!g?.gameConnection))
+          .catch(() => live && setConnected(false));
+      }
+    };
     poll();
     const t = setInterval(poll, POLL_MS);
     return () => {
@@ -167,14 +179,14 @@ function useWorkoutStatus(address: string, on: boolean) {
       clearInterval(t);
     };
   }, [address, on]);
-  return { status, polledAt };
+  return { status, polledAt, connected };
 }
 
 function WorkoutOverlay() {
   const [settings, set] = useSettings("workout", DEFAULTS);
   const { address, watching, status: feed } = useSauce({});
   const example = settings.example;
-  const { status, polledAt } = useWorkoutStatus(address, !example);
+  const { status, polledAt, connected } = useWorkoutStatus(address, !example);
   const ftp = watching?.athlete?.ftp ?? (example ? 280 : undefined);
 
   const file = example ? EXAMPLE_FILE : status?.info?.file;
@@ -322,8 +334,58 @@ function WorkoutOverlay() {
     ? { name: "Interval 2/4", avg: 297, target: 294, inRange: 0.92, hr: 164, grade: "good", at: 0 }
     : card;
 
+  // In a workout Sauce has no file for: it only gets the file as the workout
+  // starts, so one begun before Sauce was listening shows just its progress
+  // and zone, which come with the rider's own data.
+  const zone = watching?.state?.workoutZone;
+  if (!plan && zone && !example) {
+    const progress = Math.max(0, Math.min(1, watching?.state?.progress ?? 0));
+    const color = POWER_ZONES[Math.min(POWER_ZONES.length, zone) - 1]?.color ?? zoneColor(1);
+    const watts = watching?.state?.power;
+    return (
+      <OverlayShell title="Workout" settings={settings} setSetting={set} defs={DEFS}>
+        <div className={`${shell.panel} ${styles.panel}`}>
+          <div className={styles.top}>
+            <span className={styles.item}>
+              <span className={styles.lbl}>Workout</span>
+              <span className={styles.big}>{Math.round(progress * 100)}% done</span>
+            </span>
+            <span className={styles.item}>
+              <span className={styles.lbl}>Zone</span>
+              <span className={styles.big} style={{ color }}>
+                Z{zone}
+              </span>
+            </span>
+            <span className={styles.item}>
+              <span className={styles.lbl}>You</span>
+              <span className={styles.num}>
+                {watts != null ? Math.round(watts) : "–"}
+                <small>W</small>
+              </span>
+            </span>
+          </div>
+          <div className={styles.progressTrack}>
+            <span className={styles.progressFill} style={{ width: `${progress * 100}%`, background: color }} />
+          </div>
+          <p className={styles.note}>
+            {connected === false
+              ? "Turn on Sauce's Game Connection (Sauce settings) to see every block of the workout."
+              : "Zwift sends the workout's blocks as it starts - this one began before Sauce was listening. Start the next one with Sauce running to see every block."}
+          </p>
+        </div>
+      </OverlayShell>
+    );
+  }
+
   if (!plan || at == null) {
-    const why = feed !== "connected" ? "Connecting to Sauce…" : !status ? "Workout strip appears when you start a Zwift workout (needs Sauce's Game Connection)" : "Reading the workout…";
+    const why =
+      feed !== "connected"
+        ? "Connecting to Sauce…"
+        : connected === false
+          ? "Turn on Sauce's Game Connection (Sauce settings) to see your Zwift workout here"
+          : !status
+            ? "Workout strip appears when you start a Zwift workout"
+            : "Reading the workout…";
     return (
       <OverlayShell title="Workout" settings={settings} setSetting={set} defs={DEFS}>
         <div className={settings.hideWhenNone ? styles.idle : `${shell.panel} ${styles.waitingPanel}`}>

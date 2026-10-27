@@ -17,6 +17,9 @@
 
 export interface SauceState {
   athleteId?: number;
+  /** In a Zwift workout: how far through it, 0 to 1, and the zone of the block being ridden (1 up). */
+  progress?: number;
+  workoutZone?: number | null;
   worldTime?: number;
   power?: number;
   heartrate?: number;

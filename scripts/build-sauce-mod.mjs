@@ -33,3 +33,12 @@ walk(BUILD_DIR);
 mkdirSync(join("dist", "downloads"), { recursive: true });
 writeFileSync(OUT, zipSync(files, { level: 9 }));
 console.log(`Sauce mod: ${OUT} (${Object.keys(files).length} files)`);
+
+// The Discord bridge the Discord voice overlay reads from, as its own download:
+// /downloads/ultracyclist-discord-bridge.zip, one folder to unzip anywhere.
+const BRIDGE_DIR = "discord-bridge";
+const BRIDGE_OUT = join("dist", "downloads", "ultracyclist-discord-bridge.zip");
+const bridge = {};
+for (const name of readdirSync(BRIDGE_DIR)) bridge[`ultracyclist-discord-bridge/${name}`] = readFileSync(join(BRIDGE_DIR, name));
+writeFileSync(BRIDGE_OUT, zipSync(bridge, { level: 9 }));
+console.log(`Discord bridge: ${BRIDGE_OUT} (${Object.keys(bridge).length} files)`);

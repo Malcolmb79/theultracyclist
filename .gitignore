@@ -30,3 +30,7 @@ dist-ssr
 # Garmin sync tokens and config (scripts/garmin-sync.mjs)
 .garmin/
 dist-sauce-mod
+
+# The Discord bridge keeps your Discord app secret and sign-in beside it
+discord-bridge/config.json
+discord-bridge/token.json

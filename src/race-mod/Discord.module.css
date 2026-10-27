@@ -1,0 +1,172 @@
+.panel {
+  padding: 0.4rem 0.5rem;
+}
+
+.channel {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.35rem;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hash {
+  font-size: 0.75rem;
+  filter: grayscale(1);
+  opacity: 0.7;
+}
+
+.exampleTag {
+  margin-left: auto;
+  font-family: var(--font-body);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.members {
+  display: flex;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vertical .members {
+  flex-direction: column;
+}
+
+.horizontal .members {
+  flex-wrap: wrap;
+}
+
+.member {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.horizontal .member {
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.avatarWrap {
+  position: relative;
+  flex: none;
+}
+
+/* The avatar, ringed in the theme's accent while they talk - StreamKit's green ring, in your colours. */
+.avatar {
+  display: block;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 0 0 2px rgba(var(--hud-bg), 0.8);
+  transition:
+    box-shadow 0.12s ease,
+    opacity 0.2s;
+}
+
+.initial {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  color: var(--color-text);
+  background: rgba(var(--hud-ink), 0.18);
+}
+
+.speaking .avatar {
+  box-shadow:
+    0 0 0 2px var(--color-accent-2),
+    0 0 10px rgba(var(--hud-accent), 0.75);
+}
+
+.muted .avatar {
+  opacity: 0.6;
+}
+
+/* Muted or deafened, in the corner. */
+.badge {
+  position: absolute;
+  right: -0.2rem;
+  bottom: -0.2rem;
+  display: flex;
+  width: 1rem;
+  height: 1rem;
+  padding: 0.12rem;
+  border-radius: 50%;
+  background: rgba(var(--hud-bg), 0.95);
+  color: var(--color-accent);
+}
+
+.badge svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.name {
+  max-width: 100%;
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-text);
+  background: rgba(var(--hud-bg), 0.6);
+  transition: color 0.12s ease;
+}
+
+.horizontal .name {
+  max-width: 4.5rem;
+  font-size: 0.72rem;
+}
+
+.speaking .name {
+  color: var(--color-accent-2);
+}
+
+.muted .name {
+  color: var(--color-text-muted);
+}
+
+.waiting {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.idle {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2);
+  font-size: 0.75rem;
+  text-align: center;
+  color: var(--color-text-muted);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.idle:hover {
+  opacity: 0.8;
+}

@@ -1,6 +1,6 @@
 .panel {
   --ours: var(--color-accent-2);
-  --theirs: var(--color-accent);
+  --theirs: var(--color-rival, var(--color-accent));
   padding: var(--space-2) var(--space-3);
 }
 

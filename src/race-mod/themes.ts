@@ -16,6 +16,8 @@ export interface Theme {
   accent: string;
   /** A second accent, for the few things picked out in it (heart rate, warnings). */
   hot: string;
+  /** The other team on the ladder score, when it shouldn't be the second accent. */
+  rival?: string;
   amber: string;
   text: string;
   muted: string;
@@ -265,6 +267,7 @@ export const THEMES: Theme[] = [
     ink: "255, 255, 255",
     accent: "214, 216, 220",
     hot: "#f0f0f0",
+    rival: "#85888e",
     amber: "#c4c6ca",
     text: "#f4f4f5",
     muted: "#a3a6ab",
@@ -306,6 +309,7 @@ export function applyTheme(theme: Theme) {
     "--color-border": `rgba(${theme.ink}, 0.14)`,
     "--color-accent": theme.hot,
     "--color-accent-2": `rgb(${theme.accent})`,
+    "--color-rival": theme.rival ?? theme.hot,
     "--color-amber": theme.amber,
     "--color-text": theme.text,
     "--color-text-muted": theme.muted,

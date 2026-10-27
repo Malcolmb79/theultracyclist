@@ -18,8 +18,9 @@ import styles from "./Segments.module.css";
 // hour. They trickle in for a few seconds after the line, so the board keeps
 // refreshing while it's up.
 
-const DEFAULTS = { opacity: 85, kinds: "sprints-climbs", rows: 5, showFor: 30, during: true, scope: "race" };
+const DEFAULTS = { opacity: 85, example: false, kinds: "sprints-climbs", rows: 5, showFor: 30, during: true, scope: "race" };
 const DEFS: SettingDef[] = [
+  { key: "example", label: "Show an example (for placing it)", type: "toggle" },
   {
     key: "kinds",
     label: "Segments",
@@ -99,6 +100,29 @@ async function fetchBoard(address: string, segment: RouteSegment, subgroup: numb
   return board((await sauceRpc<SegmentResult[]>(address, "getSegmentResults", segment.id).catch(() => [])) ?? []);
 }
 
+/** A made-up sprint result, to size and place the window by. */
+const EXAMPLE_SEGMENT: RouteSegment = { id: 0, name: "Example Sprint", kind: "sprint", start: 0, end: 0 };
+const EXAMPLE_ME = -1;
+const EXAMPLE_RESULTS: SegmentResult[] = [
+  ["Lambert", 24.1, 1180],
+  ["Hartley", 24.8, 1105],
+  ["You", 25.3, 1060],
+  ["Cross", 25.9, 1010],
+  ["Thompson", 26.4, 985],
+  ["Smith", 27.0, 940],
+  ["Jones", 27.7, 900],
+  ["Norgaard", 28.2, 870],
+  ["Ng", 28.9, 845],
+  ["Rossi", 29.5, 820],
+].map(([lastName, elapsed, avgPower], i) => ({
+  athleteId: lastName === "You" ? EXAMPLE_ME : i + 1,
+  lastName: lastName as string,
+  elapsed: elapsed as number,
+  avgPower: avgPower as number,
+  weight: 75,
+  ts: Date.now(),
+}));
+
 type Phase = { kind: "on"; segment: RouteSegment } | { kind: "done"; segment: RouteSegment; at: number } | null;
 
 function SegmentsOverlay() {
@@ -156,30 +180,36 @@ function SegmentsOverlay() {
     };
   }, [showing, segment, address, subgroup, settings.scope]);
 
-  const me = watching?.athleteId;
-  const myIdx = results.findIndex((r) => r.athleteId === me);
+  // The example stands in for what is shown: a sprint just finished, third.
+  const example = settings.example;
+  const shownPhase: Phase = example ? { kind: "done", segment: EXAMPLE_SEGMENT, at: Date.now() - 60_000 } : phase;
+  const shownResults = example ? EXAMPLE_RESULTS : results;
+  const shownSegment = shownPhase?.segment;
+  const isShowing = example || showing;
+  const me = example ? EXAMPLE_ME : watching?.athleteId;
+  const myIdx = shownResults.findIndex((r) => r.athleteId === me);
   // In results, only a time set on this pass counts as the rider's.
-  const mine = myIdx >= 0 && (phase?.kind !== "done" || (results[myIdx].ts ?? Infinity) >= phase.at - 120_000) ? results[myIdx] : undefined;
-  const best = results[0];
-  const top = results.slice(0, settings.rows);
+  const mine = myIdx >= 0 && (shownPhase?.kind !== "done" || (shownResults[myIdx].ts ?? Infinity) >= shownPhase.at - 120_000) ? shownResults[myIdx] : undefined;
+  const best = shownResults[0];
+  const top = shownResults.slice(0, settings.rows);
   const extra = mine && myIdx >= settings.rows ? mine : undefined;
-  const toLine = phase?.kind === "on" && at != null ? Math.max(0, phase.segment.end - at) : undefined;
+  const toLine = shownPhase?.kind === "on" && at != null ? Math.max(0, shownPhase.segment.end - at) : undefined;
 
   return (
     <OverlayShell title="Segment results" settings={settings} setSetting={set} defs={DEFS}>
-      {showing && segment ? (
-        <div className={`${shell.panel} ${styles.panel} ${styles[segment.kind] ?? ""}`}>
+      {isShowing && shownSegment ? (
+        <div className={`${shell.panel} ${styles.panel} ${styles[shownSegment.kind] ?? ""}`}>
           <div className={styles.head}>
-            <span className={styles.kind}>{segment.kind === "sprint" ? "Sprint" : segment.kind === "climb" ? "KOM" : "Segment"}</span>
-            <span className={styles.name}>{segment.name}</span>
+            <span className={styles.kind}>{shownSegment.kind === "sprint" ? "Sprint" : shownSegment.kind === "climb" ? "KOM" : "Segment"}</span>
+            <span className={styles.name}>{shownSegment.name}</span>
             {toLine != null && <span className={styles.toLine}>{toLine >= 1000 ? `${(toLine / 1000).toFixed(1)} km` : `${Math.round(toLine)} m`}</span>}
           </div>
-          {phase?.kind === "done" && (
+          {shownPhase?.kind === "done" && (
             <div className={styles.mine}>
               {mine ? (
                 <>
                   <span className={styles.place}>{myIdx + 1}</span>
-                  <span className={styles.ofN}>of {results.length}</span>
+                  <span className={styles.ofN}>of {shownResults.length}</span>
                   <span className={styles.time}>{clock(mine.elapsed)}</span>
                   <span className={styles.delta}>{best && best !== mine ? `+${(mine.elapsed - best.elapsed).toFixed(1)}s` : "Fastest!"}</span>
                 </>
@@ -200,7 +230,7 @@ function SegmentsOverlay() {
           )}
         </div>
       ) : (
-        <div className={styles.idle}>Segment results appear on sprints and KOMs · right-click for settings</div>
+        <div className={styles.idle}>Segment shownResults appear on sprints and KOMs · right-click for settings</div>
       )}
     </OverlayShell>
   );

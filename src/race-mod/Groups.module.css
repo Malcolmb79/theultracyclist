@@ -294,6 +294,38 @@
   box-shadow: 0 0 10px rgba(var(--hud-accent), 0.6);
 }
 
+/* The watched rider's place in their group: a very faint grey line across
+   the marker, inside it, at the front or back or in between. The marker
+   clips it to its rounded shape. */
+.capsule,
+.bubble {
+  position: relative;
+  overflow: hidden;
+}
+
+.meLine {
+  position: absolute;
+  pointer-events: none;
+  background: rgba(128, 128, 128, 0.5);
+  transition:
+    top 0.6s ease,
+    left 0.6s ease;
+}
+
+.vertical .meLine {
+  left: 0;
+  right: 0;
+  height: 1.5px;
+  margin-top: -0.75px;
+}
+
+.horizontal .meLine {
+  top: 0;
+  bottom: 0;
+  width: 1.5px;
+  margin-left: -0.75px;
+}
+
 /* The split between neighbouring groups, on the road. */
 .gapLabel {
   position: absolute;

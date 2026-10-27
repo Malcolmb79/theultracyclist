@@ -314,7 +314,22 @@ function gapRange(groups: SauceGroup[]): string {
   return a === b ? `${sign}${a}` : `${sign}${a.replace(/s$/, "")}–${b}`;
 }
 
-function GroupsView({ groups, mine, settings }: { groups: SauceGroup[]; mine: number; settings: Settings }) {
+/**
+ * Where the watched rider sits in their group, front (0) to back (1), by
+ * the riders' gaps to them; undefined when the group is too tight to tell.
+ */
+function placeInGroup(g: SauceGroup, watchingId: number | undefined): number | undefined {
+  const riders = g.athletes ?? [];
+  const me = riders.find((a) => a.watching || a.athleteId === watchingId);
+  if (!me || riders.length < 2) return undefined;
+  const gaps = riders.map((a) => a.gap ?? 0);
+  const front = Math.min(...gaps);
+  const back = Math.max(...gaps);
+  if (back - front < 0.2) return undefined;
+  return ((me.gap ?? 0) - front) / (back - front);
+}
+
+function GroupsView({ groups, mine, settings, watchingId }: { groups: SauceGroup[]; mine: number; settings: Settings; watchingId?: number }) {
   const vertical = settings.orientation === "vertical";
   const road = settings.style !== "bubbles";
   const [ref, length] = useLength(vertical);
@@ -355,6 +370,17 @@ function GroupsView({ groups, mine, settings }: { groups: SauceGroup[]; mine: nu
         const names = settings.names && label !== "none" ? leaders(g, nameCount).map(surname) : [];
         const more = label === "full" && size > names.length ? size - names.length : 0;
         const leading = hasLeader && g.athletes?.some((a) => a.eventPosition === 1);
+        // A faint line across the rider's own marker at their place in it:
+        // across the front if they're on the front, the back if at the back.
+        const myPlace = isMine ? placeInGroup(g, watchingId) : undefined;
+        const meLine =
+          myPlace != null ? (
+            <span
+              className={styles.meLine}
+              aria-hidden
+              style={vertical ? { top: `${(12 + myPlace * 76).toFixed(1)}%` } : { left: `${(88 - myPlace * 76).toFixed(1)}%` }}
+            />
+          ) : null;
         return (
           <div
             key={it.key}
@@ -374,10 +400,12 @@ function GroupsView({ groups, mine, settings }: { groups: SauceGroup[]; mine: nu
             {road ? (
               <span className={styles.capsule} style={vertical ? { height: capsule } : { width: capsule }}>
                 {settings.riders && size}
+                {meLine}
               </span>
             ) : (
               <span className={styles.bubble} style={{ ["--size" as string]: String(Math.min(1, Math.log2(size + 1) / 5)) }}>
                 {settings.riders ? size : ""}
+                {meLine}
               </span>
             )}
             <div className={styles.below}>
@@ -422,7 +450,7 @@ function GroupsOverlay() {
       {shown.length === 0 ? (
         <span className={`${shell.panel} ${styles.empty}`}>{status === "connected" ? "No groups yet" : "Connecting…"}</span>
       ) : (
-        <GroupsView groups={shown} mine={i - from} settings={settings} />
+        <GroupsView groups={shown} mine={i - from} settings={settings} watchingId={watching?.athleteId} />
       )}
     </OverlayShell>
   );

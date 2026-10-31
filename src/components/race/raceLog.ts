@@ -236,6 +236,10 @@ export interface Rival extends FieldRider {
 }
 
 /** The start pen, for pre-race talk about the field. */
+/** Riders new to the pen this recently count as just joined; at most this many are named. */
+const PEN_JOINED_MS = 90_000;
+const PEN_JOINED = 4;
+
 export interface PenField {
   /** Everyone Sauce can see, the watched rider included. */
   riders: number;
@@ -247,6 +251,8 @@ export interface PenField {
   teams: { team: string; riders: number; names: string[] }[];
   /** How the pen breaks down by category. */
   categories: Record<string, number>;
+  /** Riders who've come into the pen in the last minute or so, strongest first. */
+  justJoined?: FieldRider[];
 }
 
 /** One finisher, from Zwift's results via Sauce (see ./eventInfo). */
@@ -960,6 +966,9 @@ export class RaceRecorder {
   }
 
   /** Who's lined up in the pen: the favourites, the big teams, the categories. */
+  /** When each rider was first seen in the start pen (0: there from the start). */
+  private penSeen = new Map<number, number>();
+
   private penField(groups: SauceGroup[], named: (a: SauceGroup["athletes"][number]) => FieldRider): PenField {
     const everyone = groups.flatMap((g) => g.athletes ?? []);
     const watchedId = this.log.rider?.athleteId;
@@ -976,8 +985,19 @@ export class RaceRecorder {
       const cat = a.athlete?.racingCategory;
       if (cat) categories[cat] = (categories[cat] ?? 0) + 1;
     }
+    // Who's just arrived: riders first seen in the last minute or so - not
+    // the pen as it was when the recorder first looked, which isn't news.
+    const now = Date.now();
+    const firstLook = this.penSeen.size === 0;
+    for (const a of everyone) if (!this.penSeen.has(a.athleteId)) this.penSeen.set(a.athleteId, firstLook ? 0 : now);
+    const justJoined = everyone
+      .filter((a) => a.athleteId !== watchedId && (this.penSeen.get(a.athleteId) ?? 0) > now - PEN_JOINED_MS)
+      .sort((x, y) => (y.athlete?.racingScore ?? 0) - (x.athlete?.racingScore ?? 0))
+      .slice(0, PEN_JOINED)
+      .map(named);
     return {
       riders: everyone.length,
+      justJoined: justJoined.length ? justJoined : undefined,
       topRiders: byScore.filter((a) => a.athleteId !== watchedId).slice(0, PEN_TOP_RIDERS).map(named),
       riderRankByScore: rank >= 0 ? rank + 1 : undefined,
       teams: Array.from(teams, ([team, names]) => ({ team, riders: names.length, names: names.slice(0, 4) }))

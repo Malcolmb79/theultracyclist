@@ -372,6 +372,12 @@ const LIMIT_W_BAL_PCT = 20;
 /** How far before a climb or sprint the coach is asked to plan for it. */
 const SEGMENT_WARNING_KM = 1.5;
 
+/** A break this far clear of the bunch is worth a call. */
+const BREAK_CLEAR_SEC = 10;
+/** A new favourite this likely to win, once the race has settled, is worth a call. */
+const FAVOURITE_PCT = 20;
+const FAVOURITE_AFTER_MS = 5 * 60_000;
+
 export function keyMoments(log: RaceLog, sinceT: number, clock = Date.now()): KeyMoment[] {
   const moments: KeyMoment[] = [];
   const samples = log.samples;
@@ -536,6 +542,24 @@ export function keyMoments(log: RaceLog, sinceT: number, clock = Date.now()): Ke
     }
   }
 
+  // The race as a whole: a break going clear of the main bunch without the
+  // rider, and a new favourite - each called once ("@"), when it happens.
+  const race = log.field?.race;
+  const brk = race?.breakaway;
+  if (brk && race.watchedRiderIs !== "in the breakaway" && brk.aheadOfBunchSec >= BREAK_CLEAR_SEC) {
+    moments.push({
+      id: `break@${brk.names.slice().sort().join(",")}`,
+      text: `A break of ${brk.riders} (${brk.names.join(", ")}) is ${Math.round(brk.aheadOfBunchSec)}s clear of the main bunch of ${race.mainBunch.riders}; the rider is ${race.watchedRiderIs}.`,
+    });
+  }
+  const fav = log.field?.favourites?.[0];
+  if (fav && fav.chancePct >= FAVOURITE_PCT && (now.t ?? 0) >= FAVOURITE_AFTER_MS) {
+    moments.push({
+      id: `favourite@${fav.name}`,
+      text: `${fav.name} is now the favourite to win (${fav.chancePct}%${fav.why.length ? `: ${fav.why.join(", ")}` : ""}).`,
+    });
+  }
+
   // A climb or sprint coming up: the time to plan for it, before it starts.
   // Called once each time round (the id is the segment and roughly where it starts).
   const upcoming = log.courseAhead?.next.find((n) => n.kind !== "segment" && n.inKm <= SEGMENT_WARNING_KM);
@@ -665,7 +689,14 @@ export function buildSnapshot(
       // The race's leader, favourites and rivals mean nothing on a ride.
       leader: ride || !log.field.leader ? undefined : withHistory(log, log.field.leader),
       toWatch: ride ? undefined : log.field.toWatch?.map((r) => withHistory(log, r)),
-      pen: ride || !log.field.pen ? undefined : { ...log.field.pen, topRiders: log.field.pen.topRiders.map((r) => withHistory(log, r)) },
+      pen:
+        ride || !log.field.pen
+          ? undefined
+          : {
+              ...log.field.pen,
+              topRiders: log.field.pen.topRiders.map((r) => withHistory(log, r)),
+              justJoined: log.field.pen.justJoined?.map((r) => withHistory(log, r)),
+            },
       rivals: ride ? undefined : log.field.rivals?.map((r) => withHistory(log, r)),
       // A Club Ladder race: the team score as it stands.
       teams: kind === "ladder" ? log.field.teams : undefined,
@@ -769,7 +800,7 @@ function withHistory<T extends FieldRider>(log: RaceLog, r: T): T & { zwiftPower
 export function ridersToLookUp(log: RaceLog): number[] {
   const f = log.field;
   if (!f) return [];
-  const lists = [f.rivals, f.toWatch, f.leader ? [f.leader] : [], f.pen?.topRiders, f.ridersGroup, f.groupAhead, f.groupBehind];
+  const lists = [f.rivals, f.toWatch, f.leader ? [f.leader] : [], f.pen?.justJoined, f.pen?.topRiders, f.ridersGroup, f.groupAhead, f.groupBehind];
   const ids = lists.flatMap((l) => (l ?? []).map((r) => r.id)).filter((id): id is number => id != null && id !== log.rider?.athleteId);
   return Array.from(new Set(ids));
 }

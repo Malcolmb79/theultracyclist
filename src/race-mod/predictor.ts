@@ -28,6 +28,9 @@ export type FinishKind = "sprint" | "punchy" | "climb" | "unknown";
 
 export interface Finish {
   kind: FinishKind;
+  /** Climbing between here and the last 3 km, m, and its steepest kilometre, %. */
+  climbAheadM?: number;
+  steepestAheadPct?: number;
   /** Gradient of the last kilometre and the last three, %. */
   lastKmPct?: number;
   last3KmPct?: number;
@@ -61,7 +64,15 @@ export function readFinish(route: RouteGeometry | null, at: number | undefined, 
   const lastKmPct = gradeBetween(route, line - 1000, line) * 100;
   const last3KmPct = gradeBetween(route, line - 3000, line) * 100;
   const kind: FinishKind = last3KmPct >= 3.5 || lastKmPct >= 6 ? "climb" : lastKmPct >= 2 || last3KmPct >= 2 ? "punchy" : "sprint";
-  return { kind, lastKmPct, last3KmPct, remainingKm };
+  // What's still to be climbed before the run-in - where a race gets whittled down.
+  let climbAheadM = 0;
+  let steepestAheadPct = 0;
+  for (let d = at; d + 100 <= line - 3000; d += 100) {
+    const g = gradeBetween(route, d, d + 100);
+    if (g > 0) climbAheadM += g * 100;
+    if (d + 1000 <= line - 3000) steepestAheadPct = Math.max(steepestAheadPct, gradeBetween(route, d, d + 1000) * 100);
+  }
+  return { kind, lastKmPct, last3KmPct, remainingKm, climbAheadM, steepestAheadPct };
 }
 
 type Stats = { power?: { np?: number; peaks?: Record<string, { avg?: number | null }> }; activeTime?: number };
@@ -118,6 +129,9 @@ function abilityOf(r: SauceAthleteData, finish: Finish, zp: RiderHistory | null 
   return { ability, parts, ftpWkg };
 }
 
+/** Riders projected this close at the line arrive together, and contest the finish. */
+const ARRIVE_TOGETHER_S = 5;
+
 const KIND_EFFORT: Record<FinishKind, Effort> = { sprint: "s15", punchy: "m1", climb: "m5", unknown: "m5" };
 const EFFORT_LABEL: Record<Effort, string> = { s15: "15s", m1: "1min", m5: "5min", m20: "20min" };
 
@@ -125,12 +139,37 @@ const EFFORT_LABEL: Record<Effort, string> = { s15: "15s", m1: "1min", m5: "5min
  * The chances of each rider in the race winning it. `riders` are the
  * rider's own race; `zp` their ZwiftPower history where it's been looked up.
  */
-export function predict(riders: SauceAthleteData[], finish: Finish, zp: Map<number, RiderHistory | null>, holdFtpMin = 60): Chance[] {
+export function predict(
+  riders: SauceAthleteData[],
+  finish: Finish,
+  zp: Map<number, RiderHistory | null>,
+  /** Seconds each rider is losing (+) or gaining (−) on the rider watched, per km, lately. */
+  trends: Map<number, number> = new Map(),
+  holdFtpMin = 60,
+): Chance[] {
   const remainingKm = finish.remainingKm ?? 20;
   // How near the end, 0 (40 km or more out) to 1 (the line).
   const near = clamp(1 - remainingKm / 40, 0, 1);
-  // The front of the race: the rider furthest up the road.
-  const front = Math.min(...riders.map((r) => r.gap ?? 0));
+  // Where everyone will be at the line, at the rate they're losing or
+  // gaining time now - eased, since a chase or a fade rarely holds all the
+  // way. Someone away on their own who's being reeled in is projected caught.
+  const projected = new Map<number, number>();
+  const gaps = riders.map((r) => r.gap ?? 0).sort((a, b) => a - b);
+  const bunch = gaps[Math.floor(gaps.length / 2)] ?? 0;
+  for (const r of riders) {
+    let trend = trends.get(r.athleteId);
+    // Not measured yet: someone off the front of the bunch is assumed chased -
+    // a lone rider faster than a small group - until their real rate is known.
+    if (trend == null && (r.gap ?? 0) < bunch - 5) {
+      const company = riders.filter((x) => Math.abs((x.gap ?? 0) - (r.gap ?? 0)) <= 3).length;
+      trend = company <= 2 ? 2.5 : company <= 5 ? 1.5 : 0;
+    }
+    projected.set(r.athleteId, (r.gap ?? 0) + clamp(trend ?? 0, -15, 15) * remainingKm * 0.6);
+  }
+  const front = Math.min(...projected.values());
+  // The climbing still to come before the run-in thins the field: up to fully selective by 400 m.
+  const hilly = clamp((finish.climbAheadM ?? 0) / 400, 0, 1) * (finish.steepestAheadPct != null && finish.steepestAheadPct >= 4 ? 1 : 0.6);
+  const climbing: number[] = [];
 
   const scored: Scored[] = [];
   const abilities: number[] = [];
@@ -146,12 +185,21 @@ export function predict(riders: SauceAthleteData[], finish: Finish, zp: Map<numb
       s.why.push({ weight: 1, text: `FTP ${a.ftpWkg.toFixed(1)} W/kg` });
     }
 
-    // Still in it: time down on the front counts for less with a long way to go.
-    const deficit = Math.max(0, (r.gap ?? 0) - front);
-    const tolerance = clamp(4 + 3.5 * remainingKm, 4, 120);
+    // Still in it: projected time down on the front at the line, which
+    // counts for less with a long way to go.
+    const deficit = Math.max(0, projected.get(r.athleteId)! - front);
+    const tolerance = clamp(4 + 2 * remainingKm, 4, 90);
     s.contention = Math.exp(-deficit / tolerance);
-    if (deficit < 3) s.why.push({ weight: 1.5, text: (r.gap ?? 0) - front < 0.5 && riders.length > 1 ? "at the front" : "in the front group" });
-    else s.why.push({ weight: 3 - s.contention * 2, text: `${Math.round(deficit)}s down` });
+    const nowDown = Math.max(0, (r.gap ?? 0) - Math.min(...riders.map((x) => x.gap ?? 0)));
+    const trend = trends.get(r.athleteId) ?? 0;
+    if (nowDown < 3 && deficit > 10) s.why.push({ weight: 2.6, text: "likely caught" });
+    else if (deficit < 3) s.why.push({ weight: 1.5, text: nowDown < 0.5 && riders.length > 1 ? "at the front" : "in the front group" });
+    else s.why.push({ weight: 3 - s.contention * 2, text: `${Math.round(nowDown)}s down` });
+    if (Math.abs(trend) >= 1.5 && remainingKm > 0.5) {
+      s.why.push({ weight: 1.8, text: trend > 0 ? `losing ${trend.toFixed(0)}s/km` : `gaining ${(-trend).toFixed(0)}s/km` });
+    }
+    // Their climbing, for the hills still to come (5 and 20 min, W/kg).
+    climbing.push(a?.parts.m5 != null || a?.parts.m20 != null ? ((a?.parts.m5 ?? a!.parts.m20!) / RATIO.m5 + (a?.parts.m20 ?? a!.parts.m5!) / RATIO.m20) / 2 : NaN);
 
     // What they have left: W′ (more so near the line) and stamina for the whole ride.
     const wPrime = r.athlete?.wPrime || 20_000;
@@ -176,15 +224,35 @@ export function predict(riders: SauceAthleteData[], finish: Finish, zp: Map<numb
     if (score && Number.isFinite(s.ability)) s.ability = 0.8 * s.ability + 0.2 * (score / 150);
   }
 
+  // Hills before the finish: those who climb worse than the best climbers
+  // here are less likely to still be there for it.
+  if (hilly > 0) {
+    const best = Math.max(...climbing.filter(Number.isFinite));
+    scored.forEach((s, k) => {
+      const c = climbing[k];
+      if (!Number.isFinite(c) || !Number.isFinite(best) || best <= 0) return;
+      const short = 1 - c / best;
+      s.contention *= Math.exp(-hilly * 6 * short);
+      if (short > 0.08) s.why.push({ weight: 1.4 + hilly, text: `${Math.round(finish.climbAheadM ?? 0)} m of climbing to come` });
+      else if (short < 0.02) s.why.push({ weight: 1 + hilly, text: "climbs well" });
+    });
+  }
+
   // Riders nothing is known about are taken to be about average.
   const sorted = abilities.slice().sort((a, b) => a - b);
   const median = sorted.length ? sorted[Math.floor(sorted.length / 2)] : 3;
   for (const s of scored) if (!Number.isFinite(s.ability)) s.ability = median * 0.97;
-  const top = Math.max(...scored.map((s) => s.ability));
+  // Ability for the finish only matters against those arriving with you or
+  // ahead of you: a rider projected to come in alone in front doesn't have
+  // to out-sprint anyone - but one dropped behind still has to beat them.
+  const together = (id: number) => {
+    const mine = projected.get(id)!;
+    return Math.max(...scored.filter((x) => projected.get(x.id)! <= mine + ARRIVE_TOGETHER_S).map((x) => x.ability));
+  };
 
   // Spread early, decisive late: how much ability for the finish separates them.
   const sharpness = 6 + 14 * near;
-  const raw = scored.map((s) => Math.exp(sharpness * (s.ability / top - 1)) * s.contention * s.fresh * s.form);
+  const raw = scored.map((s) => Math.exp(sharpness * (s.ability / together(s.id) - 1)) * s.contention * s.fresh * s.form);
   const total = raw.reduce((a, b) => a + b, 0) || 1;
   return scored
     .map((s, k) => ({

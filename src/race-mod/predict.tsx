@@ -38,6 +38,9 @@ const EASE = 0.3;
 const LOOKUP_TOP = 12;
 const LOOKUP_BATCH = 6;
 const LOOKUP_EVERY_MS = 20_000;
+/** Gaps over the last this long make a rider's trend, once the race has covered this far in it. */
+const TREND_MS = 150_000;
+const TREND_MIN_KM = 0.25;
 
 function raceKey(): string | null {
   try {
@@ -94,12 +97,32 @@ function PredictOverlay() {
         : undefined;
   const finish = readFinish(watching?.remainingMetric === "distance" ? route : null, at, remainingM);
 
+  // Each rider's gap over the last couple of minutes, against how far the
+  // race has gone, for whether they're losing or gaining time - a solo
+  // attacker being reeled in, a chase closing, someone cooked going backwards.
+  const history = useRef(new Map<number, { t: number; gap: number; km: number }[]>());
+  const trendsOf = (remainingKm: number | undefined) => {
+    const now = Date.now();
+    const trends = new Map<number, number>();
+    if (remainingKm == null) return trends;
+    for (const r of riders) {
+      if (r.gap == null) continue;
+      const h = (history.current.get(r.athleteId) ?? []).filter((x) => now - x.t <= TREND_MS);
+      h.push({ t: now, gap: r.gap, km: remainingKm });
+      history.current.set(r.athleteId, h);
+      const first = h[0];
+      const km = first.km - remainingKm;
+      if (km >= TREND_MIN_KM) trends.set(r.athleteId, (r.gap - first.gap) / km);
+    }
+    return trends;
+  };
+
   // The chances, eased between updates.
   const eased = useRef(new Map<number, number>());
   const [chances, setChances] = useState<Chance[]>([]);
   useEffect(() => {
     if (!riders.length) return;
-    const raw = predict(riders, finish, zp.current);
+    const raw = predict(riders, finish, zp.current, trendsOf(finish.remainingKm));
     const next = raw.map((c) => {
       const was = eased.current.get(c.athleteId);
       const chance = was == null ? c.chance : was + (c.chance - was) * EASE;

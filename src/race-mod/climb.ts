@@ -70,8 +70,13 @@ export function findClimb(
 ): Climb | undefined {
   const t = THRESHOLDS[sensitivity];
   const end = route.distances.at(-1) ?? 0;
+  // A named climb, if it really climbs this way round: a KOM segment can be
+  // ridden in reverse, or be net downhill where the route crosses it.
   const named = route.segments.find((s) => s.kind === "climb" && s.end >= at && s.start <= at + lookAheadM);
-  if (named) return describe(route, named.start, named.end, named.name);
+  if (named) {
+    const c = describe(route, named.start, named.end, named.name);
+    if (c.gainM >= t.gainM && c.avgPct >= t.avgPct) return c;
+  }
 
   // Where the road is climbing: here, or the first steep stretch ahead.
   let probe: number | undefined;

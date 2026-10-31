@@ -20,12 +20,14 @@ export type SettingValue = boolean | number | string;
 export interface SettingDef {
   key: string;
   label: string;
-  type: "toggle" | "select" | "range";
+  type: "toggle" | "select" | "range" | "text";
   options?: { value: SettingValue; label: string }[];
   min?: number;
   max?: number;
   step?: number;
   suffix?: string;
+  /** For text: a hint shown while it's empty. */
+  placeholder?: string;
 }
 
 /**
@@ -249,6 +251,15 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
                   <span className={styles.label}>{d.label}</span>
                   {d.type === "toggle" ? (
                     <input type="checkbox" checked={!!value} onChange={(e) => setSetting(d.key as keyof T, e.target.checked)} />
+                  ) : d.type === "text" ? (
+                    <input
+                      type="text"
+                      className={styles.text}
+                      value={String(value ?? "")}
+                      placeholder={d.placeholder}
+                      spellCheck={false}
+                      onChange={(e) => setSetting(d.key as keyof T, e.target.value)}
+                    />
                   ) : d.type === "range" ? (
                     <>
                       <input

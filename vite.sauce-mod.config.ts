@@ -33,6 +33,7 @@ export default defineConfig({
         ladder: fileURLToPath(new URL('./sauce-mod/ladder.html', import.meta.url)),
         bunch: fileURLToPath(new URL('./sauce-mod/bunch.html', import.meta.url)),
         discord: fileURLToPath(new URL('./sauce-mod/discord.html', import.meta.url)),
+        youtube: fileURLToPath(new URL('./sauce-mod/youtube.html', import.meta.url)),
         workout: fileURLToPath(new URL('./sauce-mod/workout.html', import.meta.url)),
         workoutPanel: fileURLToPath(new URL('./sauce-mod/workoutPanel.html', import.meta.url)),
         fuel: fileURLToPath(new URL('./sauce-mod/fuel.html', import.meta.url)),

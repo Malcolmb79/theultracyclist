@@ -1,0 +1,139 @@
+/* Like the Zwift chat overlay (Chat.module.css), with a picture beside each
+   message and YouTube's own roles picked out. */
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 12px 0 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 6px;
+  min-height: calc(100vh - 12px);
+}
+
+.down {
+  justify-content: flex-start;
+}
+
+.down .item {
+  animation-name: arrive-down;
+}
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  padding: 5px var(--space-2);
+  border-left: 3px solid var(--color-accent-2);
+  font-size: 0.8rem;
+  animation: arrive 0.3s ease-out;
+}
+
+/* The channel's own messages, and Super Chats. */
+.owner {
+  border-left-color: var(--color-amber);
+}
+
+.super {
+  border-left-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 18%, rgba(var(--hud-bg), var(--overlay-alpha)));
+}
+
+.avatar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  margin-top: 1px;
+  border-radius: 50%;
+  object-fit: cover;
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  background: rgba(var(--hud-ink), 0.18);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.head b {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mod {
+  color: #6ea8ff;
+}
+
+.member {
+  color: var(--color-accent-2);
+}
+
+.badge {
+  flex: none;
+  padding: 0 0.3rem;
+  border-radius: 3px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: rgba(var(--hud-ink), 0.14);
+}
+
+.amount {
+  flex: none;
+  font-weight: 700;
+  color: var(--color-accent);
+}
+
+.ago {
+  margin-left: auto;
+  flex: none;
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+}
+
+.message {
+  margin-top: 1px;
+  overflow-wrap: anywhere;
+}
+
+.note {
+  margin: 0;
+  padding: 6px var(--space-2);
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes arrive-down {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .item {
+    animation: none;
+  }
+}

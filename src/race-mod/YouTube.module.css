@@ -118,6 +118,24 @@
   color: var(--color-text-muted);
 }
 
+/* Hidden while not live, showing itself on hover so the window can be found. */
+.idle {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2);
+  font-size: 0.75rem;
+  text-align: center;
+  color: var(--color-text-muted);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.idle:hover {
+  opacity: 0.8;
+}
+
 @keyframes arrive {
   from {
     opacity: 0;

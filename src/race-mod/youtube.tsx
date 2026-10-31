@@ -21,9 +21,11 @@ const DEFAULTS = {
   fadeAfter: 120,
   avatars: true,
   every: 8,
+  onlyLive: true,
 };
 const DEFS: SettingDef[] = [
   { key: "channel", label: "Your channel", type: "text", placeholder: "@yourhandle or stream link" },
+  { key: "onlyLive", label: "Only show when I'm live", type: "toggle" },
   { key: "example", label: "Show an example (for placing it)", type: "toggle" },
   {
     key: "direction",
@@ -114,7 +116,7 @@ function ago(ms: number): string {
 function YouTubeOverlay() {
   const [settings, set] = useSettings("youtube", DEFAULTS);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [state, setState] = useState<{ note?: string; title?: string }>({});
+  const [state, setState] = useState<{ note?: string; title?: string; live?: boolean }>({});
   const cursor = useRef<{ chat?: string; page?: string; for: string }>({ for: "" });
   const [, tick] = useState(0);
   useEffect(() => {
@@ -159,7 +161,7 @@ function YouTubeOverlay() {
           wait = Math.max(wait, 30_000);
         } else {
           cursor.current = { for: source, chat: a.chat, page: a.page };
-          setState({ title: a.video?.title });
+          setState({ title: a.video?.title, live: true });
           if (a.messages?.length) {
             setMessages((m) => {
               const seen = new Set(m.map((x) => x.id));
@@ -169,7 +171,8 @@ function YouTubeOverlay() {
           wait = Math.max(wait, a.pollMs ?? 0);
         }
       } catch {
-        if (live) setState({ note: "Can't reach the site - trying again" });
+        // A blip mid-stream keeps the chat up while it tries again.
+        if (live) setState((st) => ({ ...st, note: "Can't reach the site - trying again" }));
         wait = Math.max(wait, 15_000);
       }
       if (live) timer = setTimeout(poll, wait);
@@ -186,6 +189,15 @@ function YouTubeOverlay() {
   const shown = all.filter((m) => !settings.fadeAfter || now - m.at < settings.fadeAfter * 1000).slice(-settings.messages);
   const down = settings.direction === "down";
   if (down) shown.reverse();
+
+  // Off air: nothing on screen if chosen - just the reason, on hover, for finding the window.
+  if (settings.onlyLive && !settings.example && !state.live) {
+    return (
+      <OverlayShell title="YouTube chat" settings={settings} setSetting={set} defs={DEFS}>
+        <div className={styles.idle}>{state.note ?? "Waiting for your stream"} · right-click for settings</div>
+      </OverlayShell>
+    );
+  }
 
   return (
     <OverlayShell title="YouTube chat" settings={settings} setSetting={set} defs={DEFS}>

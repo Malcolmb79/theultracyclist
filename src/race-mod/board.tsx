@@ -78,6 +78,7 @@ const DEFAULTS = {
   opacity: 85,
   who: "all",
   category: true,
+  fill: true,
   rows: 20,
   flags: true,
   teams: true,
@@ -101,6 +102,7 @@ const DEFS: SettingDef[] = [
     ],
   },
   { key: "category", label: "Only my category", type: "toggle" },
+  { key: "fill", label: "Fill up with riders nearby", type: "toggle" },
   { key: "rows", label: "Riders shown", type: "select", options: ROW_CHOICES.map((n) => ({ value: n, label: String(n) })) },
   { key: "flags", label: "Flags", type: "toggle" },
   { key: "teams", label: "Team tags", type: "toggle" },
@@ -146,7 +148,23 @@ function RaceBoard() {
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
   });
-  const shown = around(order(riders), Math.min(settings.rows, fit), watching?.athleteId);
+  // Room to spare (a small group, a small category): filled with the
+  // nearest riders ahead and behind - the rider's own race first, then
+  // anyone else on the road - shown dimmed, so the board isn't half empty.
+  const rows = Math.min(settings.rows, fit);
+  const have = new Set(riders.map((r) => r.athleteId));
+  const nearest = (xs: SauceAthleteData[]) => xs.slice().sort((a, b) => Math.abs(a.gap ?? Infinity) - Math.abs(b.gap ?? Infinity));
+  const extras =
+    settings.fill && riders.length < rows
+      ? [
+          ...nearest(nearby.filter((r) => !have.has(r.athleteId) && inRace(r, subgroup))),
+          ...nearest(nearby.filter((r) => !have.has(r.athleteId) && !inRace(r, subgroup))),
+        ].slice(0, rows - riders.length)
+      : [];
+  const extraIds = new Set(extras.map((r) => r.athleteId));
+  // Mixed in, they all go in road order: race positions mean nothing across them.
+  const all = extras.length ? [...riders, ...extras].sort((a, b) => (a.gap ?? 0) - (b.gap ?? 0)) : order(riders);
+  const shown = around(all, rows, watching?.athleteId);
   const myTeam = watching?.athlete?.team?.trim().toLowerCase();
   const toGo =
     watching?.remaining == null
@@ -188,7 +206,7 @@ function RaceBoard() {
           return (
             <li
               key={r.athleteId}
-              className={`${styles.row} ${r.watching ? styles.watched : ""} ${teammate ? styles.teammate : ""}`}
+              className={`${styles.row} ${r.watching ? styles.watched : ""} ${teammate ? styles.teammate : ""} ${extraIds.has(r.athleteId) ? styles.extra : ""}`}
             >
               <span className={styles.pos}>{r.eventPosition || ""}</span>
               <span className={styles.who}>
@@ -200,6 +218,7 @@ function RaceBoard() {
                   {flag && <img className={styles.flag} src={flag.src} alt={flag.name} title={flag.name} />}
                   <span className={styles.name}>{athleteName(r)}</span>
                   {settings.teams && team && <span className={styles.team}>{team}</span>}
+                  {extraIds.has(r.athleteId) && !inRace(r, subgroup) && <span className={styles.otherRace}>other race</span>}
                 </span>
                 <span className={styles.stats}>
                   {settings.speed && s?.speed != null && <span>{Math.round(s.speed)} km/h</span>}

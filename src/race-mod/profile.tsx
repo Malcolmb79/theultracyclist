@@ -84,8 +84,10 @@ function ProfileOverlay() {
       : [];
 
   // The segment being ridden, or the next one.
-  const current = route && at != null ? route.segments.find((x) => at >= x.start && at <= x.end) : undefined;
-  const next = route && at != null && !current ? route.segments.filter((x) => x.start > at).sort((a, b) => a.start - b.start)[0] : undefined;
+  // Sprints and climbs only - not plain segments, or a KOM that goes downhill here.
+  const marked = route ? route.segments.filter((x) => x.kind !== "segment") : [];
+  const current = at != null ? marked.find((x) => at >= x.start && at <= x.end) : undefined;
+  const next = at != null && !current ? marked.filter((x) => x.start > at).sort((a, b) => a.start - b.start)[0] : undefined;
   const toGo =
     watching?.remaining == null
       ? null

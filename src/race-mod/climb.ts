@@ -57,6 +57,17 @@ function describe(route: RouteGeometry, start: number, top: number, name?: strin
 }
 
 /**
+ * Whether a stretch of the route really climbs, ridden this way round - by
+ * the same standard as any rise: enough height gain and average gradient.
+ * A KOM segment ridden in reverse, or net downhill here, doesn't.
+ */
+export function climbsHere(route: RouteGeometry, seg: { start: number; end: number }, sensitivity: ClimbSensitivity = "zwift"): boolean {
+  const t = THRESHOLDS[sensitivity];
+  const c = describe(route, seg.start, seg.end);
+  return c.gainM >= t.gainM && c.avgPct >= t.avgPct;
+}
+
+/**
  * The climb at or just ahead of `at` (within `lookAheadM`): a named climb
  * segment if the route has one there, otherwise the rise found by walking
  * the profile - back to where the road started going up, and on to where
@@ -72,11 +83,8 @@ export function findClimb(
   const end = route.distances.at(-1) ?? 0;
   // A named climb, if it really climbs this way round: a KOM segment can be
   // ridden in reverse, or be net downhill where the route crosses it.
-  const named = route.segments.find((s) => s.kind === "climb" && s.end >= at && s.start <= at + lookAheadM);
-  if (named) {
-    const c = describe(route, named.start, named.end, named.name);
-    if (c.gainM >= t.gainM && c.avgPct >= t.avgPct) return c;
-  }
+  const named = route.segments.find((s) => s.kind === "climb" && s.end >= at && s.start <= at + lookAheadM && climbsHere(route, s, sensitivity));
+  if (named) return describe(route, named.start, named.end, named.name);
 
   // Where the road is climbing: here, or the first steep stretch ahead.
   let probe: number | undefined;

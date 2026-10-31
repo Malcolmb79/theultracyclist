@@ -77,6 +77,10 @@ export interface RouteGeometry {
 }
 
 /** Sprints and climbs by their names, the way Zwift names them. */
+/** Below this, a segment named as a climb doesn't count as one on this route. */
+const MIN_CLIMB_GAIN_M = 6;
+const MIN_CLIMB_PCT = 2;
+
 function segmentKind(name: string): SegmentKind {
   if (/sprint/i.test(name)) return "sprint";
   if (/kom|qom|climb|summit|hill|col |alpe|mountain|ventoux|epic|reverse kom/i.test(name)) return "climb";
@@ -191,10 +195,26 @@ export function loadRoute(address: string, course: CourseGeometry, routeId: numb
           route.segments.map((x) => x.id),
         ).catch(() => []);
         const names = new Map(named.filter((x): x is SauceSegment => !!x).map((x) => [x.id, x.name ?? ""]));
+        // The height at a distance along the route, for checking a KOM really climbs.
+        const heightAt = (at: number) => {
+          let k = 0;
+          while (k < distances.length - 2 && distances[k + 1] < at) k++;
+          const f = distances[k + 1] > distances[k] ? Math.max(0, Math.min(1, (at - distances[k]) / (distances[k + 1] - distances[k]))) : 0;
+          return elevations[k] + ((elevations[k + 1] ?? elevations[k]) - elevations[k]) * f;
+        };
         segments = route.segments
           .map((x) => {
             const name = names.get(x.id) || "Segment";
-            return { id: x.id, name, kind: segmentKind(name), start: leadinM + x.offset, end: leadinM + x.offset + x.distance };
+            const start = leadinM + x.offset;
+            const end = start + x.distance;
+            let kind = segmentKind(name);
+            // A KOM ridden in reverse, or net downhill where this route
+            // crosses it, is no climb this way round: just a segment.
+            if (kind === "climb") {
+              const gain = heightAt(end) - heightAt(start);
+              if (gain < MIN_CLIMB_GAIN_M || (gain / Math.max(1, x.distance)) * 100 < MIN_CLIMB_PCT) kind = "segment";
+            }
+            return { id: x.id, name, kind, start, end };
           })
           .filter((x) => x.start <= d);
       }

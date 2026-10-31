@@ -216,3 +216,22 @@
   border-top: 2px solid var(--color-accent);
   border-radius: 0 0 var(--radius) var(--radius);
 }
+
+/* Filling the board: riders outside the group or category chosen, dimmed. */
+.extra {
+  opacity: 0.6;
+}
+
+.otherRace {
+  flex: none;
+  margin-left: 0.3rem;
+  padding: 0 4px;
+  border-radius: 4px;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  background: rgba(var(--hud-ink), 0.1);
+  text-shadow: none;
+}

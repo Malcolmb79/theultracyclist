@@ -30,14 +30,35 @@ function formatGap(gap: number | undefined): string {
 }
 
 /** Riders in race order where Zwift gives one, otherwise by gap on the road. */
-function order(riders: SauceAthleteData[]): SauceAthleteData[] {
-  const inEvent = riders.some((r) => r.eventPosition);
+/**
+ * Each rider's place in the race. Sauce gives it where it knows it - often
+ * only for the rider being followed - so the rest are counted from there,
+ * by who's ahead on the road (distance covered in the event, else the gap):
+ * estimates, since riders out of sight can't be counted.
+ */
+function placesOf(riders: SauceAthleteData[], watched: SauceAthleteData | null): Map<number, { pos: number; est: boolean }> {
+  const places = new Map<number, { pos: number; est: boolean }>();
+  for (const r of riders) if (r.eventPosition) places.set(r.athleteId, { pos: r.eventPosition, est: false });
+  const anchor = watched?.eventPosition;
+  if (!anchor) return places;
+  const dist = (r: SauceAthleteData) => (r.state as { eventDistance?: number } | null | undefined)?.eventDistance;
+  const byRoad = riders
+    .slice()
+    .sort((a, b) => (dist(a) != null && dist(b) != null ? dist(b)! - dist(a)! : (a.gap ?? 0) - (b.gap ?? 0)));
+  const me = byRoad.findIndex((r) => r.athleteId === watched!.athleteId || r.watching);
+  if (me < 0) return places;
+  byRoad.forEach((r, i) => {
+    if (!places.has(r.athleteId)) places.set(r.athleteId, { pos: Math.max(1, anchor + (i - me)), est: true });
+  });
+  return places;
+}
+
+/** Race order where places are known, otherwise road order (gap). */
+function order(riders: SauceAthleteData[], places: Map<number, { pos: number; est: boolean }>): SauceAthleteData[] {
   return riders.slice().sort((a, b) => {
-    if (inEvent) {
-      const pa = a.eventPosition || Infinity;
-      const pb = b.eventPosition || Infinity;
-      if (pa !== pb) return pa - pb;
-    }
+    const pa = places.get(a.athleteId)?.pos;
+    const pb = places.get(b.athleteId)?.pos;
+    if (pa != null && pb != null && pa !== pb) return pa - pb;
     return (a.gap ?? 0) - (b.gap ?? 0);
   });
 }
@@ -163,7 +184,8 @@ function RaceBoard() {
       : [];
   const extraIds = new Set(extras.map((r) => r.athleteId));
   // Mixed in, they all go in road order: race positions mean nothing across them.
-  const all = extras.length ? [...riders, ...extras].sort((a, b) => (a.gap ?? 0) - (b.gap ?? 0)) : order(riders);
+  const places = placesOf(nearby.filter((r) => inRace(r, subgroup)), watching);
+  const all = extras.length ? [...riders, ...extras].sort((a, b) => (a.gap ?? 0) - (b.gap ?? 0)) : order(riders, places);
   const shown = around(all, rows, watching?.athleteId);
   const myTeam = watching?.athlete?.team?.trim().toLowerCase();
   const toGo =
@@ -208,7 +230,12 @@ function RaceBoard() {
               key={r.athleteId}
               className={`${styles.row} ${r.watching ? styles.watched : ""} ${teammate ? styles.teammate : ""} ${extraIds.has(r.athleteId) ? styles.extra : ""}`}
             >
-              <span className={styles.pos}>{r.eventPosition || ""}</span>
+              <span
+                className={`${styles.pos} ${places.get(r.athleteId)?.est ? styles.estimated : ""}`}
+                title={places.get(r.athleteId)?.est ? "Estimated from who's ahead on the road" : undefined}
+              >
+                {places.get(r.athleteId)?.pos ?? ""}
+              </span>
               <span className={styles.who}>
                 <span
                   className={`${styles.nameLine} ${wbal != null ? styles.withWbal : ""}`}

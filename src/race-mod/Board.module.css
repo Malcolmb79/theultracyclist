@@ -88,6 +88,11 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* A place counted from the followed rider's, not given by Sauce. */
+.estimated {
+  opacity: 0.7;
+}
+
 .watched .pos {
   color: var(--color-accent-2);
 }

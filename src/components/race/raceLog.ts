@@ -262,6 +262,8 @@ export interface RaceResult {
   name: string;
   timeMs?: number;
   avgWatts?: number;
+  /** From the results, for watts per kilo. */
+  weightKg?: number;
   scoreChange?: number;
 }
 

@@ -92,7 +92,7 @@ interface SauceResultEntry {
   dns?: boolean;
   pending?: boolean;
   activityData?: { durationInMilliseconds?: number };
-  profileData?: { firstName?: string; lastName?: string };
+  profileData?: { firstName?: string; lastName?: string; weightInGrams?: number };
   sensorData?: { avgWatts?: number | null };
   scoreHistory?: { previousScore?: number; newScore?: number };
 }
@@ -120,6 +120,7 @@ export async function loadResults(address: string, subgroupId: number): Promise<
         name: name || `Rider ${e.profileId}`,
         timeMs: e.activityData?.durationInMilliseconds || undefined,
         avgWatts: e.sensorData?.avgWatts ? Math.round(e.sensorData.avgWatts) : undefined,
+        weightKg: e.profileData?.weightInGrams ? e.profileData.weightInGrams / 1000 : undefined,
         scoreChange: before != null && after != null && after !== before ? Math.round(after - before) : undefined,
       };
     });

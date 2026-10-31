@@ -34,6 +34,8 @@ export default defineConfig({
         bunch: fileURLToPath(new URL('./sauce-mod/bunch.html', import.meta.url)),
         discord: fileURLToPath(new URL('./sauce-mod/discord.html', import.meta.url)),
         youtube: fileURLToPath(new URL('./sauce-mod/youtube.html', import.meta.url)),
+        nearby: fileURLToPath(new URL('./sauce-mod/nearby.html', import.meta.url)),
+        riders: fileURLToPath(new URL('./sauce-mod/riders.html', import.meta.url)),
         workout: fileURLToPath(new URL('./sauce-mod/workout.html', import.meta.url)),
         workoutPanel: fileURLToPath(new URL('./sauce-mod/workoutPanel.html', import.meta.url)),
         fuel: fileURLToPath(new URL('./sauce-mod/fuel.html', import.meta.url)),

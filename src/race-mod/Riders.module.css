@@ -1,0 +1,148 @@
+/* As many cards across as fit, each wide enough for its stats. */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.5rem;
+  align-content: start;
+  min-height: 100vh;
+  padding: 0.3rem;
+  box-sizing: border-box;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.5rem 0.6rem;
+  border-left: 3px solid rgba(var(--hud-ink), 0.25);
+}
+
+/* The rider being watched, in the theme's accent; teammates in amber. */
+.me {
+  border-left-color: var(--color-accent-2);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent-2) 45%, transparent);
+}
+
+.mate {
+  border-left-color: var(--color-amber);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 1.4rem;
+}
+
+.who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.name {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.me .name {
+  color: var(--color-accent-2);
+}
+
+.mate .name {
+  color: var(--color-amber);
+}
+
+.flag {
+  width: 1.1rem;
+  height: auto;
+  border-radius: 2px;
+}
+
+.team {
+  align-self: flex-start;
+  margin-top: 1px;
+  padding: 0 0.3rem;
+  border-radius: 3px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: rgba(var(--hud-ink), 0.14);
+}
+
+.gap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.gap small {
+  font-family: var(--font-body);
+  font-size: 0.55rem;
+  color: var(--color-text-muted);
+}
+
+/* W′ left, as a bar under the name. */
+.wbar {
+  height: 0.3rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(var(--hud-ink), 0.12);
+}
+
+.wbar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-accent-2);
+  transition: width 1s linear;
+}
+
+.wbar .low {
+  background: var(--color-accent);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(4.6rem, 1fr));
+  gap: 0.3rem 0.5rem;
+  margin: 0;
+}
+
+.stat dt {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stat dd {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+
+.empty {
+  margin: 0;
+  padding: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}

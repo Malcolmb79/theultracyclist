@@ -97,6 +97,10 @@ interface ShellProps<T extends Record<string, SettingValue>> {
   defs: SettingDef[];
   /** Extra settings an overlay draws itself, below the standard ones. */
   extraSettings?: ReactNode;
+  /** How many settings rows the extra settings take, for sizing the window to the menu. */
+  extraRows?: number;
+  /** A wider settings menu, for overlays with a lot to choose. */
+  menuWidth?: number;
   className?: string;
   children: ReactNode;
 }
@@ -111,6 +115,8 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
   setSetting,
   defs,
   extraSettings,
+  extraRows,
+  menuWidth = MENU_WIDTH,
   className,
   children,
 }: ShellProps<T>) {
@@ -193,12 +199,12 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
   // window is often too small to show them - then it goes back to exactly
   // where it was. (Sauce lets a page move and size its own window; where it
   // can't, the menu scrolls inside the window as it is.)
-  const rows = 4 + defs.length + (extraSettings ? 3 : 0);
+  const rows = 4 + defs.length + (extraRows ?? (extraSettings ? 3 : 0));
   const openMenu = () => {
     if (!before.current) {
       before.current = { x: window.screenX, y: window.screenY, w: window.outerWidth, h: window.outerHeight };
       const scr = window.screen as Screen & { availLeft?: number; availTop?: number };
-      const w = Math.max(MENU_WIDTH + 40, before.current.w);
+      const w = Math.min(scr.availWidth - 40, Math.max(menuWidth + 40, before.current.w));
       const h = Math.min(scr.availHeight - 60, Math.max(before.current.h, 90 + rows * ROW_PX));
       try {
         window.resizeTo(w, h);
@@ -248,7 +254,7 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
       {menu && (
         <>
           <div className={styles.backdrop} onMouseDown={closeMenu} onContextMenu={(e) => e.preventDefault()} />
-          <div className={styles.menu} style={{ width: MENU_WIDTH }} role="dialog" aria-label={`${title} settings`}>
+          <div className={styles.menu} style={{ width: menuWidth }} role="dialog" aria-label={`${title} settings`}>
             <div className={styles.menuTitle}>
               {title}
               <button type="button" className={styles.close} onClick={closeMenu} aria-label="Close settings">

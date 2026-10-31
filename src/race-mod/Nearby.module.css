@@ -1,0 +1,96 @@
+.panel {
+  min-height: 100vh;
+  padding: 0.3rem 0.4rem;
+  overflow: hidden;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.table th {
+  padding: 0.25rem 0.45rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: left;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+  border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
+  user-select: none;
+}
+
+.table td {
+  padding: 0.22rem 0.45rem;
+  white-space: nowrap;
+  border-bottom: 1px solid rgba(var(--hud-ink), 0.05);
+}
+
+.num {
+  text-align: right !important;
+}
+
+.num small {
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+}
+
+.sorted {
+  color: var(--color-accent-2) !important;
+}
+
+.arrow {
+  margin-left: 0.2rem;
+  font-size: 0.55rem;
+}
+
+.nameCol {
+  width: 100%;
+  max-width: 14rem;
+}
+
+.name {
+  font-weight: 600;
+}
+
+.team {
+  margin-left: 0.4rem;
+  padding: 0 0.3rem;
+  border-radius: 3px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: rgba(var(--hud-ink), 0.14);
+}
+
+/* The rider being watched, in the theme's accent; teammates in amber. */
+.me td {
+  background: color-mix(in srgb, var(--color-accent-2) 22%, transparent);
+}
+
+.me .name {
+  color: var(--color-accent-2);
+}
+
+.mate .name {
+  color: var(--color-amber);
+}
+
+.flag {
+  display: block;
+  width: 1.2rem;
+  height: auto;
+  border-radius: 2px;
+}
+
+.empty {
+  margin: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}

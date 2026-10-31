@@ -1,10 +1,11 @@
-import { StrictMode, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { StrictMode, useLayoutEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../styles/global.css";
 import { athleteName, type SauceAthleteData } from "../components/race/sauceFeed";
 import { inRace } from "../components/race/sameRace";
 import { OverlayShell, useSettings, type SettingDef } from "./overlay";
 import { useSauce } from "./useSauce";
+import { useFlags } from "./flags";
 import styles from "./Board.module.css";
 
 // The race board: Zwift's rider list on the right of the screen, redone in
@@ -16,41 +17,6 @@ import styles from "./Board.module.css";
 const ROW_CHOICES = [10, 15, 20, 25, 30];
 /** Sauce's own default W′ when a rider's profile doesn't set one. */
 const DEFAULT_W_PRIME = 20_000;
-
-interface Country {
-  id: number;
-  alpha2: string;
-  en: string;
-}
-
-/**
- * Sauce's own country list and flag images, served by its web server. The
- * UK's home nations use Zwift-only codes, which Sauce maps to the Union Jack.
- */
-function useFlags(sauceAddress: string) {
-  const [flags, setFlags] = useState<Map<number, { src: string; name: string }>>(new Map());
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`http://${sauceAddress}/shared/deps/data/countries.json`)
-      .then((r) => (r.ok ? (r.json() as Promise<Country[]>) : []))
-      .then((list) => {
-        if (cancelled) return;
-        const m = new Map(
-          list.map((c) => [c.id, { src: `http://${sauceAddress}/pages/deps/flags/${c.alpha2}.png`, name: c.en }]),
-        );
-        const uk = m.get(826);
-        if (uk) for (const id of [900, 901, 902, 903]) m.set(id, uk);
-        setFlags(m);
-      })
-      .catch(() => {
-        // No flags - the board works without them.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [sauceAddress]);
-  return flags;
-}
 
 function formatGap(gap: number | undefined): string {
   if (gap == null) return "";

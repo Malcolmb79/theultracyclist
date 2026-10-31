@@ -3,6 +3,7 @@ import { sameRaceGroups } from "./sameRace";
 
 export type { TeamStanding } from "./ladder";
 import { powerUp } from "./powerUps";
+import { predict, type FinishKind } from "../../race-mod/predictor";
 import { athleteName, cleanName, type SauceAthleteData, type SauceChat, type SauceGroup } from "./sauceFeed";
 
 // A race as a timestamped record: a one-second trace of the watched rider,
@@ -185,6 +186,34 @@ export interface FieldSnapshot {
   rivals?: Rival[];
   /** In a Club Ladder race: the team score as it stands. */
   teams?: TeamStanding;
+  /** The shape of the race as a whole: the front, any break, the bunch, the chase. */
+  race?: RaceShape;
+  /** Who's most likely to win, from the race predictor. */
+  favourites?: { name: string; chancePct: number; why: string[] }[];
+}
+
+/** One group in the race, as a commentator would describe it. */
+export interface RaceGroupView {
+  riders: number;
+  /** Seconds relative to the watched rider: negative is ahead. */
+  gapToRiderSec: number;
+  /** The strongest-going few in it. */
+  names: string[];
+  avgPower?: number;
+}
+
+/** The race from the front back, not just around the watched rider. */
+export interface RaceShape {
+  groups: number;
+  front: RaceGroupView;
+  /** The biggest group: the peloton. */
+  mainBunch: RaceGroupView & { isFront: boolean };
+  /** Riders up the road from the main bunch, and how far ahead of it. */
+  breakaway?: { riders: number; groups: number; aheadOfBunchSec: number; names: string[] };
+  /** Groups between the break and the bunch, chasing. */
+  chasers?: number;
+  /** Where the watched rider is in all that. */
+  watchedRiderIs: "in the breakaway" | "in the main bunch" | "chasing" | "behind the main bunch";
 }
 
 /**
@@ -797,6 +826,8 @@ export class RaceRecorder {
       pen: this.log.samples.at(-1)?.pen ? this.penField(groups, named) : undefined,
       rivals: this.rivals(groups, named),
       teams: this.log.sessionType === "ladder" ? this.teamStanding(groups, named, now) : undefined,
+      race: this.raceShape(groups, watchedIdx, named),
+      favourites: this.favourites(groups),
     };
   }
 
@@ -827,6 +858,69 @@ export class RaceRecorder {
     }
     this.ladderLeader = leading;
     return standing;
+  }
+
+  /** The race from the front back: the front, any breakaway, the bunch, the chase, and where the watched rider is. */
+  private raceShape(groups: SauceGroup[], watchedIdx: number, named: (a: SauceAthleteData) => FieldRider): RaceShape | undefined {
+    if (!groups.length || watchedIdx < 0) return undefined;
+    const view = (g: SauceGroup): RaceGroupView => ({
+      riders: g.athletes?.length ?? 0,
+      gapToRiderSec: round(g.gap ?? 0, 1) ?? 0,
+      names: (g.athletes ?? [])
+        .map(named)
+        .sort((x, y) => (y.wkg ?? 0) - (x.wkg ?? 0))
+        .slice(0, 3)
+        .map((r) => r.name),
+      avgPower: round(g.power),
+    });
+    // The bunch: the biggest group (the nearer the front, on a tie).
+    let bunchIdx = 0;
+    groups.forEach((g, i) => {
+      if ((g.athletes?.length ?? 0) > (groups[bunchIdx].athletes?.length ?? 0)) bunchIdx = i;
+    });
+    const bunch = groups[bunchIdx];
+    const ahead = groups.slice(0, bunchIdx);
+    const front = view(groups[0]);
+    const breakaway = ahead.length
+      ? {
+          riders: ahead.reduce((n, g) => n + (g.athletes?.length ?? 0), 0),
+          groups: ahead.length,
+          aheadOfBunchSec: round((bunch.gap ?? 0) - (groups[0].gap ?? 0), 1) ?? 0,
+          names: ahead.flatMap((g) => (g.athletes ?? []).map(named)).sort((x, y) => (y.wkg ?? 0) - (x.wkg ?? 0)).slice(0, 4).map((r) => r.name),
+        }
+      : undefined;
+    return {
+      groups: groups.length,
+      front,
+      mainBunch: { ...view(bunch), isFront: bunchIdx === 0 },
+      breakaway,
+      chasers: ahead.length > 1 ? ahead.length - 1 : undefined,
+      watchedRiderIs:
+        watchedIdx === bunchIdx ? "in the main bunch" : watchedIdx === 0 ? "in the breakaway" : watchedIdx < bunchIdx ? "chasing" : "behind the main bunch",
+    };
+  }
+
+  /** The race predictor's favourites, from everyone in the race in sight. */
+  private favourites(groups: SauceGroup[]): FieldSnapshot["favourites"] {
+    const riders = groups.flatMap((g) => g.athletes ?? []);
+    if (riders.length < 2) return undefined;
+    const ahead = this.log.courseAhead;
+    const remainingKm = this.log.samples.at(-1)?.remaining != null && this.log.remainingMetric === "distance" ? this.log.samples.at(-1)!.remaining! / 1000 : undefined;
+    // The finish, as far as the road ahead tells: a climb ending at the line is a summit finish.
+    const finishClimb =
+      ahead?.finishInKm != null &&
+      [ahead.current && { kind: ahead.current.kind, endKm: ahead.current.toGoM / 1000 }, ...ahead.next.map((n) => ({ kind: n.kind, endKm: n.inKm + n.lengthKm }))].some(
+        (x) => x && x.kind === "climb" && Math.abs(x.endKm - ahead.finishInKm!) < 0.5,
+      );
+    const kind: FinishKind = finishClimb ? "climb" : ahead?.finishInKm != null ? "sprint" : "unknown";
+    const zp = new Map(Object.entries(this.log.riderHistory ?? {}).map(([id, h]) => [Number(id), h]));
+    const chances = predict(riders, { kind, remainingKm, climbAheadM: ahead?.next5km.climbM, steepestAheadPct: ahead?.next5km.steepestPct }, zp);
+    const byId = new Map(riders.map((a) => [a.athleteId, a]));
+    return chances.slice(0, 5).map((c) => ({
+      name: athleteName(byId.get(c.athleteId)!),
+      chancePct: Math.round(c.chance * 100),
+      why: c.why.slice(0, 3),
+    }));
   }
 
   private rivals(groups: SauceGroup[], named: (a: SauceGroup["athletes"][number]) => FieldRider): Rival[] | undefined {

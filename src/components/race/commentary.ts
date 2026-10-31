@@ -669,6 +669,9 @@ export function buildSnapshot(
       rivals: ride ? undefined : log.field.rivals?.map((r) => withHistory(log, r)),
       // A Club Ladder race: the team score as it stands.
       teams: kind === "ladder" ? log.field.teams : undefined,
+      // The race as a whole - the front, any break, the bunch, the chase - and who's likely to win it.
+      race: ride ? undefined : log.field.race,
+      favourites: ride ? undefined : log.field.favourites,
       // Who's suffering and who's fresh, from the riders in sight.
       condition: fieldCondition(log),
     },

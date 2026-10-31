@@ -4,6 +4,7 @@ import "../styles/global.css";
 import { athleteName, type SauceAthleteData } from "../components/race/sauceFeed";
 import { inRace } from "../components/race/sameRace";
 import { fetchRiderHistory } from "../components/race/commentary";
+import { loadEventBrief } from "../components/race/eventInfo";
 import type { RiderHistory } from "../components/race/raceLog";
 import { OverlayShell, useSettings, type SettingDef } from "./overlay";
 import { useSauce } from "./useSauce";
@@ -89,30 +90,48 @@ function PredictOverlay() {
 
   const riders: SauceAthleteData[] = subgroup ? nearby.filter((r) => inRace(r, subgroup)) : [];
   const at = route ? routePosition(route, watching?.state) : undefined;
+  // The event's length, for the distance to go when Sauce doesn't say.
+  const [eventKm, setEventKm] = useState<number | undefined>();
+  useEffect(() => {
+    setEventKm(undefined);
+    if (!subgroup) return;
+    let live = true;
+    void loadEventBrief(address, subgroup)
+      .then((b) => live && setEventKm(b?.distanceKm))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [address, subgroup]);
+  const covered = (watching?.state as { eventDistance?: number } | null | undefined)?.eventDistance;
+  const fromEvent = eventKm && covered != null ? Math.max(0, eventKm * 1000 - covered) : undefined;
   const remainingM =
-    watching?.remainingMetric === "distance"
-      ? (watching.remaining ?? undefined)
-      : watching?.remaining != null && watching.state?.speed
+    watching?.remainingMetric === "distance" && watching.remaining != null
+      ? watching.remaining
+      : watching?.remainingMetric === "time" && watching.remaining != null && watching.state?.speed
         ? watching.remaining * (watching.state.speed / 3.6)
-        : undefined;
-  const finish = readFinish(watching?.remainingMetric === "distance" ? route : null, at, remainingM);
+        : fromEvent;
+  // The road's shape at the finish is only known for a race over a distance.
+  const finish = readFinish(watching?.remainingMetric !== "time" ? route : null, at, remainingM);
 
   // Each rider's gap over the last couple of minutes, against how far the
   // race has gone, for whether they're losing or gaining time - a solo
   // attacker being reeled in, a chase closing, someone cooked going backwards.
   const history = useRef(new Map<number, { t: number; gap: number; km: number }[]>());
-  const trendsOf = (remainingKm: number | undefined) => {
+  const trendsOf = () => {
     const now = Date.now();
     const trends = new Map<number, number>();
-    if (remainingKm == null) return trends;
+    // Against the distance the race has covered (the followed rider's), which Sauce always has.
+    const km = covered != null ? covered / 1000 : undefined;
+    if (km == null) return trends;
     for (const r of riders) {
       if (r.gap == null) continue;
       const h = (history.current.get(r.athleteId) ?? []).filter((x) => now - x.t <= TREND_MS);
-      h.push({ t: now, gap: r.gap, km: remainingKm });
+      h.push({ t: now, gap: r.gap, km });
       history.current.set(r.athleteId, h);
       const first = h[0];
-      const km = first.km - remainingKm;
-      if (km >= TREND_MIN_KM) trends.set(r.athleteId, (r.gap - first.gap) / km);
+      const ridden = km - first.km;
+      if (ridden >= TREND_MIN_KM) trends.set(r.athleteId, (r.gap - first.gap) / ridden);
     }
     return trends;
   };
@@ -122,7 +141,7 @@ function PredictOverlay() {
   const [chances, setChances] = useState<Chance[]>([]);
   useEffect(() => {
     if (!riders.length) return;
-    const raw = predict(riders, finish, zp.current, trendsOf(finish.remainingKm));
+    const raw = predict(riders, finish, zp.current, trendsOf());
     const next = raw.map((c) => {
       const was = eased.current.get(c.athleteId);
       const chance = was == null ? c.chance : was + (c.chance - was) * EASE;

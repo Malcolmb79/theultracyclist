@@ -188,7 +188,7 @@ export function predict(
     // Still in it: projected time down on the front at the line, which
     // counts for less with a long way to go.
     const deficit = Math.max(0, projected.get(r.athleteId)! - front);
-    const tolerance = clamp(4 + 2 * remainingKm, 4, 90);
+    const tolerance = clamp(3 + 1.2 * remainingKm, 3, 60);
     s.contention = Math.exp(-deficit / tolerance);
     const nowDown = Math.max(0, (r.gap ?? 0) - Math.min(...riders.map((x) => x.gap ?? 0)));
     const trend = trends.get(r.athleteId) ?? 0;

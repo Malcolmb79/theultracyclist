@@ -7,7 +7,7 @@ import type { SauceAthleteData } from "../components/race/sauceFeed";
 // text to show; a field Sauce doesn't have for a rider (hidden FTP, no
 // heart rate) shows a dash.
 
-export type FieldGroup = "Athlete" | "Event / road" | "Power" | "Speed" | "Heart rate" | "Cadence" | "Draft" | "Peaks" | "Time";
+export type FieldGroup = "Athlete" | "Event / road" | "Power" | "Speed" | "Heart rate" | "Cadence" | "Draft" | "Peaks" | "Energy" | "Time";
 
 export interface RiderField {
   id: string;
@@ -44,6 +44,20 @@ const stats = (r: SauceAthleteData) => (r as Rich).stats;
 const kg = (r: SauceAthleteData) => r.athlete?.weight || undefined;
 const perKg = (w: number | null | undefined, r: SauceAthleteData) => (w != null && kg(r) ? w / kg(r)! : undefined);
 const num = (v: number | null | undefined) => (v == null || !Number.isFinite(v) ? undefined : v);
+
+/**
+ * Stamina left, as the Stamina overlay counts it: drained with intensity to
+ * the fourth power, so an hour at FTP empties it. Sauce's normalised power
+ * is that same fourth-power average, so the whole ride's drain is its time
+ * times (NP / FTP)^4 - for any rider, without having followed them all ride.
+ */
+export function staminaLeft(r: SauceAthleteData, holdFtpMin = 60): number | undefined {
+  const p = stats(r)?.power;
+  const ftp = r.athlete?.ftp;
+  const time = stats(r)?.activeTime;
+  if (!p?.np || !ftp || !time) return undefined;
+  return Math.max(0, Math.min(100, 100 - (100 * time * (p.np / ftp) ** 4) / (holdFtpMin * 60)));
+}
 
 const whole = (v: number) => String(Math.round(v));
 const one = (v: number) => v.toFixed(1);
@@ -90,7 +104,7 @@ const FIELDS: RiderField[] = [
     id: "wbal",
     label: "W′ balance (kJ)",
     short: "W′bal",
-    group: "Athlete",
+    group: "Energy",
     value: (r) => (r.wBal != null ? r.wBal / 1000 : undefined),
     show: one,
   },
@@ -98,20 +112,28 @@ const FIELDS: RiderField[] = [
     id: "wbalPct",
     label: "W′ balance (%)",
     short: "W′ %",
-    group: "Athlete",
+    group: "Energy",
     value: (r) => (r.wBal != null ? (r.wBal / (r.athlete?.wPrime || 20_000)) * 100 : undefined),
     show: pct,
   },
-  { id: "tss", label: "TSS", short: "TSS", group: "Athlete", value: (r) => num(stats(r)?.power?.tss), show: whole },
+  { id: "tss", label: "TSS", short: "TSS", group: "Energy", value: (r) => num(stats(r)?.power?.tss), show: whole },
   {
     id: "if",
     label: "Intensity Factor",
     short: "IF",
-    group: "Athlete",
+    group: "Energy",
     value: (r) => (stats(r)?.power?.np && r.athlete?.ftp ? stats(r)!.power!.np! / r.athlete.ftp : undefined),
     show: (v) => v.toFixed(2),
   },
-  { id: "energy", label: "Energy (kJ)", short: "kJ", group: "Athlete", value: (r) => num(stats(r)?.power?.kj), show: whole },
+  {
+    id: "stamina",
+    label: "Stamina left (%)",
+    short: "Stamina",
+    group: "Energy",
+    value: (r) => staminaLeft(r),
+    show: pct,
+  },
+  { id: "energy", label: "Energy (kJ)", short: "kJ", group: "Energy", value: (r) => num(stats(r)?.power?.kj), show: whole },
 
   // Event and road
   {
@@ -235,7 +257,7 @@ const FIELDS: RiderField[] = [
 ];
 
 /** The groups in the order columns and cards show them: where and how hard first, totals last. */
-export const FIELD_GROUPS: FieldGroup[] = ["Event / road", "Power", "Speed", "Heart rate", "Cadence", "Draft", "Peaks", "Athlete", "Time"];
+export const FIELD_GROUPS: FieldGroup[] = ["Event / road", "Power", "Speed", "Heart rate", "Cadence", "Draft", "Peaks", "Energy", "Athlete", "Time"];
 
 export const RIDER_FIELDS: RiderField[] = FIELD_GROUPS.flatMap((g) => FIELDS.filter((f) => f.group === g));
 

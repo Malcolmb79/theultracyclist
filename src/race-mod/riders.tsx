@@ -8,7 +8,7 @@ import { useSauce } from "./useSauce";
 import { useFlags } from "./flags";
 import FieldPicker from "./FieldPicker";
 import { Avatar } from "./nearbyAvatar";
-import { chosen, display, gapIsEstimate } from "./riderFields";
+import { chosen, display, gapIsEstimate, staminaLeft } from "./riderFields";
 import shell from "./Overlay.module.css";
 import styles from "./Riders.module.css";
 
@@ -25,6 +25,7 @@ const DEFAULTS = {
   max: 10,
   category: true,
   wbar: true,
+  sbar: false,
 };
 const DEFS: SettingDef[] = [
   {
@@ -44,7 +45,8 @@ const DEFS: SettingDef[] = [
   },
   { key: "max", label: "Most cards", type: "select", options: [4, 6, 8, 10, 12, 16].map((n) => ({ value: n, label: String(n) })) },
   { key: "category", label: "Only my category", type: "toggle" },
-  { key: "wbar", label: "W′ bar", type: "toggle" },
+  { key: "wbar", label: "W′ balance bar", type: "toggle" },
+  { key: "sbar", label: "Stamina bar", type: "toggle" },
 ];
 
 function RidersOverlay() {
@@ -87,6 +89,7 @@ function RidersOverlay() {
           const team = a?.team?.trim();
           const mate = !r.watching && !!myTeam && team?.toLowerCase() === myTeam;
           const wbal = settings.wbar && r.wBal != null ? Math.max(0, Math.min(1, r.wBal / (a?.wPrime || 20_000))) : undefined;
+          const stamina = settings.sbar ? staminaLeft(r) : undefined;
           return (
             <article key={r.athleteId} className={`${shell.panel} ${styles.card} ${r.watching ? styles.me : ""} ${mate ? styles.mate : ""}`}>
               <header className={styles.head}>
@@ -104,8 +107,21 @@ function RidersOverlay() {
                 </span>
               </header>
               {wbal != null && (
-                <div className={styles.wbar} title={`W′ ${((r.wBal ?? 0) / 1000).toFixed(1)} kJ`}>
-                  <span style={{ width: `${wbal * 100}%` }} className={wbal < 0.25 ? styles.low : ""} />
+                <div className={styles.bar} title={`W′ ${((r.wBal ?? 0) / 1000).toFixed(1)} kJ`}>
+                  <span className={styles.barLabel}>W′</span>
+                  <span className={styles.wbar}>
+                    <span style={{ width: `${wbal * 100}%` }} className={wbal < 0.25 ? styles.low : ""} />
+                  </span>
+                  <span className={styles.barValue}>{Math.round(wbal * 100)}%</span>
+                </div>
+              )}
+              {stamina != null && (
+                <div className={styles.bar} title="Stamina left for the ride, from their normalised power and FTP - an estimate">
+                  <span className={styles.barLabel}>Stamina</span>
+                  <span className={`${styles.wbar} ${styles.stamina}`}>
+                    <span style={{ width: `${stamina}%` }} className={stamina < 25 ? styles.low : ""} />
+                  </span>
+                  <span className={styles.barValue}>{Math.round(stamina)}%</span>
                 </div>
               )}
               <dl className={styles.stats}>

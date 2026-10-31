@@ -94,8 +94,33 @@
   color: var(--color-text-muted);
 }
 
-/* W′ left, as a bar under the name. */
+/* W′ and stamina left, as labelled bars under the name. */
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.barLabel {
+  flex: none;
+  width: 3.6rem;
+}
+
+.barValue {
+  flex: none;
+  width: 2.2rem;
+  text-align: right;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
 .wbar {
+  flex: 1;
   height: 0.3rem;
   border-radius: 999px;
   overflow: hidden;
@@ -108,6 +133,10 @@
   border-radius: 999px;
   background: var(--color-accent-2);
   transition: width 1s linear;
+}
+
+.stamina span {
+  background: var(--color-amber);
 }
 
 .wbar .low {

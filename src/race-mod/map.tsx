@@ -140,6 +140,69 @@ function MapOverlay() {
     ? { transform: `rotateX(${tilt}deg) scale(${(1 + (tilt / 80) * 0.8).toFixed(3)})`, transformOrigin: `50% ${pivotY}%` }
     : undefined;
 
+  // Following, the turning and the tilt are left to the graphics card: the
+  // map is drawn once (a square about the rider, big enough to cover the
+  // window at any angle) and turned and leant as a picture. Turning the map
+  // inside the drawing meant redrawing every road and rider on every frame
+  // of the turn - which, tilted and in a big group, couldn't keep up.
+  const canvasRef = useRef<HTMLDivElement | null>(null);
+  const [canvas, setCanvas] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setCanvas({ w: el.clientWidth, h: el.clientHeight }));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const follow = view === "follow" && !!me && canvas.w > 0 && canvas.h > 0;
+  let spin: { px: number; py: number; r: number; viewBox: string } | null = null;
+  if (follow && me) {
+    const size = zoomKm * 100_000;
+    const perPx = size / Math.min(canvas.w, canvas.h);
+    const px = canvas.w / 2;
+    const py = canvas.h / 2 + Math.min(canvas.w, canvas.h) * settings.riderAt;
+    // Far enough to reach every corner, and further up the road when leant back.
+    const reach = Math.max(Math.hypot(px, py), Math.hypot(canvas.w - px, py), Math.hypot(px, canvas.h - py), Math.hypot(canvas.w - px, canvas.h - py));
+    const r = Math.ceil(reach * (1 + (tilt / 80) * 0.6));
+    spin = { px, py, r, viewBox: `${me[0] - r * perPx} ${me[1] - r * perPx} ${2 * r * perPx} ${2 * r * perPx}` };
+  }
+
+  // Everything on the map, in the world's own coordinates.
+  const world = (
+    <>
+      {settings.otherRoads &&
+        roadPaths.map((d, i) => <path key={i} d={d} className={styles.road} vectorEffect="non-scaling-stroke" />)}
+      {routePath && (
+        <>
+          <path d={routePath} className={styles.routeGlow} vectorEffect="non-scaling-stroke" />
+          <path d={routePath} className={styles.route} vectorEffect="non-scaling-stroke" />
+        </>
+      )}
+      {settings.trail && trail.length > 1 && <path d={trailPath} className={styles.trail} vectorEffect="non-scaling-stroke" />}
+      {settings.riders &&
+        nearby.map((r) => {
+          if (r.watching || r.state?.x == null || r.state?.y == null) return null;
+          const [x, y] = toScreen([r.state.x, r.state.y], flipped);
+          const teammate = !!myTeam && r.athlete?.team?.trim().toLowerCase() === myTeam;
+          return (
+            <circle
+              key={r.athleteId}
+              cx={x}
+              cy={y}
+              r={unit * (teammate ? 1.4 : 1.1)}
+              className={teammate ? styles.teammate : styles.rider}
+            />
+          );
+        })}
+      {me && (
+        <>
+          <circle cx={me[0]} cy={me[1]} r={unit * 4} className={styles.meHalo} />
+          <circle cx={me[0]} cy={me[1]} r={unit * 2} className={styles.me} />
+        </>
+      )}
+    </>
+  );
+
   return (
     <OverlayShell title="Map" settings={settings} setSetting={set} defs={DEFS} className={styles.map}>
       {settings.title && (
@@ -151,43 +214,25 @@ function MapOverlay() {
         </header>
       )}
 
-      <div className={styles.canvas}>
-        {box ? (
-          <svg viewBox={`${box.x} ${box.y} ${box.w} ${box.h}`} preserveAspectRatio="xMidYMid meet" className={styles.svg} style={tiltStyle}>
-            <g
-              className={styles.world}
-              style={me ? { transform: `rotate(${rotate}deg)`, transformOrigin: `${me[0]}px ${me[1]}px` } : undefined}
+      <div className={styles.canvas} ref={canvasRef}>
+        {spin ? (
+          <div
+            className={styles.tilt}
+            style={tilt ? { transform: `rotateX(${tilt}deg) scale(${(1 + (tilt / 80) * 0.5).toFixed(3)})`, transformOrigin: `${spin.px}px ${spin.py}px` } : undefined}
+          >
+            <div
+              className={styles.spin}
+              style={{ left: spin.px - spin.r, top: spin.py - spin.r, width: spin.r * 2, height: spin.r * 2, transform: `rotate(${rotate}deg)` }}
             >
-              {settings.otherRoads &&
-                roadPaths.map((d, i) => <path key={i} d={d} className={styles.road} vectorEffect="non-scaling-stroke" />)}
-              {routePath && (
-                <>
-                  <path d={routePath} className={styles.routeGlow} vectorEffect="non-scaling-stroke" />
-                  <path d={routePath} className={styles.route} vectorEffect="non-scaling-stroke" />
-                </>
-              )}
-              {settings.trail && trail.length > 1 && <path d={trailPath} className={styles.trail} vectorEffect="non-scaling-stroke" />}
-              {settings.riders &&
-                nearby.map((r) => {
-                  if (r.watching || r.state?.x == null || r.state?.y == null) return null;
-                  const [x, y] = toScreen([r.state.x, r.state.y], flipped);
-                  const teammate = !!myTeam && r.athlete?.team?.trim().toLowerCase() === myTeam;
-                  return (
-                    <circle
-                      key={r.athleteId}
-                      cx={x}
-                      cy={y}
-                      r={unit * (teammate ? 1.4 : 1.1)}
-                      className={teammate ? styles.teammate : styles.rider}
-                    />
-                  );
-                })}
-              {me && (
-                <>
-                  <circle cx={me[0]} cy={me[1]} r={unit * 4} className={styles.meHalo} />
-                  <circle cx={me[0]} cy={me[1]} r={unit * 2} className={styles.me} />
-                </>
-              )}
+              <svg viewBox={spin.viewBox} preserveAspectRatio="xMidYMid meet" className={styles.svg}>
+                {world}
+              </svg>
+            </div>
+          </div>
+        ) : box ? (
+          <svg viewBox={`${box.x} ${box.y} ${box.w} ${box.h}`} preserveAspectRatio="xMidYMid meet" className={styles.svg} style={tiltStyle}>
+            <g className={styles.world}>
+              {world}
             </g>
           </svg>
         ) : (

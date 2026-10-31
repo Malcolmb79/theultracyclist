@@ -57,6 +57,7 @@
 
 
 .canvas {
+  position: relative;
   flex: 1;
   min-height: 0;
   overflow: hidden;
@@ -70,6 +71,25 @@
   width: 100%;
   height: 100%;
   transition: transform 0.3s ease;
+}
+
+/* Following: the map leant back (tilt) and turned (spin) as a picture, by the graphics card. */
+.tilt {
+  position: absolute;
+  inset: 0;
+  transition: transform 0.3s ease;
+}
+
+.spin {
+  position: absolute;
+  transition: transform 1s linear;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    transition: none;
+  }
 }
 
 .world {

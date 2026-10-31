@@ -101,9 +101,9 @@ interface ShellProps<T extends Record<string, SettingValue>> {
   children: ReactNode;
 }
 
-const MENU_WIDTH = 240;
-/** Roughly how tall the menu is, so it opens where it fits; small windows scroll it. */
-const MENU_HEIGHT = 280;
+const MENU_WIDTH = 280;
+/** The menu's rows are about this tall, in pixels, for sizing the window to it. */
+const ROW_PX = 31;
 
 export function OverlayShell<T extends Record<string, SettingValue>>({
   title,
@@ -114,7 +114,9 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
   className,
   children,
 }: ShellProps<T>) {
-  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const [menu, setMenu] = useState(false);
+  // Where the window was before the menu took it to the middle of the screen.
+  const before = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
   const [theme, setTheme] = useState(() => readTheme().id);
   const [textSize, setTextSize] = useState(() => readTextSize(title));
   const shellRef = useRef<HTMLDivElement | null>(null);
@@ -133,6 +135,8 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
     // it is - wrapping the overlay to measure it would change its layout.
     const overflow = () => document.documentElement.scrollHeight - window.innerHeight;
     const check = () => {
+      // Not while the settings have the window in the middle of the screen.
+      if (before.current) return;
       const over = overflow();
       if (over > 6 && !grown.current) {
         grown.current = true;
@@ -179,10 +183,50 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
 
   useEffect(() => {
     document.documentElement.classList.add(styles.transparent);
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMenu(null);
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && closeRef.current();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  // The settings open in the middle of the screen, the window made big
+  // enough for all of them whatever size the overlay is - an overlay's own
+  // window is often too small to show them - then it goes back to exactly
+  // where it was. (Sauce lets a page move and size its own window; where it
+  // can't, the menu scrolls inside the window as it is.)
+  const rows = 4 + defs.length + (extraSettings ? 3 : 0);
+  const openMenu = () => {
+    if (!before.current) {
+      before.current = { x: window.screenX, y: window.screenY, w: window.outerWidth, h: window.outerHeight };
+      const scr = window.screen as Screen & { availLeft?: number; availTop?: number };
+      const w = Math.max(MENU_WIDTH + 40, before.current.w);
+      const h = Math.min(scr.availHeight - 60, Math.max(before.current.h, 90 + rows * ROW_PX));
+      try {
+        window.resizeTo(w, h);
+        window.moveTo((scr.availLeft ?? 0) + Math.round((scr.availWidth - w) / 2), (scr.availTop ?? 0) + Math.round((scr.availHeight - h) / 2));
+      } catch {
+        // Not allowed: the menu scrolls inside the window.
+      }
+    }
+    setMenu(true);
+  };
+  const closeMenu = () => {
+    setMenu(false);
+    const was = before.current;
+    if (!was) return;
+    try {
+      window.resizeTo(was.w, was.h);
+      window.moveTo(was.x, was.y);
+    } catch {
+      // Not allowed: it was never moved.
+    }
+    // Give the window a moment to settle back before the overlay measures itself again.
+    setTimeout(() => {
+      before.current = null;
+    }, 400);
+  };
+
+  const closeRef = useRef(closeMenu);
+  closeRef.current = closeMenu;
 
   return (
     <div
@@ -191,12 +235,7 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
       style={{ ["--overlay-alpha" as string]: String(settings.opacity / 100) }}
       onContextMenu={(e) => {
         e.preventDefault();
-        // Kept inside the window, which may be small - then it starts at the
-        // top and scrolls.
-        setMenu({
-          x: Math.max(4, Math.min(e.clientX, window.innerWidth - MENU_WIDTH - 4)),
-          y: Math.max(4, Math.min(e.clientY, window.innerHeight - MENU_HEIGHT - 4)),
-        });
+        openMenu();
       }}
     >
       <div className={styles.grip} title="Drag to move" aria-hidden />
@@ -208,11 +247,11 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
       )}
       {menu && (
         <>
-          <div className={styles.backdrop} onMouseDown={() => setMenu(null)} onContextMenu={(e) => e.preventDefault()} />
-          <div className={styles.menu} style={{ left: menu.x, top: menu.y, width: MENU_WIDTH }} role="dialog" aria-label={`${title} settings`}>
+          <div className={styles.backdrop} onMouseDown={closeMenu} onContextMenu={(e) => e.preventDefault()} />
+          <div className={styles.menu} style={{ width: MENU_WIDTH }} role="dialog" aria-label={`${title} settings`}>
             <div className={styles.menuTitle}>
               {title}
-              <button type="button" className={styles.close} onClick={() => setMenu(null)} aria-label="Close settings">
+              <button type="button" className={styles.close} onClick={closeMenu} aria-label="Close settings">
                 ×
               </button>
             </div>

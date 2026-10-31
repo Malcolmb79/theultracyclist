@@ -45,13 +45,23 @@ const kg = (r: SauceAthleteData) => r.athlete?.weight || undefined;
 const perKg = (w: number | null | undefined, r: SauceAthleteData) => (w != null && kg(r) ? w / kg(r)! : undefined);
 const num = (v: number | null | undefined) => (v == null || !Number.isFinite(v) ? undefined : v);
 
+/** The Stamina overlay's "How long I can hold FTP", so the cards use the same. */
+function storedHoldMin(): number {
+  try {
+    const v = (JSON.parse(window.localStorage.getItem("overlay:stamina") ?? "{}") as { holdMin?: unknown }).holdMin;
+    return typeof v === "number" && v > 0 ? v : 60;
+  } catch {
+    return 60;
+  }
+}
+
 /**
  * Stamina left, as the Stamina overlay counts it: drained with intensity to
  * the fourth power, so an hour at FTP empties it. Sauce's normalised power
  * is that same fourth-power average, so the whole ride's drain is its time
  * times (NP / FTP)^4 - for any rider, without having followed them all ride.
  */
-export function staminaLeft(r: SauceAthleteData, holdFtpMin = 60): number | undefined {
+export function staminaLeft(r: SauceAthleteData, holdFtpMin = storedHoldMin()): number | undefined {
   const p = stats(r)?.power;
   const ftp = r.athlete?.ftp;
   const time = stats(r)?.activeTime;

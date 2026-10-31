@@ -47,8 +47,20 @@ function placesOf(riders: SauceAthleteData[], watched: SauceAthleteData | null):
     .sort((a, b) => (dist(a) != null && dist(b) != null ? dist(b)! - dist(a)! : (a.gap ?? 0) - (b.gap ?? 0)));
   const me = byRoad.findIndex((r) => r.athleteId === watched!.athleteId || r.watching);
   if (me < 0) return places;
+  // Counting out from the followed rider, in road order: the riders out of
+  // sight ahead of them account for the places above. When more are ahead
+  // on the road than their place allows - bunched together, at the start -
+  // the order is a matter of centimetres: everyone is numbered in road
+  // order from the front, skipping the followed rider's own place. Either
+  // way every place is different, and in road order.
+  const outOfSight = anchor - 1 - me;
+  let next = outOfSight >= 0 ? outOfSight + 1 : 1;
   byRoad.forEach((r, i) => {
-    if (!places.has(r.athleteId)) places.set(r.athleteId, { pos: Math.max(1, anchor + (i - me)), est: true });
+    if (i === me) return;
+    if (outOfSight < 0 && next === anchor) next++;
+    if (outOfSight >= 0 && i > me && next === anchor) next++;
+    if (!places.has(r.athleteId)) places.set(r.athleteId, { pos: next, est: true });
+    next++;
   });
   return places;
 }

@@ -63,6 +63,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // The Zwift login ZwiftPower is read with: only whether it's there.
       ZWIFT_USERNAME: { present: !!process.env.ZWIFT_USERNAME?.trim() },
       ZWIFT_PASSWORD: { present: !!process.env.ZWIFT_PASSWORD },
+      YOUTUBE_API_KEY: describe("YOUTUBE_API_KEY", "AIza"),
     },
   });
 }

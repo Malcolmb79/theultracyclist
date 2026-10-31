@@ -1,0 +1,146 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.5rem 0.6rem 0.4rem;
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  letter-spacing: 0.03em;
+  line-height: 1.1;
+}
+
+.finish {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1.3rem 1fr auto;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.25rem 0.35rem;
+  border-radius: calc(var(--radius) * 0.6);
+}
+
+/* The rider being watched, in the theme's accent. */
+.me {
+  background: color-mix(in srgb, var(--color-accent-2) 18%, transparent);
+}
+
+.me .name {
+  color: var(--color-accent-2);
+}
+
+.place {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.who {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.name {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.flag {
+  width: 1.05rem;
+  height: auto;
+  border-radius: 2px;
+}
+
+.team {
+  padding: 0 0.3rem;
+  border-radius: 3px;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: rgba(var(--hud-ink), 0.14);
+}
+
+.why {
+  font-size: 0.66rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Each chance against the favourite's. */
+.bar {
+  height: 0.25rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(var(--hud-ink), 0.1);
+}
+
+.bar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-accent-2);
+  transition: width 1s ease;
+}
+
+.pct {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.pct small {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.gapRow {
+  text-align: center;
+  line-height: 0.6;
+  color: var(--color-text-muted);
+}
+
+.waiting {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.note {
+  margin: 0;
+  font-size: 0.6rem;
+  color: var(--color-text-muted);
+}

@@ -3,7 +3,7 @@
   "id": "ultracyclist-race",
   "name": "Ultra Cyclist Race",
   "description": "The Ultra Cyclist's race overlays for Sauce: a full HUD in its own look (power, ride stats, race board, map, route profile, groups, chat) to use with Zwift's HUD off, plus live commentary and a tactics coach. Right-click any overlay for its settings.",
-  "version": "2.23.4",
+  "version": "2.24.0",
   "author": "Malcolm Barske",
   "website_url": "https://theultracyclist.com/dashboard/race",
   "web_root": "web",
@@ -241,6 +241,20 @@
         "height": 150,
         "x": 0.12,
         "y": 0.7
+      }
+    },
+    {
+      "file": "web/predict.html",
+      "id": "ultracyclist-race-predict",
+      "name": "Ultra Cyclist Race Predictor",
+      "description": "Who's most likely to win, updated through the race: the finish from the route, each rider's efforts, FTP, Racing Score and recent races, the gaps, and what they have left",
+      "overlay": true,
+      "frame": false,
+      "default_bounds": {
+        "width": 340,
+        "height": 470,
+        "x": 0.72,
+        "y": 0.45
       }
     },
     {

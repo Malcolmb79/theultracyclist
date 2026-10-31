@@ -196,6 +196,24 @@ const CONNECT_TIMEOUT_MS = 8000;
  * called. Each reconnect re-subscribes from scratch, since Sauce forgets a
  * socket's subscriptions when it closes.
  */
+/**
+ * The distance to go, when Sauce can't say. Sauce works it out from the
+ * event's route, so on a route newer than its own data it has none. But
+ * Zwift reports how far through the event the rider is (state.progress,
+ * in 1/255ths) beside the distance covered, which gives the event's length:
+ * covered / progress. Not in a workout, where progress is the workout's.
+ */
+export function withRemaining(d: SauceAthleteData): SauceAthleteData {
+  if (d.remaining != null) return d;
+  const s = d.state as (SauceState & { progress?: number; eventDistance?: number; workoutZone?: number | null }) | null | undefined;
+  if (!s?.eventSubgroupId || s.workoutZone || !s.progress || s.progress < MIN_PROGRESS || s.progress >= 1 || !s.eventDistance) return d;
+  const total = s.eventDistance / s.progress;
+  return { ...d, remaining: Math.max(0, total - s.eventDistance), remainingMetric: "distance", remainingType: "event" };
+}
+
+/** Too early in the event for its progress (in 1/255ths) to give its length. */
+const MIN_PROGRESS = 0.04;
+
 export function connectSauce(address: string, handlers: FeedHandlers): () => void {
   let ws: WebSocket | null = null;
   let stopped = false;
@@ -254,7 +272,7 @@ export function connectSauce(address: string, handlers: FeedHandlers): () => voi
       if (msg.type !== "event" || msg.uid == null || msg.data == null) return;
       switch (subs.get(msg.uid)) {
         case "athlete/watching":
-          handlers.onWatching?.(msg.data as SauceAthleteData);
+          handlers.onWatching?.(withRemaining(msg.data as SauceAthleteData));
           break;
         case "groups":
           if (Array.isArray(msg.data)) handlers.onGroups?.(msg.data as SauceGroup[]);

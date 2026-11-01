@@ -1,17 +1,21 @@
-import { StrictMode } from "react";
+import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../styles/global.css";
 import { athleteName } from "../components/race/sauceFeed";
 import { formatElapsed } from "../components/race/raceLog";
 import { OverlayShell, useSettings, type SettingDef } from "./overlay";
 import { useSauce } from "./useSauce";
+import { SITE } from "./site";
 import shell from "./Overlay.module.css";
 import styles from "./Stats.module.css";
 
 // The ride numbers Zwift shows top centre - speed, distance, climbing, time -
-// and who's being watched, in The Ultra Cyclist's look.
+// with the rider's level, how far through it and their Drops, and who's
+// being watched, in The Ultra Cyclist's look. Level progress and Drops come
+// from the rider's Zwift profile through the site (Sauce doesn't carry
+// them); Zwift updates them when it saves the ride, every few minutes.
 
-const DEFAULTS = { opacity: 80, speed: true, distance: true, climbing: true, time: true, watching: true, gradient: false };
+const DEFAULTS = { opacity: 80, speed: true, distance: true, climbing: true, time: true, watching: true, gradient: false, level: true, drops: true, progress: true };
 const DEFS: SettingDef[] = [
   { key: "speed", label: "Speed", type: "toggle" },
   { key: "distance", label: "Distance", type: "toggle" },
@@ -19,7 +23,54 @@ const DEFS: SettingDef[] = [
   { key: "time", label: "Time", type: "toggle" },
   { key: "gradient", label: "Gradient", type: "toggle" },
   { key: "watching", label: "Who you're watching", type: "toggle" },
+  { key: "level", label: "Level", type: "toggle" },
+  { key: "progress", label: "Progress to the next level", type: "toggle" },
+  { key: "drops", label: "Drops", type: "toggle" },
 ];
+
+interface Profile {
+  configured?: boolean;
+  level?: number;
+  levelPct?: number;
+  drops?: number;
+  error?: string;
+}
+
+/** Asked for about once a minute: the site keeps it for that long, and Zwift updates it every few. */
+const PROFILE_EVERY_MS = 60_000;
+
+/** The race key the mod's radio overlays already keep, shared by every mod window. */
+function raceKey(): string | null {
+  try {
+    const raw = window.localStorage.getItem("race:commentary-key");
+    const v = raw ? (JSON.parse(raw) as unknown) : null;
+    return typeof v === "string" && v ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The rider's level, progress and Drops from their Zwift profile, while any of them is shown. */
+function useProfile(on: boolean): Profile | null {
+  const [profile, setProfile] = useState<Profile | null>(null);
+  useEffect(() => {
+    const key = raceKey();
+    if (!on || !key) return;
+    let live = true;
+    const load = () =>
+      void fetch(`${SITE}/api/zwift-profile`, { headers: { authorization: `Bearer ${key}` }, credentials: "omit" })
+        .then((r) => (r.ok ? (r.json() as Promise<Profile>) : null))
+        .then((p) => live && p && setProfile(p))
+        .catch(() => undefined);
+    load();
+    const t = setInterval(load, PROFILE_EVERY_MS);
+    return () => {
+      live = false;
+      clearInterval(t);
+    };
+  }, [on]);
+  return profile;
+}
 
 function StatsOverlay() {
   const [settings, set] = useSettings("stats", DEFAULTS);
@@ -35,17 +86,49 @@ function StatsOverlay() {
     settings.gradient && { value: s?.grade != null ? `${(s.grade * 100).toFixed(1)}` : "–", unit: "%" },
   ].filter(Boolean) as { value: string | number; unit: string }[];
 
+  // Level, progress and Drops are the rider's own: shown while they're the one riding.
+  const profile = useProfile(settings.level || settings.drops || settings.progress);
+  const own = watching?.self !== false && profile?.configured !== false && !profile?.error ? profile : null;
+  const level = settings.level ? (own?.level ?? (watching?.self !== false ? watching?.athlete?.level : undefined)) : undefined;
+  const pct = settings.progress ? own?.levelPct : undefined;
+  const drops = settings.drops ? own?.drops : undefined;
+
   return (
     <OverlayShell title="Ride stats" settings={settings} setSetting={set} defs={DEFS}>
       <div className={styles.wrap}>
         {stats.length > 0 && (
           <div className={`${shell.panel} ${styles.stats}`}>
-            {stats.map((x, i) => (
-              <span key={i} className={styles.stat}>
-                <span className={styles.value}>{x.value}</span>
-                {x.unit && <span className={styles.unit}>{x.unit}</span>}
-              </span>
-            ))}
+            <div className={styles.row}>
+              {stats.map((x, i) => (
+                <span key={i} className={styles.stat}>
+                  <span className={styles.value}>{x.value}</span>
+                  {x.unit && <span className={styles.unit}>{x.unit}</span>}
+                </span>
+              ))}
+            </div>
+            {pct != null && (
+              <div className={styles.progress} title={`${pct}% of the way to level ${(level ?? 0) + 1}`}>
+                <span style={{ width: `${pct}%` }} />
+              </div>
+            )}
+            {(level != null || drops != null) && (
+              <div className={styles.badges}>
+                {level != null ? (
+                  <span className={styles.badge} title="Zwift level">
+                    <span className={styles.badgeIcon}>🚲</span>
+                    {level}
+                  </span>
+                ) : (
+                  <span />
+                )}
+                {drops != null && (
+                  <span className={`${styles.badge} ${styles.drops}`} title="Drops">
+                    {drops.toLocaleString("en-GB")}
+                    <span className={styles.badgeIcon}>💧</span>
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         )}
         {settings.watching && watching && !watching.self && (

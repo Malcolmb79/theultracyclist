@@ -60,6 +60,7 @@ const ROUTES: Record<string, () => Promise<RouteModule>> = {
   "whatsapp-webhook": () => import("./_routes/whatsapp-webhook.js"),
   "widget-image": () => import("./_routes/widget-image.js"),
   "zwiftpower-riders": () => import("./_routes/zwiftpower-riders.js"),
+  "zwift-profile": () => import("./_routes/zwift-profile.js"),
   "youtube-chat": () => import("./_routes/youtube-chat.js"),
 };
 

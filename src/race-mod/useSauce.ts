@@ -8,6 +8,7 @@ import {
   type SauceGroup,
   type SauceRideOn,
 } from "../components/race/sauceFeed";
+import { groupsWithScores, onScores, prefetchEntrants, withScores } from "./racingScores";
 
 // One Sauce connection per overlay window, subscribed only to what that
 // overlay shows.
@@ -54,5 +55,16 @@ export function useSauce(want: { nearby?: boolean; groups?: boolean; chat?: bool
     });
   }, [address, wantNearby, wantGroups, wantChat]);
 
-  return { address, status, watching, nearby, groups, chat };
+  // Racing scores Sauce hasn't got, filled in as they're looked up - the
+  // whole entry list from the start pen, in a race.
+  const [scored, setScored] = useState(0);
+  useEffect(() => onScores(() => setScored((n) => n + 1)), []);
+  const subgroup = watching?.state?.eventSubgroupId || undefined;
+  useEffect(() => {
+    if (subgroup && (wantNearby || wantGroups)) prefetchEntrants(address, subgroup);
+  }, [address, subgroup, wantNearby, wantGroups]);
+  const nearbyScored = useMemo(() => withScores(nearby), [nearby, scored]); // eslint-disable-line react-hooks/exhaustive-deps
+  const groupsScored = useMemo(() => groupsWithScores(groups), [groups, scored]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return { address, status, watching, nearby: nearbyScored, groups: groupsScored, chat };
 }

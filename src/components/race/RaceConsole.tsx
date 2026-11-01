@@ -23,6 +23,7 @@ import {
   type RaceEvent,
   type RaceLog,
 } from "./raceLog";
+import { groupsWithScores, prefetchEntrants } from "../../race-mod/racingScores";
 import styles from "./RaceConsole.module.css";
 
 /** Often enough that a crash costs seconds, not the race. */
@@ -98,6 +99,8 @@ export default function RaceConsole({
       },
       onWatching: (data) => {
         setWatching(data);
+        // Racing scores for the whole field, from the start pen, for the commentator and coach.
+        if (data.state?.eventSubgroupId) prefetchEntrants(address, data.state.eventSubgroupId);
         const r = recorder.current;
         if (r) {
           const before = r.log.events.length;
@@ -111,7 +114,7 @@ export default function RaceConsole({
         const r = recorder.current;
         if (r) {
           const before = r.log.events.length;
-          r.groups(g);
+          r.groups(groupsWithScores(g));
           if (r.log.events.length !== before) setEvents(feed(r.log));
         }
       },

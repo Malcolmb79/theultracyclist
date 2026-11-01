@@ -121,6 +121,8 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
   children,
 }: ShellProps<T>) {
   const [menu, setMenu] = useState(false);
+  // Move mode: the whole window becomes the handle to drag it by.
+  const [moving, setMoving] = useState(false);
   // Where the window was before the menu took it to the middle of the screen.
   const before = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
   const [theme, setTheme] = useState(() => readTheme().id);
@@ -189,7 +191,11 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
 
   useEffect(() => {
     document.documentElement.classList.add(styles.transparent);
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && closeRef.current();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setMoving(false);
+      closeRef.current();
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
@@ -199,7 +205,7 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
   // window is often too small to show them - then it goes back to exactly
   // where it was. (Sauce lets a page move and size its own window; where it
   // can't, the menu scrolls inside the window as it is.)
-  const rows = 4 + defs.length + (extraRows ?? (extraSettings ? 3 : 0));
+  const rows = 5 + defs.length + (extraRows ?? (extraSettings ? 3 : 0));
   const openMenu = () => {
     if (!before.current) {
       before.current = { x: window.screenX, y: window.screenY, w: window.outerWidth, h: window.outerHeight };
@@ -244,7 +250,19 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
         openMenu();
       }}
     >
-      <div className={styles.grip} title="Drag to move" aria-hidden />
+      <div className={styles.grip} title="Drag to move">
+        <span>⠿ drag to move</span>
+      </div>
+      {moving && (
+        <div className={styles.moveLayer}>
+          <div className={styles.moveCard}>
+            Drag anywhere to move this window
+            <button type="button" onClick={() => setMoving(false)}>
+              Done
+            </button>
+          </div>
+        </div>
+      )}
       {children}
       {clipped && (
         <div className={styles.more} title="There's more below - drag the window's bottom edge down to see it">
@@ -261,6 +279,16 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
                 ×
               </button>
             </div>
+            <button
+              type="button"
+              className={styles.moveButton}
+              onClick={() => {
+                closeMenu();
+                setMoving(true);
+              }}
+            >
+              Move this window
+            </button>
             <label className={styles.row}>
               <span className={styles.label}>Theme (all overlays)</span>
               <select

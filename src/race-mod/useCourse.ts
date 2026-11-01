@@ -48,6 +48,8 @@ export function useCourse(address: string, watching: SauceAthleteData | null) {
 
 /** How far either side of Sauce's distance to look for the rider on the route. */
 const SEARCH_M = 3000;
+/** How much a difference in height counts against a match, against the same distance on the map. */
+const HEIGHT_WEIGHT = 3;
 /** Closer than this to the route line (in world centimetres) and the match is trusted. */
 const ON_ROUTE_CM = 6000;
 
@@ -65,7 +67,7 @@ const ON_ROUTE_CM = 6000;
  */
 export function routePosition(
   route: RouteGeometry,
-  state: { routeDistance?: number; x?: number; y?: number } | null | undefined,
+  state: { routeDistance?: number; x?: number; y?: number; z?: number } | null | undefined,
 ): number | undefined {
   const total = route.distances.at(-1) ?? 0;
   const rd = state?.routeDistance;
@@ -77,6 +79,9 @@ export function routePosition(
         : route.leadinM + ((rd - route.leadinM) % route.lapM);
   const x = state?.x;
   const y = state?.y;
+  // Height too: on a climb the road can pass close by on the map further up
+  // (a switchback, the road back down), and only the height tells them apart.
+  const z = state?.z;
   if (x == null || y == null || !route.path.length) return guess;
 
   const nearest = (from: number, to: number) => {
@@ -87,7 +92,9 @@ export function routePosition(
       if (d < from || d > to) continue;
       const dx = route.path[i][0] - x;
       const dy = route.path[i][1] - y;
-      const dd = dx * dx + dy * dy;
+      const pz = route.path[i][2];
+      const dz = z != null && pz != null ? (pz - z) * HEIGHT_WEIGHT : 0;
+      const dd = dx * dx + dy * dy + dz * dz;
       if (dd < bestD) {
         bestD = dd;
         best = i;

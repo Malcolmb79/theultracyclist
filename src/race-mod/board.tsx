@@ -6,6 +6,8 @@ import { inRace } from "../components/race/sameRace";
 import { OverlayShell, useSettings, type SettingDef } from "./overlay";
 import { useSauce } from "./useSauce";
 import { useFlags } from "./flags";
+import { powerUp } from "../components/race/powerUps";
+import PowerUpIcon from "./PowerUpIcon";
 import styles from "./Board.module.css";
 
 // The race board: Zwift's rider list on the right of the screen, redone in
@@ -123,6 +125,7 @@ const DEFAULTS = {
   gaps: true,
   wbal: true,
   toGo: true,
+  powerUps: true,
 };
 const DEFS: SettingDef[] = [
   {
@@ -146,6 +149,7 @@ const DEFS: SettingDef[] = [
   { key: "heartRate", label: "Heart rate", type: "toggle" },
   { key: "gaps", label: "Gaps", type: "toggle" },
   { key: "wbal", label: "W′ balance bar", type: "toggle" },
+  { key: "powerUps", label: "Active power-ups", type: "toggle" },
   { key: "toGo", label: "Distance to finish", type: "toggle" },
 ];
 
@@ -254,6 +258,11 @@ function RaceBoard() {
                   style={wbal != null ? { ["--wbal" as string]: String(wbal) } : undefined}
                   title={wbal != null && r.wBal != null ? `W′ ${(r.wBal / 1000).toFixed(1)} kJ (${Math.round(wbal * 100)}%)` : undefined}
                 >
+                  {settings.powerUps && s?.activePowerUp && powerUp(s.activePowerUp) && (
+                    <span className={styles.powerUp} title={`${powerUp(s.activePowerUp)!.name}: ${powerUp(s.activePowerUp)!.effect}`}>
+                      <PowerUpIcon code={s.activePowerUp} size={13} />
+                    </span>
+                  )}
                   {flag && <img className={styles.flag} src={flag.src} alt={flag.name} title={flag.name} />}
                   <span className={styles.name}>{athleteName(r)}</span>
                   {settings.teams && team && <span className={styles.team}>{team}</span>}

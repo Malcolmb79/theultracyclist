@@ -240,3 +240,31 @@
   background: rgba(var(--hud-ink), 0.1);
   text-shadow: none;
 }
+
+/* A power-up running on the rider: its icon on a disc in the theme's accent, pulsing gently. */
+.powerUp {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-right: 0.25rem;
+  border-radius: 50%;
+  color: rgb(var(--hud-bg));
+  background: var(--color-accent-2);
+  text-shadow: none;
+  animation: powerUpPulse 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes powerUpPulse {
+  to {
+    box-shadow: 0 0 6px var(--color-accent-2);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .powerUp {
+    animation: none;
+  }
+}

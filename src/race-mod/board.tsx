@@ -114,6 +114,8 @@ const DEFAULTS = {
   who: "all",
   category: true,
   fill: true,
+  hideOtherRaces: true,
+  ownPlaces: true,
   rows: 20,
   flags: true,
   teams: true,
@@ -139,6 +141,8 @@ const DEFS: SettingDef[] = [
   },
   { key: "category", label: "Only my category", type: "toggle" },
   { key: "fill", label: "Fill up with riders nearby", type: "toggle" },
+  { key: "hideOtherRaces", label: "Hide other races", type: "toggle" },
+  { key: "ownPlaces", label: "Places within my category", type: "toggle" },
   { key: "rows", label: "Riders shown", type: "select", options: ROW_CHOICES.map((n) => ({ value: n, label: String(n) })) },
   { key: "flags", label: "Flags", type: "toggle" },
   { key: "teams", label: "Team tags", type: "toggle" },
@@ -195,12 +199,21 @@ function RaceBoard() {
     settings.fill && riders.length < rows
       ? [
           ...nearest(nearby.filter((r) => !have.has(r.athleteId) && inRace(r, subgroup))),
-          ...nearest(nearby.filter((r) => !have.has(r.athleteId) && !inRace(r, subgroup))),
+          ...(settings.hideOtherRaces ? [] : nearest(nearby.filter((r) => !have.has(r.athleteId) && !inRace(r, subgroup)))),
         ].slice(0, rows - riders.length)
       : [];
   const extraIds = new Set(extras.map((r) => r.athleteId));
   // Mixed in, they all go in road order: race positions mean nothing across them.
-  const places = placesOf(nearby.filter((r) => inRace(r, subgroup)), watching);
+  // Zwift can rank every category of an event together, so a rider from
+  // another race up the road takes a place off the front of this one.
+  // Within my category: places less the other races' riders ahead.
+  const mySubgroup = watching?.state?.eventSubgroupId || undefined;
+  const others = settings.ownPlaces && mySubgroup ? nearby.filter((r) => !inRace(r, mySubgroup)) : [];
+  const inCategory = (pos: number, gap: number | undefined) =>
+    Math.max(1, pos - others.filter((o) => (o.eventPosition ? o.eventPosition < pos : (o.gap ?? 0) < (gap ?? 0))).length);
+  const ownRace = nearby.filter((r) => inRace(r, subgroup)).map((r) => (r.eventPosition && others.length ? { ...r, eventPosition: inCategory(r.eventPosition, r.gap) } : r));
+  const watchedPlaced = watching?.eventPosition && others.length ? { ...watching, eventPosition: inCategory(watching.eventPosition, 0) } : watching;
+  const places = placesOf(ownRace, watchedPlaced);
   const all = extras.length ? [...riders, ...extras].sort((a, b) => (a.gap ?? 0) - (b.gap ?? 0)) : order(riders, places);
   const shown = around(all, rows, watching?.athleteId);
   const myTeam = watching?.athlete?.team?.trim().toLowerCase();
@@ -216,8 +229,10 @@ function RaceBoard() {
       <header className={styles.header}>
         <span className={`${styles.dot} ${status === "connected" ? styles.on : styles.off}`} aria-hidden />
         <span className={styles.title}>
-          {watching?.eventPosition
-            ? `Position ${watching.eventPosition} of ${watching.eventParticipants ?? "?"}`
+          {watchedPlaced?.eventPosition
+            ? watchedPlaced.eventPosition !== watching?.eventPosition
+              ? `Position ${watchedPlaced.eventPosition} in category`
+              : `Position ${watchedPlaced.eventPosition} of ${watching?.eventParticipants ?? "?"}`
             : watching
               ? athleteName(watching)
               : status === "connected"

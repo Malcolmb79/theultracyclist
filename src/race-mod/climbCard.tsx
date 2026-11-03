@@ -76,7 +76,7 @@ export function ClimbCard({ route, at, climb, gradeNow, settings }: { route: Rou
   const heightLeft = Math.max(0, elevationAt(route, climb.top) - elevationAt(route, Math.max(at, climb.start)));
   const done = Math.max(0, Math.min(1, (at - climb.start) / (climb.top - climb.start)));
   return (
-        <div className={`${shell.panel} ${styles.panel}`} style={{ borderColor: gradeColor(climb.avgPct) }}>
+        <div className={`${shell.panel} ${styles.panel}`}>
           <div className={styles.head}>
             <span className={styles.name}>{climb.name ?? "Climb"}</span>
             <span className={styles.length}>

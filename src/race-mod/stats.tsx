@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useState } from "react";
+import { StrictMode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../styles/global.css";
 import { athleteName } from "../components/race/sauceFeed";
@@ -15,8 +15,9 @@ import styles from "./Stats.module.css";
 // from the rider's Zwift profile through the site (Sauce doesn't carry
 // them); Zwift updates them when it saves the ride, every few minutes.
 
-const DEFAULTS = { opacity: 80, speed: true, distance: true, climbing: true, time: true, watching: true, gradient: false, level: true, drops: true, progress: true };
+const DEFAULTS = { opacity: 80, fit: true, speed: true, distance: true, climbing: true, time: true, watching: true, gradient: false, level: true, drops: true, progress: true };
 const DEFS: SettingDef[] = [
+  { key: "fit", label: "Size to the window (drag a corner)", type: "toggle" },
   { key: "speed", label: "Speed", type: "toggle" },
   { key: "distance", label: "Distance", type: "toggle" },
   { key: "climbing", label: "Climbing", type: "toggle" },
@@ -93,9 +94,36 @@ function StatsOverlay() {
   const pct = settings.progress ? own?.levelPct : undefined;
   const drops = settings.drops ? own?.drops : undefined;
 
+  // Sized to the window: the bar drawn at its natural size, then scaled to
+  // fill the window - so dragging the window's corner makes it as big as
+  // Zwift's own ride stats, to sit over them.
+  const inner = useRef<HTMLDivElement | null>(null);
+  const [scale, setScale] = useState(1);
+  useLayoutEffect(() => {
+    if (!settings.fit) {
+      setScale(1);
+      return;
+    }
+    const fit = () => {
+      const el = inner.current;
+      if (!el || !el.offsetWidth || !el.offsetHeight) return;
+      const next = Math.max(0.3, Math.min(window.innerWidth / el.offsetWidth, window.innerHeight / el.offsetHeight));
+      setScale((was) => (Math.abs(was - next) < 0.005 ? was : next));
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    if (inner.current) ro.observe(inner.current);
+    window.addEventListener("resize", fit);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", fit);
+    };
+  });
+
   return (
     <OverlayShell title="Ride stats" settings={settings} setSetting={set} defs={DEFS}>
-      <div className={styles.wrap}>
+      <div className={settings.fit ? styles.fitFrame : undefined}>
+      <div ref={inner} className={`${styles.wrap} ${settings.fit ? styles.fitted : ""}`} style={settings.fit ? { transform: `scale(${scale})` } : undefined}>
         {stats.length > 0 && (
           <div className={`${shell.panel} ${styles.stats}`}>
             <div className={styles.row}>
@@ -134,6 +162,7 @@ function StatsOverlay() {
         {settings.watching && watching && !watching.self && (
           <div className={styles.watching}>Watching {athleteName(watching)}</div>
         )}
+      </div>
       </div>
     </OverlayShell>
   );

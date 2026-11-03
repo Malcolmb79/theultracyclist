@@ -24,7 +24,7 @@ export interface ChatItem {
 
 let nextId = 1;
 /** Chat and Ride Ons kept for the chat overlay - it shows the latest few. */
-const MAX_CHAT = 40;
+const MAX_CHAT = 100;
 
 export function useSauce(want: { nearby?: boolean; groups?: boolean; chat?: boolean }) {
   const address = useMemo(() => sauceAddressForModPage(), []);

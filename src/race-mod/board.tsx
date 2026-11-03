@@ -128,6 +128,7 @@ const DEFAULTS = {
   wbal: true,
   toGo: true,
   powerUps: true,
+  wkgZone: true,
 };
 const DEFS: SettingDef[] = [
   {
@@ -154,6 +155,7 @@ const DEFS: SettingDef[] = [
   { key: "gaps", label: "Gaps", type: "toggle" },
   { key: "wbal", label: "W′ balance bar", type: "toggle" },
   { key: "powerUps", label: "Active power-ups", type: "toggle" },
+  { key: "wkgZone", label: "W/kg coloured by zone", type: "toggle" },
   { key: "toGo", label: "Distance to finish", type: "toggle" },
 ];
 
@@ -296,7 +298,13 @@ function RaceBoard() {
                   {settings.gaps && !r.watching && r.gap != null && <span className={styles.gap}>{formatGap(r.gap)}</span>}
                 </span>
               </span>
-              <span className={styles.wkg}>{wkg != null ? wkg.toFixed(1) : "–"}</span>
+              <span
+                className={styles.wkg}
+                // In the colour of the zone they're riding in, as the % of FTP is - where their FTP is known.
+                style={settings.wkgZone && s?.power != null && a?.ftp ? { color: zoneColor((s.power / a.ftp) * 100) } : undefined}
+              >
+                {wkg != null ? wkg.toFixed(1) : "–"}
+              </span>
             </li>
           );
         })}

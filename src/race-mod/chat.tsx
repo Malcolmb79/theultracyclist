@@ -21,7 +21,7 @@ const DEFS: SettingDef[] = [
       { value: "down", label: "Top to bottom" },
     ],
   },
-  { key: "messages", label: "Messages shown", type: "select", options: [3, 5, 8, 12].map((n) => ({ value: n, label: String(n) })) },
+  { key: "messages", label: "Messages shown", type: "select", options: [3, 5, 8, 12, 16, 20, 30, 40, 50].map((n) => ({ value: n, label: String(n) })) },
   {
     key: "fadeAfter",
     label: "Fade after",

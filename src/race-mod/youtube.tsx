@@ -36,7 +36,7 @@ const DEFS: SettingDef[] = [
       { value: "down", label: "Top to bottom" },
     ],
   },
-  { key: "messages", label: "Messages shown", type: "select", options: [3, 6, 10, 15].map((n) => ({ value: n, label: String(n) })) },
+  { key: "messages", label: "Messages shown", type: "select", options: [3, 6, 10, 15, 20, 30, 40, 50].map((n) => ({ value: n, label: String(n) })) },
   {
     key: "fadeAfter",
     label: "Fade after",
@@ -86,7 +86,7 @@ interface Answer {
   ended?: boolean;
 }
 
-const KEPT = 60;
+const KEPT = 100;
 
 const EXAMPLE: Message[] = [
   { id: "1", author: "Hendo", text: "Go on Malcolm, bridge across!", at: Date.now() - 50_000 },

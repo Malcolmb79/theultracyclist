@@ -43,6 +43,8 @@
   letter-spacing: 0.03em;
   text-transform: uppercase;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--color-text);
   opacity: 0.85;
 }

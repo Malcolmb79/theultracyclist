@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { RouteGeometry, SegmentKind } from "../components/race/courseMap";
 import type { Arch } from "./arches";
 import PowerUpIcon from "./PowerUpIcon";
@@ -37,6 +37,10 @@ interface Props {
 /** At most this many power-ups shown over an arch. */
 const ARCH_ICONS = 3;
 
+/** Roughly how wide a segment name is per letter, and the least a cut-short name may have. */
+const LABEL_PX_PER_CHAR = 7.4;
+const MIN_LABEL_PX = 46;
+
 /** Points drawn across the chart - plenty for a smooth line at overlay size. */
 const RESOLUTION = 400;
 
@@ -58,6 +62,16 @@ export default function ProfileChart({
   className,
 }: Props) {
   const clip = `profile-${useId().replace(/:/g, "")}`;
+  // The chart's width, so names are only put where they fit.
+  const box = useRef<HTMLDivElement | null>(null);
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setWidth(el.clientWidth));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const { distances, elevations } = route;
   const total = distances.at(-1) ?? 0;
   if (total <= 0) return null;
@@ -97,8 +111,41 @@ export default function ProfileChart({
   const edge = (d: number) => ((d - from) / span < 0.02 ? styles.archStart : (d - from) / span > 0.98 ? styles.archEnd : "");
   const segs = showSegments ? route.segments.filter((s) => s.end >= from && s.start <= to) : [];
 
+  // Names, without the pile-up on a lap race or a route of segments close
+  // together: each name once (the one being ridden, else the next one ahead,
+  // else the last), the ones ahead of the rider placed first, and a name only
+  // where it has room before the next - cut short with "…" if it's tight,
+  // left off if there's no room at all (its shading still shows it).
+  const labels: { name: string; at: number; room: number }[] = [];
+  if (showSegmentNames && segs.length && width > 0) {
+    const pxPerM = width / span;
+    const here = at ?? from;
+    const byName = new Map<string, (typeof segs)[number]>();
+    for (const s of segs) {
+      const had = byName.get(s.name);
+      const better = !had || (had.end < here && s.end >= here) || (s.end >= here && s.start < had.start && had.start > here);
+      if (better) byName.set(s.name, s);
+    }
+    const candidates = Array.from(byName.values())
+      .map((s) => ({ name: s.name, at: Math.max(s.start, from) }))
+      // Ahead of the rider first, nearest first; then the ones behind.
+      .sort((a, b) => (a.at >= here) !== (b.at >= here) ? (a.at >= here ? -1 : 1) : Math.abs(a.at - here) - Math.abs(b.at - here));
+    const taken: [number, number][] = [];
+    for (const c of candidates) {
+      const x = (c.at - from) * pxPerM;
+      const want = c.name.length * LABEL_PX_PER_CHAR + 6;
+      // Room until the next label already placed to the right, or the chart's edge.
+      const next = Math.min(width, ...taken.filter(([a]) => a > x).map(([a]) => a));
+      const clash = taken.some(([a, b]) => x < b && x + Math.min(want, next - x) > a);
+      const room = Math.min(want, next - x - 4);
+      if (clash || room < MIN_LABEL_PX) continue;
+      taken.push([x, x + room]);
+      labels.push({ ...c, room });
+    }
+  }
+
   return (
-    <div className={`${styles.chart} ${className ?? ""}`}>
+    <div ref={box} className={`${styles.chart} ${className ?? ""}`}>
       <svg viewBox="0 0 1000 100" preserveAspectRatio="none" className={styles.svg} aria-hidden>
         <defs>
           <linearGradient id="profileFill" x1="0" y1="0" x2="0" y2="1">
@@ -127,9 +174,9 @@ export default function ProfileChart({
         <path d={line} className={styles.line} vectorEffect="non-scaling-stroke" />
       </svg>
       {showSegmentNames &&
-        segs.map((s, i) => (
-          <span key={i} className={styles.segLabel} style={{ left: pct(Math.max(s.start, from)) }}>
-            {s.name}
+        labels.map((l) => (
+          <span key={`${l.name}-${l.at}`} className={styles.segLabel} style={{ left: pct(l.at), maxWidth: `${l.room}px` }}>
+            {l.name}
           </span>
         ))}
       {arches.filter((a) => visible(a.at)).map((a) => {

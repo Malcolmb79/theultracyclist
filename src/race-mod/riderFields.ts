@@ -1,4 +1,5 @@
 import type { SauceAthleteData } from "../components/race/sauceFeed";
+import { zoneColor } from "./zones";
 
 // Everything Sauce knows about a rider, as fields to pick from - for the
 // Nearby riders table and the Rider cards. Grouped as Sauce's own Nearby
@@ -19,6 +20,8 @@ export interface RiderField {
   value: (r: SauceAthleteData) => number | string | undefined;
   /** The value as shown; numbers default to whole. */
   show?: (v: number) => string;
+  /** A colour for the value, where it says something: zones, reserves, sustainability. */
+  colour?: (r: SauceAthleteData, v: number) => string | undefined;
 }
 
 // Sauce's per-rider stats, more than the typed part of the data carries.
@@ -69,6 +72,29 @@ export function staminaLeft(r: SauceAthleteData, holdFtpMin = storedHoldMin()): 
   return Math.max(0, Math.min(100, 100 - (100 * time * (p.np / ftp) ** 4) / (holdFtpMin * 60)));
 }
 
+/** In the colour of the power zone, from watts against the rider's FTP. */
+const zoneOf = (watts: (r: SauceAthleteData) => number | null | undefined) => (r: SauceAthleteData) => {
+  const w = watts(r);
+  return w != null && r.athlete?.ftp ? zoneColor(w / r.athlete.ftp) : undefined;
+};
+const GOOD = "#2ee6a6";
+const WARN = "#ffb020";
+const BAD = "#ff4d2e";
+/** A reserve: plenty, getting low, nearly gone. */
+const reserve = (pct: number) => (pct >= 50 ? GOOD : pct >= 25 ? WARN : BAD);
+/**
+ * The intensity a rider can hold for a time: about 1.0 for an hour, a
+ * little more for shorter, less for longer - the usual shape of the curve.
+ */
+const holdableIf = (sec: number) => Math.min(1.15, Math.pow(Math.max(600, sec) / 3600, -0.07));
+/** Red past what can be held even for the time ridden; amber past what can for an hour, or twice as long. */
+function ifColour(r: SauceAthleteData, v: number): string {
+  const t = (r as Rich).stats?.activeTime ?? 0;
+  if (v > holdableIf(t)) return BAD;
+  if (v > holdableIf(Math.max(3600, t * 2))) return WARN;
+  return GOOD;
+}
+
 const whole = (v: number) => String(Math.round(v));
 const one = (v: number) => v.toFixed(1);
 const wkg = (v: number) => `${v.toFixed(1)}`;
@@ -96,8 +122,9 @@ function powerOver(period: number, label: string, kind: "smooth" | "peaks", perK
         group: kind === "smooth" ? "Power" : "Peaks",
         value: (r) => perKg(get(r), r),
         show: wkg,
+        colour: kind === "smooth" ? (r) => zoneOf(get)(r) : undefined,
       }
-    : { id: `${kind}${period}`, label, short: label, group: kind === "smooth" ? "Power" : "Peaks", value: get, show: whole };
+    : { id: `${kind}${period}`, label, short: label, group: kind === "smooth" ? "Power" : "Peaks", value: get, show: whole, colour: kind === "smooth" ? (r) => zoneOf(get)(r) : undefined };
 }
 
 const FIELDS: RiderField[] = [
@@ -117,6 +144,7 @@ const FIELDS: RiderField[] = [
     group: "Energy",
     value: (r) => (r.wBal != null ? r.wBal / 1000 : undefined),
     show: one,
+    colour: (r, v) => reserve(((v * 1000) / (r.athlete?.wPrime || 20_000)) * 100),
   },
   {
     id: "wbalPct",
@@ -125,6 +153,7 @@ const FIELDS: RiderField[] = [
     group: "Energy",
     value: (r) => (r.wBal != null ? (r.wBal / (r.athlete?.wPrime || 20_000)) * 100 : undefined),
     show: pct,
+    colour: (_r, v) => reserve(v),
   },
   { id: "tss", label: "TSS", short: "TSS", group: "Energy", value: (r) => num(stats(r)?.power?.tss), show: whole },
   {
@@ -134,6 +163,7 @@ const FIELDS: RiderField[] = [
     group: "Energy",
     value: (r) => (stats(r)?.power?.np && r.athlete?.ftp ? stats(r)!.power!.np! / r.athlete.ftp : undefined),
     show: (v) => v.toFixed(2),
+    colour: ifColour,
   },
   {
     id: "stamina",
@@ -142,6 +172,7 @@ const FIELDS: RiderField[] = [
     group: "Energy",
     value: (r) => staminaLeft(r),
     show: pct,
+    colour: (_r, v) => reserve(v),
   },
   { id: "energy", label: "Energy (kJ)", short: "kJ", group: "Energy", value: (r) => num(stats(r)?.power?.kj), show: whole },
 
@@ -177,8 +208,8 @@ const FIELDS: RiderField[] = [
   },
 
   // Power
-  { id: "power", label: "Current power", short: "W", group: "Power", value: (r) => num(r.state?.power), show: whole },
-  { id: "powerWkg", label: "Current W/kg", short: "W/kg", group: "Power", value: (r) => perKg(r.state?.power, r), show: wkg },
+  { id: "power", label: "Current power", short: "W", group: "Power", value: (r) => num(r.state?.power), show: whole, colour: (r) => zoneOf((x) => x.state?.power)(r) },
+  { id: "powerWkg", label: "Current W/kg", short: "W/kg", group: "Power", value: (r) => perKg(r.state?.power, r), show: wkg, colour: (r) => zoneOf((x) => x.state?.power)(r) },
   {
     id: "ftpPct",
     label: "% of FTP now",
@@ -186,6 +217,7 @@ const FIELDS: RiderField[] = [
     group: "Power",
     value: (r) => (r.state?.power != null && r.athlete?.ftp ? (r.state.power / r.athlete.ftp) * 100 : undefined),
     show: pct,
+    colour: (_r, v) => zoneColor(v / 100),
   },
   powerOver(5, "5s", "smooth", false),
   powerOver(5, "5s", "smooth", true),
@@ -277,6 +309,12 @@ export const fieldById = new Map(RIDER_FIELDS.map((f) => [f.id, f]));
 export function chosen(setting: string): RiderField[] {
   const ids = new Set(setting.split(",").filter(Boolean));
   return RIDER_FIELDS.filter((f) => ids.has(f.id));
+}
+
+/** The value's colour, where the field has one. */
+export function colourOf(f: RiderField, r: SauceAthleteData): string | undefined {
+  const v = f.value(r);
+  return typeof v === "number" && f.colour ? f.colour(r, v) : undefined;
 }
 
 export function display(f: RiderField, r: SauceAthleteData): string {

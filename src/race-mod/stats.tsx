@@ -6,6 +6,8 @@ import { formatElapsed } from "../components/race/raceLog";
 import { OverlayShell, useSettings, type SettingDef } from "./overlay";
 import { useSauce } from "./useSauce";
 import { SITE } from "./site";
+import { routePosition, useCourse } from "./useCourse";
+import { CLIMB_DEFAULTS, ClimbCard, useClimb, type ClimbSettings } from "./climbCard";
 import shell from "./Overlay.module.css";
 import styles from "./Stats.module.css";
 
@@ -15,9 +17,10 @@ import styles from "./Stats.module.css";
 // from the rider's Zwift profile through the site (Sauce doesn't carry
 // them); Zwift updates them when it saves the ride, every few minutes.
 
-const DEFAULTS = { opacity: 80, fit: true, speed: true, distance: true, climbing: true, time: true, watching: true, gradient: false, level: true, drops: true, progress: true };
+const DEFAULTS = { opacity: 80, fit: true, climb: false, speed: true, distance: true, climbing: true, time: true, watching: true, gradient: false, level: true, drops: true, progress: true };
 const DEFS: SettingDef[] = [
   { key: "fit", label: "Size to the window (drag a corner)", type: "toggle" },
+  { key: "climb", label: "Climb pop-up under the stats", type: "toggle" },
   { key: "speed", label: "Speed", type: "toggle" },
   { key: "distance", label: "Distance", type: "toggle" },
   { key: "climbing", label: "Climbing", type: "toggle" },
@@ -39,6 +42,59 @@ interface Profile {
 
 /** Asked for about once a minute: the site keeps it for that long, and Zwift updates it every few. */
 const PROFILE_EVERY_MS = 60_000;
+
+/**
+ * Drops, counting up between the profile's updates. Zwift only updates the
+ * profile's total now and then (when it saves the ride, at a level-up), so
+ * in between the Drops earned are estimated from the energy ridden since
+ * (Sauce's kJ, live) at the rider's own rate - learnt each time Zwift's real
+ * figure moves, kept between rides - and corrected whenever it arrives.
+ */
+const DROPS_RATE_KEY = "drops:per-kj";
+/** About what Zwift gives on the flat, before the rider's own rate has been learnt. */
+const DEFAULT_DROPS_PER_KJ = 25;
+const dropsState = { base: undefined as number | undefined, baseKj: undefined as number | undefined, rate: undefined as number | undefined };
+
+function dropsRate(): number {
+  if (dropsState.rate != null) return dropsState.rate;
+  try {
+    const v = Number(window.localStorage.getItem(DROPS_RATE_KEY));
+    dropsState.rate = v > 0 ? v : DEFAULT_DROPS_PER_KJ;
+  } catch {
+    dropsState.rate = DEFAULT_DROPS_PER_KJ;
+  }
+  return dropsState.rate;
+}
+
+function liveDrops(real: number | undefined, kj: number | undefined): number | undefined {
+  if (real == null) return undefined;
+  if (kj == null) return real;
+  if (dropsState.base !== real) {
+    // Zwift's figure moved: learn the rate from what it gave for the energy ridden since the last one.
+    if (dropsState.base != null && dropsState.baseKj != null && real > dropsState.base && kj - dropsState.baseKj >= 30) {
+      const measured = (real - dropsState.base) / (kj - dropsState.baseKj);
+      dropsState.rate = dropsRate() * 0.5 + measured * 0.5;
+      try {
+        window.localStorage.setItem(DROPS_RATE_KEY, String(Math.round(dropsState.rate * 10) / 10));
+      } catch {
+        // Not kept: learnt again next ride.
+      }
+    }
+    dropsState.base = real;
+    dropsState.baseKj = kj;
+  }
+  return Math.round(real + Math.max(0, kj - (dropsState.baseKj ?? kj)) * dropsRate());
+}
+
+/** The Climb pop-up overlay's own settings, so the pop-up here is set up the same way. */
+function climbSettings(): ClimbSettings {
+  try {
+    const v = JSON.parse(window.localStorage.getItem("overlay:climb") ?? "{}") as Partial<ClimbSettings>;
+    return { ...CLIMB_DEFAULTS, ...v };
+  } catch {
+    return CLIMB_DEFAULTS;
+  }
+}
 
 /** The race key the mod's radio overlays already keep, shared by every mod window. */
 function raceKey(): string | null {
@@ -92,20 +148,31 @@ function StatsOverlay() {
   const own = watching?.self !== false && profile?.configured !== false && !profile?.error ? profile : null;
   const level = settings.level ? (own?.level ?? (watching?.self !== false ? watching?.athlete?.level : undefined)) : undefined;
   const pct = settings.progress ? own?.levelPct : undefined;
-  const drops = settings.drops ? own?.drops : undefined;
+  const drops = settings.drops ? liveDrops(own?.drops, (s as { kj?: number } | null | undefined)?.kj) : undefined;
+
+  // The climb pop-up, like Zwift's under its ride stats, when chosen - set up as the Climb pop-up overlay is.
+  const { address } = useSauce({});
+  const { route } = useCourse(address, settings.climb ? watching : null);
+  const at = settings.climb && route ? routePosition(route, s) : undefined;
+  const climbSet = settings.climb ? climbSettings() : CLIMB_DEFAULTS;
+  const climb = useClimb(settings.climb ? route : null, at, climbSet);
 
   // Sized to the window: the bar drawn at its natural size, then scaled to
-  // fill the window - so dragging the window's corner makes it as big as
-  // Zwift's own ride stats, to sit over them.
+  // fill the window's width - so dragging the window's corner makes it as
+  // big as Zwift's own ride stats, to sit over them. The bar alone sets the
+  // size, so a climb pop-up appearing under it doesn't shrink it.
   const inner = useRef<HTMLDivElement | null>(null);
+  const bar = useRef<HTMLDivElement | null>(null);
   const [scale, setScale] = useState(1);
+  // Measured after every render (the bar changes with the settings) - only set when the size really changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
     if (!settings.fit) {
       setScale(1);
       return;
     }
     const fit = () => {
-      const el = inner.current;
+      const el = bar.current ?? inner.current;
       if (!el || !el.offsetWidth || !el.offsetHeight) return;
       const next = Math.max(0.3, Math.min(window.innerWidth / el.offsetWidth, window.innerHeight / el.offsetHeight));
       setScale((was) => (Math.abs(was - next) < 0.005 ? was : next));
@@ -125,7 +192,7 @@ function StatsOverlay() {
       <div className={settings.fit ? styles.fitFrame : undefined}>
       <div ref={inner} className={`${styles.wrap} ${settings.fit ? styles.fitted : ""}`} style={settings.fit ? { transform: `scale(${scale})` } : undefined}>
         {stats.length > 0 && (
-          <div className={`${shell.panel} ${styles.stats}`}>
+          <div ref={bar} className={`${shell.panel} ${styles.stats}`}>
             <div className={styles.row}>
               {stats.map((x, i) => (
                 <span key={i} className={styles.stat}>
@@ -161,6 +228,11 @@ function StatsOverlay() {
         )}
         {settings.watching && watching && !watching.self && (
           <div className={styles.watching}>Watching {athleteName(watching)}</div>
+        )}
+        {settings.climb && climb && route && at != null && (
+          <div className={styles.climb}>
+            <ClimbCard route={route} at={at} climb={climb} gradeNow={s?.grade != null ? s.grade * 100 : undefined} settings={climbSet} />
+          </div>
         )}
       </div>
       </div>

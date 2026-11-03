@@ -8,7 +8,7 @@ import { useSauce } from "./useSauce";
 import { useFlags } from "./flags";
 import FieldPicker from "./FieldPicker";
 import { Avatar } from "./nearbyAvatar";
-import { chosen, display, gapIsEstimate, staminaLeft } from "./riderFields";
+import { chosen, colourOf, display, gapIsEstimate, staminaLeft } from "./riderFields";
 import shell from "./Overlay.module.css";
 import styles from "./Riders.module.css";
 
@@ -128,7 +128,7 @@ function RidersOverlay() {
                 {fields.map((f) => (
                   <div key={f.id} className={styles.stat}>
                     <dt>{f.short}</dt>
-                    <dd>{display(f, r)}</dd>
+                    <dd style={{ color: colourOf(f, r) }}>{display(f, r)}</dd>
                   </div>
                 ))}
               </dl>

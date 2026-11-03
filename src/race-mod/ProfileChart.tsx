@@ -102,7 +102,9 @@ export default function ProfileChart({
   // A flat route still needs some height to draw; keep at least 20 m of range.
   const range = Math.max(hi - lo, 20);
   const x = (d: number) => ((d - from) / span) * 1000;
-  const y = (e: number) => 100 - ((e - lo) / range) * 82 - 6;
+  // Room above the highest point for the power-up arches standing on the road, when they're shown.
+  const tall = arches.length ? 60 : 82;
+  const y = (e: number) => 100 - ((e - lo) / range) * tall - 6;
   const line = pts.map((p, i) => `${i ? "L" : "M"}${x(p[0]).toFixed(1)} ${y(p[1]).toFixed(1)}`).join("");
   const area = `${line}L1000 100L0 100Z`;
   const pct = (d: number) => `${((d - from) / span) * 100}%`;

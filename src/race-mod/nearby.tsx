@@ -8,7 +8,7 @@ import { useSauce } from "./useSauce";
 import { useFlags } from "./flags";
 import FieldPicker from "./FieldPicker";
 import { Avatar } from "./nearbyAvatar";
-import { chosen, display, gapIsEstimate, type RiderField } from "./riderFields";
+import { chosen, colourOf, display, gapIsEstimate, type RiderField } from "./riderFields";
 import shell from "./Overlay.module.css";
 import styles from "./Nearby.module.css";
 
@@ -113,7 +113,7 @@ function NearbyOverlay() {
                     {settings.teams && team && <span className={styles.team}>{team}</span>}
                   </td>
                   {columns.map((c) => (
-                    <td key={c.id} className={styles.num}>
+                    <td key={c.id} className={styles.num} style={{ color: colourOf(c, r) }}>
                       {display(c, r)}
                       {c.id === "gap" && gapIsEstimate(r) && <small> est</small>}
                     </td>

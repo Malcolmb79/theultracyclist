@@ -38,6 +38,7 @@ export default defineConfig({
         riders: fileURLToPath(new URL('./sauce-mod/riders.html', import.meta.url)),
         predict: fileURLToPath(new URL('./sauce-mod/predict.html', import.meta.url)),
         finish: fileURLToPath(new URL('./sauce-mod/finish.html', import.meta.url)),
+        route: fileURLToPath(new URL('./sauce-mod/route.html', import.meta.url)),
         workout: fileURLToPath(new URL('./sauce-mod/workout.html', import.meta.url)),
         workoutPanel: fileURLToPath(new URL('./sauce-mod/workoutPanel.html', import.meta.url)),
         fuel: fileURLToPath(new URL('./sauce-mod/fuel.html', import.meta.url)),

@@ -1,44 +1,90 @@
-// Zwift's power-ups drawn in The Ultra Cyclist's line style: one stroke
-// weight, round caps, the colour from the badge they sit in. Unknown ones
-// fall back to a bolt.
+import { useId } from "react";
 
-const PATHS: Record<string, string[]> = {
-  // A quill feather.
-  LIGHTNESS: ["M19 4c-6 1-11 6-12 13", "M19 4c1 6-3 11-9 12", "M7 17l-3 3", "M10 11h5", "M9 14h4"],
-  // The van, from the side.
-  DRAFTBOOST: ["M3 16V8h11l4 4h3v4", "M3 16h18", "M14 8v4h4", "M7 16a2 2 0 1 0 0.01 0", "M17 16a2 2 0 1 0 0.01 0"],
-  // A rounded road aero helmet, with its vents.
-  AERO: ["M3 15a9 8 0 0 1 18 0z", "M3 15h18", "M8 9.5l1.5 2", "M12 8.5v2.5", "M16 9.5l-1.5 2", "M6 17.5h4"],
-  // A wrapped burrito.
-  UNDRAFTABLE: ["M5 17L17 5a3 3 0 0 1 4 4L9 21a3 3 0 0 1-4-4z", "M9 13l2 2", "M12 10l2 2", "M15 7l2 2"],
+// Zwift's power-ups as round game badges: a glossy disc in the power-up's own
+// colour, a white rim and a bold white symbol - drawn for the mod (not
+// Zwift's art), readable from a 12px arch marker to a full window. Unknown
+// ones fall back to a green bolt.
+
+interface Glyph {
+  /** Solid white shapes. */
+  fill: string[];
+  /** Details cut back into them, in the disc's colour. */
+  cut?: string[];
+  /** White lines (handles, steam). */
+  line?: string[];
+}
+
+const GLYPHS: Record<string, Glyph> = {
+  // A feather.
+  LIGHTNESS: { fill: ["M20 3C12 3.5 6.5 8.5 6 16l-2.5 4.5 1 1L9 19c7.5-.5 12-6 11-16z"], cut: ["M8.5 17.5L17 7"] },
+  // The draft van, from the side.
+  DRAFTBOOST: {
+    fill: ["M1.5 6.5h13l5 4.5h3v6.5h-1.6a2.9 2.9 0 0 0-5.8 0H9.4a2.9 2.9 0 0 0-5.8 0H1.5z", "M4.5 17.5a2 2 0 1 0 4 0 2 2 0 1 0-4 0", "M15 17.5a2 2 0 1 0 4 0 2 2 0 1 0-4 0"],
+    cut: ["M15 8.2v3.3h3.7z"],
+  },
+  // An aero road helmet.
+  AERO: { fill: ["M1.5 15.5C2 9.5 6.5 5.5 12.5 5.5c5 0 8.5 3 10 7.5l-4.5 2.5z"], cut: ["M6 12.5c2-2.5 5-4 8.5-4", "M4 15.5h13"] },
+  // A burrito, wrapped.
+  UNDRAFTABLE: { fill: ["M4.5 16.5L15.5 5.5a3.9 3.9 0 0 1 5.5 5.5L10 22a3.9 3.9 0 0 1-5.5-5.5z"], cut: ["M8.5 13.5l2.5 2.5", "M12 10l2.5 2.5", "M15.5 6.5L18 9"] },
   // A ghost.
-  NINJA: ["M6 20V10a6 6 0 0 1 12 0v10l-2-2-2 2-2-2-2 2-2-2z", "M10 10h0.01", "M14 10h0.01"],
+  NINJA: { fill: ["M4.5 21.5V10a7.5 7.5 0 0 1 15 0v11.5l-2.5-2-2.5 2-2.5-2-2.5 2-2.5-2z"], cut: ["M9.5 10.5h.01", "M14.5 10.5h.01"] },
   // A road roller.
-  STEAMROLLER: ["M4 18a3 3 0 1 0 6 0 3 3 0 1 0-6 0", "M10 18h6V9h-5l-2 4", "M16 18a2 2 0 1 0 4 0 2 2 0 1 0-4 0", "M13 9V5h3"],
+  STEAMROLLER: {
+    fill: ["M2.5 17a4.5 4.5 0 1 0 9 0 4.5 4.5 0 1 0-9 0", "M9.5 10h8.5v10H9.5z", "M17 18.5a2.5 2.5 0 1 0 5 0 2.5 2.5 0 1 0-5 0", "M12.5 3.5h3V10h-3z"],
+    cut: ["M5.5 17a1.5 1.5 0 1 0 3 0 1.5 1.5 0 1 0-3 0"],
+  },
   // An anvil.
-  ANVIL: ["M3 8h13a5 5 0 0 0 5-2v4c-2 1-4 2-6 2l-1 3h3v3H7v-3h3l-1-3c-3 0-6-2-6-4z"],
+  ANVIL: { fill: ["M2 7h14c3 0 5-1 6-2v5c-2 1.5-4 2.5-6.5 2.5l-1 2.5h3v4H6.5v-4h3l-1-2.5C5 12.5 2 10.5 2 7z"] },
   // A cup of coffee.
-  COFFEE_STOP: ["M5 9h11v6a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4z", "M16 11h2a2 2 0 0 1 0 4h-2", "M8 5c0 1 1 1 1 2", "M12 5c0 1 1 1 1 2"],
+  COFFEE_STOP: { fill: ["M4 9h12.5v6.5A4.5 4.5 0 0 1 12 20H8.5A4.5 4.5 0 0 1 4 15.5z"], line: ["M16.5 11h1.8a2.2 2.2 0 0 1 0 4.4h-1.8", "M8 3.5c-.8 1 .8 2 0 3", "M12.5 3.5c-.8 1 .8 2 0 3"] },
 };
-// A lightning bolt, for the boost and anything new.
-const BOLT = ["M13 3L5 14h6l-1 7 8-11h-6z"];
+const BOLT: Glyph = { fill: ["M13.5 2L4.5 14h6.5l-1.5 8L19 9.5h-6.5z"] };
+
+/** Each power-up's own colour, as Zwift tells them apart. */
+export const POWER_UP_COLOURS: Record<string, string> = {
+  LIGHTNESS: "#8b5cf6",
+  DRAFTBOOST: "#1f9de0",
+  AERO: "#f5a524",
+  UNDRAFTABLE: "#e8512e",
+  NINJA: "#4f6a8f",
+  STEAMROLLER: "#ef7d1a",
+  ANVIL: "#6f7883",
+  COFFEE_STOP: "#8b5a3c",
+};
+const BOLT_COLOUR = "#22b573";
+
+export const powerUpColour = (code: string) => POWER_UP_COLOURS[code] ?? BOLT_COLOUR;
 
 export default function PowerUpIcon({ code, size = 22 }: { code: string; size?: number }) {
+  const id = `pu-${useId().replace(/:/g, "")}`;
+  const g = GLYPHS[code] ?? BOLT;
+  const colour = powerUpColour(code);
+  // Fine detail only where there's room for it.
+  const rim = size < 16 ? 1.6 : 1.3;
+  const glyph = size < 24 ? 0.68 : 0.58;
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.9}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      {(PATHS[code] ?? BOLT).map((d) => (
-        <path key={d} d={d} />
-      ))}
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden style={{ overflow: "visible" }}>
+      <defs>
+        <radialGradient id={id} cx="35%" cy="28%" r="80%">
+          <stop offset="0" stopColor="#fff" stopOpacity="0.55" />
+          <stop offset="0.45" stopColor="#fff" stopOpacity="0" />
+          <stop offset="1" stopColor="#000" stopOpacity="0.3" />
+        </radialGradient>
+      </defs>
+      <circle cx="12" cy="12" r={12 - rim / 2} fill={colour} />
+      <circle cx="12" cy="12" r={12 - rim / 2} fill={`url(#${id})`} />
+      <circle cx="12" cy="12" r={12 - rim / 2} fill="none" stroke="#fff" strokeWidth={rim} />
+      <g transform={`translate(12 12) scale(${glyph}) translate(-12 -12)`} filter="drop-shadow(0 0.6px 0.6px rgba(0,0,0,0.35))">
+        {g.fill.map((d) => (
+          <path key={d} d={d} fill="#fff" />
+        ))}
+        {g.cut?.map((d) => (
+          <path key={d} d={d} fill={colour} stroke={colour} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+        ))}
+        {g.line?.map((d) => (
+          <path key={d} d={d} fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" />
+        ))}
+      </g>
     </svg>
   );
 }

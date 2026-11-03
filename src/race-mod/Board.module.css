@@ -251,8 +251,6 @@
   height: 1.15rem;
   margin-right: 0.25rem;
   border-radius: 50%;
-  color: rgb(var(--hud-bg));
-  background: var(--color-accent-2);
   text-shadow: none;
   animation: powerUpPulse 1.2s ease-in-out infinite alternate;
 }

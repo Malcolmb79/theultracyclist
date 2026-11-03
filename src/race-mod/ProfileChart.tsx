@@ -217,7 +217,7 @@ export default function ProfileChart({
             {icons.length > 0 && (
               <span className={styles.archIcons}>
                 {icons.map((p) => (
-                  <PowerUpIcon key={p.code} code={p.code} size={12} />
+                  <PowerUpIcon key={p.code} code={p.code} size={14} />
                 ))}
               </span>
             )}

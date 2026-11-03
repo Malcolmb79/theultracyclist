@@ -277,7 +277,7 @@ function RaceBoard() {
                 >
                   {settings.powerUps && s?.activePowerUp && powerUp(s.activePowerUp) && (
                     <span className={styles.powerUp} title={`${powerUp(s.activePowerUp)!.name}: ${powerUp(s.activePowerUp)!.effect}`}>
-                      <PowerUpIcon code={s.activePowerUp} size={13} />
+                      <PowerUpIcon code={s.activePowerUp} size={18} />
                     </span>
                   )}
                   {flag && <img className={styles.flag} src={flag.src} alt={flag.name} title={flag.name} />}

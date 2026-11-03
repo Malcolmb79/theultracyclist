@@ -5,7 +5,7 @@ import { powerUp } from "../components/race/powerUps";
 import { connectSauce, sauceAddressForModPage, sauceRpc, type SauceAthleteData, type SauceGameState } from "../components/race/sauceFeed";
 import { OverlayShell, useSettings, type SettingDef } from "./overlay";
 import shell from "./Overlay.module.css";
-import PowerUpIcon from "./PowerUpIcon";
+import PowerUpIcon, { powerUpColour } from "./PowerUpIcon";
 import { routePosition, useCourse } from "./useCourse";
 import { NOW_M, adviseUse, type Advice } from "./powerUpAdvice";
 import styles from "./PowerUp.module.css";
@@ -129,7 +129,7 @@ function PowerUpOverlay() {
     <OverlayShell title="Power-up" settings={settings} setSetting={set} defs={DEFS}>
       <div
         className={`${shell.panel} ${styles.panel} ${shown?.running ? styles.running : ""}`}
-        style={{ ["--pu" as string]: shown ? "var(--color-accent-2)" : "var(--color-text-muted)", ["--labels" as string]: `${labelsRem}rem` }}
+        style={{ ["--pu" as string]: shown ? powerUpColour(shown.code) : "var(--color-text-muted)", ["--labels" as string]: `${labelsRem}rem` }}
       >
         {shown ? (
           <>

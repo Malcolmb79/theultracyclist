@@ -19,14 +19,35 @@ import styles from "./Stats.module.css";
 // from the rider's Zwift profile through the site (Sauce doesn't carry
 // them); Zwift updates them when it saves the ride, every few minutes.
 
-const DEFAULTS = { opacity: 80, fit: true, climb: false, rideBar: true, fields: "", watching: true, level: true, drops: true, progress: true };
+const DEFAULTS = { opacity: 80, fit: true, climb: false, rideBar: true, rideLabel: "left", levelLabel: "toNext", fields: "", watching: true, level: true, drops: true, progress: true };
 const DEFS: SettingDef[] = [
   { key: "fit", label: "Size to the window (drag a corner)", type: "toggle" },
   { key: "climb", label: "Climb pop-up under the stats", type: "toggle" },
   { key: "rideBar", label: "Ride progress bar", type: "toggle" },
+  {
+    key: "rideLabel",
+    label: "Ride bar label",
+    type: "select",
+    options: [
+      { value: "none", label: "None" },
+      { value: "left", label: "What's left (distance or time)" },
+      { value: "done", label: "% done" },
+      { value: "both", label: "Both" },
+    ],
+  },
   { key: "watching", label: "Who you're watching", type: "toggle" },
   { key: "level", label: "Level", type: "toggle" },
   { key: "progress", label: "Progress to the next level", type: "toggle" },
+  {
+    key: "levelLabel",
+    label: "Level bar label",
+    type: "select",
+    options: [
+      { value: "none", label: "None" },
+      { value: "toNext", label: "% to the next level" },
+      { value: "through", label: "% through this level" },
+    ],
+  },
   { key: "drops", label: "Drops", type: "toggle" },
 ];
 
@@ -197,6 +218,10 @@ function StatsOverlay() {
           ? Math.min(1, s.time / (s.time + timeToGo))
           : undefined;
 
+  // What's left, for the ride bar's label: the distance to go, or the time in a ride that counts down in time.
+  const rideLeft =
+    toGo != null ? `${toGo >= 1000 ? `${(toGo / 1000).toFixed(1)} km` : `${Math.round(toGo)} m`} to go` : timeToGo != null ? `${formatElapsed(timeToGo * 1000)} to go` : undefined;
+
   // Level, progress and Drops are the rider's own: shown while they're the one riding.
   const profile = useProfile(settings.level || settings.drops || settings.progress);
   const own = watching?.self !== false && profile?.configured !== false && !profile?.error ? profile : null;
@@ -289,9 +314,25 @@ function StatsOverlay() {
                 </span>
               ))}
             </div>
+            {settings.rideBar && rideDone != null && settings.rideLabel !== "none" && (
+              <div className={styles.barLabel}>
+                <span>{settings.rideLabel !== "done" ? (rideLeft ?? `${Math.round(rideDone * 100)}% done`) : `${Math.round(rideDone * 100)}% done`}</span>
+                {settings.rideLabel === "both" && rideLeft && <span>{Math.round(rideDone * 100)}% done</span>}
+              </div>
+            )}
             {settings.rideBar && rideDone != null && (
               <div className={`${styles.progress} ${styles.ride}`} title={`${Math.round(rideDone * 100)}% of the way`}>
                 <span style={{ width: `${rideDone * 100}%` }} />
+              </div>
+            )}
+            {pct != null && settings.levelLabel !== "none" && (
+              <div className={styles.barLabel}>
+                <span>{own?.level != null ? `Level ${own.level}` : "Level"}</span>
+                <span>
+                  {settings.levelLabel === "through"
+                    ? `${Math.round(pct)}% through`
+                    : `${Math.max(0, 100 - Math.round(pct))}% to ${own?.level != null ? `level ${own.level + 1}` : "the next level"}`}
+                </span>
               </div>
             )}
             {pct != null && (

@@ -25,6 +25,21 @@
   background: var(--color-accent-2) !important;
 }
 
+/* A label over a bar: what's left of the ride, or how far to the next level. */
+.barLabel {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: -2px;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
 .progress {
   height: 0.45rem;
   border-radius: 999px;

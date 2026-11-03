@@ -1,3 +1,6 @@
+import { SITE } from "./site";
+import { riderMaxHr } from "./riderMaxHr";
+
 // Coggan power zones, as a share of FTP, with the colour Zwift uses for each -
 // shared by the power overlay and the workout strip.
 
@@ -24,7 +27,11 @@ export const HR_ZONES = [
   { upTo: Infinity, name: "Z5", color: "#ff4d2e" },
 ];
 
-/** The max heart rate setting, shared by every overlay: "learn" (the highest seen on rides) or bpm. */
+/**
+ * The max heart rate setting, shared by every overlay: "strava" (the highest
+ * on the rider's Strava rides over the last 90 days, through the site),
+ * "learn" (the highest seen on rides here) or bpm.
+ */
 export const MAX_HR_KEY = "hr:max";
 const LEARNT_KEY = "hr:learnt-max";
 /** Until a hard enough ride has been seen to learn from. */
@@ -39,7 +46,7 @@ function stored(key: string): string | null {
 }
 
 export function maxHrSetting(): string {
-  return stored(MAX_HR_KEY) ?? "learn";
+  return stored(MAX_HR_KEY) ?? "strava";
 }
 
 export function saveMaxHrSetting(v: string) {
@@ -52,8 +59,13 @@ export function saveMaxHrSetting(v: string) {
 
 /** The rider's max heart rate - set, or learnt from the highest seen on their rides (at least 185 until then). */
 export function myMaxHr(bpm?: number): number {
-  const set = Number(maxHrSetting());
+  const setting = maxHrSetting();
+  const set = Number(setting);
   if (set > 0) return set;
+  if (setting === "strava") {
+    const fromStrava = stravaMaxHr();
+    if (fromStrava) return fromStrava;
+  }
   let learnt = Number(stored(LEARNT_KEY)) || 0;
   if (bpm != null && bpm > learnt && bpm < 225) {
     learnt = bpm;
@@ -68,13 +80,64 @@ export function myMaxHr(bpm?: number): number {
 }
 
 /**
- * A heart rate's zone colour - for the rider themselves (their own max is
- * known); other riders' max heart rates aren't shared, so theirs stay plain.
+ * A heart rate's zone colour: the rider's own from their max heart rate
+ * setting, anyone else's from their 90-day max on ZwiftPower (plain until
+ * it's known, or if they've no heart rate there).
  */
-export function hrColour(r: { self?: boolean; watching?: boolean } | null | undefined, bpm: number | null | undefined, learn = false): string | undefined {
+export function hrColour(
+  r: { self?: boolean; watching?: boolean; athleteId?: number } | null | undefined,
+  bpm: number | null | undefined,
+  learn = false,
+): string | undefined {
+  if (!r || !bpm) return undefined;
   // Sauce marks the rider's own data; the one watched counts unless it says it isn't them.
-  const mine = r?.self === true || (r?.self == null && r?.watching);
-  if (!mine || !bpm) return undefined;
-  const max = myMaxHr(learn ? bpm : undefined);
+  const mine = r.self === true || (r.self == null && r.watching);
+  const max = mine ? myMaxHr(learn ? bpm : undefined) : riderMaxHr(r.athleteId);
+  if (!max) return undefined;
   return (HR_ZONES.find((z) => bpm / max <= z.upTo) ?? HR_ZONES[HR_ZONES.length - 1]).color;
+}
+
+/** The 90-day max from Strava, kept for 12 hours between windows and rides; asked for again in the background. */
+const STRAVA_KEY = "hr:strava-max";
+const STRAVA_MS = 12 * 60 * 60 * 1000;
+let stravaAsked = false;
+
+function readKept(): { at: number; maxHr: number | null } | null {
+  try {
+    return JSON.parse(stored(STRAVA_KEY) ?? "null") as { at: number; maxHr: number | null } | null;
+  } catch {
+    return null;
+  }
+}
+
+function stravaMaxHr(): number | undefined {
+  const kept = readKept();
+  if ((!kept || Date.now() - kept.at > STRAVA_MS) && !stravaAsked) {
+    stravaAsked = true;
+    const key = raceKey();
+    if (key)
+      void fetch(`${SITE}/api/max-hr`, { headers: { authorization: `Bearer ${key}` }, credentials: "omit" })
+        .then((r) => (r.ok ? (r.json() as Promise<{ maxHr?: number | null; error?: string }>) : null))
+        .then((a) => {
+          if (!a || a.error) return;
+          try {
+            window.localStorage.setItem(STRAVA_KEY, JSON.stringify({ at: Date.now(), maxHr: a.maxHr ?? null }));
+          } catch {
+            // Asked again next time.
+          }
+        })
+        .catch(() => undefined);
+  }
+  return kept?.maxHr ?? undefined;
+}
+
+/** The race key the mod's radio overlays already keep, shared by every mod window. */
+function raceKey(): string | null {
+  try {
+    const raw = window.localStorage.getItem("race:commentary-key");
+    const v = raw ? (JSON.parse(raw) as unknown) : null;
+    return typeof v === "string" && v ? v : null;
+  } catch {
+    return null;
+  }
 }

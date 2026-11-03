@@ -783,7 +783,8 @@ function fieldCondition(log: RaceLog) {
 /** A rider as the radios see them: their ZwiftPower history alongside, when it's been looked up. */
 function withHistory<T extends FieldRider>(log: RaceLog, r: T): T & { zwiftPower?: unknown } {
   const h = r.id != null ? log.riderHistory?.[r.id] : undefined;
-  if (!h) return r;
+  // No races on ZwiftPower (only rides, kept for the heart-rate zones): nothing to say about their racing.
+  if (!h || (!h.recent.length && !h.last90Days.races)) return r;
   return {
     ...r,
     zwiftPower: {

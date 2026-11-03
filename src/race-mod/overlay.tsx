@@ -328,7 +328,8 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
                   setMaxHr(e.target.value);
                 }}
               >
-                <option value="learn">Learn from my rides</option>
+                <option value="strava">My max over the last 90 days (Strava)</option>
+                <option value="learn">Learn from my rides here</option>
                 {Array.from({ length: 61 }, (_, i) => 150 + i).map((v) => (
                   <option key={v} value={v}>
                     {v} bpm

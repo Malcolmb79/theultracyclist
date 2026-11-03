@@ -13,7 +13,7 @@ const ZP = "https://zwiftpower.com";
 const LOGIN_URL = `${ZP}/ucp.php?mode=login&login=external&oauth_service=oauthzpsso`;
 const SESSION_KEY = "zwiftpower:session";
 const SESSION_MS = 3 * 60 * 60_000;
-const RIDER_KEY = (id: number) => `zwiftpower:rider:${id}`;
+const RIDER_KEY = (id: number) => `zwiftpower:rider:v2:${id}`;
 const RIDER_MS = 6 * 60 * 60_000;
 const UA = "Mozilla/5.0 (compatible; TheUltraCyclist race console)";
 
@@ -165,10 +165,13 @@ export interface RiderHistory {
   recent: { date: string; event: string; place?: number; category?: string; wkg?: number }[];
   /** Best watts per kilo in races over the last 90 days. */
   best90Days?: { s15?: number; m1?: number; m5?: number; m20?: number };
+  /** Their highest heart rate in any event (races and rides) over the last 90 days - a lone spike passed over. */
+  maxHr90Days?: number;
 }
 
 export function summarise(results: unknown): RiderHistory | null {
   const list = (Array.isArray(results) ? results : ((results as { data?: unknown[] } | null)?.data ?? [])) as Record<string, unknown>[];
+  const maxHr90Days = maxHrOf(list, 90);
   const races = list
     .map((r) => {
       const t = num(r.event_date) ?? num(r.date);
@@ -189,7 +192,8 @@ export function summarise(results: unknown): RiderHistory | null {
     })
     .filter((r) => r.at != null && r.race && !r.dq)
     .sort((a, b) => (b.at ?? 0) - (a.at ?? 0));
-  if (!races.length) return null;
+  // No races, but rides with a heart rate: just that, for the heart-rate zones.
+  if (!races.length) return maxHr90Days ? { last30Days: { races: 0, wins: 0, podiums: 0, top10: 0 }, last90Days: { races: 0, wins: 0, podiums: 0 }, recent: [], maxHr90Days } : null;
 
   const since = (days: number) => races.filter((r) => Date.now() - (r.at ?? 0) <= days * 86_400_000);
   const tally = (rs: typeof races) => ({
@@ -221,7 +225,24 @@ export function summarise(results: unknown): RiderHistory | null {
       wkg: r.wkg != null ? Math.round(r.wkg * 10) / 10 : undefined,
     })),
     best90Days,
+    maxHr90Days,
   };
+}
+
+/** A strap's one-off spike this far above every other event's max isn't taken. */
+const HR_SPIKE_BPM = 8;
+
+function maxHrOf(list: Record<string, unknown>[], days: number): number | undefined {
+  const maxes = list
+    .filter((r) => {
+      const t = num(r.event_date) ?? num(r.date);
+      return t != null && Date.now() - (t > 1e12 ? t : t * 1000) <= days * 86_400_000;
+    })
+    .map((r) => num(r.max_hr))
+    .filter((v): v is number => v != null && v > 100 && v < 225)
+    .sort((a, b) => b - a);
+  if (!maxes.length) return undefined;
+  return Math.round(maxes.length > 1 && maxes[0] - maxes[1] > HR_SPIKE_BPM ? maxes[1] : maxes[0]);
 }
 
 /** One rider's history, from the cache when it's fresh. Null when ZwiftPower has nothing for them. */

@@ -24,6 +24,7 @@ const DEFAULTS = {
   banner: true,
   toGo: true,
   gradient: true,
+  gradeColours: false,
 };
 const DEFS: SettingDef[] = [
   {
@@ -44,6 +45,7 @@ const DEFS: SettingDef[] = [
   { key: "banner", label: "Segment banner", type: "toggle" },
   { key: "toGo", label: "Distance to finish", type: "toggle" },
   { key: "gradient", label: "Gradient", type: "toggle" },
+  { key: "gradeColours", label: "Colour the road by gradient (as the climb pop-up)", type: "toggle" },
 ];
 
 const km = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${Math.round(m)} m`);
@@ -127,6 +129,7 @@ function ProfileOverlay() {
               showSegmentNames={settings.segmentNames}
               arches={arches}
               archPowerUps={archPowerUps}
+              gradeColours={settings.gradeColours}
             />
           ) : (
             <p className={styles.empty}>{problem ?? (status === "connected" ? "Waiting for a route…" : "Connecting to Sauce…")}</p>

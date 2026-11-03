@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import type { RouteGeometry, SegmentKind } from "../components/race/courseMap";
 import type { Arch } from "./arches";
 import PowerUpIcon from "./PowerUpIcon";
+import { gradeColor } from "./climb";
 import styles from "./ProfileChart.module.css";
 
 // The route's elevation profile, the way Zwift draws it along the bottom of
@@ -31,6 +32,8 @@ interface Props {
   arches?: Arch[];
   /** What the arches can give, most likely first, when the event says. */
   archPowerUps?: { code: string; share: number }[];
+  /** The road filled in the colour of its gradient, slice by slice, as the climb pop-up does. */
+  gradeColours?: boolean;
   className?: string;
 }
 
@@ -43,6 +46,8 @@ const MIN_LABEL_PX = 46;
 
 /** Points drawn across the chart - plenty for a smooth line at overlay size. */
 const RESOLUTION = 400;
+/** Points per gradient slice - 80 slices across the chart. */
+const GRADE_STEP = 5;
 
 const KIND_CLASS: Record<SegmentKind, string> = {
   sprint: styles.sprint,
@@ -59,6 +64,7 @@ export default function ProfileChart({
   showSegmentNames = true,
   arches = [],
   archPowerUps = [],
+  gradeColours = false,
   className,
 }: Props) {
   const clip = `profile-${useId().replace(/:/g, "")}`;
@@ -108,6 +114,20 @@ export default function ProfileChart({
   const line = pts.map((p, i) => `${i ? "L" : "M"}${x(p[0]).toFixed(1)} ${y(p[1]).toFixed(1)}`).join("");
   const area = `${line}L1000 100L0 100Z`;
   const pct = (d: number) => `${((d - from) / span) * 100}%`;
+
+  // The road in its gradient's colours: slices across the chart, each the
+  // colour of its own slope, and a run of slices the same colour drawn as one.
+  const gradeBands: { x0: number; x1: number; color: string }[] = [];
+  if (gradeColours) {
+    for (let k = 0; k < RESOLUTION; k += GRADE_STEP) {
+      const a = pts[k];
+      const b = pts[Math.min(RESOLUTION, k + GRADE_STEP)];
+      const color = gradeColor(b[0] > a[0] ? ((b[1] - a[1]) / (b[0] - a[0])) * 100 : 0);
+      const last = gradeBands.at(-1);
+      if (last && last.color === color) last.x1 = x(b[0]);
+      else gradeBands.push({ x0: x(a[0]), x1: x(b[0]), color });
+    }
+  }
   const visible = (d: number) => d >= from && d <= to;
   // An arch right at either end is drawn inside the chart rather than half off it.
   const edge = (d: number) => ((d - from) / span < 0.02 ? styles.archStart : (d - from) / span > 0.98 ? styles.archEnd : "");
@@ -159,8 +179,11 @@ export default function ProfileChart({
             <path d={area} />
           </clipPath>
         </defs>
-        <path d={area} fill="url(#profileFill)" />
+        {!gradeColours && <path d={area} fill="url(#profileFill)" />}
         <g clipPath={`url(#${clip})`}>
+          {gradeBands.map((g, i) => (
+            <rect key={`g${i}`} x={g.x0} width={g.x1 - g.x0 + 0.5} y={0} height={100} fill={g.color} fillOpacity={0.8} />
+          ))}
           {segs.map((s, i) => (
             <rect
               key={i}

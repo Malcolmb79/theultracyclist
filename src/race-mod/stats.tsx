@@ -30,6 +30,9 @@ const DEFS: SettingDef[] = [
   { key: "drops", label: "Drops", type: "toggle" },
 ];
 
+/** The bar's own width, before scaling, with the climb pop-up under it - sets how tall it comes out. */
+const CLIMB_BAR_WIDTH = 760;
+
 const eventMetres = (r: SauceAthleteData) => (r.state?.eventDistance && r.state.eventDistance > 0 ? r.state.eventDistance : r.state?.distance);
 
 /** Zwift's own ride numbers, as it shows them top centre - first in the list to pick from. */
@@ -182,13 +185,17 @@ function StatsOverlay() {
   // How much of the ride is done: Zwift's own event progress in an event
   // (not in a workout, where it's the workout's), else ridden against to go.
   const st = s as { progress?: number; workoutZone?: number | null } | null | undefined;
+  // A ride that counts down in time (a group ride's "11 min to go") goes by time ridden against time left.
   const toGo = watching?.remainingMetric === "distance" && watching.remaining != null ? watching.remaining : undefined;
+  const timeToGo = watching?.remainingMetric === "time" && watching.remaining != null ? watching.remaining : undefined;
   const rideDone =
     s?.eventSubgroupId && st?.progress && !st.workoutZone
       ? Math.min(1, st.progress)
       : toGo != null && metres != null && metres + toGo > 0
         ? Math.min(1, metres / (metres + toGo))
-        : undefined;
+        : timeToGo != null && s?.time != null && s.time + timeToGo > 0
+          ? Math.min(1, s.time / (s.time + timeToGo))
+          : undefined;
 
   // Level, progress and Drops are the rider's own: shown while they're the one riding.
   const profile = useProfile(settings.level || settings.drops || settings.progress);
@@ -227,9 +234,10 @@ function StatsOverlay() {
       // for a climb pop-up), then stretched across the window's full width -
       // so the window can be dragged as wide as Zwift's HUD. Never so big
       // that the numbers no longer fit across.
-      const share = settings.climb ? 0.42 : 1;
-      let next = (window.innerHeight * share) / el.offsetHeight;
+      // With the climb pop-up the window's height is mostly room for it, so
+      // the bar is sized from the width alone, as Zwift's is to its screen.
       const minWidth = row ? Array.from(row.children).reduce((w, c) => w + (c as HTMLElement).offsetWidth, 0) + (row.children.length - 1) * 24 + 40 : 0;
+      let next = settings.climb ? window.innerWidth / Math.max(minWidth, CLIMB_BAR_WIDTH) : window.innerHeight / el.offsetHeight;
       if (minWidth && window.innerWidth / next < minWidth) next = window.innerWidth / minWidth;
       next = Math.max(0.3, next);
       setScale((was) => (Math.abs(was - next) < 0.005 ? was : next));

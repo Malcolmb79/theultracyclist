@@ -124,7 +124,8 @@
 /* The climb pop-up under the stats, exactly as wide as the bar: it takes
    the bar's width rather than widening the whole thing past the window. */
 .climb {
-  align-self: stretch;
+  /* Narrower than the bar and centred under it, as Zwift's is. */
+  align-self: center;
   width: 0;
-  min-width: 100%;
+  min-width: 62%;
 }

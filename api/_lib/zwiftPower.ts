@@ -276,5 +276,10 @@ export async function rawSample(idOrSelf: number | undefined, steps: string[]) {
     resultCount: list.length,
     // What the commentator would be given for them.
     summary: summarise(results),
+    // The fields a result carries, and the heart-rate ones from the latest few - to check the names.
+    fields: list[0] && typeof list[0] === "object" ? Object.keys(list[0] as object) : [],
+    heartRates: (list as Record<string, unknown>[]).slice(-5).map((r) =>
+      Object.fromEntries(Object.entries(r).filter(([k]) => /hr|heart|date/i.test(k))),
+    ),
   };
 }

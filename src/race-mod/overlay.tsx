@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import styles from "./Overlay.module.css";
 import { THEMES, THEME_KEY, applyTheme, readTheme, saveTheme } from "./themes";
+import { maxHrSetting, saveMaxHrSetting } from "./zones";
 
 // The theme goes on before the first paint, so an overlay never flashes the default look.
 applyTheme(readTheme());
@@ -127,6 +128,7 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
   const before = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
   const [theme, setTheme] = useState(() => readTheme().id);
   const [textSize, setTextSize] = useState(() => readTextSize(title));
+  const [maxHr, setMaxHr] = useState(() => maxHrSetting());
   const shellRef = useRef<HTMLDivElement | null>(null);
   const [clipped, setClipped] = useState(false);
   // Grown once at most: an overlay sized to the window grows with it, so more would never end.
@@ -205,7 +207,7 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
   // window is often too small to show them - then it goes back to exactly
   // where it was. (Sauce lets a page move and size its own window; where it
   // can't, the menu scrolls inside the window as it is.)
-  const rows = 5 + defs.length + (extraRows ?? (extraSettings ? 3 : 0));
+  const rows = 6 + defs.length + (extraRows ?? (extraSettings ? 3 : 0));
   const openMenu = () => {
     if (!before.current) {
       before.current = { x: window.screenX, y: window.screenY, w: window.outerWidth, h: window.outerHeight };
@@ -313,6 +315,23 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
                 {TEXT_SIZES.map((v) => (
                   <option key={v} value={v}>
                     {v}%
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className={styles.row}>
+              <span className={styles.label}>Max heart rate, for zone colours (all overlays)</span>
+              <select
+                value={maxHr}
+                onChange={(e) => {
+                  saveMaxHrSetting(e.target.value);
+                  setMaxHr(e.target.value);
+                }}
+              >
+                <option value="learn">Learn from my rides</option>
+                {Array.from({ length: 61 }, (_, i) => 150 + i).map((v) => (
+                  <option key={v} value={v}>
+                    {v} bpm
                   </option>
                 ))}
               </select>

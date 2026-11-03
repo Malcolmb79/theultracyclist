@@ -5,6 +5,7 @@ import { athleteName, type SauceAthleteData } from "../components/race/sauceFeed
 import { inRace } from "../components/race/sameRace";
 import { OverlayShell, useSettings, type SettingDef } from "./overlay";
 import { useSauce } from "./useSauce";
+import { hrColour } from "./zones";
 import { useFlags } from "./flags";
 import { powerUp } from "../components/race/powerUps";
 import PowerUpIcon from "./PowerUpIcon";
@@ -294,7 +295,7 @@ function RaceBoard() {
                     </span>
                   )}
                   {tss != null && <span className={styles.tss}>{Math.round(tss)} TSS</span>}
-                  {settings.heartRate && s?.heartrate ? <span className={styles.hr}>{s.heartrate} ♥</span> : null}
+                  {settings.heartRate && s?.heartrate ? <span className={styles.hr} style={{ color: hrColour(r, s.heartrate) }}>{s.heartrate} ♥</span> : null}
                   {settings.gaps && !r.watching && r.gap != null && <span className={styles.gap}>{formatGap(r.gap)}</span>}
                 </span>
               </span>

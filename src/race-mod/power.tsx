@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import "../styles/global.css";
 import { OverlayShell, useSettings, type SettingDef } from "./overlay";
 import { useSauce } from "./useSauce";
-import { POWER_ZONES } from "./zones";
+import { POWER_ZONES, hrColour } from "./zones";
 import shell from "./Overlay.module.css";
 import styles from "./Power.module.css";
 
@@ -215,7 +215,7 @@ function PowerOverlay() {
           )}
           {settings.heartRate && (
             <span className={styles.hr}>
-              <b>{s?.heartrate || "–"}</b> bpm
+              <b style={{ color: hrColour(watching, s?.heartrate, true) }}>{s?.heartrate || "–"}</b> bpm
             </span>
           )}
           {settings.ftpPct && ratio != null && (

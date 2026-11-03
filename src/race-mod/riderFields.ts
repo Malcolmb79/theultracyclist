@@ -1,5 +1,5 @@
 import type { SauceAthleteData } from "../components/race/sauceFeed";
-import { zoneColor } from "./zones";
+import { hrColour, zoneColor } from "./zones";
 
 // Everything Sauce knows about a rider, as fields to pick from - for the
 // Nearby riders table and the Rider cards. Grouped as Sauce's own Nearby
@@ -256,9 +256,9 @@ const FIELDS: RiderField[] = [
   { id: "lapSpeed", label: "Lap speed", short: "Lap km/h", group: "Speed", value: (r) => num((r as Rich).lap?.speed?.avg), show: one },
 
   // Heart rate
-  { id: "hr", label: "Current heart rate", short: "♥", group: "Heart rate", value: (r) => num(r.state?.heartrate || undefined), show: whole },
-  { id: "hr60", label: "1 min heart rate", short: "1min ♥", group: "Heart rate", value: (r) => num(stats(r)?.hr?.smooth?.[60]), show: whole },
-  { id: "hrAvg", label: "Average heart rate", short: "Avg ♥", group: "Heart rate", value: (r) => num(stats(r)?.hr?.avg), show: whole },
+  { id: "hr", label: "Current heart rate", short: "♥", group: "Heart rate", value: (r) => num(r.state?.heartrate || undefined), show: whole, colour: (r, v) => hrColour(r, v, true) },
+  { id: "hr60", label: "1 min heart rate", short: "1min ♥", group: "Heart rate", value: (r) => num(stats(r)?.hr?.smooth?.[60]), show: whole, colour: (r, v) => hrColour(r, v) },
+  { id: "hrAvg", label: "Average heart rate", short: "Avg ♥", group: "Heart rate", value: (r) => num(stats(r)?.hr?.avg), show: whole, colour: (r, v) => hrColour(r, v) },
   { id: "hrMax", label: "Max heart rate", short: "Max ♥", group: "Heart rate", value: (r) => num(stats(r)?.hr?.max), show: whole },
 
   // Cadence

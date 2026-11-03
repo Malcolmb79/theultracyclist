@@ -1,13 +1,15 @@
 import { StrictMode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../styles/global.css";
-import { athleteName } from "../components/race/sauceFeed";
+import { athleteName, type SauceAthleteData } from "../components/race/sauceFeed";
 import { formatElapsed } from "../components/race/raceLog";
 import { OverlayShell, useSettings, type SettingDef } from "./overlay";
 import { useSauce } from "./useSauce";
 import { SITE } from "./site";
 import { routePosition, useCourse } from "./useCourse";
 import { CLIMB_DEFAULTS, ClimbCard, useClimb, type ClimbSettings } from "./climbCard";
+import FieldPicker from "./FieldPicker";
+import { FIELD_GROUPS, RIDER_FIELDS, colourOf, display, type FieldGroup, type RiderField } from "./riderFields";
 import shell from "./Overlay.module.css";
 import styles from "./Stats.module.css";
 
@@ -17,21 +19,54 @@ import styles from "./Stats.module.css";
 // from the rider's Zwift profile through the site (Sauce doesn't carry
 // them); Zwift updates them when it saves the ride, every few minutes.
 
-const DEFAULTS = { opacity: 80, fit: true, climb: false, rideBar: true, speed: true, distance: true, climbing: true, time: true, watching: true, gradient: false, level: true, drops: true, progress: true };
+const DEFAULTS = { opacity: 80, fit: true, climb: false, rideBar: true, fields: "", watching: true, level: true, drops: true, progress: true };
 const DEFS: SettingDef[] = [
   { key: "fit", label: "Size to the window (drag a corner)", type: "toggle" },
   { key: "climb", label: "Climb pop-up under the stats", type: "toggle" },
   { key: "rideBar", label: "Ride progress bar", type: "toggle" },
-  { key: "speed", label: "Speed", type: "toggle" },
-  { key: "distance", label: "Distance", type: "toggle" },
-  { key: "climbing", label: "Climbing", type: "toggle" },
-  { key: "time", label: "Time", type: "toggle" },
-  { key: "gradient", label: "Gradient", type: "toggle" },
   { key: "watching", label: "Who you're watching", type: "toggle" },
   { key: "level", label: "Level", type: "toggle" },
   { key: "progress", label: "Progress to the next level", type: "toggle" },
   { key: "drops", label: "Drops", type: "toggle" },
 ];
+
+const eventMetres = (r: SauceAthleteData) => (r.state?.eventDistance && r.state.eventDistance > 0 ? r.state.eventDistance : r.state?.distance);
+
+/** Zwift's own ride numbers, as it shows them top centre - first in the list to pick from. */
+const RIDE_FIELDS: RiderField[] = [
+  { id: "speed", label: "Speed", short: "km/h", group: "Ride", value: (r) => r.state?.speed ?? undefined, show: (v) => String(Math.round(v)) },
+  { id: "distance", label: "Distance", short: "km", group: "Ride", value: (r) => { const m = eventMetres(r); return m != null ? m / 1000 : undefined; }, show: (v) => v.toFixed(1) },
+  { id: "climbing", label: "Climbing", short: "m", group: "Ride", value: (r) => r.state?.climbing ?? undefined, show: (v) => String(Math.round(v)) },
+  { id: "time", label: "Time", short: "", group: "Ride", value: (r) => r.state?.time ?? undefined, show: (v) => formatElapsed(v * 1000) },
+  { id: "gradient", label: "Gradient", short: "%", group: "Ride", value: (r) => (r.state?.grade != null ? r.state.grade * 100 : undefined), show: (v) => v.toFixed(1) },
+  {
+    id: "toGo",
+    label: "Distance to go",
+    short: "km to go",
+    group: "Ride",
+    value: (r) => (r.remainingMetric === "distance" && r.remaining != null ? r.remaining / 1000 : undefined),
+    show: (v) => v.toFixed(1),
+  },
+  {
+    id: "timeToGo",
+    label: "Time to go",
+    short: "to go",
+    group: "Ride",
+    value: (r) => (r.remainingMetric === "time" && r.remaining != null ? r.remaining : undefined),
+    show: (v) => formatElapsed(v * 1000),
+  },
+];
+/** Then everything else Sauce knows about the rider - the Ride ones stand in for its own speed, distance and grade. */
+const STAT_FIELDS = [...RIDE_FIELDS, ...RIDER_FIELDS.filter((f) => !["speed", "distance", "grade"].includes(f.id))];
+const STAT_GROUPS: FieldGroup[] = ["Ride", ...FIELD_GROUPS];
+const statById = new Map(STAT_FIELDS.map((f) => [f.id, f]));
+
+/** The stats chosen, in their order - before there was a choice, from the old on/off settings. */
+function chosenStats(settings: Record<string, unknown>): RiderField[] {
+  let ids = String(settings.fields ?? "");
+  if (!ids) ids = ["speed", "distance", "climbing", "time", "gradient"].filter((k) => settings[k] ?? k !== "gradient").join(",");
+  return ids.split(",").map((id) => statById.get(id)).filter((f): f is RiderField => !!f);
+}
 
 interface Profile {
   configured?: boolean;
@@ -136,13 +171,13 @@ function StatsOverlay() {
   const s = watching?.state;
   // In an event the distance counts from its start banner, as Zwift's does.
   const metres = s?.eventDistance && s.eventDistance > 0 ? s.eventDistance : s?.distance;
-  const stats = [
-    settings.speed && { value: s?.speed != null ? Math.round(s.speed) : "–", unit: "km/h" },
-    settings.distance && { value: metres != null ? (metres / 1000).toFixed(1) : "–", unit: "km" },
-    settings.climbing && { value: s?.climbing != null ? Math.round(s.climbing) : "–", unit: "m" },
-    settings.time && { value: s?.time != null ? formatElapsed(s.time * 1000) : "–", unit: "" },
-    settings.gradient && { value: s?.grade != null ? `${(s.grade * 100).toFixed(1)}` : "–", unit: "%" },
-  ].filter(Boolean) as { value: string | number; unit: string }[];
+  const chosen = chosenStats(settings as Record<string, unknown>);
+  const stats = chosen.map((f) => ({
+    id: f.id,
+    value: watching ? display(f, watching) : "–",
+    unit: f.unit ?? f.short,
+    colour: watching ? colourOf(f, watching) : undefined,
+  }));
 
   // How much of the ride is done: Zwift's own event progress in an event
   // (not in a workout, where it's the workout's), else ridden against to go.
@@ -210,7 +245,24 @@ function StatsOverlay() {
   });
 
   return (
-    <OverlayShell title="Ride stats" settings={settings} setSetting={set} defs={DEFS}>
+    <OverlayShell
+      title="Ride stats"
+      settings={settings}
+      setSetting={set}
+      defs={DEFS}
+      menuWidth={720}
+      extraRows={20}
+      extraSettings={
+        <FieldPicker
+          title="Stats in the bar (in order)"
+          value={chosen.map((f) => f.id).join(",")}
+          onChange={(v) => set("fields", v)}
+          fields={STAT_FIELDS}
+          groups={STAT_GROUPS}
+          ordered
+        />
+      }
+    >
       <div className={settings.fit ? styles.fitFrame : undefined}>
       <div
         ref={inner}
@@ -220,9 +272,11 @@ function StatsOverlay() {
         {stats.length > 0 && (
           <div ref={bar} className={`${shell.panel} ${styles.stats}`}>
             <div ref={rowRef} className={styles.row}>
-              {stats.map((x, i) => (
-                <span key={i} className={styles.stat}>
-                  <span className={styles.value}>{x.value}</span>
+              {stats.map((x) => (
+                <span key={x.id} className={styles.stat}>
+                  <span className={styles.value} style={{ color: x.colour }}>
+                    {x.value}
+                  </span>
                   {x.unit && <span className={styles.unit}>{x.unit}</span>}
                 </span>
               ))}

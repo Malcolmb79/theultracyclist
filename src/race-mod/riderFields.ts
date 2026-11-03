@@ -8,7 +8,7 @@ import { zoneColor } from "./zones";
 // text to show; a field Sauce doesn't have for a rider (hidden FTP, no
 // heart rate) shows a dash.
 
-export type FieldGroup = "Athlete" | "Event / road" | "Power" | "Speed" | "Heart rate" | "Cadence" | "Draft" | "Peaks" | "Energy" | "Time";
+export type FieldGroup = "Ride" | "Athlete" | "Event / road" | "Power" | "Speed" | "Heart rate" | "Cadence" | "Draft" | "Peaks" | "Energy" | "Time";
 
 export interface RiderField {
   id: string;
@@ -16,6 +16,8 @@ export interface RiderField {
   label: string;
   /** A short column heading. */
   short: string;
+  /** The unit beside the value where it's shown big (the Ride stats bar); the short heading if not given. */
+  unit?: string;
   group: FieldGroup;
   value: (r: SauceAthleteData) => number | string | undefined;
   /** The value as shown; numbers default to whole. */

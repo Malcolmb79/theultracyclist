@@ -72,8 +72,10 @@
 
 .stat {
   display: flex;
+  flex-shrink: 0;
   align-items: baseline;
   gap: 3px;
+  white-space: nowrap;
 }
 
 .value {

@@ -16,10 +16,15 @@
 
 .row {
   display: flex;
+  justify-content: space-between;
   gap: var(--space-4);
 }
 
-/* How far through the level, as Zwift's bar under its ride stats. */
+/* How far through the ride, and through the level - Zwift's bars under its ride stats. */
+.ride span {
+  background: var(--color-accent-2) !important;
+}
+
 .progress {
   height: 0.45rem;
   border-radius: 999px;
@@ -102,13 +107,16 @@
   justify-content: center;
 }
 
+/* Stretched across the window: its width is set to the window's (at its scale). */
 .fitted {
   position: absolute;
   top: 0;
-  left: 50%;
-  width: max-content;
-  translate: -50% 0;
-  transform-origin: top center;
+  left: 0;
+  transform-origin: top left;
+}
+
+.fitted .stats {
+  align-self: stretch;
 }
 
 /* The climb pop-up under the stats, exactly as wide as the bar: it takes

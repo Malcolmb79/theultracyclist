@@ -17,10 +17,11 @@ import styles from "./Stats.module.css";
 // from the rider's Zwift profile through the site (Sauce doesn't carry
 // them); Zwift updates them when it saves the ride, every few minutes.
 
-const DEFAULTS = { opacity: 80, fit: true, climb: false, speed: true, distance: true, climbing: true, time: true, watching: true, gradient: false, level: true, drops: true, progress: true };
+const DEFAULTS = { opacity: 80, fit: true, climb: false, rideBar: true, speed: true, distance: true, climbing: true, time: true, watching: true, gradient: false, level: true, drops: true, progress: true };
 const DEFS: SettingDef[] = [
   { key: "fit", label: "Size to the window (drag a corner)", type: "toggle" },
   { key: "climb", label: "Climb pop-up under the stats", type: "toggle" },
+  { key: "rideBar", label: "Ride progress bar", type: "toggle" },
   { key: "speed", label: "Speed", type: "toggle" },
   { key: "distance", label: "Distance", type: "toggle" },
   { key: "climbing", label: "Climbing", type: "toggle" },
@@ -143,6 +144,17 @@ function StatsOverlay() {
     settings.gradient && { value: s?.grade != null ? `${(s.grade * 100).toFixed(1)}` : "–", unit: "%" },
   ].filter(Boolean) as { value: string | number; unit: string }[];
 
+  // How much of the ride is done: Zwift's own event progress in an event
+  // (not in a workout, where it's the workout's), else ridden against to go.
+  const st = s as { progress?: number; workoutZone?: number | null } | null | undefined;
+  const toGo = watching?.remainingMetric === "distance" && watching.remaining != null ? watching.remaining : undefined;
+  const rideDone =
+    s?.eventSubgroupId && st?.progress && !st.workoutZone
+      ? Math.min(1, st.progress)
+      : toGo != null && metres != null && metres + toGo > 0
+        ? Math.min(1, metres / (metres + toGo))
+        : undefined;
+
   // Level, progress and Drops are the rider's own: shown while they're the one riding.
   const profile = useProfile(settings.level || settings.drops || settings.progress);
   const own = watching?.self !== false && profile?.configured !== false && !profile?.error ? profile : null;
@@ -163,6 +175,7 @@ function StatsOverlay() {
   // size, so a climb pop-up appearing under it doesn't shrink it.
   const inner = useRef<HTMLDivElement | null>(null);
   const bar = useRef<HTMLDivElement | null>(null);
+  const rowRef = useRef<HTMLDivElement | null>(null);
   const [scale, setScale] = useState(1);
   // Measured after every render (the bar changes with the settings) - only set when the size really changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -173,8 +186,17 @@ function StatsOverlay() {
     }
     const fit = () => {
       const el = bar.current ?? inner.current;
-      if (!el || !el.offsetWidth || !el.offsetHeight) return;
-      const next = Math.max(0.3, Math.min(window.innerWidth / el.offsetWidth, window.innerHeight / el.offsetHeight));
+      const row = rowRef.current;
+      if (!el || !el.offsetHeight) return;
+      // Sized by the window's height (the bar's share of it, with room below
+      // for a climb pop-up), then stretched across the window's full width -
+      // so the window can be dragged as wide as Zwift's HUD. Never so big
+      // that the numbers no longer fit across.
+      const share = settings.climb ? 0.42 : 1;
+      let next = (window.innerHeight * share) / el.offsetHeight;
+      const minWidth = row ? Array.from(row.children).reduce((w, c) => w + (c as HTMLElement).offsetWidth, 0) + (row.children.length - 1) * 24 + 40 : 0;
+      if (minWidth && window.innerWidth / next < minWidth) next = window.innerWidth / minWidth;
+      next = Math.max(0.3, next);
       setScale((was) => (Math.abs(was - next) < 0.005 ? was : next));
     };
     fit();
@@ -190,10 +212,14 @@ function StatsOverlay() {
   return (
     <OverlayShell title="Ride stats" settings={settings} setSetting={set} defs={DEFS}>
       <div className={settings.fit ? styles.fitFrame : undefined}>
-      <div ref={inner} className={`${styles.wrap} ${settings.fit ? styles.fitted : ""}`} style={settings.fit ? { transform: `scale(${scale})` } : undefined}>
+      <div
+        ref={inner}
+        className={`${styles.wrap} ${settings.fit ? styles.fitted : ""}`}
+        style={settings.fit ? { transform: `scale(${scale})`, width: `${window.innerWidth / scale}px` } : undefined}
+      >
         {stats.length > 0 && (
           <div ref={bar} className={`${shell.panel} ${styles.stats}`}>
-            <div className={styles.row}>
+            <div ref={rowRef} className={styles.row}>
               {stats.map((x, i) => (
                 <span key={i} className={styles.stat}>
                   <span className={styles.value}>{x.value}</span>
@@ -201,6 +227,11 @@ function StatsOverlay() {
                 </span>
               ))}
             </div>
+            {settings.rideBar && rideDone != null && (
+              <div className={`${styles.progress} ${styles.ride}`} title={`${Math.round(rideDone * 100)}% of the way`}>
+                <span style={{ width: `${rideDone * 100}%` }} />
+              </div>
+            )}
             {pct != null && (
               <div className={styles.progress} title={`${pct}% of the way to level ${(level ?? 0) + 1}`}>
                 <span style={{ width: `${pct}%` }} />

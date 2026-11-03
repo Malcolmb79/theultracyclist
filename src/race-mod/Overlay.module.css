@@ -219,3 +219,41 @@
   background: rgba(var(--hud-bg), var(--overlay-alpha));
   border-radius: var(--radius);
 }
+
+/* Christmas: Santa peeking over each panel's top corner and an elf at its
+   bottom one - on the first of a list only (chat messages, cards), so a
+   column of them isn't a crowd. */
+:global(html[data-hud-theme="christmas"]) .panel {
+  position: relative;
+}
+
+:global(html[data-hud-theme="christmas"]) .panel::before,
+:global(html[data-hud-theme="christmas"]) .panel::after {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  width: 34px;
+  height: 34px;
+  background: center / contain no-repeat;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+}
+
+:global(html[data-hud-theme="christmas"]) .panel::before {
+  top: -4px;
+  left: -3px;
+  background-image: url("./art/santa.svg");
+  transform: rotate(-14deg);
+}
+
+:global(html[data-hud-theme="christmas"]) .panel::after {
+  right: -2px;
+  bottom: -4px;
+  background-image: url("./art/elf.svg");
+  transform: rotate(10deg);
+}
+
+:global(html[data-hud-theme="christmas"]) .panel:not(:first-child)::before,
+:global(html[data-hud-theme="christmas"]) .panel:not(:first-child)::after {
+  content: none;
+}

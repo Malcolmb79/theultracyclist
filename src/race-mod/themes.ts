@@ -334,6 +334,8 @@ export function applyTheme(theme: Theme) {
   };
   for (const [k, v] of Object.entries(vars)) root.setProperty(k, v);
   document.documentElement.toggleAttribute("data-hud-light", !!theme.light);
+  // For a theme's own decorations (the Christmas one's Santa and elves).
+  document.documentElement.setAttribute("data-hud-theme", theme.id);
   document.getElementById("hud-theme-fonts")?.remove();
   if (theme.fonts?.length) {
     const link = document.createElement("link");

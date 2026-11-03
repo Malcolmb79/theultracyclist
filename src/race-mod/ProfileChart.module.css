@@ -37,14 +37,30 @@
 .segLabel {
   position: absolute;
   top: 2px;
-  transform: translateX(2px);
+  padding-left: 4px;
+  border-left: 2px solid currentColor;
   font-size: 0.62rem;
+  line-height: 12px;
   font-weight: 700;
   letter-spacing: 0.03em;
   text-transform: uppercase;
   white-space: nowrap;
   color: var(--color-text);
   opacity: 0.85;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+/* The tick before each name is in its segment's colour. */
+.labelSprint {
+  border-left-color: rgb(var(--hud-accent));
+}
+
+.labelClimb {
+  border-left-color: rgb(255, 77, 46);
+}
+
+.labelSegment {
+  border-left-color: rgb(255, 176, 32);
 }
 
 .dot {

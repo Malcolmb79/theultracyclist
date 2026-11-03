@@ -1,7 +1,9 @@
-import { useId } from "react";
+import { useId, useMemo } from "react";
+import { useMeasuredWidth } from "../utils/useMeasuredWidth";
 import type { RouteGeometry, SegmentKind } from "../components/race/courseMap";
 import type { Arch } from "./arches";
 import PowerUpIcon from "./PowerUpIcon";
+import { layoutLabels, mergeSegments } from "./segmentLabels";
 import styles from "./ProfileChart.module.css";
 
 // The route's elevation profile, the way Zwift draws it along the bottom of
@@ -40,6 +42,9 @@ const ARCH_ICONS = 3;
 /** Points drawn across the chart - plenty for a smooth line at overlay size. */
 const RESOLUTION = 400;
 
+/** Rows of segment names along the top before the rest are left off. */
+const LABEL_ROWS = 2;
+
 const KIND_CLASS: Record<SegmentKind, string> = {
   sprint: styles.sprint,
   climb: styles.climb,
@@ -58,6 +63,8 @@ export default function ProfileChart({
   className,
 }: Props) {
   const clip = `profile-${useId().replace(/:/g, "")}`;
+  const [chartRef, width] = useMeasuredWidth(600);
+  const merged = useMemo(() => mergeSegments(route.segments), [route.segments]);
   const { distances, elevations } = route;
   const total = distances.at(-1) ?? 0;
   if (total <= 0) return null;
@@ -95,10 +102,11 @@ export default function ProfileChart({
   const visible = (d: number) => d >= from && d <= to;
   // An arch right at either end is drawn inside the chart rather than half off it.
   const edge = (d: number) => ((d - from) / span < 0.02 ? styles.archStart : (d - from) / span > 0.98 ? styles.archEnd : "");
-  const segs = showSegments ? route.segments.filter((s) => s.end >= from && s.start <= to) : [];
+  const segs = showSegments ? merged.filter((s) => s.end >= from && s.start <= to) : [];
+  const labels = showSegmentNames ? layoutLabels(segs, (d) => ((d - from) / span) * width, width, measureLabel, { rows: LABEL_ROWS, from, at }) : [];
 
   return (
-    <div className={`${styles.chart} ${className ?? ""}`}>
+    <div ref={chartRef} className={`${styles.chart} ${className ?? ""}`}>
       <svg viewBox="0 0 1000 100" preserveAspectRatio="none" className={styles.svg} aria-hidden>
         <defs>
           <linearGradient id="profileFill" x1="0" y1="0" x2="0" y2="1">
@@ -126,12 +134,11 @@ export default function ProfileChart({
         </g>
         <path d={line} className={styles.line} vectorEffect="non-scaling-stroke" />
       </svg>
-      {showSegmentNames &&
-        segs.map((s, i) => (
-          <span key={i} className={styles.segLabel} style={{ left: pct(Math.max(s.start, from)) }}>
-            {s.name}
-          </span>
-        ))}
+      {labels.map(({ seg, left, row }) => (
+        <span key={`${seg.id}-${seg.start}`} className={`${styles.segLabel} ${LABEL_CLASS[seg.kind]}`} style={{ left, top: 2 + row * LABEL_ROW_PX }}>
+          {seg.name}
+        </span>
+      ))}
       {arches.filter((a) => visible(a.at)).map((a) => {
         const icons = archPowerUps.slice(0, ARCH_ICONS);
         const odds = archPowerUps.map((p) => `${p.code.toLowerCase()} ${Math.round(p.share * 100)}%`).join(", ");
@@ -168,6 +175,36 @@ export default function ProfileChart({
       )}
     </div>
   );
+}
+
+const LABEL_CLASS: Record<SegmentKind, string> = {
+  sprint: styles.labelSprint,
+  climb: styles.labelClimb,
+  segment: styles.labelSegment,
+};
+
+/** Height of a row of segment names, px; matches .segLabel's line. */
+const LABEL_ROW_PX = 12;
+
+let canvas: CanvasRenderingContext2D | null | undefined;
+const widths = new Map<string, number>();
+/**
+ * A segment name's width as .segLabel draws it: 0.62rem bold capitals with
+ * 0.03em tracking. Measured on a canvas, or estimated where there's none.
+ */
+function measureLabel(text: string): number {
+  let w = widths.get(text);
+  if (w == null) widths.set(text, (w = measureText(text)));
+  return w;
+}
+
+function measureText(text: string): number {
+  const px = 0.62 * (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
+  if (canvas === undefined) canvas = document.createElement("canvas").getContext("2d");
+  const t = text.toUpperCase();
+  if (!canvas) return t.length * px * 0.72 + 5;
+  canvas.font = `700 ${px}px ${getComputedStyle(document.body).fontFamily}`;
+  return canvas.measureText(t).width + t.length * px * 0.03 + 5;
 }
 
 /** Altitude at a distance along the route. */

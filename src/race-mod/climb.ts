@@ -42,10 +42,15 @@ const STEP = 25;
  * view, which comes up for short drags as well as real climbs.
  */
 export type ClimbSensitivity = "zwift" | "standard" | "big";
-const THRESHOLDS: Record<ClimbSensitivity, { probePct: number; avgPct: number; lengthM: number; gainM: number }> = {
-  zwift: { probePct: 2.5, avgPct: 2, lengthM: 150, gainM: 6 },
-  standard: { probePct: 3, avgPct: 3, lengthM: 300, gainM: 15 },
-  big: { probePct: 4, avgPct: 4, lengthM: 800, gainM: 40 },
+/**
+ * When a rise counts as a climb, and how long a flat stretch or how big a
+ * dip it carries on through before its top - Zwift's own runs on over
+ * plateaus and small dips to the real top of the hill.
+ */
+const THRESHOLDS: Record<ClimbSensitivity, { probePct: number; avgPct: number; lengthM: number; gainM: number; plateauM: number; dipM: number }> = {
+  zwift: { probePct: 2.5, avgPct: 2, lengthM: 150, gainM: 6, plateauM: 600, dipM: 8 },
+  standard: { probePct: 3, avgPct: 3, lengthM: 300, gainM: 15, plateauM: 300, dipM: 5 },
+  big: { probePct: 4, avgPct: 4, lengthM: 800, gainM: 40, plateauM: 300, dipM: 5 },
 };
 
 /** A climb's shape from start to top: its height gain, average and steepest gradient. */
@@ -110,17 +115,17 @@ export function findClimb(
     if (e > high) {
       high = e;
       top = d;
-    } else if (high - e > 5 || d - top > 300) break;
+    } else if (high - e > t.dipM || d - top > t.plateauM) break;
   }
   const climb = describe(route, start, top);
   return top - start >= t.lengthM && climb.gainM >= t.gainM && climb.avgPct >= t.avgPct ? climb : undefined;
 }
 
-/** The colour for a gradient, from easy green through amber to red - how Zwift shades its climbs. */
+/** The colour for a gradient, as Zwift shades its climbs: grey flat, blue gentle, then yellow, orange and red as it steepens. */
 export function gradeColor(pct: number): string {
-  if (pct < 2) return "#9aa4ae";
-  if (pct < 4) return "#2ee6a6";
-  if (pct < 7) return "#ffd23f";
-  if (pct < 10) return "#ff9a2e";
-  return "#ff4d2e";
+  if (pct < 1) return "#9aa4ae";
+  if (pct < 4) return "#3aa7dc";
+  if (pct < 7) return "#f5c518";
+  if (pct < 10) return "#ff8a3d";
+  return "#e8412c";
 }

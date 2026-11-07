@@ -89,3 +89,12 @@
   font-size: 12px;
   color: var(--color-text-muted);
 }
+
+/* A bar's section in the bar picker, and its "Add…" list. */
+.section + .section {
+  margin-top: 6px;
+}
+
+.add {
+  font-size: 12px;
+}

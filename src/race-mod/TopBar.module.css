@@ -1,0 +1,81 @@
+/* The whole window, edge to edge: the text sized by the window's height. */
+.bar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 1.2em;
+  height: 100vh;
+  padding: 0 0.8em;
+  border-radius: 0;
+  font-size: clamp(10px, 52vh, 40px);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.section {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.left {
+  justify-content: flex-start;
+}
+
+.centre {
+  justify-content: center;
+}
+
+.right {
+  justify-content: flex-end;
+}
+
+.item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25em;
+  padding: 0 0.7em;
+}
+
+.item:first-child {
+  padding-left: 0;
+}
+
+.item:last-child {
+  padding-right: 0;
+}
+
+.divided {
+  border-left: 1px solid rgba(var(--hud-ink), 0.18);
+}
+
+.name {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.value svg {
+  align-self: center;
+  width: 1.2em;
+  height: 1.2em;
+}
+
+.unit {
+  font-size: 0.72em;
+  color: var(--color-text-muted);
+}
+
+.title .value {
+  font-family: var(--font-display);
+  font-size: 1.15em;
+  letter-spacing: 0.04em;
+  color: var(--color-accent-2);
+}

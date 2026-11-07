@@ -1,7 +1,7 @@
 import { StrictMode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../styles/global.css";
-import { athleteName, type SauceAthleteData } from "../components/race/sauceFeed";
+import { athleteName } from "../components/race/sauceFeed";
 import { formatElapsed } from "../components/race/raceLog";
 import { OverlayShell, useSettings, type SettingDef } from "./overlay";
 import { useSauce } from "./useSauce";
@@ -9,7 +9,8 @@ import { SITE } from "./site";
 import { routePosition, useCourse } from "./useCourse";
 import { CLIMB_DEFAULTS, ClimbCard, useClimb, type ClimbSettings } from "./climbCard";
 import FieldPicker from "./FieldPicker";
-import { FIELD_GROUPS, RIDER_FIELDS, colourOf, display, type FieldGroup, type RiderField } from "./riderFields";
+import { colourOf, display, type RiderField } from "./riderFields";
+import { STAT_FIELDS, STAT_GROUPS } from "./statFields";
 import shell from "./Overlay.module.css";
 import styles from "./Stats.module.css";
 
@@ -54,35 +55,6 @@ const DEFS: SettingDef[] = [
 /** The bar's own width, before scaling, with the climb pop-up under it - sets how tall it comes out. */
 const CLIMB_BAR_WIDTH = 760;
 
-const eventMetres = (r: SauceAthleteData) => (r.state?.eventDistance && r.state.eventDistance > 0 ? r.state.eventDistance : r.state?.distance);
-
-/** Zwift's own ride numbers, as it shows them top centre - first in the list to pick from. */
-const RIDE_FIELDS: RiderField[] = [
-  { id: "speed", label: "Speed", short: "km/h", group: "Ride", value: (r) => r.state?.speed ?? undefined, show: (v) => String(Math.round(v)) },
-  { id: "distance", label: "Distance", short: "km", group: "Ride", value: (r) => { const m = eventMetres(r); return m != null ? m / 1000 : undefined; }, show: (v) => v.toFixed(1) },
-  { id: "climbing", label: "Climbing", short: "m", group: "Ride", value: (r) => r.state?.climbing ?? undefined, show: (v) => String(Math.round(v)) },
-  { id: "time", label: "Time", short: "", group: "Ride", value: (r) => r.state?.time ?? undefined, show: (v) => formatElapsed(v * 1000) },
-  { id: "gradient", label: "Gradient", short: "%", group: "Ride", value: (r) => (r.state?.grade != null ? r.state.grade * 100 : undefined), show: (v) => v.toFixed(1) },
-  {
-    id: "toGo",
-    label: "Distance to go",
-    short: "km to go",
-    group: "Ride",
-    value: (r) => (r.remainingMetric === "distance" && r.remaining != null ? r.remaining / 1000 : undefined),
-    show: (v) => v.toFixed(1),
-  },
-  {
-    id: "timeToGo",
-    label: "Time to go",
-    short: "to go",
-    group: "Ride",
-    value: (r) => (r.remainingMetric === "time" && r.remaining != null ? r.remaining : undefined),
-    show: (v) => formatElapsed(v * 1000),
-  },
-];
-/** Then everything else Sauce knows about the rider - the Ride ones stand in for its own speed, distance and grade. */
-const STAT_FIELDS = [...RIDE_FIELDS, ...RIDER_FIELDS.filter((f) => !["speed", "distance", "grade"].includes(f.id))];
-const STAT_GROUPS: FieldGroup[] = ["Ride", ...FIELD_GROUPS];
 const statById = new Map(STAT_FIELDS.map((f) => [f.id, f]));
 
 /** The stats chosen, in their order - before there was a choice, from the old on/off settings. */
@@ -234,7 +206,7 @@ function StatsOverlay() {
   const { route } = useCourse(address, settings.climb ? watching : null);
   const at = settings.climb && route ? routePosition(route, s) : undefined;
   const climbSet = settings.climb ? climbSettings() : CLIMB_DEFAULTS;
-  const climb = useClimb(settings.climb ? route : null, at, climbSet);
+  const climb = useClimb(settings.climb ? route : null, at, climbSet, s?.grade != null ? s.grade * 100 : undefined);
 
   // Sized to the window: the bar drawn at its natural size, then scaled to
   // fill the window's width - so dragging the window's corner makes it as

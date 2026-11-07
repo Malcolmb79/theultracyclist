@@ -52,8 +52,8 @@ function ClimbOverlay() {
   // top and profile - until the rider is over the top and a little beyond,
   // rather than worked out again every second (which shifted its shape and
   // colours as the rise's edges moved). Only then is the next one looked for.
-  const climb = useClimb(route, at, settings);
   const gradeNow = s?.grade != null ? s.grade * 100 : undefined;
+  const climb = useClimb(route, at, settings, gradeNow);
 
   return (
     <OverlayShell title="Climb pop-up" settings={settings} setSetting={set} defs={DEFS}>

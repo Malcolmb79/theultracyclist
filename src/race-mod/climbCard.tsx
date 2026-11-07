@@ -26,10 +26,11 @@ const SLICES = 24;
 
 function ClimbProfile({ route, climb, at }: { route: RouteGeometry; climb: Climb; at: number }) {
   const len = climb.top - climb.start;
-  // Scaled to the climb's own lowest and highest points, dips included.
+  // Drawn nearer true scale, as Zwift's is - a gentle climb looks gentle -
+  // with the height exaggerated only as far as a 6% climb filling the card.
   const heights = Array.from({ length: SLICES + 1 }, (_, k) => elevationAt(route, climb.start + (len * k) / SLICES));
   const lo = Math.min(...heights);
-  const range = Math.max(Math.max(...heights) - lo, 10);
+  const range = Math.max(Math.max(...heights) - lo, 10, len * 0.06);
   const x = (d: number) => ((d - climb.start) / len) * 1000;
   const y = (d: number) => 95 - ((elevationAt(route, d) - lo) / range) * 85;
   // Each slice of the climb filled in the colour of its gradient.
@@ -59,11 +60,20 @@ function ClimbProfile({ route, climb, at }: { route: RouteGeometry; climb: Climb
  * is over the top and a little beyond, rather than worked out again every
  * second (which shifted its shape and colours as the rise's edges moved).
  */
-export function useClimb(route: RouteGeometry | null, at: number | undefined, settings: ClimbSettings): Climb | null {
+export function useClimb(route: RouteGeometry | null, at: number | undefined, settings: ClimbSettings, gradeNow?: number): Climb | null {
   const locked = useRef<Climb | null>(null);
+  // Going downhill now - with a little give either way, so a road wavering
+  // around flat doesn't flash the pop-up on and off.
+  const descending = useRef(false);
+  if (gradeNow != null) descending.current = descending.current ? gradeNow < -0.5 : gradeNow < -1.5;
+
   let climb = locked.current;
   if (climb && at != null && !(at >= climb.start - settings.ahead - 50 && at < climb.top + OVER_TOP_M)) climb = null;
   if (!climb && route && at != null) climb = findClimb(route, at, settings.ahead, settings.sensitivity as ClimbSensitivity) ?? null;
+  // Not while the road is going down: a climb ahead waits until the descent
+  // is over, and one ridden is put away once over the top and heading down.
+  // Partway up a climb, a dip in it doesn't hide it.
+  if (climb && at != null && descending.current && (at < climb.start || at >= climb.top)) climb = null;
   locked.current = climb;
 
   return climb;

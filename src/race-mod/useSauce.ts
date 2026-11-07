@@ -20,6 +20,8 @@ export interface ChatItem {
   name: string;
   message?: string;
   to?: number;
+  /** Who it's from, to find them on the road. */
+  from?: number;
 }
 
 let nextId = 1;
@@ -46,11 +48,11 @@ export function useSauce(want: { nearby?: boolean; groups?: boolean; chat?: bool
       onChat: wantChat
         ? (c: SauceChat) =>
             c.message?.trim() &&
-            add({ kind: "chat", name: `${c.firstName ?? ""} ${c.lastName ?? ""}`.trim() || "Someone", message: c.message.trim() })
+            add({ kind: "chat", name: `${c.firstName ?? ""} ${c.lastName ?? ""}`.trim() || "Someone", message: c.message.trim(), from: c.from })
         : undefined,
       onRideOn: wantChat
         ? (r: SauceRideOn) =>
-            add({ kind: "rideon", name: `${r.firstName ?? ""} ${r.lastName ?? ""}`.trim() || "Someone", to: r.to })
+            add({ kind: "rideon", name: `${r.firstName ?? ""} ${r.lastName ?? ""}`.trim() || "Someone", to: r.to, from: r.from })
         : undefined,
     });
   }, [address, wantNearby, wantGroups, wantChat]);

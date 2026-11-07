@@ -64,3 +64,39 @@
     animation: none;
   }
 }
+
+/* The sender now, beside their name: gap, power, heart rate. */
+.live {
+  display: inline-flex;
+  gap: 0.5em;
+  margin-left: 0.45em;
+  font-size: 0.8em;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+.gap {
+  color: var(--color-text);
+}
+
+/* The sender: picture, flag, name, and how they're riding now. */
+.who {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35em;
+  min-width: 0;
+}
+
+.who img:first-child,
+.who > span:first-child {
+  width: 1.4em;
+  height: 1.4em;
+  font-size: 0.75em;
+}
+
+.flag {
+  height: 0.85em;
+  border-radius: 2px;
+}

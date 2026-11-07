@@ -3,7 +3,7 @@
   "id": "ultracyclist-race",
   "name": "Ultra Cyclist Race",
   "description": "The Ultra Cyclist's race overlays for Sauce: a full HUD in its own look (power, ride stats, race board, map, route profile, groups, chat) to use with Zwift's HUD off, plus live commentary and a tactics coach. Hover over an overlay for its ☰ handle: drag it to move, click it for settings.",
-  "version": "2.35.3",
+  "version": "2.36.0",
   "author": "Malcolm Barske",
   "website_url": "https://theultracyclist.com/dashboard/race",
   "web_root": "web",

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Component, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import styles from "./Overlay.module.css";
 import { THEMES, THEME_KEY, applyTheme, readTheme, saveTheme } from "./themes";
 import { MAX_HR_KEY, maxHrSetting, saveMaxHrSetting } from "./zones";
@@ -396,7 +396,7 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
           <span className={styles.resize} title="Drag to resize" aria-hidden onPointerDown={(e) => dragWindow(e, true)} />
         </>
       )}
-      {!SETTINGS_MODE && children}
+      {!SETTINGS_MODE && <Recover>{children}</Recover>}
       {clipped && (
         <div className={styles.more} title="There's more below - drag the window's bottom edge down to see it">
           ↓ more
@@ -517,4 +517,35 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
         })()}
     </div>
   );
+}
+
+/**
+ * If an overlay's content ever throws, it's drawn again a moment later
+ * rather than leaving the window blank for the rest of the ride.
+ */
+export class Recover extends Component<{ children: ReactNode }, { failed: boolean; round: number }> {
+  state = { failed: false, round: 0 };
+  private timer: ReturnType<typeof setTimeout> | undefined;
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: unknown) {
+    console.error("Overlay error - redrawing", error);
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => this.setState((s) => ({ failed: false, round: s.round + 1 })), 1000);
+  }
+
+  componentWillUnmount() {
+    clearTimeout(this.timer);
+  }
+
+  render() {
+    return this.state.failed ? null : <RecoverRound key={this.state.round}>{this.props.children}</RecoverRound>;
+  }
+}
+
+function RecoverRound({ children }: { children: ReactNode }) {
+  return <>{children}</>;
 }

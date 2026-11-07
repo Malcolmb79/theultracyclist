@@ -53,14 +53,11 @@ const HEIGHT_WEIGHT = 3;
 /** Closer than this to the route line (in world centimetres) and the match is trusted. */
 const ON_ROUTE_CM = 6000;
 /**
- * How much being away from Sauce's own distance counts against a match, in
- * cm per metre along the route. On an out-and-back (the Radio Tower, a
- * dead-end spur) the way up and the way back down are the same road at the
- * same heights, a kilometre or so apart along the route: this picks the leg
- * Sauce's distance says the rider is on, while a few metres' disagreement
- * between the two barely counts.
+ * Points this close to the best match (cm) count as the same spot: the way
+ * up and back down an out-and-back (the Radio Tower), the same road ridden
+ * twice. Of those, Sauce's distance picks the one the rider is on.
  */
-const OFF_GUESS_CM_PER_M = 8;
+const SAME_ROAD_CM = 1500;
 
 /**
  * Where a rider is on the route's one-lap profile, in metres.
@@ -94,27 +91,39 @@ export function routePosition(
   if (x == null || y == null || !route.path.length) return guess;
 
   const nearest = (from: number, to: number) => {
-    let best = -1;
+    // The closest point on the map and in height; then, of the points
+    // practically as close (the two legs of an out-and-back, the same road
+    // ridden twice), the one nearest Sauce's distance. Sauce's distance only
+    // breaks the tie - it can be kilometres out, which is why the position
+    // is matched at all.
+    const geo: number[] = [];
     let bestD = Infinity;
     for (let i = 0; i < route.path.length; i++) {
       const d = route.distances[i];
-      if (d < from || d > to) continue;
+      if (d < from || d > to) {
+        geo.push(Infinity);
+        continue;
+      }
       const dx = route.path[i][0] - x;
       const dy = route.path[i][1] - y;
       const pz = route.path[i][2];
       const dz = z != null && pz != null ? (pz - z) * HEIGHT_WEIGHT : 0;
-      const dg = guess != null && Number.isFinite(from) ? (d - guess) * OFF_GUESS_CM_PER_M : 0;
-      const dd = dx * dx + dy * dy + dz * dz + dg * dg;
-      if (dd < bestD) {
-        bestD = dd;
+      const dd = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      geo.push(dd);
+      if (dd < bestD) bestD = dd;
+    }
+    if (!Number.isFinite(bestD)) return { i: -1, cm: Infinity };
+    let best = -1;
+    let bestOff = Infinity;
+    for (let i = 0; i < geo.length; i++) {
+      if (geo[i] > bestD + SAME_ROAD_CM) continue;
+      const off = guess != null ? Math.abs(route.distances[i] - guess) : geo[i];
+      if (off < bestOff) {
+        bestOff = off;
         best = i;
       }
     }
-    if (best < 0) return { i: best, cm: Infinity };
-    // How far off the road the match is, on the map and in height alone.
-    const [bx, by, bz] = route.path[best];
-    const ez = z != null && bz != null ? (bz - z) * HEIGHT_WEIGHT : 0;
-    return { i: best, cm: Math.sqrt((bx - x) ** 2 + (by - y) ** 2 + ez * ez) };
+    return { i: best, cm: geo[best] };
   };
   let match = guess != null ? nearest(guess - SEARCH_M, guess + SEARCH_M) : { i: -1, cm: Infinity };
   if (match.cm > ON_ROUTE_CM) {

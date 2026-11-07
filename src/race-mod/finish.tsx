@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import "../styles/global.css";
 import { loadEventBrief, loadResults } from "../components/race/eventInfo";
 import type { RaceResult } from "../components/race/raceLog";
-import { OverlayShell, useSettings, type SettingDef } from "./overlay";
+import { OverlayShell, useSettings, type SettingDef, Recover } from "./overlay";
 import { useSauce } from "./useSauce";
 import { useFlags } from "./flags";
 import shell from "./Overlay.module.css";
@@ -195,6 +195,8 @@ function FinishOverlay() {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <FinishOverlay />
+    <Recover>
+      <FinishOverlay />
+    </Recover>
   </StrictMode>,
 );

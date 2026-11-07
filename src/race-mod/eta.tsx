@@ -1,7 +1,7 @@
 import { StrictMode, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import "../styles/global.css";
-import { OverlayShell, useSettings, type SettingDef } from "./overlay";
+import { OverlayShell, useSettings, type SettingDef, Recover } from "./overlay";
 import { useSauce } from "./useSauce";
 import { routePosition, useCourse } from "./useCourse";
 import { BIKE_KG, calibrateCdA, gradeBetween, speedFor, timeAhead } from "./physics";
@@ -115,6 +115,8 @@ function EtaOverlay() {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <EtaOverlay />
+    <Recover>
+      <EtaOverlay />
+    </Recover>
   </StrictMode>,
 );

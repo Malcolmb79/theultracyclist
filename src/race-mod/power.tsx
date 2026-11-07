@@ -1,7 +1,7 @@
 import { StrictMode, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../styles/global.css";
-import { OverlayShell, useSettings, type SettingDef } from "./overlay";
+import { OverlayShell, useSettings, type SettingDef, Recover } from "./overlay";
 import { useSauce } from "./useSauce";
 import { POWER_ZONES, hrColour } from "./zones";
 import shell from "./Overlay.module.css";
@@ -235,6 +235,8 @@ function PowerOverlay() {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <PowerOverlay />
+    <Recover>
+      <PowerOverlay />
+    </Recover>
   </StrictMode>,
 );

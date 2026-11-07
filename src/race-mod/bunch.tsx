@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import "../styles/global.css";
 import { cleanName } from "../components/race/sauceFeed";
 import { sameRaceGroups } from "../components/race/sameRace";
-import { OverlayShell, useSettings, type SettingDef } from "./overlay";
+import { OverlayShell, useSettings, type SettingDef, Recover } from "./overlay";
 import { useSauce } from "./useSauce";
 import shell from "./Overlay.module.css";
 import tool from "./Tool.module.css";
@@ -78,6 +78,8 @@ function BunchOverlay() {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <BunchOverlay />
+    <Recover>
+      <BunchOverlay />
+    </Recover>
   </StrictMode>,
 );

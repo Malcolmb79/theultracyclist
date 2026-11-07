@@ -1,7 +1,7 @@
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../styles/global.css";
-import { OverlayShell, useSettings, type SettingDef } from "./overlay";
+import { OverlayShell, useSettings, type SettingDef, Recover } from "./overlay";
 import { useSauce } from "./useSauce";
 import shell from "./Overlay.module.css";
 import styles from "./Draft.module.css";
@@ -91,6 +91,8 @@ function DraftOverlay() {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <DraftOverlay />
+    <Recover>
+      <DraftOverlay />
+    </Recover>
   </StrictMode>,
 );

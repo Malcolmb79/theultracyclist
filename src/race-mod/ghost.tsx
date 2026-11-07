@@ -1,7 +1,7 @@
 import { StrictMode, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../styles/global.css";
-import { OverlayShell, useSettings, type SettingDef } from "./overlay";
+import { OverlayShell, useSettings, type SettingDef, Recover } from "./overlay";
 import { useSauce } from "./useSauce";
 import shell from "./Overlay.module.css";
 import tool from "./Tool.module.css";
@@ -173,6 +173,8 @@ function GhostOverlay() {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <GhostOverlay />
+    <Recover>
+      <GhostOverlay />
+    </Recover>
   </StrictMode>,
 );

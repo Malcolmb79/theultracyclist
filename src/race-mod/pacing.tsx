@@ -1,7 +1,7 @@
 import { StrictMode, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../styles/global.css";
-import { OverlayShell, useSettings, type SettingDef } from "./overlay";
+import { OverlayShell, useSettings, type SettingDef, Recover } from "./overlay";
 import { useSauce } from "./useSauce";
 import { routePosition, useCourse } from "./useCourse";
 import { gradeBetween } from "./physics";
@@ -129,6 +129,8 @@ function PacingOverlay() {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <PacingOverlay />
+    <Recover>
+      <PacingOverlay />
+    </Recover>
   </StrictMode>,
 );

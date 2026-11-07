@@ -12,7 +12,7 @@ import {
 } from "../components/race/sauceFeed";
 import { useEventBrief } from "../components/race/eventInfo";
 import { SESSION_OPTIONS, useSession, type SessionChoice } from "../components/race/useSession";
-import { OverlayShell, useSettings, type SettingDef } from "./overlay";
+import { OverlayShell, useSettings, type SettingDef, Recover } from "./overlay";
 import { SITE } from "./site";
 import { routePosition, useCourse } from "./useCourse";
 import { courseAhead } from "./courseAhead";
@@ -117,6 +117,8 @@ function TacticsOverlay() {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <TacticsOverlay />
+    <Recover>
+      <TacticsOverlay />
+    </Recover>
   </StrictMode>,
 );

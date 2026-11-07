@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import "../styles/global.css";
 import { loadEventBrief } from "../components/race/eventInfo";
 import type { EventBrief } from "../components/race/raceLog";
-import { OverlayShell, useSettings, type SettingDef } from "./overlay";
+import { OverlayShell, useSettings, type SettingDef, Recover } from "./overlay";
 import { useSauce } from "./useSauce";
 import { routePosition, useCourse } from "./useCourse";
 import { gradeBetween } from "./physics";
@@ -191,6 +191,8 @@ function RouteOverlay() {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <RouteOverlay />
+    <Recover>
+      <RouteOverlay />
+    </Recover>
   </StrictMode>,
 );

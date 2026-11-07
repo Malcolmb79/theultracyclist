@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import "../styles/global.css";
 import { athleteName, cleanName, type SauceAthleteData, type SauceGroup } from "../components/race/sauceFeed";
 import { sameRaceGroups } from "../components/race/sameRace";
-import { OverlayShell, textScale, useSettings, type SettingDef } from "./overlay";
+import { OverlayShell, textScale, useSettings, type SettingDef, Recover } from "./overlay";
 import { useSauce } from "./useSauce";
 import shell from "./Overlay.module.css";
 import styles from "./Groups.module.css";
@@ -458,6 +458,8 @@ function GroupsOverlay() {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <GroupsOverlay />
+    <Recover>
+      <GroupsOverlay />
+    </Recover>
   </StrictMode>,
 );

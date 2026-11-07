@@ -1,7 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "../styles/global.css";
-import { OverlayShell, useSettings, type SettingDef } from "./overlay";
+import { OverlayShell, useSettings, type SettingDef, Recover } from "./overlay";
 import { useSauce } from "./useSauce";
 import { routePosition, useCourse } from "./useCourse";
 import { CLIMB_DEFAULTS, ClimbCard, useClimb } from "./climbCard";
@@ -69,6 +69,8 @@ function ClimbOverlay() {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <ClimbOverlay />
+    <Recover>
+      <ClimbOverlay />
+    </Recover>
   </StrictMode>,
 );

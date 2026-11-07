@@ -6,7 +6,7 @@ import { cleanName, type SauceAthleteData } from "../components/race/sauceFeed";
 import { inRace } from "../components/race/sameRace";
 import { scoreTeams, type LadderEntry, type TeamStanding } from "../components/race/ladder";
 import type { RaceResult } from "../components/race/raceLog";
-import { OverlayShell, useSettings, type SettingDef } from "./overlay";
+import { OverlayShell, useSettings, type SettingDef, Recover } from "./overlay";
 import { useSauce } from "./useSauce";
 import shell from "./Overlay.module.css";
 import styles from "./Ladder.module.css";
@@ -192,6 +192,8 @@ function Team({ team, side, leading }: { team: TeamStanding["ours"]; side: "ours
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <LadderOverlay />
+    <Recover>
+      <LadderOverlay />
+    </Recover>
   </StrictMode>,
 );

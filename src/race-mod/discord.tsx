@@ -1,7 +1,7 @@
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../styles/global.css";
-import { OverlayShell, useSettings, type SettingDef } from "./overlay";
+import { OverlayShell, useSettings, type SettingDef, Recover } from "./overlay";
 import shell from "./Overlay.module.css";
 import styles from "./Discord.module.css";
 
@@ -173,6 +173,8 @@ function DeafIcon() {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <DiscordOverlay />
+    <Recover>
+      <DiscordOverlay />
+    </Recover>
   </StrictMode>,
 );

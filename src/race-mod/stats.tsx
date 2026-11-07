@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import "../styles/global.css";
 import { athleteName } from "../components/race/sauceFeed";
 import { formatElapsed } from "../components/race/raceLog";
-import { OverlayShell, useSettings, type SettingDef } from "./overlay";
+import { OverlayShell, useSettings, type SettingDef, Recover } from "./overlay";
 import { useSauce } from "./useSauce";
 import { SITE } from "./site";
 import { routePosition, useCourse } from "./useCourse";
@@ -359,6 +359,8 @@ function StatsOverlay() {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <StatsOverlay />
+    <Recover>
+      <StatsOverlay />
+    </Recover>
   </StrictMode>,
 );

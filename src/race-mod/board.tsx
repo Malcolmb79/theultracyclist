@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import "../styles/global.css";
 import { athleteName, type SauceAthleteData } from "../components/race/sauceFeed";
 import { inRace } from "../components/race/sameRace";
-import { OverlayShell, useSettings, type SettingDef } from "./overlay";
+import { OverlayShell, useSettings, type SettingDef, Recover } from "./overlay";
 import { useSauce } from "./useSauce";
 import { hrColour } from "./zones";
 import { powerUpLeft } from "./powerUpTimers";
@@ -220,8 +220,10 @@ function RaceBoard() {
   const places = placesOf(ownRace, watchedPlaced);
   const all = extras.length ? [...riders, ...extras].sort((a, b) => (a.gap ?? 0) - (b.gap ?? 0)) : order(riders, places);
   const shown = around(all, rows, watching?.athleteId);
-  // Room left of the places for a power-up only while someone listed has one running.
-  const puRoom = settings.powerUps && shown.some((r) => r.state?.activePowerUp && powerUp(r.state.activePowerUp));
+  // Room left of the places for a power-up only while someone has one running -
+  // judged on everyone, not just the rows shown, so it can't change with how
+  // many rows fit (which would change the rows' height, and loop).
+  const puRoom = settings.powerUps && all.some((r) => r.state?.activePowerUp && powerUp(r.state.activePowerUp));
   const myTeam = watching?.athlete?.team?.trim().toLowerCase();
   const toGo =
     watching?.remaining == null
@@ -323,6 +325,8 @@ function RaceBoard() {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <RaceBoard />
+    <Recover>
+      <RaceBoard />
+    </Recover>
   </StrictMode>,
 );

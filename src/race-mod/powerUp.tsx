@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import "../styles/global.css";
 import { powerUp } from "../components/race/powerUps";
 import { connectSauce, sauceAddressForModPage, sauceRpc, type SauceAthleteData, type SauceGameState } from "../components/race/sauceFeed";
-import { OverlayShell, useSettings, type SettingDef } from "./overlay";
+import { OverlayShell, useSettings, type SettingDef, Recover } from "./overlay";
 import shell from "./Overlay.module.css";
 import PowerUpIcon, { powerUpColour } from "./PowerUpIcon";
 import { routePosition, useCourse } from "./useCourse";
@@ -211,6 +211,8 @@ function PowerUpOverlay() {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <PowerUpOverlay />
+    <Recover>
+      <PowerUpOverlay />
+    </Recover>
   </StrictMode>,
 );

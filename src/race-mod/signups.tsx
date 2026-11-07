@@ -1,7 +1,7 @@
 import { StrictMode, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../styles/global.css";
-import { OverlayShell, useSettings, type SettingDef } from "./overlay";
+import { OverlayShell, useSettings, type SettingDef, Recover } from "./overlay";
 import { SITE } from "./site";
 import shell from "./Overlay.module.css";
 import styles from "./Signups.module.css";
@@ -222,6 +222,8 @@ function SignupsOverlay() {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <SignupsOverlay />
+    <Recover>
+      <SignupsOverlay />
+    </Recover>
   </StrictMode>,
 );

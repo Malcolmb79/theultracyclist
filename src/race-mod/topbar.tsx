@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import "../styles/global.css";
 import { athleteName, type SauceAthleteData } from "../components/race/sauceFeed";
 import { loadEventBrief } from "../components/race/eventInfo";
-import { OverlayShell, useSettings, type SettingDef } from "./overlay";
+import { OverlayShell, useSettings, type SettingDef, Recover } from "./overlay";
 import { useSauce } from "./useSauce";
 import { colourOf, display } from "./riderFields";
 import { STAT_FIELDS, STAT_GROUPS } from "./statFields";
@@ -205,6 +205,8 @@ function TopBarOverlay() {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <TopBarOverlay />
+    <Recover>
+      <TopBarOverlay />
+    </Recover>
   </StrictMode>,
 );

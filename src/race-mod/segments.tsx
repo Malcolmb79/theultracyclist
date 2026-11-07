@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import "../styles/global.css";
 import { cleanName, sauceRpc } from "../components/race/sauceFeed";
 import type { RouteSegment } from "../components/race/courseMap";
-import { OverlayShell, useSettings, type SettingDef } from "./overlay";
+import { OverlayShell, useSettings, type SettingDef, Recover } from "./overlay";
 import { useSauce } from "./useSauce";
 import { routePosition, useCourse } from "./useCourse";
 import shell from "./Overlay.module.css";
@@ -250,6 +250,8 @@ function Row({ r, place, best, self, gapAbove }: { r: SegmentResult; place: numb
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <SegmentsOverlay />
+    <Recover>
+      <SegmentsOverlay />
+    </Recover>
   </StrictMode>,
 );

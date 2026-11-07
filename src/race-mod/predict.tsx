@@ -6,7 +6,7 @@ import { inRace } from "../components/race/sameRace";
 import { fetchRiderHistory } from "../components/race/commentary";
 import { loadEventBrief } from "../components/race/eventInfo";
 import type { RiderHistory } from "../components/race/raceLog";
-import { OverlayShell, useSettings, type SettingDef } from "./overlay";
+import { OverlayShell, useSettings, type SettingDef, Recover } from "./overlay";
 import { useSauce } from "./useSauce";
 import { routePosition, useCourse } from "./useCourse";
 import { useFlags } from "./flags";
@@ -223,6 +223,8 @@ function PredictOverlay() {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <PredictOverlay />
+    <Recover>
+      <PredictOverlay />
+    </Recover>
   </StrictMode>,
 );

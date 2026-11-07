@@ -1,7 +1,7 @@
 import { StrictMode, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../styles/global.css";
-import { OverlayShell, useSettings, type SettingDef } from "./overlay";
+import { OverlayShell, useSettings, type SettingDef, Recover } from "./overlay";
 import { useSauce } from "./useSauce";
 import { stepAt, stepName, targetAt, type Step } from "./workoutPlan";
 import { EXAMPLE_AT, EXAMPLE_FILE, clock } from "./workoutExample";
@@ -440,6 +440,8 @@ function WorkoutOverlay() {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <WorkoutOverlay />
+    <Recover>
+      <WorkoutOverlay />
+    </Recover>
   </StrictMode>,
 );

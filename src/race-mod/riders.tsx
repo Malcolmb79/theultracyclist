@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import "../styles/global.css";
 import { athleteName, type SauceAthleteData } from "../components/race/sauceFeed";
 import { inRace } from "../components/race/sameRace";
-import { OverlayShell, useSettings, type SettingDef } from "./overlay";
+import { OverlayShell, useSettings, type SettingDef, Recover } from "./overlay";
 import { useSauce } from "./useSauce";
 import { useFlags } from "./flags";
 import FieldPicker from "./FieldPicker";
@@ -143,6 +143,8 @@ function RidersOverlay() {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <RidersOverlay />
+    <Recover>
+      <RidersOverlay />
+    </Recover>
   </StrictMode>,
 );

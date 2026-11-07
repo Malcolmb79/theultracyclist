@@ -2,7 +2,7 @@ import { StrictMode, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../styles/global.css";
 import { bounds, pathData, toScreen, type Point } from "../components/race/courseMap";
-import { OverlayShell, useSettings, type SettingDef } from "./overlay";
+import { OverlayShell, useSettings, type SettingDef, Recover } from "./overlay";
 import { useSauce } from "./useSauce";
 import { routePosition, useCourse } from "./useCourse";
 import ProfileChart from "./ProfileChart";
@@ -258,6 +258,8 @@ function MapOverlay() {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <MapOverlay />
+    <Recover>
+      <MapOverlay />
+    </Recover>
   </StrictMode>,
 );

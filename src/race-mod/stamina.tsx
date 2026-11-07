@@ -1,7 +1,7 @@
 import { StrictMode, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import "../styles/global.css";
-import { OverlayShell, useSettings, type SettingDef } from "./overlay";
+import { OverlayShell, useSettings, type SettingDef, Recover } from "./overlay";
 import { useSauce } from "./useSauce";
 import { drainPerSec, stamina, staminaFtp } from "./staminaModel";
 import shell from "./Overlay.module.css";
@@ -104,6 +104,8 @@ function StaminaOverlay() {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <StaminaOverlay />
+    <Recover>
+      <StaminaOverlay />
+    </Recover>
   </StrictMode>,
 );

@@ -94,31 +94,61 @@
 /* A power-up arch standing on the road, with what it can give over it. */
 .arch {
   position: absolute;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   align-items: center;
   transform: translate(-50%, -100%);
-  color: var(--color-accent-2);
   pointer-events: auto;
 }
 
+/* A gateway over the road: a thick white arch, edged dark so it shows on
+   any background, in the theme's colour on the next one ahead. */
 .archShape {
-  width: 0.85rem;
-  height: 0.75rem;
+  width: 1.35rem;
+  height: 1.1rem;
   fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
   stroke-linecap: round;
-  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.7));
+  overflow: visible;
+}
+
+.archOutline {
+  stroke: rgba(0, 0, 0, 0.75);
+  stroke-width: 5;
+}
+
+.archBand {
+  stroke: #fff;
+  stroke-width: 3;
+}
+
+.archNext .archBand {
+  stroke: var(--color-accent-2);
+}
+
+.archNext .archShape {
+  width: 1.6rem;
+  height: 1.3rem;
 }
 
 .archIcons {
   display: flex;
-  gap: 1px;
-  padding: 1px 2px;
-  margin-bottom: 1px;
-  border-radius: 4px;
-  background: rgba(var(--hud-bg), 0.75);
+  gap: 2px;
+  padding: 2px 3px;
+  margin-bottom: 2px;
+  border-radius: 6px;
+  background: rgba(var(--hud-bg), 0.88);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+/* Any of the usual ones: smaller, with a "?" to say it's a lucky dip. */
+.archRandom::after {
+  content: "?";
+  align-self: center;
+  margin-left: 1px;
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
 }
 
 .archStart {
@@ -131,5 +161,5 @@
 
 /* Behind the rider now: faded, like the road already ridden. */
 .archPassed {
-  opacity: 0.35;
+  opacity: 0.45;
 }

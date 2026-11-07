@@ -5,7 +5,7 @@ import { OverlayShell, useSettings, type SettingDef } from "./overlay";
 import { useSauce } from "./useSauce";
 import { routePosition, useCourse } from "./useCourse";
 import ProfileChart, { type ProfileRider } from "./ProfileChart";
-import { likelyPowerUps, powerUpArches } from "./arches";
+import { USUAL_POWER_UPS, likelyPowerUps, powerUpArches } from "./arches";
 import { loadEventBrief } from "../components/race/eventInfo";
 import type { EventBrief } from "../components/race/raceLog";
 import styles from "./Profile.module.css";
@@ -73,7 +73,10 @@ function ProfileOverlay() {
     };
   }, [address, subgroup]);
   const arches = useMemo(() => (route && settings.arches && brief?.powerUps !== false ? powerUpArches(route) : []), [route, settings.arches, brief?.powerUps]);
-  const archPowerUps = likelyPowerUps(brief?.powerUpOdds);
+  // The event's own mix when it sets one; otherwise Zwift's usual random pool.
+  const eventMix = likelyPowerUps(brief?.powerUpOdds);
+  const archRandom = !eventMix.length;
+  const archPowerUps = archRandom ? USUAL_POWER_UPS : eventMix;
   const myTeam = watching?.athlete?.team?.trim().toLowerCase();
   const riders: ProfileRider[] =
     route && settings.riders
@@ -129,6 +132,7 @@ function ProfileOverlay() {
               showSegmentNames={settings.segmentNames}
               arches={arches}
               archPowerUps={archPowerUps}
+              archRandom={archRandom}
               gradeColours={settings.gradeColours}
             />
           ) : (

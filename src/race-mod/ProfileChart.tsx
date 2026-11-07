@@ -32,6 +32,8 @@ interface Props {
   arches?: Arch[];
   /** What the arches can give, most likely first, when the event says. */
   archPowerUps?: { code: string; share: number }[];
+  /** The arches give any of archPowerUps at random (no event mix): all shown, smaller. */
+  archRandom?: boolean;
   /** The road filled in the colour of its gradient, slice by slice, as the climb pop-up does. */
   gradeColours?: boolean;
   className?: string;
@@ -64,6 +66,7 @@ export default function ProfileChart({
   showSegmentNames = true,
   arches = [],
   archPowerUps = [],
+  archRandom = false,
   gradeColours = false,
   className,
 }: Props) {
@@ -204,29 +207,37 @@ export default function ProfileChart({
             {l.name}
           </span>
         ))}
-      {arches.filter((a) => visible(a.at)).map((a) => {
-        const icons = archPowerUps.slice(0, ARCH_ICONS);
-        const odds = archPowerUps.map((p) => `${p.code.toLowerCase()} ${Math.round(p.share * 100)}%`).join(", ");
-        return (
-          <span
-            key={`${a.kind}-${a.at}`}
-            className={`${styles.arch} ${a.at < (at ?? -1) ? styles.archPassed : ""} ${edge(a.at)}`}
-            style={{ left: pct(a.at), top: `${y(elevAt(route, a.at))}%` }}
-            title={`Power-up arch: ${a.name}${odds ? ` (${odds})` : ""}`}
-          >
-            {icons.length > 0 && (
-              <span className={styles.archIcons}>
-                {icons.map((p) => (
-                  <PowerUpIcon key={p.code} code={p.code} size={14} />
-                ))}
-              </span>
-            )}
-            <svg className={styles.archShape} viewBox="0 0 16 14" aria-hidden>
-              <path d="M2 14V7a6 6 0 0 1 12 0v7" />
-            </svg>
-          </span>
-        );
-      })}
+      {(() => {
+        // The next arch ahead stands out; the rest ahead plainer; those passed faded.
+        const next = arches.find((a) => at == null || a.at >= at);
+        return arches.filter((a) => visible(a.at)).map((a) => {
+          const icons = archRandom ? archPowerUps : archPowerUps.slice(0, ARCH_ICONS);
+          const odds = archRandom
+            ? "any of Zwift's usual power-ups, at random"
+            : archPowerUps.map((p) => `${p.code.toLowerCase()} ${Math.round(p.share * 100)}%`).join(", ");
+          const passed = a.at < (at ?? -1);
+          return (
+            <span
+              key={`${a.kind}-${a.at}`}
+              className={`${styles.arch} ${passed ? styles.archPassed : ""} ${a === next ? styles.archNext : ""} ${edge(a.at)}`}
+              style={{ left: pct(a.at), top: `${y(elevAt(route, a.at))}%` }}
+              title={`Power-up arch: ${a.name} - ${odds}`}
+            >
+              {icons.length > 0 && !passed && (
+                <span className={`${styles.archIcons} ${archRandom ? styles.archRandom : ""}`}>
+                  {icons.map((p) => (
+                    <PowerUpIcon key={p.code} code={p.code} size={archRandom ? 13 : 17} />
+                  ))}
+                </span>
+              )}
+              <svg className={styles.archShape} viewBox="0 0 20 16" aria-hidden>
+                <path className={styles.archOutline} d="M3 16V9a7 7 0 0 1 14 0v7" />
+                <path className={styles.archBand} d="M3 16V9a7 7 0 0 1 14 0v7" />
+              </svg>
+            </span>
+          );
+        });
+      })()}
       {riders
         .filter((r) => !r.watching && visible(r.at))
         .map((r) => (

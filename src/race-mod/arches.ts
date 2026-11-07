@@ -39,3 +39,9 @@ export function likelyPowerUps(odds: Record<string, number> | undefined): { code
     .map(([code, share]) => ({ code, share }))
     .sort((a, b) => b.share - a.share);
 }
+
+/**
+ * What an arch gives when the event doesn't set its own mix: Zwift's usual
+ * random pool, any of them about as likely.
+ */
+export const USUAL_POWER_UPS: { code: string; share: number }[] = ["LIGHTNESS", "DRAFTBOOST", "AERO", "NINJA", "UNDRAFTABLE"].map((code) => ({ code, share: 0.2 }));

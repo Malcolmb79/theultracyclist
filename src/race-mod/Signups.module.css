@@ -1,0 +1,180 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 100vh;
+  padding: var(--space-3);
+  box-sizing: border-box;
+  font-size: 0.9rem;
+}
+
+.form {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: rgba(var(--hud-ink), 0.06);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.button {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-accent-2);
+  color: rgb(var(--hud-bg));
+  font-family: var(--font-display);
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.scope,
+.note {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.note {
+  color: var(--color-amber);
+}
+
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.progressText {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.bar {
+  height: 4px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(var(--hud-ink), 0.15);
+}
+
+.bar span {
+  display: block;
+  height: 100%;
+  background: var(--color-accent-2);
+  transition: width 0.6s ease;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.item {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(var(--hud-ink), 0.05);
+}
+
+.when {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 3.4rem;
+  line-height: 1.1;
+}
+
+.when b {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.when small {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
+.what {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.event {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+/* The category, in Zwift's colours. */
+.cat {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 1.3em;
+  height: 1.3em;
+  border-radius: 50%;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  color: #fff;
+  background: #6b7280;
+}
+
+.catA {
+  background: #d7263d;
+}
+
+.catB {
+  background: #3fae49;
+}
+
+.catC {
+  background: #1f9de0;
+}
+
+.catD {
+  background: #f5c518;
+  color: #222;
+}
+
+.catE {
+  background: #8b5cf6;
+}
+
+.none {
+  padding: 8px 2px;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}

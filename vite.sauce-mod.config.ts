@@ -24,6 +24,7 @@ export default defineConfig({
         power: fileURLToPath(new URL('./sauce-mod/power.html', import.meta.url)),
         stats: fileURLToPath(new URL('./sauce-mod/stats.html', import.meta.url)),
         topbar: fileURLToPath(new URL('./sauce-mod/topbar.html', import.meta.url)),
+        signups: fileURLToPath(new URL('./sauce-mod/signups.html', import.meta.url)),
         profile: fileURLToPath(new URL('./sauce-mod/profile.html', import.meta.url)),
         groups: fileURLToPath(new URL('./sauce-mod/groups.html', import.meta.url)),
         chat: fileURLToPath(new URL('./sauce-mod/chat.html', import.meta.url)),

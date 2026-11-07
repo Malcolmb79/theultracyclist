@@ -121,11 +121,11 @@ export function findClimb(
   return top - start >= t.lengthM && climb.gainM >= t.gainM && climb.avgPct >= t.avgPct ? climb : undefined;
 }
 
-/** The colour for a gradient, as Zwift shades its climbs: grey flat, blue gentle, then yellow, orange and red as it steepens. */
+/** The colour for a gradient, as Zwift shades its climbs: grey flat, blue gentle, yellow, orange from 5%, red from 8%. */
 export function gradeColor(pct: number): string {
   if (pct < 1) return "#9aa4ae";
-  if (pct < 4) return "#3aa7dc";
-  if (pct < 7) return "#f5c518";
-  if (pct < 10) return "#ff8a3d";
+  if (pct < 3) return "#3aa7dc";
+  if (pct < 5) return "#f5c518";
+  if (pct < 8) return "#ff8a3d";
   return "#e8412c";
 }

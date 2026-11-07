@@ -22,15 +22,17 @@ export const CLIMB_DEFAULTS: ClimbSettings = { sensitivity: "zwift", ahead: 300,
 
 /** How far past the top the pop-up stays, to see the climb out. */
 const OVER_TOP_M = 150;
-const SLICES = 24;
+/** Slices of colour along the climb: about one every 100 m, within limits, so steep and gentle parts don't average out. */
+const sliceCount = (lengthM: number) => Math.max(16, Math.min(80, Math.round(lengthM / 100)));
 
 function ClimbProfile({ route, climb, at }: { route: RouteGeometry; climb: Climb; at: number }) {
   const len = climb.top - climb.start;
-  // Drawn nearer true scale, as Zwift's is - a gentle climb looks gentle -
-  // with the height exaggerated only as far as a 6% climb filling the card.
+  // Filling the card, as Zwift's does, so a climb looks like one - only a
+  // nearly flat one is kept from looking like a wall.
+  const SLICES = sliceCount(len);
   const heights = Array.from({ length: SLICES + 1 }, (_, k) => elevationAt(route, climb.start + (len * k) / SLICES));
   const lo = Math.min(...heights);
-  const range = Math.max(Math.max(...heights) - lo, 10, len * 0.06);
+  const range = Math.max(Math.max(...heights) - lo, 10, len * 0.015);
   const x = (d: number) => ((d - climb.start) / len) * 1000;
   const y = (d: number) => 95 - ((elevationAt(route, d) - lo) / range) * 85;
   // Each slice of the climb filled in the colour of its gradient.

@@ -176,22 +176,32 @@ function RaceBoard() {
   // so in a short window they're centred rather than cut off the bottom.
   const list = useRef<HTMLOListElement | null>(null);
   const [fit, setFit] = useState(settings.rows);
+  // Measured with the tallest row seen, not the average of those shown: rows
+  // differ in height (a wrapped stats line, a badge), and an average of
+  // whichever are shown changed how many fit, which changed which are shown -
+  // a loop that could crash the board. The tallest only grows, so the count
+  // settles; it starts again when the window or the text size changes.
+  const tallest = useRef(0);
   useLayoutEffect(() => {
     const measure = () => {
       const el = list.current;
-      const items = el ? Array.from(el.children) as HTMLElement[] : [];
+      const items = el ? (Array.from(el.children) as HTMLElement[]) : [];
       if (!el || !items.length) return;
-      const rowH = items.reduce((sum, li) => sum + li.offsetHeight, 0) / items.length;
+      tallest.current = Math.max(tallest.current, ...items.map((li) => li.offsetHeight));
       // What sits under the list (the distance to the finish) needs its room too.
       let below = 0;
       for (let n = el.nextElementSibling; n; n = n.nextElementSibling) below += (n as HTMLElement).offsetHeight;
       const room = window.innerHeight - el.getBoundingClientRect().top - below;
-      const rows = Math.max(3, Math.floor(room / Math.max(1, rowH)));
+      const rows = Math.max(3, Math.floor(room / Math.max(1, tallest.current)));
       setFit((f) => (f === rows ? f : rows));
     };
     measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
+    const resized = () => {
+      tallest.current = 0;
+      measure();
+    };
+    window.addEventListener("resize", resized);
+    return () => window.removeEventListener("resize", resized);
   });
   // Room to spare (a small group, a small category): filled with the
   // nearest riders ahead and behind - the rider's own race first, then

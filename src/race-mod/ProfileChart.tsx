@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { RouteGeometry, SegmentKind } from "../components/race/courseMap";
 import type { Arch } from "./arches";
-import PowerUpIcon from "./PowerUpIcon";
+import PowerUpIcon, { MYSTERY } from "./PowerUpIcon";
 import { gradeColor } from "./climb";
 import styles from "./ProfileChart.module.css";
 
@@ -39,8 +39,6 @@ interface Props {
   className?: string;
 }
 
-/** At most this many power-ups shown over an arch. */
-const ARCH_ICONS = 3;
 
 /** Roughly how wide a segment name is per letter, and the least a cut-short name may have. */
 const LABEL_PX_PER_CHAR = 7.4;
@@ -211,10 +209,12 @@ export default function ProfileChart({
         // The next arch ahead stands out; the rest ahead plainer; those passed faded.
         const next = arches.find((a) => at == null || a.at >= at);
         return arches.filter((a) => visible(a.at)).map((a) => {
-          const icons = archRandom ? archPowerUps : archPowerUps.slice(0, ARCH_ICONS);
+          const icons = archPowerUps;
           const odds = archRandom
             ? "any of Zwift's usual power-ups, at random"
-            : archPowerUps.map((p) => `${p.code.toLowerCase()} ${Math.round(p.share * 100)}%`).join(", ");
+            : archPowerUps.some((p) => p.code === MYSTERY)
+              ? "a power-up at random"
+              : archPowerUps.map((p) => `${p.code.toLowerCase()} ${Math.round(p.share * 100)}%`).join(", ");
           const passed = a.at < (at ?? -1);
           return (
             <span

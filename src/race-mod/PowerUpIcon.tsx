@@ -52,8 +52,10 @@ export const POWER_UP_COLOURS: Record<string, string> = {
   COFFEE_STOP: "#8b5a3c",
 };
 const BOLT_COLOUR = "#22b573";
+/** A power-up not known in advance - an arch with no set mix - drawn as a "?" on grey. */
+export const MYSTERY = "MYSTERY";
 
-export const powerUpColour = (code: string) => POWER_UP_COLOURS[code] ?? BOLT_COLOUR;
+export const powerUpColour = (code: string) => (code === MYSTERY ? "#6b7280" : (POWER_UP_COLOURS[code] ?? BOLT_COLOUR));
 
 /** The draining ring's radius and length, in the badge's 24-unit box. */
 const RING_R = 11.1;
@@ -103,6 +105,11 @@ export default function PowerUpIcon({ code, size = 22, left }: { code: string; s
           />
         </>
       )}
+      {code === MYSTERY ? (
+        <text x="12" y="16.6" textAnchor="middle" fontSize="13" fontWeight="800" fontFamily="system-ui, sans-serif" fill="#fff">
+          ?
+        </text>
+      ) : (
       <g transform={`translate(12 12) scale(${glyph}) translate(-12 -12)`} filter="drop-shadow(0 0.6px 0.6px rgba(0,0,0,0.35))">
         {g.fill.map((d) => (
           <path key={d} d={d} fill="#fff" />
@@ -114,6 +121,7 @@ export default function PowerUpIcon({ code, size = 22, left }: { code: string; s
           <path key={d} d={d} fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" />
         ))}
       </g>
+      )}
     </svg>
   );
 }

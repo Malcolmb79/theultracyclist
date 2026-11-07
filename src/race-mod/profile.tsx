@@ -6,6 +6,7 @@ import { useSauce } from "./useSauce";
 import { routePosition, useCourse } from "./useCourse";
 import ProfileChart, { type ProfileRider } from "./ProfileChart";
 import { USUAL_POWER_UPS, likelyPowerUps, powerUpArches } from "./arches";
+import { MYSTERY } from "./PowerUpIcon";
 import { loadEventBrief } from "../components/race/eventInfo";
 import type { EventBrief } from "../components/race/raceLog";
 import styles from "./Profile.module.css";
@@ -25,6 +26,8 @@ const DEFAULTS = {
   toGo: true,
   gradient: true,
   gradeColours: false,
+  archRandom: "usual",
+  archCount: 3,
 };
 const DEFS: SettingDef[] = [
   {
@@ -42,6 +45,26 @@ const DEFS: SettingDef[] = [
   { key: "segments", label: "Sprints & climbs", type: "toggle" },
   { key: "segmentNames", label: "Segment names", type: "toggle" },
   { key: "arches", label: "Power-up arches", type: "toggle" },
+  {
+    key: "archRandom",
+    label: "Over arches, when the event doesn't set its power-ups",
+    type: "select",
+    options: [
+      { value: "usual", label: "Zwift's usual mix" },
+      { value: "mystery", label: "Just a ?" },
+      { value: "none", label: "Nothing" },
+    ],
+  },
+  {
+    key: "archCount",
+    label: "Over arches, when the event sets its power-ups",
+    type: "select",
+    options: [
+      { value: 1, label: "The most likely one" },
+      { value: 3, label: "The most likely three" },
+      { value: 9, label: "All of them" },
+    ],
+  },
   { key: "banner", label: "Segment banner", type: "toggle" },
   { key: "toGo", label: "Distance to finish", type: "toggle" },
   { key: "gradient", label: "Gradient", type: "toggle" },
@@ -76,7 +99,13 @@ function ProfileOverlay() {
   // The event's own mix when it sets one; otherwise Zwift's usual random pool.
   const eventMix = likelyPowerUps(brief?.powerUpOdds);
   const archRandom = !eventMix.length;
-  const archPowerUps = archRandom ? USUAL_POWER_UPS : eventMix;
+  const archPowerUps = archRandom
+    ? settings.archRandom === "mystery"
+      ? [{ code: MYSTERY, share: 1 }]
+      : settings.archRandom === "none"
+        ? []
+        : USUAL_POWER_UPS
+    : eventMix.slice(0, Number(settings.archCount) || 3);
   const myTeam = watching?.athlete?.team?.trim().toLowerCase();
   const riders: ProfileRider[] =
     route && settings.riders
@@ -132,7 +161,7 @@ function ProfileOverlay() {
               showSegmentNames={settings.segmentNames}
               arches={arches}
               archPowerUps={archPowerUps}
-              archRandom={archRandom}
+              archRandom={archRandom && settings.archRandom === "usual"}
               gradeColours={settings.gradeColours}
             />
           ) : (

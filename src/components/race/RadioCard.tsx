@@ -4,6 +4,11 @@ import { useStoredState } from "../../utils/useStoredState";
 import type { RaceRecorder } from "./raceLog";
 import {
   DEFAULT_NATURAL_VOICE,
+  DEFAULT_CO_VOICE,
+  fetchNaturalAudio,
+  playAudioUrl,
+  waitQuiet,
+  parseTurns,
   LINE_KIND,
   NATURAL_VOICES,
   COMMENTARY_PACE,
@@ -42,6 +47,8 @@ const HISTORY_BATCH = 6;
 const HISTORY_EVERY_MS = 20_000;
 /** Waiting on the voice to finish is polite, up to a point. */
 const MAX_WAIT_FOR_VOICE_MS = 15_000;
+/** A two-commentator test: the lead, then the ex-pro answering. */
+const DUO_TEST_LINE = "A: And they're off! Who's got the legs today?\nB: Watch the riders sitting in at the back. That's where the race is won.";
 const TEST_LINE: Record<RadioMode, string> = {
   commentary: "And they're off! Let's see who's got the legs today.",
   tactics: "Good start. Sit in, stay sheltered, and save it for the finish.",
@@ -120,6 +127,17 @@ export default function RadioCard({
   const [naturalVoice, setNaturalVoice] = useStoredState(`race:${mode}-natural-voice`, DEFAULT_NATURAL_VOICE[mode], (v) =>
     typeof v === "string" && NATURAL_VOICES.includes(v) ? v : null,
   );
+  // Two in the booth (commentary only): the lead and an ex-pro co-commentator, each in their own voice.
+  const [storedDuo, setDuo] = useStoredState("race:commentary-duo", false, (v) => (typeof v === "boolean" ? v : null));
+  const duo = mode === "commentary" && storedDuo;
+  const [coVoice, setCoVoice] = useStoredState("race:commentary-co-voice", DEFAULT_CO_VOICE, (v) =>
+    typeof v === "string" && NATURAL_VOICES.includes(v) ? v : null,
+  );
+  const [coVoiceName, setCoVoiceName] = useStoredState<string | null>("race:commentary-co-voice-name", null, (v) =>
+    typeof v === "string" ? v : null,
+  );
+  // Mid-exchange: the pair's turns are still being voiced, so no new line yet.
+  const exchanging = useRef(false);
   // Why the last line fell back to the browser's voice, if it did.
   const [voiceNote, setVoiceNote] = useState<string | null>(null);
   const [keyDraft, setKeyDraft] = useState("");
@@ -129,13 +147,13 @@ export default function RadioCard({
   const [busy, setBusy] = useState(false);
 
   /** Speaks a line in the chosen voice, falling back to the browser's own. */
-  const say = async (text: string) => {
+  const sayOne = async (text: string, co = false) => {
     if (engine === "browser") {
-      speak(text, voiceName, mode);
+      speak(text, co ? (coVoiceName ?? englishVoices()[1]?.name ?? voiceName) : voiceName, mode);
       return;
     }
     try {
-      await speakNatural(apiBase, needsKey ? key : null, text, naturalVoice, mode);
+      await speakNatural(apiBase, needsKey ? key : null, text, co ? coVoice : naturalVoice, mode, co ? "co" : undefined);
       setVoiceNote(null);
     } catch (e) {
       setVoiceNote(
@@ -147,13 +165,65 @@ export default function RadioCard({
     }
   };
 
+  /**
+   * Two commentators: each turn in its speaker's voice, one after the other.
+   * With the natural voices every turn is voiced up front, so the second
+   * comes straight in when the first finishes.
+   */
+  const sayExchange = async (text: string) => {
+    const turns = parseTurns(text);
+    exchanging.current = true;
+    try {
+      let failure: unknown = null;
+      const audio =
+        engine === "natural"
+          ? turns.map((t) =>
+              fetchNaturalAudio(apiBase, needsKey ? key : null, t.text, t.speaker === "B" ? coVoice : naturalVoice, mode, t.speaker === "B" ? "co" : "lead").catch(
+                (e: unknown) => {
+                  failure = e;
+                  return null;
+                },
+              ),
+            )
+          : [];
+      const browserVoice = (co: boolean) => (co ? (coVoiceName ?? englishVoices()[1]?.name ?? voiceName) : voiceName);
+      for (const [i, t] of turns.entries()) {
+        const url = engine === "natural" ? await audio[i] : null;
+        if (url) {
+          try {
+            await playAudioUrl(url, mode);
+            setVoiceNote(null);
+          } catch (e) {
+            setVoiceNote(e instanceof Error ? e.message : "Natural voice failed.");
+            speak(t.text, browserVoice(t.speaker === "B"), mode);
+          }
+        } else {
+          // The browser's voices, when chosen or when the natural voice couldn't be had.
+          if (failure) {
+            setVoiceNote(
+              failure instanceof VoiceUnavailableError && failure.notConfigured
+                ? "The natural voice isn't set up yet: add OPENAI_API_KEY to the site's Vercel settings. Using the browser voice meanwhile."
+                : `${failure instanceof Error ? failure.message : "Natural voice failed."} Using the browser voice for now.`,
+            );
+          }
+          speak(t.text, browserVoice(t.speaker === "B"), mode);
+        }
+        await waitQuiet(mode);
+      }
+    } finally {
+      exchanging.current = false;
+    }
+  };
+
+  const say = (text: string) => (duo ? sayExchange(text) : sayOne(text));
+
   // Read inside the timer, which is set up once per recording.
   useEffect(() => {
     if (!voice) stopSpeaking(mode);
   }, [voice, mode]);
 
-  const live = useRef({ enabled, voice, key, onLine, say, nameStyle, fitness, ridingSelf, session });
-  live.current = { enabled, voice, key, onLine, say, nameStyle, fitness, ridingSelf, session };
+  const live = useRef({ enabled, voice, key, onLine, say, nameStyle, fitness, ridingSelf, session, duo });
+  live.current = { enabled, voice, key, onLine, say, nameStyle, fitness, ridingSelf, session, duo };
 
   // The athlete's own fitness, read when the radio starts and every half
   // hour - it changes day to day, not lap to lap. Not having it costs
@@ -245,7 +315,7 @@ export default function RadioCard({
           (interest >= (phased?.threshold ?? threshold) && since >= (phased?.minGapMs ?? minGapMs));
       }
       if (!due) return;
-      if (live.current.voice && isSpeaking(mode) && since < MAX_WAIT_FOR_VOICE_MS) return;
+      if (live.current.voice && (isSpeaking(mode) || exchanging.current) && since < MAX_WAIT_FOR_VOICE_MS * 2) return;
 
       inFlight = true;
       setBusy(true);
@@ -266,6 +336,7 @@ export default function RadioCard({
             live.current.ridingSelf ? live.current.fitness : undefined,
           ),
           mode,
+          live.current.duo,
         );
         lastT = snapshotT;
         setError(null);
@@ -361,6 +432,20 @@ export default function RadioCard({
           </label>
           {mode === "commentary" && (
             <label className={styles.toggle}>
+              Commentators
+              <select
+                className={styles.voiceSelect}
+                value={storedDuo ? "two" : "one"}
+                onChange={(e) => setDuo(e.target.value === "two")}
+                aria-label="One commentator or two"
+              >
+                <option value="one">One</option>
+                <option value="two">Two, talking to each other</option>
+              </select>
+            </label>
+          )}
+          {mode === "commentary" && (
+            <label className={styles.toggle}>
               Pace
               <select
                 className={styles.voiceSelect}
@@ -419,7 +504,32 @@ export default function RadioCard({
               </select>
             )
           )}
-          <button type="button" className={styles.secondaryButton} onClick={() => void say(TEST_LINE[mode])}>
+          {duo &&
+            (engine === "natural" ? (
+              <select className={styles.voiceSelect} value={coVoice} onChange={(e) => setCoVoice(e.target.value)} aria-label="Co-commentator voice">
+                {NATURAL_VOICES.map((v) => (
+                  <option key={v} value={v}>
+                    Co: {v[0].toUpperCase() + v.slice(1)}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              voices.length > 1 && (
+                <select
+                  className={styles.voiceSelect}
+                  value={voices.some((v) => v.name === coVoiceName) ? (coVoiceName ?? "") : voices[1].name}
+                  onChange={(e) => setCoVoiceName(e.target.value)}
+                  aria-label="Co-commentator voice"
+                >
+                  {voices.map((v) => (
+                    <option key={v.name} value={v.name}>
+                      Co: {v.name}
+                    </option>
+                  ))}
+                </select>
+              )
+            ))}
+          <button type="button" className={styles.secondaryButton} onClick={() => void say(duo ? DUO_TEST_LINE : TEST_LINE[mode])}>
             Test voice
           </button>
           {engine === "browser" && onlyBasicVoices(voices) && (
@@ -473,11 +583,15 @@ export default function RadioCard({
         </p>
       ) : (
         <>
-          <p className={compact ? styles.tacticLatest : styles.commentaryLatest}>{latest.text}</p>
+          <p className={compact ? styles.tacticLatest : styles.commentaryLatest}>
+            <Spoken text={latest.text} />
+          </p>
           {!compact && earlier.length > 0 && (
             <ol className={styles.commentaryEarlier}>
               {earlier.map((l) => (
-                <li key={l.at}>{l.text}</li>
+                <li key={l.at}>
+                  <Spoken text={l.text} />
+                </li>
               ))}
             </ol>
           )}
@@ -506,6 +620,21 @@ export default function RadioCard({
 
       {!needsKey && mode === "commentary" && <ModKeyButton />}
     </section>
+  );
+}
+
+/** A line as shown: a two-commentator exchange turn by turn, with who's speaking; anything else as it is. */
+function Spoken({ text }: { text: string }) {
+  if (!/^\s*[AB]\s*:/m.test(text)) return <>{text}</>;
+  return (
+    <>
+      {parseTurns(text).map((t, i) => (
+        <span key={i} className={styles.turn}>
+          <span className={`${styles.speaker} ${t.speaker === "B" ? styles.speakerCo : ""}`}>{t.speaker === "B" ? "Co" : "Lead"}</span>
+          {t.text}
+        </span>
+      ))}
+    </>
   );
 }
 

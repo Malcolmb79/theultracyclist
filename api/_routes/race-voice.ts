@@ -30,6 +30,14 @@ const COMMENTARY_INSTRUCTIONS = [
   "Pacing: natural broadcast rhythm, brief pauses at commas and full stops, never rushed or monotone.",
 ].join(" ");
 
+/** The co-commentator alongside: an ex-pro, more measured, the analysis and the wit. */
+const CO_COMMENTARY_INSTRUCTIONS = [
+  "Voice: a former professional racer, now the co-commentator alongside the lead in the TV commentary box.",
+  "Tone: knowing, relaxed and analytical, with dry wit - like chatting to a colleague as much as to the viewers.",
+  "Delivery: conversational and a touch lower energy than the lead, lifting for the big moments.",
+  "Pacing: natural, unhurried, with brief thoughtful pauses.",
+].join(" ");
+
 /** The tactics coach sounds like race radio, not a broadcast. */
 const TACTICS_INSTRUCTIONS = [
   "Voice: a calm, experienced British cycling coach speaking to their rider over race radio.",
@@ -59,7 +67,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const body = req.body as { text?: unknown; voice?: unknown; mode?: unknown };
+  const body = req.body as { text?: unknown; voice?: unknown; mode?: unknown; speaker?: unknown };
   const text = typeof body?.text === "string" ? body.text.trim() : "";
   if (!text || text.length > MAX_TEXT_CHARS) {
     res.status(400).json({ error: "No line to speak, or too long." });
@@ -71,7 +79,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const response = await fetch(OPENAI_URL, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model: MODEL, voice, input: text, instructions: body.mode === "tactics" ? TACTICS_INSTRUCTIONS : COMMENTARY_INSTRUCTIONS, response_format: "mp3" }),
+      body: JSON.stringify({ model: MODEL, voice, input: text, instructions: body.mode === "tactics" ? TACTICS_INSTRUCTIONS : body.speaker === "co" ? CO_COMMENTARY_INSTRUCTIONS : COMMENTARY_INSTRUCTIONS, response_format: "mp3" }),
     });
     if (!response.ok) {
       const detail = await response.text().catch(() => "");

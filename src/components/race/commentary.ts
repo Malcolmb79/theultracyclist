@@ -858,6 +858,7 @@ export async function requestCommentary(
   token: string | null,
   snapshot: ReturnType<typeof buildSnapshot>,
   mode: RadioMode = "commentary",
+  duo = false,
 ): Promise<string> {
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (token) headers.authorization = `Bearer ${token}`;
@@ -866,7 +867,7 @@ export async function requestCommentary(
     headers,
     // The site uses its session cookie; the mod, on another origin, its key.
     credentials: apiBase ? "omit" : "same-origin",
-    body: JSON.stringify({ context: snapshot, mode }),
+    body: JSON.stringify({ context: snapshot, mode, duo: mode === "commentary" && duo }),
   });
   if (res.status === 401) throw new Error(token ? "The commentary key was refused - get a new one." : "Signed out.");
   if (!res.ok) {
@@ -989,6 +990,8 @@ export function speak(text: string, voiceName?: string | null, mode: RadioMode =
  */
 export const NATURAL_VOICES = ["ash", "ballad", "cedar", "coral", "echo", "fable", "marin", "onyx", "nova", "sage", "shimmer", "verse", "alloy"];
 export const DEFAULT_NATURAL_VOICE: Record<RadioMode, string> = { commentary: "ash", tactics: "sage" };
+/** The co-commentator's voice by default: clearly not the lead's, nor the coach's. */
+export const DEFAULT_CO_VOICE = "verse";
 
 export class VoiceUnavailableError extends Error {
   readonly notConfigured: boolean;
@@ -1010,14 +1013,27 @@ export async function speakNatural(
   text: string,
   voice: string,
   mode: RadioMode = "commentary",
+  speaker?: "lead" | "co",
 ) {
+  await playAudioUrl(await fetchNaturalAudio(apiBase, token, text, voice, mode, speaker), mode);
+}
+
+/** A line voiced by OpenAI, as audio ready to play (an object URL) - fetched ahead so a second voice can follow the first without a gap. */
+export async function fetchNaturalAudio(
+  apiBase: string,
+  token: string | null,
+  text: string,
+  voice: string,
+  mode: RadioMode = "commentary",
+  speaker?: "lead" | "co",
+): Promise<string> {
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (token) headers.authorization = `Bearer ${token}`;
   const res = await fetch(`${apiBase}/api/race-voice`, {
     method: "POST",
     headers,
     credentials: apiBase ? "omit" : "same-origin",
-    body: JSON.stringify({ text, voice, mode }),
+    body: JSON.stringify({ text, voice, mode, speaker }),
   });
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { code?: string; error?: string };
@@ -1026,7 +1042,11 @@ export async function speakNatural(
       body.code === "not-configured",
     );
   }
-  const url = URL.createObjectURL(await res.blob());
+  return URL.createObjectURL(await res.blob());
+}
+
+/** Plays voiced audio on a radio, cutting off its last line. Resolves once it starts. */
+export async function playAudioUrl(url: string, mode: RadioMode = "commentary") {
   // The coach may have come on while this line was being voiced.
   if (mode === "commentary" && coachTalking()) {
     URL.revokeObjectURL(url);
@@ -1049,6 +1069,42 @@ export async function speakNatural(
     done();
     throw new VoiceUnavailableError("The browser blocked the audio - click anywhere on the page and it'll play.");
   }
+}
+
+/** Resolves once a radio has finished speaking (or after a while, whatever happens). */
+export function waitQuiet(mode: RadioMode = "commentary", maxMs = 30_000): Promise<void> {
+  const until = Date.now() + maxMs;
+  return new Promise((resolve) => {
+    const check = () => (!isSpeaking(mode) || Date.now() > until ? resolve() : setTimeout(check, 120));
+    setTimeout(check, 120);
+  });
+}
+
+/** One speaker's turn in a two-commentator exchange. */
+export interface Turn {
+  speaker: "A" | "B";
+  text: string;
+}
+
+/**
+ * The turns in a two-commentator line ("A: ..." / "B: ..." on their own
+ * lines). Anything untagged belongs to the turn before it, or to the lead.
+ */
+export function parseTurns(text: string): Turn[] {
+  const turns: Turn[] = [];
+  for (const raw of text.split(/\n+/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const m = line.match(/^(A|B)\s*[:\-–]\s*(.*)$/);
+    if (m) {
+      if (m[2]) turns.push({ speaker: m[1] as "A" | "B", text: m[2].trim() });
+    } else if (turns.length) {
+      turns[turns.length - 1].text += ` ${line}`;
+    } else {
+      turns.push({ speaker: "A", text: line });
+    }
+  }
+  return turns;
 }
 
 /** Stops one radio's voice, or both. */

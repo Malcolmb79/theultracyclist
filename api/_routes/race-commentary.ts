@@ -182,6 +182,23 @@ Never repeat a call from recentLines unless the numbers have changed, never give
 
 Reply with only what you'd say on the radio, or NOTHING.`;
 
+/**
+ * Two in the booth: the lead commentator and an ex-pro alongside, talking to
+ * each other as well as the viewers - for the race (pen and results
+ * included) and for a ride. Added to the commentary's own instructions, and
+ * replaces their length and format rules.
+ */
+const DUO = `
+
+There are TWO of you in the booth, and this is how they work together - it replaces the length and format rules above:
+- A is the lead commentator: calls the action, sets the scene, keeps the story moving, asks the questions.
+- B is the co-commentator, a former pro racer: the analysis - why a move works or won't, what the legs are telling them, what they'd do in the rider's shoes - with dry wit and the odd bit of banter with A.
+- Write the next moment of the broadcast as one to three short turns, each on its own line starting "A:" or "B:" - nothing else on the line before it, and no other text.
+- They talk to each other, not past each other: B answers or picks up what A just said (in recentLines too - lines there start "A:" or "B:" for who said them), disagrees now and then, adds the why; A reacts to B, puts a question to them, ribs them. Real back-and-forth, not two monologues.
+- Vary it: often a single turn is enough; sometimes B starts; in a big moment A calls it and B comes in after. Never more than three turns.
+- Each turn up to about 25 words, the whole exchange up to about 60. They never call each other by name, and never say "A" or "B".
+- If there's nothing worth saying, reply with exactly NOTHING.`;
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   applyRaceCors(req, (name, value) => res.setHeader(name, value));
   if (req.method === "OPTIONS") {
@@ -203,8 +220,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const body = req.body as { context?: unknown; mode?: unknown };
+  const body = req.body as { context?: unknown; mode?: unknown; duo?: unknown };
   const tactics = body?.mode === "tactics";
+  const duo = !tactics && body?.duo === true;
   if (!body || typeof body.context !== "object" || body.context === null) {
     res.status(400).json({ error: "No race snapshot given." });
     return;
@@ -217,7 +235,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const ride = (body.context as { session?: unknown }).session === "ride";
-    const system = ride ? (tactics ? RIDE_TACTICS_SYSTEM : RIDE_SYSTEM) : tactics ? TACTICS_SYSTEM : SYSTEM;
+    const system = (ride ? (tactics ? RIDE_TACTICS_SYSTEM : RIDE_SYSTEM) : tactics ? TACTICS_SYSTEM : SYSTEM) + (duo ? DUO : "");
     const result = await complete(apiKey, system, `${ride ? "Ride" : "Race"} snapshot:\n${context}`);
     if ("error" in result) {
       res.status(502).json({ error: result.error });

@@ -48,7 +48,8 @@ const HISTORY_EVERY_MS = 20_000;
 /** Waiting on the voice to finish is polite, up to a point. */
 const MAX_WAIT_FOR_VOICE_MS = 15_000;
 /** A two-commentator test: the lead, then the ex-pro answering. */
-const DUO_TEST_LINE = "A: And they're off! Who's got the legs today?\nB: Watch the riders sitting in at the back. That's where the race is won.";
+const DUO_TEST_LINE =
+  "A: And they're off - and there's an attack straight away, nearly seven watts per kilo!\nB: Bold. Twenty-odd riders in that bunch though, and they'll have the draft.\nA: You don't fancy it?\nB: Not into this headwind. Ask me again at the sprint.";
 const TEST_LINE: Record<RadioMode, string> = {
   commentary: "And they're off! Let's see who's got the legs today.",
   tactics: "Good start. Sit in, stay sheltered, and save it for the finish.",

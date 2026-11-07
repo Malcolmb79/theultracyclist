@@ -990,8 +990,8 @@ export function speak(text: string, voiceName?: string | null, mode: RadioMode =
  */
 export const NATURAL_VOICES = ["ash", "ballad", "cedar", "coral", "echo", "fable", "marin", "onyx", "nova", "sage", "shimmer", "verse", "alloy"];
 export const DEFAULT_NATURAL_VOICE: Record<RadioMode, string> = { commentary: "ash", tactics: "sage" };
-/** The co-commentator's voice by default: clearly not the lead's, nor the coach's. */
-export const DEFAULT_CO_VOICE = "verse";
+/** The co-host's voice by default: clearly not the lead's, nor the coach's. */
+export const DEFAULT_CO_VOICE = "coral";
 
 export class VoiceUnavailableError extends Error {
   readonly notConfigured: boolean;

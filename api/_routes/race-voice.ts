@@ -30,12 +30,12 @@ const COMMENTARY_INSTRUCTIONS = [
   "Pacing: natural broadcast rhythm, brief pauses at commas and full stops, never rushed or monotone.",
 ].join(" ");
 
-/** The co-commentator alongside: an ex-pro, more measured, the analysis and the wit. */
+/** The second co-host: an equal to the lead, as lively, the numbers and the wit. */
 const CO_COMMENTARY_INSTRUCTIONS = [
-  "Voice: a former professional racer, now the co-commentator alongside the lead in the TV commentary box.",
-  "Tone: knowing, relaxed and analytical, with dry wit - like chatting to a colleague as much as to the viewers.",
-  "Delivery: conversational and a touch lower energy than the lead, lifting for the big moments.",
-  "Pacing: natural, unhurried, with brief thoughtful pauses.",
+  "Voice: the second co-host in a live esports cycling commentary box, an equal to the lead, a seasoned racer who knows the field.",
+  "Tone: warm, sharp and genuinely into the race, with a smile in the voice and the odd dry aside - like chatting with a colleague as much as the viewers.",
+  "Delivery: animated and expressive, just as lively as the lead; quick and urgent when calling a sprint, relaxed when explaining the tactics.",
+  "Pacing: natural broadcast rhythm, brief pauses at commas and full stops, never rushed or monotone.",
 ].join(" ");
 
 /** The tactics coach sounds like race radio, not a broadcast. */

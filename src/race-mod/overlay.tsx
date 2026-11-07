@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import styles from "./Overlay.module.css";
 import { THEMES, THEME_KEY, applyTheme, readTheme, saveTheme } from "./themes";
 import { maxHrSetting, saveMaxHrSetting } from "./zones";
@@ -202,16 +203,42 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // The settings open in the middle of the screen, the window made big
-  // enough for all of them whatever size the overlay is - an overlay's own
-  // window is often too small to show them - then it goes back to exactly
-  // where it was. (Sauce lets a page move and size its own window; where it
-  // can't, the menu scrolls inside the window as it is.)
+  // The settings open in a window of their own in the middle of the screen,
+  // drawn by this overlay, so the overlay stays exactly where it is. Where
+  // Sauce won't open one (or it comes up empty), the overlay's own window is
+  // taken to the middle and made big enough instead, then put back exactly
+  // where it was; where it can't be moved, the menu scrolls inside it.
   const rows = 6 + defs.length + (extraRows ?? (extraSettings ? 3 : 0));
-  const openMenu = () => {
+  const [popup, setPopup] = useState<Window | null>(null);
+  const popupRef = useRef<Window | null>(null);
+  const scr = window.screen as Screen & { availLeft?: number; availTop?: number };
+  const menuSize = () => ({
+    w: Math.min(scr.availWidth - 40, menuWidth + 40),
+    h: Math.min(scr.availHeight - 60, 90 + rows * ROW_PX),
+  });
+
+  /** The overlay's look carried into the settings window: its styles, theme and fonts. */
+  const dressPopup = (w: Window) => {
+    const doc = w.document;
+    doc.head.querySelectorAll("[data-uc-copied]").forEach((n) => n.remove());
+    document.head.querySelectorAll('style, link[rel="stylesheet"]').forEach((n) => {
+      const c = n.cloneNode(true) as HTMLElement;
+      c.setAttribute("data-uc-copied", "");
+      doc.head.appendChild(c);
+    });
+    const root = document.documentElement;
+    doc.documentElement.setAttribute("style", root.getAttribute("style") ?? "");
+    for (const a of ["data-hud-theme", "data-hud-light"]) {
+      const v = root.getAttribute(a);
+      if (v == null) doc.documentElement.removeAttribute(a);
+      else doc.documentElement.setAttribute(a, v);
+    }
+    doc.body.className = styles.popupBody;
+  };
+
+  const openInMiddle = () => {
     if (!before.current) {
       before.current = { x: window.screenX, y: window.screenY, w: window.outerWidth, h: window.outerHeight };
-      const scr = window.screen as Screen & { availLeft?: number; availTop?: number };
       const w = Math.min(scr.availWidth - 40, Math.max(menuWidth + 40, before.current.w));
       const h = Math.min(scr.availHeight - 60, Math.max(before.current.h, 90 + rows * ROW_PX));
       try {
@@ -223,8 +250,90 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
     }
     setMenu(true);
   };
+
+  const openMenu = () => {
+    if (menu) {
+      popupRef.current?.focus();
+      return;
+    }
+    let w: Window | null = null;
+    try {
+      const { w: mw, h: mh } = menuSize();
+      const left = (scr.availLeft ?? 0) + Math.round((scr.availWidth - mw) / 2);
+      const top = (scr.availTop ?? 0) + Math.round((scr.availHeight - mh) / 2);
+      w = window.open("", `uc-settings-${title.replace(/\W+/g, "-")}`, `popup=yes,width=${mw},height=${mh},left=${left},top=${top}`);
+    } catch {
+      w = null;
+    }
+    if (!w || w.closed || !w.document) {
+      openInMiddle();
+      return;
+    }
+    try {
+      w.document.title = `${title} settings`;
+      dressPopup(w);
+    } catch {
+      // Not ours to draw in: the menu opens in the overlay instead.
+      w.close();
+      openInMiddle();
+      return;
+    }
+    popupRef.current = w;
+    setPopup(w);
+    setMenu(true);
+    // Closed with its own close button: the menu with it.
+    w.addEventListener("pagehide", () => {
+      if (popupRef.current !== w) return;
+      popupRef.current = null;
+      setPopup(null);
+      setMenu(false);
+    });
+    w.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeRef.current();
+    });
+    // Came up empty (a window Sauce made that we can't draw in): the old way instead.
+    setTimeout(() => {
+      if (popupRef.current !== w) return;
+      let ok = false;
+      try {
+        ok = !w.closed && !!w.document.body.querySelector('[role="dialog"]');
+      } catch {
+        ok = false;
+      }
+      if (ok) return;
+      popupRef.current = null;
+      setPopup(null);
+      try {
+        w.close();
+      } catch {
+        // Gone already.
+      }
+      openInMiddle();
+    }, 600);
+  };
+
+  // The theme changed while the settings are open: the settings window follows.
+  useEffect(() => {
+    if (popup && !popup.closed) dressPopup(popup);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [theme, popup]);
+
+  // The overlay going away takes its settings window with it.
+  useEffect(() => () => popupRef.current?.close(), []);
+
   const closeMenu = () => {
     setMenu(false);
+    const w = popupRef.current;
+    if (w) {
+      popupRef.current = null;
+      setPopup(null);
+      try {
+        w.close();
+      } catch {
+        // Gone already.
+      }
+      return;
+    }
     const was = before.current;
     if (!was) return;
     try {
@@ -271,7 +380,9 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
           ↓ more
         </div>
       )}
-      {menu && (
+      {menu &&
+        (() => {
+          const content = (
         <>
           <div className={styles.backdrop} onMouseDown={closeMenu} onContextMenu={(e) => e.preventDefault()} />
           <div className={styles.menu} style={{ width: menuWidth }} role="dialog" aria-label={`${title} settings`}>
@@ -389,7 +500,9 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
             {extraSettings}
           </div>
         </>
-      )}
+          );
+          return popup ? createPortal(<div className={styles.popupMenu}>{content}</div>, popup.document.body) : content;
+        })()}
     </div>
   );
 }

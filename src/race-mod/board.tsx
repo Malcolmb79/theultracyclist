@@ -262,13 +262,19 @@ function RaceBoard() {
           return (
             <li
               key={r.athleteId}
-              className={`${styles.row} ${r.watching ? styles.watched : ""} ${teammate ? styles.teammate : ""} ${extraIds.has(r.athleteId) ? styles.extra : ""}`}
+              className={`${styles.row} ${settings.powerUps ? styles.withPowerUps : ""} ${r.watching ? styles.watched : ""} ${teammate ? styles.teammate : ""} ${extraIds.has(r.athleteId) ? styles.extra : ""}`}
             >
               <span
                 className={`${styles.pos} ${places.get(r.athleteId)?.est ? styles.estimated : ""}`}
                 title={places.get(r.athleteId)?.est ? "Estimated from who's ahead on the road" : undefined}
               >
-                {places.get(r.athleteId)?.pos ?? ""}
+                {/* A power-up running, beside the place - in its own space, so places still line up. */}
+                {settings.powerUps && s?.activePowerUp && powerUp(s.activePowerUp) && (
+                  <span className={styles.powerUp} title={`${powerUp(s.activePowerUp)!.name}: ${powerUp(s.activePowerUp)!.effect}`}>
+                    <PowerUpIcon code={s.activePowerUp} size={18} />
+                  </span>
+                )}
+                <span className={styles.posNum}>{places.get(r.athleteId)?.pos ?? ""}</span>
               </span>
               <span className={styles.who}>
                 <span
@@ -276,11 +282,6 @@ function RaceBoard() {
                   style={wbal != null ? { ["--wbal" as string]: String(wbal) } : undefined}
                   title={wbal != null && r.wBal != null ? `W′ ${(r.wBal / 1000).toFixed(1)} kJ (${Math.round(wbal * 100)}%)` : undefined}
                 >
-                  {settings.powerUps && s?.activePowerUp && powerUp(s.activePowerUp) && (
-                    <span className={styles.powerUp} title={`${powerUp(s.activePowerUp)!.name}: ${powerUp(s.activePowerUp)!.effect}`}>
-                      <PowerUpIcon code={s.activePowerUp} size={18} />
-                    </span>
-                  )}
                   {flag && <img className={styles.flag} src={flag.src} alt={flag.name} title={flag.name} />}
                   <span className={styles.name}>{athleteName(r)}</span>
                   {settings.teams && team && <span className={styles.team}>{team}</span>}

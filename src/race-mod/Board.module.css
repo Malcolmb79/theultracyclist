@@ -80,7 +80,16 @@
   box-shadow: inset 3px 0 0 var(--color-amber);
 }
 
+/* With power-ups shown: room left of the place for one. */
+.withPowerUps {
+  grid-template-columns: 3.4rem 1fr auto;
+}
+
 .pos {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.2rem;
   font-family: var(--font-display);
   font-size: 1.1rem;
   color: var(--color-text-muted);
@@ -249,7 +258,6 @@
   justify-content: center;
   width: 1.15rem;
   height: 1.15rem;
-  margin-right: 0.25rem;
   border-radius: 50%;
   text-shadow: none;
   animation: powerUpPulse 1.2s ease-in-out infinite alternate;

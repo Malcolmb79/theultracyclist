@@ -257,3 +257,28 @@
 :global(html[data-hud-theme="christmas"]) .panel:not(:first-child)::after {
   content: none;
 }
+
+/* The settings in a window of their own: the menu fills it, no backdrop. */
+.popupBody {
+  margin: 0;
+  background: rgb(var(--hud-bg));
+  color: var(--color-text);
+  font-family: var(--font-body);
+}
+
+.popupMenu .backdrop {
+  display: none;
+}
+
+.popupMenu .menu {
+  position: static;
+  transform: none;
+  width: auto !important;
+  max-width: none;
+  max-height: none;
+  min-height: 100vh;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  box-sizing: border-box;
+}

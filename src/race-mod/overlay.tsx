@@ -60,10 +60,31 @@ export function useSettings<T extends Record<string, SettingValue>>(
       // Full or unavailable - the settings just won't stick.
     }
   }, [storageKey, values]);
-  // Changed in another window - the overlay's settings window - shown here at once.
+  // Changed in another window - the overlay's settings window - shown here
+  // at once. Sauce doesn't always pass the browser's storage notice between
+  // its windows, so the stored settings are also checked every second.
   useEffect(() => {
+    let last = (() => {
+      try {
+        return window.localStorage.getItem(storageKey);
+      } catch {
+        return null;
+      }
+    })();
+    const poll = setInterval(() => {
+      let now: string | null = null;
+      try {
+        now = window.localStorage.getItem(storageKey);
+      } catch {
+        return;
+      }
+      if (now === last || now == null) return;
+      last = now;
+      window.dispatchEvent(new StorageEvent("storage", { key: storageKey, newValue: now }));
+    }, 1000);
     const onStorage = (e: StorageEvent) => {
       if (e.key !== storageKey || e.newValue == null) return;
+      last = e.newValue;
       try {
         const stored = JSON.parse(e.newValue) as Record<string, unknown>;
         setValues((v) => {
@@ -78,7 +99,10 @@ export function useSettings<T extends Record<string, SettingValue>>(
       }
     };
     window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    return () => {
+      clearInterval(poll);
+      window.removeEventListener("storage", onStorage);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storageKey]);
   return [values, (key, value) => setValues((v) => ({ ...v, [key]: value }))];
@@ -220,7 +244,28 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
       setTheme(next.id);
     };
     window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    // And checked every second, for when Sauce doesn't pass the notice on.
+    const poll = setInterval(() => {
+      if (SETTINGS_MODE) return;
+      setTextSize((was) => {
+        const v = readTextSize(title);
+        return v === was ? was : v;
+      });
+      setMaxHr((was) => {
+        const v = maxHrSetting();
+        return v === was ? was : v;
+      });
+      const next = readTheme();
+      setTheme((was) => {
+        if (was === next.id) return was;
+        applyTheme(next);
+        return next.id;
+      });
+    }, 1000);
+    return () => {
+      clearInterval(poll);
+      window.removeEventListener("storage", onStorage);
+    };
   }, [title]);
 
   useEffect(() => {

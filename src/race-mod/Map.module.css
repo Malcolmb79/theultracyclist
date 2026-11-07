@@ -1,5 +1,5 @@
 /* The map's panels; the frame round them (transparency, the right-click
-   settings, the drag grip) is ./Overlay.module.css. */
+   settings, the corner handle) is ./Overlay.module.css. */
 
 .map {
   display: flex;

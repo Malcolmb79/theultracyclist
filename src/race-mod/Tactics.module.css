@@ -1,5 +1,5 @@
 /* The tactics overlay's rider strip; the frame round it (transparency, the
-   right-click settings, the drag grip) is ./Overlay.module.css. */
+   right-click settings, the corner handle) is ./Overlay.module.css. */
 
 .overlay {
   padding: var(--space-1);

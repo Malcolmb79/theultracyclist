@@ -1,5 +1,4 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";
 import styles from "./Overlay.module.css";
 import { THEMES, THEME_KEY, applyTheme, readTheme, saveTheme } from "./themes";
 import { maxHrSetting, saveMaxHrSetting } from "./zones";
@@ -9,13 +8,13 @@ applyTheme(readTheme());
 
 // The frame every Ultra Cyclist overlay sits in, so they look and behave
 // alike: a background that fades down to nothing so Zwift shows through,
-// settings on right-click rather than a button on every overlay, and a grip
-// along the top edge, shown on hover, to drag the window by.
+// and - shown on hover, as on the site's dashboards - a ☰ handle in the
+// corner to drag the window by or click for its settings, and a corner to
+// drag for its size. The settings open in a window of their own (or on
+// right-click), so the overlay stays where it is.
 //
-// Why a grip rather than dragging anywhere: on Windows, right-clicking the
-// part of a frameless window that drags it opens the system's window menu
-// and the page never hears the click - so the draggable part has to be kept
-// to a strip, and the rest left free for the settings menu.
+// The handle moves the window itself rather than being a system drag area:
+// a drag area never hears a click, and the handle needs both.
 
 export type SettingValue = boolean | number | string;
 
@@ -61,6 +60,27 @@ export function useSettings<T extends Record<string, SettingValue>>(
       // Full or unavailable - the settings just won't stick.
     }
   }, [storageKey, values]);
+  // Changed in another window - the overlay's settings window - shown here at once.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== storageKey || e.newValue == null) return;
+      try {
+        const stored = JSON.parse(e.newValue) as Record<string, unknown>;
+        setValues((v) => {
+          const next = { ...v };
+          for (const k of Object.keys(defaults) as (keyof T)[]) {
+            if (typeof stored[k as string] === typeof defaults[k]) next[k] = stored[k as string] as T[keyof T];
+          }
+          return next;
+        });
+      } catch {
+        // Not readable: kept as it is.
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storageKey]);
   return [values, (key, value) => setValues((v) => ({ ...v, [key]: value }))];
 }
 
@@ -110,6 +130,9 @@ interface ShellProps<T extends Record<string, SettingValue>> {
 const MENU_WIDTH = 280;
 /** The menu's rows are about this tall, in pixels, for sizing the window to it. */
 const ROW_PX = 31;
+/** This page opened as an overlay's settings window: the menu is the whole page. */
+const SETTINGS_MODE = new URLSearchParams(window.location.search).has("settings");
+const IN_SAUCE = /electron|sauce/i.test(navigator.userAgent);
 
 export function OverlayShell<T extends Record<string, SettingValue>>({
   title,
@@ -122,9 +145,7 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
   className,
   children,
 }: ShellProps<T>) {
-  const [menu, setMenu] = useState(false);
-  // Move mode: the whole window becomes the handle to drag it by.
-  const [moving, setMoving] = useState(false);
+  const [menu, setMenu] = useState(SETTINGS_MODE);
   // Where the window was before the menu took it to the middle of the screen.
   const before = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
   const [theme, setTheme] = useState(() => readTheme().id);
@@ -193,48 +214,24 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
   }, []);
 
   useEffect(() => {
-    document.documentElement.classList.add(styles.transparent);
+    // A settings window has a background of its own; an overlay is see-through.
+    if (!SETTINGS_MODE) document.documentElement.classList.add(styles.transparent);
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      setMoving(false);
       closeRef.current();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // The settings open in a window of their own in the middle of the screen,
-  // drawn by this overlay, so the overlay stays exactly where it is. Where
-  // Sauce won't open one (or it comes up empty), the overlay's own window is
-  // taken to the middle and made big enough instead, then put back exactly
-  // where it was; where it can't be moved, the menu scrolls inside it.
+  // The settings open in a window of their own (Sauce opens the overlay's
+  // own page again, in settings-only mode, beside it): the overlay stays
+  // exactly where it is and changes show on it as they're made. In settings
+  // mode the menu is the whole page. Outside Sauce, where a browser blocks
+  // the window, the overlay's own window is taken to the middle and made big
+  // enough instead, then put back exactly where it was.
   const rows = 6 + defs.length + (extraRows ?? (extraSettings ? 3 : 0));
-  const [popup, setPopup] = useState<Window | null>(null);
-  const popupRef = useRef<Window | null>(null);
   const scr = window.screen as Screen & { availLeft?: number; availTop?: number };
-  const menuSize = () => ({
-    w: Math.min(scr.availWidth - 40, menuWidth + 40),
-    h: Math.min(scr.availHeight - 60, 90 + rows * ROW_PX),
-  });
-
-  /** The overlay's look carried into the settings window: its styles, theme and fonts. */
-  const dressPopup = (w: Window) => {
-    const doc = w.document;
-    doc.head.querySelectorAll("[data-uc-copied]").forEach((n) => n.remove());
-    document.head.querySelectorAll('style, link[rel="stylesheet"]').forEach((n) => {
-      const c = n.cloneNode(true) as HTMLElement;
-      c.setAttribute("data-uc-copied", "");
-      doc.head.appendChild(c);
-    });
-    const root = document.documentElement;
-    doc.documentElement.setAttribute("style", root.getAttribute("style") ?? "");
-    for (const a of ["data-hud-theme", "data-hud-light"]) {
-      const v = root.getAttribute(a);
-      if (v == null) doc.documentElement.removeAttribute(a);
-      else doc.documentElement.setAttribute(a, v);
-    }
-    doc.body.className = styles.popupBody;
-  };
 
   const openInMiddle = () => {
     if (!before.current) {
@@ -252,88 +249,26 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
   };
 
   const openMenu = () => {
-    if (menu) {
-      popupRef.current?.focus();
-      return;
-    }
-    let w: Window | null = null;
+    if (SETTINGS_MODE) return;
+    const w = Math.min(scr.availWidth - 40, menuWidth + 40);
+    const h = Math.min(scr.availHeight - 60, 90 + rows * ROW_PX);
+    const url = `${location.pathname}?settings=1&frame=false&child-window&width=${w}&height=${h}`;
+    let opened: Window | null = null;
     try {
-      const { w: mw, h: mh } = menuSize();
-      const left = (scr.availLeft ?? 0) + Math.round((scr.availWidth - mw) / 2);
-      const top = (scr.availTop ?? 0) + Math.round((scr.availHeight - mh) / 2);
-      w = window.open("", `uc-settings-${title.replace(/\W+/g, "-")}`, `popup=yes,width=${mw},height=${mh},left=${left},top=${top}`);
+      opened = window.open(url, `uc-settings-${title.replace(/\W+/g, "-")}`, `popup=yes,width=${w},height=${h}`);
     } catch {
-      w = null;
+      opened = null;
     }
-    if (!w || w.closed || !w.document) {
-      openInMiddle();
-      return;
-    }
-    try {
-      w.document.title = `${title} settings`;
-      dressPopup(w);
-    } catch {
-      // Not ours to draw in: the menu opens in the overlay instead.
-      w.close();
-      openInMiddle();
-      return;
-    }
-    popupRef.current = w;
-    setPopup(w);
-    setMenu(true);
-    // Closed with its own close button: the menu with it.
-    w.addEventListener("pagehide", () => {
-      if (popupRef.current !== w) return;
-      popupRef.current = null;
-      setPopup(null);
-      setMenu(false);
-    });
-    w.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") closeRef.current();
-    });
-    // Came up empty (a window Sauce made that we can't draw in): the old way instead.
-    setTimeout(() => {
-      if (popupRef.current !== w) return;
-      let ok = false;
-      try {
-        ok = !w.closed && !!w.document.body.querySelector('[role="dialog"]');
-      } catch {
-        ok = false;
-      }
-      if (ok) return;
-      popupRef.current = null;
-      setPopup(null);
-      try {
-        w.close();
-      } catch {
-        // Gone already.
-      }
-      openInMiddle();
-    }, 600);
+    // Sauce opens it itself and hands back nothing; a browser hands back the window, or nothing if it blocked it.
+    if (!opened && !IN_SAUCE) openInMiddle();
   };
 
-  // The theme changed while the settings are open: the settings window follows.
-  useEffect(() => {
-    if (popup && !popup.closed) dressPopup(popup);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [theme, popup]);
-
-  // The overlay going away takes its settings window with it.
-  useEffect(() => () => popupRef.current?.close(), []);
-
   const closeMenu = () => {
-    setMenu(false);
-    const w = popupRef.current;
-    if (w) {
-      popupRef.current = null;
-      setPopup(null);
-      try {
-        w.close();
-      } catch {
-        // Gone already.
-      }
+    if (SETTINGS_MODE) {
+      window.close();
       return;
     }
+    setMenu(false);
     const was = before.current;
     if (!was) return;
     try {
@@ -346,6 +281,37 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
     setTimeout(() => {
       before.current = null;
     }, 400);
+  };
+
+  // The corner handle: dragged, it moves the window; clicked, it opens the settings.
+  const dragWindow = (e: React.PointerEvent, resize: boolean) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const el = e.currentTarget as HTMLElement;
+    el.setPointerCapture(e.pointerId);
+    const start = { sx: e.screenX, sy: e.screenY, x: window.screenX, y: window.screenY, w: window.outerWidth, h: window.outerHeight };
+    let moved = false;
+    const move = (ev: PointerEvent) => {
+      const dx = ev.screenX - start.sx;
+      const dy = ev.screenY - start.sy;
+      if (!moved && Math.abs(dx) + Math.abs(dy) < 4) return;
+      moved = true;
+      try {
+        if (resize) window.resizeTo(Math.max(80, start.w + dx), Math.max(24, start.h + dy));
+        else window.moveTo(start.x + dx, start.y + dy);
+      } catch {
+        // Not allowed here.
+      }
+    };
+    const up = () => {
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("pointerup", up);
+      el.removeEventListener("pointercancel", up);
+      if (!moved && !resize) openMenu();
+    };
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerup", up);
+    el.addEventListener("pointercancel", up);
   };
 
   const closeRef = useRef(closeMenu);
@@ -361,20 +327,21 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
         openMenu();
       }}
     >
-      <div className={styles.grip} title="Drag to move">
-        <span>⠿ drag to move</span>
-      </div>
-      {moving && (
-        <div className={styles.moveLayer}>
-          <div className={styles.moveCard}>
-            Drag anywhere to move this window
-            <button type="button" onClick={() => setMoving(false)}>
-              Done
-            </button>
-          </div>
-        </div>
+      {!SETTINGS_MODE && (
+        <>
+          <button
+            type="button"
+            className={styles.handle}
+            title="Drag to move · click for settings"
+            aria-label={`Move ${title}, or click for its settings`}
+            onPointerDown={(e) => dragWindow(e, false)}
+          >
+            ☰
+          </button>
+          <span className={styles.resize} title="Drag to resize" aria-hidden onPointerDown={(e) => dragWindow(e, true)} />
+        </>
       )}
-      {children}
+      {!SETTINGS_MODE && children}
       {clipped && (
         <div className={styles.more} title="There's more below - drag the window's bottom edge down to see it">
           ↓ more
@@ -392,16 +359,6 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
                 ×
               </button>
             </div>
-            <button
-              type="button"
-              className={styles.moveButton}
-              onClick={() => {
-                closeMenu();
-                setMoving(true);
-              }}
-            >
-              Move this window
-            </button>
             <label className={styles.row}>
               <span className={styles.label}>Theme (all overlays)</span>
               <select
@@ -501,7 +458,7 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
           </div>
         </>
           );
-          return popup ? createPortal(<div className={styles.popupMenu}>{content}</div>, popup.document.body) : content;
+          return SETTINGS_MODE ? <div className={styles.settingsPage}>{content}</div> : content;
         })()}
     </div>
   );

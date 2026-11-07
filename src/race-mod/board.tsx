@@ -220,6 +220,8 @@ function RaceBoard() {
   const places = placesOf(ownRace, watchedPlaced);
   const all = extras.length ? [...riders, ...extras].sort((a, b) => (a.gap ?? 0) - (b.gap ?? 0)) : order(riders, places);
   const shown = around(all, rows, watching?.athleteId);
+  // Room left of the places for a power-up only while someone listed has one running.
+  const puRoom = settings.powerUps && shown.some((r) => r.state?.activePowerUp && powerUp(r.state.activePowerUp));
   const myTeam = watching?.athlete?.team?.trim().toLowerCase();
   const toGo =
     watching?.remaining == null
@@ -263,7 +265,7 @@ function RaceBoard() {
           return (
             <li
               key={r.athleteId}
-              className={`${styles.row} ${settings.powerUps ? styles.withPowerUps : ""} ${r.watching ? styles.watched : ""} ${teammate ? styles.teammate : ""} ${extraIds.has(r.athleteId) ? styles.extra : ""}`}
+              className={`${styles.row} ${puRoom ? styles.withPowerUps : ""} ${r.watching ? styles.watched : ""} ${teammate ? styles.teammate : ""} ${extraIds.has(r.athleteId) ? styles.extra : ""}`}
             >
               <span
                 className={`${styles.pos} ${places.get(r.athleteId)?.est ? styles.estimated : ""}`}

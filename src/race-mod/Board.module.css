@@ -1,5 +1,5 @@
 /* The race board's panels; the frame round them (transparency, the
-   right-click settings, the drag grip) is ./Overlay.module.css. */
+   right-click settings, the corner handle) is ./Overlay.module.css. */
 .board {
   display: flex;
   flex-direction: column;
@@ -63,7 +63,7 @@
 
 .row {
   display: grid;
-  grid-template-columns: 2rem 1fr auto;
+  grid-template-columns: minmax(1.5rem, auto) 1fr auto;
   align-items: center;
   gap: var(--space-2);
   padding: 2px var(--space-2);
@@ -82,7 +82,7 @@
 
 /* With power-ups shown: room left of the place for one. */
 .withPowerUps {
-  grid-template-columns: 3.4rem 1fr auto;
+  grid-template-columns: minmax(2.9rem, auto) 1fr auto;
 }
 
 .pos {

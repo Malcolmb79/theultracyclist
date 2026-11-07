@@ -39,84 +39,55 @@
 
 /* A strip along the top to drag the window by, shown on hover - tall
    enough to catch, with a handle in the middle. */
-.grip {
+/* The corner handle, as on the site's dashboards: drag it to move the
+   window, click it for the settings. Shown while the pointer's over the overlay. */
+.handle {
   position: absolute;
-  inset: 0 0 auto 0;
-  height: 18px;
+  top: 2px;
+  left: 2px;
   z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  -webkit-app-region: drag;
-  app-region: drag;
-  cursor: move;
-  opacity: 0;
-  transition: opacity 0.2s;
-  background: rgba(var(--hud-accent), 0.28);
-  border-radius: var(--radius) var(--radius) 0 0;
-}
-
-.grip span {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-text);
-  text-shadow: none;
-}
-
-.shell:hover .grip {
-  opacity: 1;
-}
-
-/* Move mode: the whole window is the handle, outlined, until Done. */
-.moveLayer {
-  position: fixed;
-  inset: 0;
-  z-index: 40;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  -webkit-app-region: drag;
-  app-region: drag;
-  cursor: move;
-  border: 2px dashed var(--color-accent-2);
-  border-radius: var(--radius);
-  background: rgba(var(--hud-accent), 0.15);
-}
-
-.moveCard {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  border-radius: var(--radius);
-  font-size: 12px;
-  text-align: center;
-  text-shadow: none;
-  color: var(--color-text);
-  background: rgba(var(--hud-bg), 0.92);
-}
-
-.moveCard button,
-.moveButton {
-  -webkit-app-region: no-drag;
-  app-region: no-drag;
-  padding: 3px 12px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
   border: none;
   border-radius: 6px;
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-  color: rgb(var(--hud-bg));
-  background: var(--color-accent-2);
+  font-size: 14px;
+  line-height: 1;
+  color: var(--color-text);
+  text-shadow: none;
+  background: rgba(var(--hud-bg), 0.85);
+  box-shadow: 0 0 0 1px rgba(var(--hud-accent), 0.6);
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 0.2s;
+  touch-action: none;
 }
 
-.moveButton {
-  width: 100%;
-  margin: 2px 0 6px;
-  padding: 5px 12px;
+.handle:active {
+  cursor: grabbing;
+}
+
+/* The corner to drag for the size. */
+.resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  opacity: 0;
+  transition: opacity 0.2s;
+  touch-action: none;
+  background: linear-gradient(135deg, transparent 50%, rgba(var(--hud-accent), 0.85) 50%, rgba(var(--hud-accent), 0.85) 60%, transparent 60%, transparent 70%, rgba(var(--hud-accent), 0.85) 70%, rgba(var(--hud-accent), 0.85) 80%, transparent 80%);
+  border-bottom-right-radius: var(--radius);
+}
+
+.shell:hover .handle,
+.shell:hover .resize {
+  opacity: 1;
 }
 
 /* Dims the overlay behind the settings, which stays visible as a preview. */
@@ -258,27 +229,18 @@
   content: none;
 }
 
-/* The settings in a window of their own: the menu fills it, no backdrop. */
-.popupBody {
-  margin: 0;
-  background: rgb(var(--hud-bg));
-  color: var(--color-text);
-  font-family: var(--font-body);
-}
-
-.popupMenu .backdrop {
+/* An overlay's settings window: the menu is the whole page. */
+.settingsPage .backdrop {
   display: none;
 }
 
-.popupMenu .menu {
+.settingsPage .menu {
   position: static;
   transform: none;
   width: auto !important;
   max-width: none;
-  max-height: none;
+  max-height: 100vh;
   min-height: 100vh;
-  border: none;
   border-radius: 0;
-  box-shadow: none;
   box-sizing: border-box;
 }

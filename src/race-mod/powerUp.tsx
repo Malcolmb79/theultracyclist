@@ -7,7 +7,8 @@ import { OverlayShell, useSettings, type SettingDef } from "./overlay";
 import shell from "./Overlay.module.css";
 import PowerUpIcon, { powerUpColour } from "./PowerUpIcon";
 import { routePosition, useCourse } from "./useCourse";
-import { NOW_M, adviseUse, type Advice } from "./powerUpAdvice";
+import { NOW_M, POWER_UP_SECONDS, adviseUse, type Advice } from "./powerUpAdvice";
+import { powerUpLeft } from "./powerUpTimers";
 import styles from "./PowerUp.module.css";
 
 // In the theme's accent colour, like the rest of the overlays.
@@ -74,16 +75,31 @@ function PowerUpOverlay() {
   useEffect(() => {
     if (!end) return;
     total.current = Math.max(1, (end - Date.now()) / 1000);
+  }, [end]);
+  // Ticking while anything's running, so the ring and the time move smoothly.
+  const running = !!(game?.activePowerUp || watching?.state?.activePowerUp);
+  useEffect(() => {
+    if (!running) return;
     const t = setInterval(() => tick((n) => n + 1), 250);
     return () => clearInterval(t);
-  }, [end]);
+  }, [running]);
 
   // The held power-up is the rider's own only while they're the one being watched.
   const self = watching?.self ?? true;
   const held = self ? powerUp(game?.availablePowerUp ?? undefined) : undefined;
   const activeCode = (self ? game?.activePowerUp : null) ?? watching?.state?.activePowerUp;
   const active = powerUp(activeCode ?? undefined);
-  const left = end && active ? Math.max(0, (end - Date.now()) / 1000) : undefined;
+  // Zwift's own end time when it gives one (the rider's own); otherwise timed
+  // from when it was first seen against how long that power-up lasts.
+  const ownEnd = self && game?.activePowerUp && end ? end : undefined;
+  const timed = active && activeCode && watching && !ownEnd ? powerUpLeft(watching.athleteId, activeCode) : undefined;
+  const left = active ? (ownEnd ? Math.max(0, (ownEnd - Date.now()) / 1000) : timed != null ? timed * (POWER_UP_SECONDS[activeCode!] ?? 0) : undefined) : undefined;
+  if (timed != null && !ownEnd && activeCode) total.current = POWER_UP_SECONDS[activeCode] ?? total.current;
+  // A coffee stop has no set length to count down from without Zwift's end time: how long stopped, instead.
+  const coffee = activeCode === "COFFEE_STOP";
+  const coffeeSince = useRef<number | null>(null);
+  if (coffee && coffeeSince.current == null) coffeeSince.current = Date.now();
+  if (!coffee) coffeeSince.current = null;
   const connected = !!game?.gameConnection;
 
   // The example: a power-up held, as it would show, to size and place the window by.
@@ -121,7 +137,16 @@ function PowerUpOverlay() {
   }
   const useNow = advice?.inM != null && advice.inM <= NOW_M;
   const fraction = shown?.running && left != null ? Math.min(1, left / total.current) : null;
-  const seconds = settings.showSeconds && shown?.running && left != null ? `${Math.ceil(left)}s` : null;
+  const clock = (sec: number) => (sec >= 60 ? `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, "0")}` : `${Math.ceil(sec)}s`);
+  // A coffee stop always shows its time - it's minutes, not seconds.
+  const seconds =
+    shown?.running && left != null && (settings.showSeconds || coffee)
+      ? coffee
+        ? `${clock(left)} left`
+        : clock(left)
+      : shown?.running && coffee && coffeeSince.current != null
+        ? `stopped ${clock((Date.now() - coffeeSince.current) / 1000)}`
+        : null;
   // Room under the badge for whatever's switched on, so the badge takes the rest of the window.
   const labelsRem = (advice ? (advice.inM != null ? 2.6 : 2.2) : 0) + (settings.showName ? 1.8 : 0) + (seconds ? 1.6 : 0) + (settings.showEffect && shown?.p.effect ? 2.4 : 0) + (example ? 1.1 : 0);
 

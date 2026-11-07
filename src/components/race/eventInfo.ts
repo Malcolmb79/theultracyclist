@@ -42,7 +42,8 @@ export function loadEventBrief(address: string, subgroupId: number): Promise<Eve
         durationMin: sg.durationInSeconds ? Math.round(sg.durationInSeconds / 60) : undefined,
         // No power-ups when the rules say so; otherwise Sauce lists the odds
         // when the event sets its own mix, and an empty mix means none.
-        powerUps: sg.rulesSet?.includes("NO_POWERUPS") ? false : sg.powerUps == null ? undefined : Object.keys(sg.powerUps).length > 0,
+        // Only Zwift's own rule says there are none: an empty mix is the usual one, not no power-ups.
+        powerUps: sg.rulesSet?.includes("NO_POWERUPS") ? false : sg.powerUps && Object.keys(sg.powerUps).length ? true : undefined,
         powerUpOdds: sg.powerUps && Object.keys(sg.powerUps).length ? sg.powerUps : undefined,
       };
     });

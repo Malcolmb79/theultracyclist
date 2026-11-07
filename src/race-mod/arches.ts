@@ -3,7 +3,8 @@ import { powerUp } from "../components/race/powerUps";
 
 // Where the power-ups are handed out on a route. Zwift gives one (at
 // random, from the event's mix) passing under an arch: the start/finish
-// banner each lap, and the end of each sprint and KOM. Sauce doesn't know
+// banner each lap, and the end of each sprint and KOM - a KOM ridden the
+// downhill way round (shown as a plain segment) still has its banner. Sauce doesn't know
 // the arches themselves, so they're placed from the route: the lap line and
 // the segments' finish lines.
 
@@ -23,8 +24,7 @@ export function powerUpArches(route: RouteGeometry): Arch[] {
   // And the same banner at the end of the lap, coming round again.
   arches.push({ at: total, kind: "lap", name: "Start/finish" });
   for (const s of route.segments) {
-    if (s.kind === "segment") continue;
-    arches.push({ at: Math.min(s.end, total), kind: s.kind, name: s.name });
+    arches.push({ at: Math.min(s.end, total), kind: s.kind === "sprint" ? "sprint" : "climb", name: s.name });
   }
   return arches
     .sort((a, b) => a.at - b.at)

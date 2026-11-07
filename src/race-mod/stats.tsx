@@ -20,10 +20,19 @@ import styles from "./Stats.module.css";
 // from the rider's Zwift profile through the site (Sauce doesn't carry
 // them); Zwift updates them when it saves the ride, every few minutes.
 
-const DEFAULTS = { opacity: 80, fit: true, climb: false, rideBar: true, rideLabel: "left", levelLabel: "toNext", fields: "", watching: true, level: true, drops: true, progress: true };
+const DEFAULTS = { opacity: 80, fit: true, climb: false, climbWidth: "zwift", rideBar: true, rideLabel: "left", levelLabel: "toNext", fields: "", watching: true, level: true, drops: true, progress: true };
 const DEFS: SettingDef[] = [
   { key: "fit", label: "Size to the window (drag a corner)", type: "toggle" },
   { key: "climb", label: "Climb pop-up under the stats", type: "toggle" },
+  {
+    key: "climbWidth",
+    label: "Climb pop-up width",
+    type: "select",
+    options: [
+      { value: "zwift", label: "Like Zwift's (narrower, centred)" },
+      { value: "full", label: "Full width (covers the whole HUD)" },
+    ],
+  },
   { key: "rideBar", label: "Ride progress bar", type: "toggle" },
   {
     key: "rideLabel",
@@ -197,6 +206,7 @@ function StatsOverlay() {
   // Level, progress and Drops are the rider's own: shown while they're the one riding.
   const profile = useProfile(settings.level || settings.drops || settings.progress);
   const own = watching?.self !== false && profile?.configured !== false && !profile?.error ? profile : null;
+  const watchingName = settings.watching && watching && !watching.self ? athleteName(watching) : undefined;
   const level = settings.level ? (own?.level ?? (watching?.self !== false ? watching?.athlete?.level : undefined)) : undefined;
   const pct = settings.progress ? own?.levelPct : undefined;
   const drops = settings.drops ? liveDrops(own?.drops, (s as { kj?: number } | null | undefined)?.kj) : undefined;
@@ -312,7 +322,7 @@ function StatsOverlay() {
                 <span style={{ width: `${pct}%` }} />
               </div>
             )}
-            {(level != null || drops != null) && (
+            {(level != null || drops != null || watchingName) && (
               <div className={styles.badges}>
                 {level != null ? (
                   <span className={styles.badge} title="Zwift level">
@@ -322,21 +332,22 @@ function StatsOverlay() {
                 ) : (
                   <span />
                 )}
-                {drops != null && (
+                {/* Who's being watched, in the bar itself - no strip between it and the climb pop-up. */}
+                {watchingName && <span className={styles.watching}>Watching {watchingName}</span>}
+                {drops != null ? (
                   <span className={`${styles.badge} ${styles.drops}`} title="Drops">
                     {drops.toLocaleString("en-GB")}
                     <span className={styles.badgeIcon}>💧</span>
                   </span>
+                ) : (
+                  <span />
                 )}
               </div>
             )}
           </div>
         )}
-        {settings.watching && watching && !watching.self && (
-          <div className={styles.watching}>Watching {athleteName(watching)}</div>
-        )}
         {settings.climb && climb && route && at != null && (
-          <div className={styles.climb}>
+          <div className={`${styles.climb} ${settings.climbWidth === "full" ? styles.climbFull : ""}`}>
             <ClimbCard route={route} at={at} climb={climb} gradeNow={s?.grade != null ? s.grade * 100 : undefined} settings={climbSet} />
           </div>
         )}

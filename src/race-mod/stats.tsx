@@ -184,19 +184,21 @@ function StatsOverlay() {
     colour: watching ? colourOf(f, watching) : undefined,
   }));
 
-  // How much of the ride is done: Zwift's own event progress in an event
-  // (not in a workout, where it's the workout's), else ridden against to go.
+  // How much of the ride is done.
   const st = s as { progress?: number; workoutZone?: number | null } | null | undefined;
   // A ride that counts down in time (a group ride's "11 min to go") goes by time ridden against time left.
   const toGo = watching?.remainingMetric === "distance" && watching.remaining != null ? watching.remaining : undefined;
   const timeToGo = watching?.remainingMetric === "time" && watching.remaining != null ? watching.remaining : undefined;
+  // Ridden against what's left first: Zwift's own progress figure can be a
+  // lap's or the route's rather than the whole event's (a 160 km ride showed
+  // 20% done with 145 km to go), so it's only the last resort.
   const rideDone =
-    s?.eventSubgroupId && st?.progress && !st.workoutZone
-      ? Math.min(1, st.progress)
-      : toGo != null && metres != null && metres + toGo > 0
-        ? Math.min(1, metres / (metres + toGo))
-        : timeToGo != null && s?.time != null && s.time + timeToGo > 0
-          ? Math.min(1, s.time / (s.time + timeToGo))
+    toGo != null && metres != null && metres + toGo > 0
+      ? Math.min(1, metres / (metres + toGo))
+      : timeToGo != null && s?.time != null && s.time + timeToGo > 0
+        ? Math.min(1, s.time / (s.time + timeToGo))
+        : s?.eventSubgroupId && st?.progress && !st.workoutZone
+          ? Math.min(1, st.progress)
           : undefined;
 
   // What's left, for the ride bar's label: the distance to go, or the time in a ride that counts down in time.

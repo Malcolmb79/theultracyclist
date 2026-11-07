@@ -2,6 +2,7 @@ import type { RouteGeometry } from "../components/race/courseMap";
 import type { RiderHistory } from "../components/race/raceLog";
 import type { SauceAthleteData } from "../components/race/sauceFeed";
 import { gradeBetween } from "./physics";
+import { potentialFromTotals } from "./staminaModel";
 
 // Who's most likely to win the race, from everything known about the
 // riders in it - a first version, deliberately simple and explainable:
@@ -13,7 +14,8 @@ import { gradeBetween } from "./physics";
 //    sprint in the draft rewards raw watts as well as W/kg.
 // 2. Each rider's ability over those efforts: the best of what they've
 //    shown in this race (Sauce's peaks), their best in races over the last
-//    90 days (ZwiftPower), and what their FTP suggests - put on one scale.
+//    90 days (ZwiftPower), and what their FTP suggests - blended, with FTP as
+//    the anchor; what they've shown today can raise it but not lower it.
 //    Racing Score and recent wins add a little for race craft.
 // 3. Whether they're still in it: time down on the front of the race
 //    matters less with a long way to go and everything at the end.
@@ -39,10 +41,10 @@ export interface Finish {
 
 /** How much each effort counts for each kind of finish, and how much raw watts count too. */
 const WEIGHTS: Record<FinishKind, { s15: number; m1: number; m5: number; m20: number; watts: number }> = {
-  sprint: { s15: 0.55, m1: 0.25, m5: 0.1, m20: 0.1, watts: 0.5 },
-  punchy: { s15: 0.2, m1: 0.4, m5: 0.3, m20: 0.1, watts: 0.2 },
+  sprint: { s15: 0.45, m1: 0.25, m5: 0.15, m20: 0.15, watts: 0.2 },
+  punchy: { s15: 0.15, m1: 0.4, m5: 0.3, m20: 0.15, watts: 0.1 },
   climb: { s15: 0.05, m1: 0.15, m5: 0.4, m20: 0.4, watts: 0 },
-  unknown: { s15: 0.2, m1: 0.25, m5: 0.3, m20: 0.25, watts: 0.25 },
+  unknown: { s15: 0.15, m1: 0.25, m5: 0.3, m20: 0.3, watts: 0.1 },
 };
 
 /**
@@ -96,7 +98,23 @@ interface Scored {
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
-/** A rider's ability for this finish, on the FTP-equivalent W/kg scale. */
+/**
+ * How far an effort can sit above what a rider's FTP suggests before it's
+ * more likely noise (a bad power reading, a mis-set weight) than ability:
+ * sprinters really can out-sprint their FTP by a lot; over 5 and 20 minutes
+ * FTP all but sets it.
+ */
+const ABOVE_FTP: Record<Effort, number> = { s15: 1.6, m1: 1.35, m5: 1.2, m20: 1.12 };
+
+/**
+ * A rider's ability for this finish, on the FTP-equivalent W/kg scale.
+ *
+ * Each effort is a weighted blend of the evidence, not the most flattering
+ * piece of it: what FTP says (the steady anchor), their best in races over
+ * the last 90 days (ZwiftPower), and what they've shown in this race - which
+ * can raise their figure (they've done it, so they can) but a rider sitting
+ * in hasn't shown theirs yet, so a low one doesn't lower it.
+ */
 function abilityOf(r: SauceAthleteData, finish: Finish, zp: RiderHistory | null | undefined) {
   const w = WEIGHTS[finish.kind];
   const kg = r.athlete?.weight || undefined;
@@ -104,19 +122,26 @@ function abilityOf(r: SauceAthleteData, finish: Finish, zp: RiderHistory | null 
   const peaks = (r.stats as Stats | undefined)?.power?.peaks;
   const best = zp?.best90Days;
   const zpOf: Record<Effort, number | undefined> = { s15: best?.s15, m1: best?.m1, m5: best?.m5, m20: best?.m20 };
+  // Power from a trainer's estimate rather than a power meter counts for less.
+  const trust = r.athlete?.powerMeter === false ? 0.6 : 1;
   let sum = 0;
   let weight = 0;
   let wattsSum = 0;
   const parts: Record<Effort, number | undefined> = { s15: undefined, m1: undefined, m5: undefined, m20: undefined };
   for (const e of EFFORTS) {
-    const race = peaks?.[DURATIONS[e]]?.avg && kg ? peaks[DURATIONS[e]].avg! / kg : undefined;
-    // The best evidence of what they can do: shown today, shown in recent
-    // races (a little discounted), or guessed from FTP (more discounted).
-    const known = [race, zpOf[e] != null ? zpOf[e]! * 0.97 : undefined, ftpWkg != null ? ftpWkg * RATIO[e] * 0.92 : undefined].filter(
-      (x): x is number => x != null && x > 0,
-    );
-    if (!known.length) continue;
-    const v = Math.max(...known);
+    const fromFtp = ftpWkg != null ? ftpWkg * RATIO[e] : undefined;
+    const raced = zpOf[e] != null && zpOf[e]! > 0 ? zpOf[e]! : undefined;
+    const today = peaks?.[DURATIONS[e]]?.avg && kg ? peaks[DURATIONS[e]].avg! / kg : undefined;
+    const evidence: [number, number][] = [];
+    if (fromFtp != null) evidence.push([fromFtp, 1]);
+    if (raced != null) evidence.push([raced, 1.2 * trust]);
+    if (!evidence.length && today != null) evidence.push([today, 1]);
+    if (!evidence.length) continue;
+    let v = evidence.reduce((a, [x, k]) => a + x * k, 0) / evidence.reduce((a, [, k]) => a + k, 0);
+    // Shown today: they can do at least most of that.
+    if (today != null) v = Math.max(v, today * (0.9 * trust + 0.1 * (1 - trust)));
+    // But not far beyond what their FTP suggests.
+    if (fromFtp != null) v = Math.min(v, fromFtp * ABOVE_FTP[e]);
     parts[e] = v;
     sum += (w[e] * v) / RATIO[e];
     weight += w[e];
@@ -124,7 +149,7 @@ function abilityOf(r: SauceAthleteData, finish: Finish, zp: RiderHistory | null 
   }
   if (!weight) return undefined;
   const wkg = sum / weight;
-  // On the flat, in the draft, raw watts count as well as W/kg - as if everyone weighed 75 kg.
+  // On the flat, in the draft, raw watts count a little as well as W/kg - as if everyone weighed 75 kg.
   const ability = kg ? (1 - w.watts) * wkg + w.watts * (wattsSum / weight) : wkg;
   return { ability, parts, ftpWkg };
 }
@@ -206,10 +231,11 @@ export function predict(
     const wbal = r.wBal != null ? clamp(r.wBal / wPrime, 0, 1) : 1;
     const st = r.stats as Stats | undefined;
     const ftp = r.athlete?.ftp;
-    const stamina =
-      st?.power?.np && ftp && st.activeTime ? clamp(1 - (st.activeTime * (st.power.np / ftp) ** 4) / (holdFtpMin * 60), 0, 1) : 1;
-    // An empty W′ in the last kilometres is no sprint at all; early on it refills.
-    s.fresh = (1 - 0.85 * near ** 2 * (1 - wbal)) * (0.8 + 0.2 * stamina);
+    const stamina = st?.power?.np && ftp && st.activeTime ? potentialFromTotals(st.power.np, ftp, st.activeTime, holdFtpMin) / 100 : 1;
+    // An empty W′ in the last kilometres is no sprint at all; early on it
+    // refills. Stamina only counts when it's nearly gone - doing the work in
+    // a race isn't a weakness until there's nothing left.
+    s.fresh = (1 - 0.85 * near ** 2 * (1 - wbal)) * (stamina < 0.25 ? 0.75 + stamina : 1);
     if (r.wBal != null && wbal < 0.5) s.why.push({ weight: 1.2 + near, text: `W′ ${Math.round(wbal * 100)}%` });
     if (stamina < 0.3) s.why.push({ weight: 1, text: `stamina ${Math.round(stamina * 100)}%` });
 
@@ -221,7 +247,7 @@ export function predict(
     if (wins) s.why.push({ weight: 1.1, text: `${wins} ${wins === 1 ? "win" : "wins"} this month` });
     if (score) s.why.push({ weight: 0.5, text: `ZRS ${Math.round(score)}` });
     // Racing Score folded into ability, a little, where it's known (about 150 points a W/kg).
-    if (score && Number.isFinite(s.ability)) s.ability = 0.8 * s.ability + 0.2 * (score / 150);
+    if (score && Number.isFinite(s.ability)) s.ability = 0.92 * s.ability + 0.08 * (score / 150);
   }
 
   // Hills before the finish: those who climb worse than the best climbers

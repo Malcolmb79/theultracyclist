@@ -52,6 +52,15 @@ const SEARCH_M = 3000;
 const HEIGHT_WEIGHT = 3;
 /** Closer than this to the route line (in world centimetres) and the match is trusted. */
 const ON_ROUTE_CM = 6000;
+/**
+ * How much being away from Sauce's own distance counts against a match, in
+ * cm per metre along the route. On an out-and-back (the Radio Tower, a
+ * dead-end spur) the way up and the way back down are the same road at the
+ * same heights, a kilometre or so apart along the route: this picks the leg
+ * Sauce's distance says the rider is on, while a few metres' disagreement
+ * between the two barely counts.
+ */
+const OFF_GUESS_CM_PER_M = 8;
 
 /**
  * Where a rider is on the route's one-lap profile, in metres.
@@ -94,13 +103,18 @@ export function routePosition(
       const dy = route.path[i][1] - y;
       const pz = route.path[i][2];
       const dz = z != null && pz != null ? (pz - z) * HEIGHT_WEIGHT : 0;
-      const dd = dx * dx + dy * dy + dz * dz;
+      const dg = guess != null && Number.isFinite(from) ? (d - guess) * OFF_GUESS_CM_PER_M : 0;
+      const dd = dx * dx + dy * dy + dz * dz + dg * dg;
       if (dd < bestD) {
         bestD = dd;
         best = i;
       }
     }
-    return { i: best, cm: Math.sqrt(bestD) };
+    if (best < 0) return { i: best, cm: Infinity };
+    // How far off the road the match is, on the map and in height alone.
+    const [bx, by, bz] = route.path[best];
+    const ez = z != null && bz != null ? (bz - z) * HEIGHT_WEIGHT : 0;
+    return { i: best, cm: Math.sqrt((bx - x) ** 2 + (by - y) ** 2 + ez * ez) };
   };
   let match = guess != null ? nearest(guess - SEARCH_M, guess + SEARCH_M) : { i: -1, cm: Infinity };
   if (match.cm > ON_ROUTE_CM) {

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import styles from "./Overlay.module.css";
 import { THEMES, THEME_KEY, applyTheme, readTheme, saveTheme } from "./themes";
-import { maxHrSetting, saveMaxHrSetting } from "./zones";
+import { MAX_HR_KEY, maxHrSetting, saveMaxHrSetting } from "./zones";
 
 // The theme goes on before the first paint, so an overlay never flashes the default look.
 applyTheme(readTheme());
@@ -191,7 +191,8 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
   }, []);
 
   useLayoutEffect(() => {
-    document.documentElement.style.fontSize = `${textSize}%`;
+    // A settings window stays at normal size; the overlay it's for takes the text size.
+    document.documentElement.style.fontSize = SETTINGS_MODE ? "100%" : `${textSize}%`;
     try {
       window.localStorage.setItem(textKey(title), String(textSize));
     } catch {
@@ -201,9 +202,18 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
     window.dispatchEvent(new Event("resize"));
   }, [textSize, title]);
 
-  // Another overlay changing the theme changes this one too.
+  // Another overlay changing the theme changes this one too - and this
+  // overlay's own settings window changing its text size or the max heart rate.
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
+      if (e.key === textKey(title)) {
+        setTextSize(readTextSize(title));
+        return;
+      }
+      if (e.key === MAX_HR_KEY) {
+        setMaxHr(maxHrSetting());
+        return;
+      }
       if (e.key !== THEME_KEY) return;
       const next = readTheme();
       applyTheme(next);
@@ -211,7 +221,7 @@ export function OverlayShell<T extends Record<string, SettingValue>>({
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, []);
+  }, [title]);
 
   useEffect(() => {
     // A settings window has a background of its own; an overlay is see-through.

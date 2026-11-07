@@ -29,6 +29,7 @@ const DEFAULTS = {
   rows: 20,
   sortBy: "gap",
   sortDown: false,
+  coffeeFinalKm: 5,
 };
 const DEFS: SettingDef[] = [
   { key: "category", label: "Only my category", type: "toggle" },
@@ -36,6 +37,17 @@ const DEFS: SettingDef[] = [
   { key: "avatars", label: "Pictures", type: "toggle" },
   { key: "flags", label: "Flags", type: "toggle" },
   { key: "teams", label: "Team tags", type: "toggle" },
+  {
+    key: "coffeeFinalKm",
+    label: "Next coffee stop: none in the final",
+    type: "select",
+    options: [
+      { value: 0, label: "No limit" },
+      { value: 2, label: "2 km" },
+      { value: 5, label: "5 km" },
+      { value: 10, label: "10 km" },
+    ],
+  },
 ];
 
 function sortValue(r: SauceAthleteData, f: RiderField | undefined): number | string {

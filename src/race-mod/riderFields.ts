@@ -115,6 +115,45 @@ function powerOver(period: number, label: string, kind: "smooth" | "peaks", perK
     : { id: `${kind}${period}`, label, short: label, group: kind === "smooth" ? "Power" : "Peaks", value: get, show: whole, colour: kind === "smooth" ? (r) => zoneOf(get)(r) : undefined };
 }
 
+/**
+ * When a rider's next Coffee Stop is available, as Zwift has it: after 30
+ * minutes of riding, then 30 minutes after the last one. Sauce doesn't
+ * say, so each rider's stops are noted as they're seen (their ride time
+ * when one starts); a rider seen with coffee time but no stop seen is
+ * assumed to have used the last one due. Not in the final stretch, if
+ * chosen (the Nearby riders setting).
+ */
+const COFFEE_EVERY_SEC = 30 * 60;
+const COFFEE_ON = -1;
+const COFFEE_NOT_NOW = -2;
+const coffeeTaken = new Map<number, number>();
+
+function coffeeNext(r: SauceAthleteData): number | undefined {
+  const t = stats(r)?.elapsedTime ?? stats(r)?.activeTime;
+  if (t == null) return undefined;
+  if (r.state?.activePowerUp === "COFFEE_STOP") {
+    if (!coffeeTaken.has(r.athleteId) || t - coffeeTaken.get(r.athleteId)! > 5 * 60) coffeeTaken.set(r.athleteId, t);
+    return COFFEE_ON;
+  }
+  const finalM = coffeeFinalM();
+  if (finalM && r.remainingMetric === "distance" && r.remaining != null && r.remaining < finalM) return COFFEE_NOT_NOW;
+  let last = coffeeTaken.get(r.athleteId);
+  // Coffee taken before we were watching: as if at the last half-hour mark.
+  if (last == null && (stats(r)?.coffeeTime ?? 0) > 30) last = Math.max(0, Math.floor(t / COFFEE_EVERY_SEC) * COFFEE_EVERY_SEC - 1);
+  const due = last != null ? last + COFFEE_EVERY_SEC : COFFEE_EVERY_SEC;
+  return Math.max(0, due - t);
+}
+
+/** The Nearby riders setting: no coffee in the last this-many metres (0 for no limit). */
+function coffeeFinalM(): number {
+  try {
+    const v = (JSON.parse(window.localStorage.getItem("overlay:nearby") ?? "{}") as { coffeeFinalKm?: unknown }).coffeeFinalKm;
+    return typeof v === "number" ? v * 1000 : 5000;
+  } catch {
+    return 5000;
+  }
+}
+
 const FIELDS: RiderField[] = [
   // Athlete
   { id: "weight", label: "Weight", short: "Kg", group: "Athlete", value: (r) => kg(r), show: whole },
@@ -284,6 +323,15 @@ const FIELDS: RiderField[] = [
   { id: "followTime", label: "Following time", short: "Following", group: "Time", value: (r) => num(stats(r)?.followTime), show: clockOf },
   { id: "soloTime", label: "Solo time", short: "Solo", group: "Time", value: (r) => num(stats(r)?.soloTime), show: clockOf },
   { id: "coffeeTime", label: "Coffee time", short: "Coffee", group: "Time", value: (r) => num(stats(r)?.coffeeTime), show: clockOf },
+  {
+    id: "coffeeNext",
+    label: "Next coffee stop",
+    short: "☕ in",
+    group: "Time",
+    value: coffeeNext,
+    show: (v) => (v === COFFEE_ON ? "On a stop" : v === COFFEE_NOT_NOW ? "Not now" : v <= 0 ? "Ready" : clockOf(v)),
+    colour: (_r, v) => (v === COFFEE_ON ? "#ffb020" : v === 0 ? "#2ee6a6" : undefined),
+  },
 ];
 
 /** The groups in the order columns and cards show them: where and how hard first, totals last. */

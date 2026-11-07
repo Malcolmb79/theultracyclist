@@ -8,6 +8,7 @@ import { useSauce } from "./useSauce";
 import { colourOf, display } from "./riderFields";
 import { STAT_FIELDS, STAT_GROUPS } from "./statFields";
 import PowerUpIcon from "./PowerUpIcon";
+import { powerUpLeft } from "./powerUpTimers";
 import BarPicker, { type BarChoice } from "./BarPicker";
 import shell from "./Overlay.module.css";
 import styles from "./TopBar.module.css";
@@ -134,7 +135,9 @@ function TopBarOverlay() {
       case "rideOns":
         return { name: "Ride Ons", value: zwiftRideOns ?? rideOns };
       case "powerUp":
-        return s?.activePowerUp ? { value: <PowerUpIcon code={s.activePowerUp} size={18} /> } : null;
+        return s?.activePowerUp && watching
+          ? { value: <PowerUpIcon code={s.activePowerUp} size={20} left={powerUpLeft(watching.athleteId, s.activePowerUp)} /> }
+          : null;
       case "watching":
         return watching && watching.self === false ? { name: "Watching", value: athleteName(watching) } : null;
     }

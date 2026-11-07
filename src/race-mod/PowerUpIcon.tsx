@@ -55,13 +55,24 @@ const BOLT_COLOUR = "#22b573";
 
 export const powerUpColour = (code: string) => POWER_UP_COLOURS[code] ?? BOLT_COLOUR;
 
-export default function PowerUpIcon({ code, size = 22 }: { code: string; size?: number }) {
+/** The draining ring's radius and length, in the badge's 24-unit box. */
+const RING_R = 11.1;
+const RING_C = 2 * Math.PI * RING_R;
+
+/**
+ * left: how much of a running power-up is left (1 to 0) - a ring round the
+ * badge drains away clockwise from the top, as Zwift's does.
+ */
+export default function PowerUpIcon({ code, size = 22, left }: { code: string; size?: number; left?: number }) {
   const id = `pu-${useId().replace(/:/g, "")}`;
   const g = GLYPHS[code] ?? BOLT;
   const colour = powerUpColour(code);
   // Fine detail only where there's room for it.
+  const ring = left != null;
   const rim = size < 16 ? 1.6 : 1.3;
-  const glyph = size < 24 ? 0.68 : 0.58;
+  // With a ring, the disc is a little smaller to make room for it outside.
+  const r = ring ? 9.2 : 12 - rim / 2;
+  const glyph = (size < 24 ? 0.68 : 0.58) * (ring ? 0.85 : 1);
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden style={{ overflow: "visible" }}>
       <defs>
@@ -71,9 +82,27 @@ export default function PowerUpIcon({ code, size = 22 }: { code: string; size?: 
           <stop offset="1" stopColor="#000" stopOpacity="0.3" />
         </radialGradient>
       </defs>
-      <circle cx="12" cy="12" r={12 - rim / 2} fill={colour} />
-      <circle cx="12" cy="12" r={12 - rim / 2} fill={`url(#${id})`} />
-      <circle cx="12" cy="12" r={12 - rim / 2} fill="none" stroke="#fff" strokeWidth={rim} />
+      <circle cx="12" cy="12" r={r} fill={colour} />
+      <circle cx="12" cy="12" r={r} fill={`url(#${id})`} />
+      {!ring && <circle cx="12" cy="12" r={r} fill="none" stroke="#fff" strokeWidth={rim} />}
+      {ring && (
+        <>
+          <circle cx="12" cy="12" r={RING_R} fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth={1.8} />
+          <circle
+            cx="12"
+            cy="12"
+            r={RING_R}
+            fill="none"
+            stroke="#fff"
+            strokeWidth={1.8}
+            strokeLinecap="round"
+            strokeDasharray={RING_C}
+            strokeDashoffset={RING_C * (1 - Math.max(0, Math.min(1, left)))}
+            transform="rotate(-90 12 12)"
+            style={{ transition: "stroke-dashoffset 1s linear" }}
+          />
+        </>
+      )}
       <g transform={`translate(12 12) scale(${glyph}) translate(-12 -12)`} filter="drop-shadow(0 0.6px 0.6px rgba(0,0,0,0.35))">
         {g.fill.map((d) => (
           <path key={d} d={d} fill="#fff" />

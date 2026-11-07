@@ -6,6 +6,7 @@ import { inRace } from "../components/race/sameRace";
 import { OverlayShell, useSettings, type SettingDef } from "./overlay";
 import { useSauce } from "./useSauce";
 import { hrColour } from "./zones";
+import { powerUpLeft } from "./powerUpTimers";
 import { useFlags } from "./flags";
 import { powerUp } from "../components/race/powerUps";
 import PowerUpIcon from "./PowerUpIcon";
@@ -271,7 +272,7 @@ function RaceBoard() {
                 {/* A power-up running, beside the place - in its own space, so places still line up. */}
                 {settings.powerUps && s?.activePowerUp && powerUp(s.activePowerUp) && (
                   <span className={styles.powerUp} title={`${powerUp(s.activePowerUp)!.name}: ${powerUp(s.activePowerUp)!.effect}`}>
-                    <PowerUpIcon code={s.activePowerUp} size={18} />
+                    <PowerUpIcon code={s.activePowerUp} size={20} left={powerUpLeft(r.athleteId, s.activePowerUp)} />
                   </span>
                 )}
                 <span className={styles.posNum}>{places.get(r.athleteId)?.pos ?? ""}</span>

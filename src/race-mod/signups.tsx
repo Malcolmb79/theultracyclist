@@ -6,18 +6,24 @@ import { SITE } from "./site";
 import shell from "./Overlay.module.css";
 import styles from "./Signups.module.css";
 
-// Which races a cyclist has signed up for in the next 24 hours: search by
-// name or Zwift id. Zwift can't be asked for a rider's sign-ups directly,
+// Which races or group rides a cyclist has signed up for in the next 24
+// hours: search by name or Zwift id. Zwift can't be asked for a rider's sign-ups directly,
 // so the site looks through every race starting in the next day
 // (api/_routes/zwift-signups.ts) a batch at a time - this window asks again
 // until it's done, showing what's found as it goes.
 
-const DEFAULTS = { opacity: 90, query: "" };
+const DEFAULTS = { opacity: 90, query: "", types: "race" };
 const DEFS: SettingDef[] = [];
+const TYPE_CHOICES = [
+  { value: "race", label: "Races" },
+  { value: "ride", label: "Group rides" },
+  { value: "race,ride", label: "Races and group rides" },
+];
 
 interface Match {
   eventId: number;
   event: string;
+  type?: "race" | "ride";
   start: number;
   category: string;
   signedUp: number;
@@ -59,6 +65,7 @@ function SignupsOverlay() {
   const [settings, set] = useSettings("signups", DEFAULTS);
   const [text, setText] = useState(String(settings.query ?? ""));
   const [query, setQuery] = useState("");
+  const types = String(settings.types || "race");
   const [answer, setAnswer] = useState<Answer | null>(null);
   const [note, setNote] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -85,7 +92,7 @@ function SignupsOverlay() {
     setAnswer(null);
     const ask = async () => {
       try {
-        const res = await fetch(`${SITE}/api/zwift-signups?q=${encodeURIComponent(query)}`, { headers: { authorization: `Bearer ${key}` }, credentials: "omit" });
+        const res = await fetch(`${SITE}/api/zwift-signups?q=${encodeURIComponent(query)}&types=${types}`, { headers: { authorization: `Bearer ${key}` }, credentials: "omit" });
         const a = (await res.json().catch(() => ({}))) as Answer;
         if (run.current !== mine) return;
         if (res.status === 401) return (setNote("The site didn't accept the race key - set it again in the Race console"), setBusy(false));
@@ -103,7 +110,7 @@ function SignupsOverlay() {
       }
     };
     void ask();
-  }, [query]);
+  }, [query, types]);
 
   const search = () => {
     const q = text.trim();
@@ -117,6 +124,7 @@ function SignupsOverlay() {
   const now = Date.now();
   const matches = (answer?.matches ?? []).slice().sort((a, b) => a.start - b.start);
   const riders = new Set(matches.map((m) => m.rider.id));
+  const noun = types === "ride" ? "group rides" : types === "race" ? "races" : "events";
   const pct = answer?.total ? Math.round(((answer.checked ?? 0) / answer.total) * 100) : 0;
 
   return (
@@ -140,18 +148,32 @@ function SignupsOverlay() {
             Search
           </button>
         </form>
-        <p className={styles.scope}>Races starting in the next 24 hours</p>
+        <div className={styles.types} role="radiogroup" aria-label="What to search">
+          {TYPE_CHOICES.map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              role="radio"
+              aria-checked={types === t.value}
+              className={`${styles.type} ${types === t.value ? styles.typeOn : ""}`}
+              onClick={() => set("types", t.value)}
+            >
+              {t.label}
+            </button>
+          ))}
+          <span className={styles.scope}>starting in the next 24 hours</span>
+        </div>
 
         {note && <p className={styles.note}>{note}</p>}
 
         {answer && (
-          <div className={styles.progress} title={`${answer.checked ?? 0} of ${answer.total ?? 0} races looked through`}>
+          <div className={styles.progress} title={`${answer.checked ?? 0} of ${answer.total ?? 0} looked through`}>
             <span className={styles.progressText}>
               {answer.done
-                ? `All ${answer.total} races looked through`
+                ? `All ${answer.total} ${noun} looked through`
                 : busy
-                  ? `Looking through races… ${answer.checked ?? 0} of ${answer.total ?? 0}`
-                  : `${answer.checked ?? 0} of ${answer.total ?? 0} races looked through - Zwift didn't answer for the rest`}
+                  ? `Looking through ${noun}… ${answer.checked ?? 0} of ${answer.total ?? 0}`
+                  : `${answer.checked ?? 0} of ${answer.total ?? 0} ${noun} looked through - Zwift didn't answer for the rest`}
             </span>
             {!answer.done && (
               <span className={styles.bar}>
@@ -174,6 +196,7 @@ function SignupsOverlay() {
                   <span className={styles.what}>
                     <span className={styles.event}>
                       {m.category && <span className={`${styles.cat} ${styles[`cat${m.category}`] ?? ""}`}>{m.category}</span>}
+                      {types.includes(",") && m.type && <span className={styles.kind}>{m.type === "race" ? "Race" : "Ride"}</span>}
                       {m.event}
                     </span>
                     <span className={styles.meta}>
@@ -187,7 +210,7 @@ function SignupsOverlay() {
                 </li>
               );
             })}
-            {!matches.length && answer.done && <li className={styles.none}>No sign-ups found for “{query}” in the next 24 hours.</li>}
+            {!matches.length && answer.done && <li className={styles.none}>No sign-ups found for “{query}” in {noun} in the next 24 hours.</li>}
             {!matches.length && !answer.done && busy && <li className={styles.none}>Nothing yet…</li>}
           </ol>
         )}

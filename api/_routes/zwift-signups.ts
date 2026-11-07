@@ -4,7 +4,7 @@ import { getJSON, setJSON } from "../_lib/kvStore.js";
 import { zwiftGet, ZwiftApiUnavailable } from "../_lib/zwiftApi.js";
 
 /**
- * Which races a cyclist has signed up for in the next 24 hours, for the
+ * Which races (or group rides) a cyclist has signed up for in the next 24 hours, for the
  * mod's Sign-up search window. Zwift lists who's signed up per race
  * category, not a rider's sign-ups, so every race starting in the next day
  * is looked through: its sign-up counts (Zwift's public list leaves them
@@ -12,13 +12,16 @@ import { zwiftGet, ZwiftApiUnavailable } from "../_lib/zwiftApi.js";
  * batch of races a call, all of it kept for a while - and the mod asks
  * again until the sweep is done, showing what's found as it goes.
  *
- * GET ?q=<name or Zwift id> with the race key. Answers
+ * GET ?q=<name or Zwift id>&types=race,ride with the race key (races only
+ * when types isn't given). Answers
  * { configured, total, checked, done, matches: [...] }.
  */
 
 const API = "https://us-or-rly101.zwift.com";
 const HOURS = 24;
-const RACES_KEY = "zwift:races-24h";
+const RACES_KEY = "zwift:events-24h";
+/** Zwift's event types for each choice. */
+const TYPES: Record<string, string[]> = { race: ["RACE"], ride: ["GROUP_RIDE"] };
 const RACES_MS = 15 * 60_000;
 /** A category's entrants are kept this long - longer once the count stops changing. */
 const ENTRANTS_MS = 30 * 60_000;
@@ -43,6 +46,7 @@ interface ZwiftEvent {
 interface Race {
   id: number;
   name: string;
+  type: string;
   start: number;
   laps?: number;
   distanceKm?: number;
@@ -51,7 +55,7 @@ interface Race {
 
 type Entrants = { at: number; count: number; riders: [number, string][] };
 
-/** The races starting in the next day, from Zwift's public event list, a page at a time. */
+/** The events starting in the next day - races and group rides - from Zwift's public event list, a page at a time. */
 async function races(): Promise<Race[]> {
   const kept = await getJSON<{ at: number; races: Race[] }>(RACES_KEY);
   if (kept && Date.now() - kept.at < RACES_MS) return kept.races;
@@ -64,10 +68,11 @@ async function races(): Promise<Race[]> {
     if (!Array.isArray(page) || !page.length) break;
     for (const e of page) {
       const at = Date.parse(e.eventStart);
-      if (e.eventType !== "RACE" || !(at <= until) || at < Date.now() - 30 * 60_000) continue;
+      if (!["RACE", "GROUP_RIDE"].includes(e.eventType ?? "") || !(at <= until) || at < Date.now() - 30 * 60_000) continue;
       out.push({
         id: e.id,
         name: e.name,
+        type: e.eventType === "RACE" ? "race" : "ride",
         start: at,
         laps: e.laps || undefined,
         distanceKm: e.distanceInMeters ? Math.round(e.distanceInMeters / 100) / 10 : undefined,
@@ -136,8 +141,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const words = fold(q).split(" ").filter(Boolean);
   const matches = (name: string, id: number) => (byId != null ? id === byId : words.every((w) => fold(name).includes(w)));
 
+  const types = String(req.query.types ?? "race")
+    .split(",")
+    .filter((t) => t in TYPES);
+  if (!types.length) types.push("race");
+
   try {
-    const list = await races();
+    const list = (await races()).filter((r) => types.includes(r.type));
     const countsKey = (id: number) => `zwift:signup-counts:${id}`;
     type Counts = { at: number; counts: Record<string, number> };
     const counts = await Promise.all(list.map((r) => getJSON<Counts>(countsKey(r.id))));
@@ -192,6 +202,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           found.push({
             eventId: r.id,
             event: r.name,
+            type: r.type,
             start: g.start,
             category: g.label,
             signedUp: e.count >= 0 ? e.count : e.riders.length,

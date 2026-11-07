@@ -3,7 +3,7 @@
   "id": "ultracyclist-race",
   "name": "Ultra Cyclist Race",
   "description": "The Ultra Cyclist's race overlays for Sauce: a full HUD in its own look (power, ride stats, race board, map, route profile, groups, chat) to use with Zwift's HUD off, plus live commentary and a tactics coach. Right-click any overlay for its settings.",
-  "version": "2.31.0",
+  "version": "2.31.1",
   "author": "Malcolm Barske",
   "website_url": "https://theultracyclist.com/dashboard/race",
   "web_root": "web",
@@ -93,7 +93,7 @@
       "file": "web/signups.html",
       "id": "ultracyclist-race-signups",
       "name": "Ultra Cyclist Sign-up Search",
-      "description": "Search for a cyclist by name or Zwift id and see which races they've signed up for in the next 24 hours",
+      "description": "Search for a cyclist by name or Zwift id and see which races or group rides they have signed up for in the next 24 hours",
       "overlay": false,
       "frame": false,
       "default_bounds": {

@@ -296,6 +296,9 @@ export type RaceEventKind =
   | "team"
   | "stop";
 
+/** What happens on the road - meaningless before the start. */
+const ROAD_EVENTS = new Set<RaceEventKind>(["position", "split", "merge", "surge", "distance", "attack", "dropped", "bridged", "leader", "team"]);
+
 export interface RaceEvent {
   t: number;
   kind: RaceEventKind;
@@ -447,6 +450,10 @@ export class RaceRecorder {
   }
 
   private event(kind: RaceEventKind, text: string, now: number) {
+    // In the start pen nobody's racing: riders shuffling about in it aren't
+    // attacking, dropped or moving up, so nothing on the road is recorded
+    // until the race is under way.
+    if (this.inPen && ROAD_EVENTS.has(kind)) return;
     this.log.events.push({ t: this.at(now), kind, text });
   }
 
@@ -496,9 +503,14 @@ export class RaceRecorder {
       remaining: round(data.remaining),
       wBal: round(data.wBal),
       powerUp: powerUp(s.activePowerUp)?.name,
-      // Zwift counts event distance from the start banner, so a rider signed
-      // in to an event with none of it ridden and not moving is in the pen.
-      pen: (!!s.eventSubgroupId && !(s.eventDistance && s.eventDistance > 0) && (s.speed ?? 0) < 2) || undefined,
+      // In the pen: signed in to an event that hasn't started yet (its start
+      // time still to come), or - once it's due - with none of it ridden and
+      // not moving. Zwift counts event distance from the start banner.
+      pen:
+        (!!s.eventSubgroupId &&
+          ((this.log.event?.startsAt != null && now < this.log.event.startsAt) ||
+            (!(s.eventDistance && s.eventDistance > 0) && (s.speed ?? 0) < 2))) ||
+        undefined,
     };
     this.log.samples.push(sample);
     this.detectStart(sample, now);
@@ -513,6 +525,8 @@ export class RaceRecorder {
       this.event("pen", `In the start pen${name ? ` for ${name}` : ""}`, now);
     } else if (!pen && this.inPen === true && (sample.speed ?? 0) >= 2) {
       this.event("go", "The race is under way", now);
+      // Places count from the start, not from wherever the pen had them.
+      this.reportedPosition = undefined;
     }
     if (pen || (sample.speed ?? 0) >= 2) this.inPen = pen;
   }

@@ -720,7 +720,7 @@ export function buildSnapshot(
     recentLines: lines.slice(-RECENT_LINES).map((e) => e.text),
     secondsSinceLastLine: lines.length ? Math.round((elapsed - lines[lines.length - 1].t) / 1000) : undefined,
   };
-  if (mode === "commentary") return base;
+  if (mode === "commentary") return phase === "pen" ? beforeTheStart(base) : base;
 
   const ftp = log.rider?.ftp;
   const pct = (w: number | undefined) => (ftp && w != null ? Math.round((w / ftp) * 100) : undefined);
@@ -779,6 +779,31 @@ function fieldCondition(log: RaceLog) {
     ridersGroupOnTheLimit: f.ridersGroup.filter((r) => r.condition?.state === "on the limit" || r.condition?.state === "empty").length,
   };
 }
+
+/**
+ * Before the start: only the race to come - the event, the course, the
+ * field lined up in the pen, the favourites and the countdown. Nothing from
+ * the road (groups, gaps, places, attacks, who's at the back): riders
+ * shuffling about in the pen aren't racing yet.
+ */
+function beforeTheStart<T extends { field?: Record<string, unknown> | undefined; now?: Record<string, unknown> | undefined }>(snap: T): T {
+  const f = snap.field;
+  type Ev = { kind?: string };
+  const offRoad = (list: unknown) => (Array.isArray(list) ? (list as Ev[]).filter((e) => !ROAD_KINDS.has(e.kind ?? "")) : list);
+  return {
+    ...snap,
+    now: snap.now && { ...snap.now, position: undefined, of: undefined, speedKmh: undefined, draft: undefined, gradientPct: undefined },
+    lastMinute: undefined,
+    toGo: undefined,
+    groups: undefined,
+    field: f && { pen: f.pen, favourites: f.favourites, toWatch: f.toWatch, teams: f.teams },
+    newEvents: offRoad((snap as { newEvents?: unknown }).newEvents),
+    recentEvents: offRoad((snap as { recentEvents?: unknown }).recentEvents),
+  };
+}
+
+/** Race-log events from the road - riders moving about in a pen aren't racing. */
+const ROAD_KINDS = new Set(["position", "split", "merge", "surge", "distance", "attack", "dropped", "bridged", "leader", "team"]);
 
 /** A rider as the radios see them: their ZwiftPower history alongside, when it's been looked up. */
 function withHistory<T extends FieldRider>(log: RaceLog, r: T): T & { zwiftPower?: unknown } {

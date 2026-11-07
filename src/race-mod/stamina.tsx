@@ -3,33 +3,36 @@ import { createRoot } from "react-dom/client";
 import "../styles/global.css";
 import { OverlayShell, useSettings, type SettingDef } from "./overlay";
 import { useSauce } from "./useSauce";
-import { staminaLeft } from "./riderFields";
+import { drainPerSec, stamina, staminaFtp } from "./staminaModel";
 import shell from "./Overlay.module.css";
 import tool from "./Tool.module.css";
 
-// Real-time stamina, like a bike computer's: how much of the whole ride's
-// worth of effort is left, not just the short-term W′ battery - and, at the
-// effort of the last minute, how long until it's empty.
-//
-// An estimate, and labelled one: stamina drains with intensity to the
-// fourth power, so riding at FTP empties it in about an hour (the time a
-// rider can hold FTP), at three-quarters of FTP in about three, and easy
-// riding barely touches it. Worked out from the ride's normalised power -
-// the same fourth-power average - exactly as the rider cards do, so the two
-// always agree, and short spikes don't count more than they should.
+// Real-time stamina as Garmin shows it (see ./staminaModel): Potential, the
+// long-term tank that only drains - faster the harder the effort, an hour
+// at FTP - and Current, the short-term tank for hard efforts that drops in
+// surges and refills when easing off. And, at the effort of the last
+// minute, how long until Potential is empty. An estimate, labelled one.
 
-const DEFAULTS = { opacity: 80, holdMin: 60, wbal: true };
+const DEFAULTS = { opacity: 80, holdMin: 60, wbal: true, ftpSource: "site" };
 const DEFS: SettingDef[] = [
+  {
+    key: "ftpSource",
+    label: "FTP to measure against",
+    type: "select",
+    options: [
+      { value: "site", label: "My FTP from the site (coaching settings)" },
+      { value: "zwift", label: "Zwift's FTP" },
+    ],
+  },
   {
     key: "holdMin",
     label: "How long I can hold FTP",
     type: "select",
     options: [40, 50, 60, 70, 80, 90].map((m) => ({ value: m, label: `${m} min` })),
   },
-  { key: "wbal", label: "W′ battery as well", type: "toggle" },
+  { key: "wbal", label: "Current stamina (short-term) as well", type: "toggle" },
 ];
 
-const DEFAULT_W_PRIME = 20_000;
 
 /** Time to empty: "1h 05m", "14:32" under an hour, so it counts down. */
 function countdown(secs: number): string {
@@ -44,9 +47,7 @@ function StaminaOverlay() {
   const minute = useRef<{ t: number; w: number }[]>([]);
 
   const s = watching?.state;
-  const ftp = watching?.athlete?.ftp ?? undefined;
-  // Per second of riding, as a percentage, at an intensity (fraction of FTP).
-  const drain = (intensity: number) => (100 / (settings.holdMin * 60)) * Math.max(0, intensity) ** 4;
+  const ftp = watching ? staminaFtp(watching, String(settings.ftpSource)) : undefined;
 
   // The last minute's power, for how long the effort now would last.
   useEffect(() => {
@@ -57,11 +58,11 @@ function StaminaOverlay() {
 
   const recent = minute.current;
   const avgW = recent.length ? recent.reduce((a, x) => a + x.w, 0) / recent.length : undefined;
-  const rate = avgW != null && ftp ? drain(avgW / ftp) : 0;
-  const leftExact = watching ? staminaLeft(watching, settings.holdMin) : undefined;
-  const lasts = leftExact != null && rate > 0 ? leftExact / rate : Infinity;
-  const wbal = settings.wbal && watching?.wBal != null ? Math.round((watching.wBal / (watching.athlete?.wPrime || DEFAULT_W_PRIME)) * 100) : null;
-  const left = leftExact != null ? Math.round(leftExact) : null;
+  const rate = avgW != null && ftp ? drainPerSec(avgW / ftp, settings.holdMin) : 0;
+  const st = watching ? stamina(watching, { holdMin: settings.holdMin, ftpSource: String(settings.ftpSource) }) : undefined;
+  const lasts = st && rate > 0 ? st.potential / rate : Infinity;
+  const current = settings.wbal && st?.current != null ? Math.round(st.current) : null;
+  const left = st ? Math.round(st.potential) : null;
   const colour = left == null ? "" : left > 50 ? tool.good : left > 20 ? tool.warn : tool.bad;
 
   return (
@@ -74,8 +75,8 @@ function StaminaOverlay() {
         ) : (
           <>
             <div className={tool.top}>
-              <span className={tool.label}>Stamina</span>
-              {wbal != null && <span className={tool.tag}>W′ {wbal}%</span>}
+              <span className={tool.label}>Potential stamina</span>
+              {current != null && <span className={tool.tag} title="Current stamina: what's left for hard efforts now - drops in surges, refills when you ease off">Current {current}%</span>}
             </div>
             <div className={`${tool.big} ${colour}`}>
               {left}
@@ -91,7 +92,9 @@ function StaminaOverlay() {
                   ? "At this effort: barely touching it"
                   : `At this effort: empty in ${countdown(lasts)}`}
             </p>
-            <p className={`${tool.line} ${tool.muted}`}>An estimate, from effort against FTP.</p>
+            <p className={`${tool.line} ${tool.muted}`}>
+              An estimate, against {settings.ftpSource === "site" ? "your FTP" : "Zwift's FTP"} of {ftp} W.
+            </p>
           </>
         )}
       </div>

@@ -1,5 +1,6 @@
 import type { SauceAthleteData } from "../components/race/sauceFeed";
 import { hrColour, zoneColor } from "./zones";
+import { stamina } from "./staminaModel";
 
 // Everything Sauce knows about a rider, as fields to pick from - for the
 // Nearby riders table and the Rider cards. Grouped as Sauce's own Nearby
@@ -50,28 +51,13 @@ const kg = (r: SauceAthleteData) => r.athlete?.weight || undefined;
 const perKg = (w: number | null | undefined, r: SauceAthleteData) => (w != null && kg(r) ? w / kg(r)! : undefined);
 const num = (v: number | null | undefined) => (v == null || !Number.isFinite(v) ? undefined : v);
 
-/** The Stamina overlay's "How long I can hold FTP", so the cards use the same. */
-function storedHoldMin(): number {
-  try {
-    const v = (JSON.parse(window.localStorage.getItem("overlay:stamina") ?? "{}") as { holdMin?: unknown }).holdMin;
-    return typeof v === "number" && v > 0 ? v : 60;
-  } catch {
-    return 60;
-  }
-}
-
 /**
- * Stamina left, as the Stamina overlay counts it: drained with intensity to
- * the fourth power, so an hour at FTP empties it. Sauce's normalised power
- * is that same fourth-power average, so the whole ride's drain is its time
- * times (NP / FTP)^4 - for any rider, without having followed them all ride.
+ * Stamina left - Garmin's Potential, the long-term tank (see ./staminaModel):
+ * the rider's own tracked live from this ride's power, anyone else's from
+ * their normalised power and time riding.
  */
-export function staminaLeft(r: SauceAthleteData, holdFtpMin = storedHoldMin()): number | undefined {
-  const p = stats(r)?.power;
-  const ftp = r.athlete?.ftp;
-  const time = stats(r)?.activeTime;
-  if (!p?.np || !ftp || !time) return undefined;
-  return Math.max(0, Math.min(100, 100 - (100 * time * (p.np / ftp) ** 4) / (holdFtpMin * 60)));
+export function staminaLeft(r: SauceAthleteData): number | undefined {
+  return stamina(r)?.potential;
 }
 
 /** In the colour of the power zone, from watts against the rider's FTP. */

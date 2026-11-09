@@ -29,8 +29,10 @@ interface Week {
   fast?: Record<string, boolean>;
   /** Who's eating each day: both, or just one of them. */
   who?: Record<string, "both" | "malcolm" | "lizette">;
-  /** Malcolm's kcal on training days, if not his plan's own (0 for the plan's). */
+  /** Malcolm's kcal on training days, if not his plan's own (0 for the plan's) - kept for older weeks. */
   trainingKcal?: number;
+  /** Each person's day totals, kcal, on rest days and on training days, where chosen. */
+  kcal?: Record<string, { rest?: number; training?: number }>;
 }
 
 const isId = (x: unknown): x is string => typeof x === "string" && /^[a-z0-9-]{1,40}$/.test(x);
@@ -41,6 +43,18 @@ function perDay<T>(input: unknown, ok: (v: unknown) => v is T): Record<string, T
   for (const d of DAYS) {
     const v = (input as Record<string, unknown>)[d];
     if (ok(v)) out[d] = v;
+  }
+  return out;
+}
+
+function cleanKcal(input: unknown): Week["kcal"] {
+  const out: NonNullable<Week["kcal"]> = {};
+  if (!input || typeof input !== "object") return undefined;
+  const ok = (v: unknown): v is number => typeof v === "number" && v >= 800 && v <= 5000;
+  for (const person of ["malcolm", "lizette"]) {
+    const k = (input as Record<string, unknown>)[person] as { rest?: unknown; training?: unknown } | undefined;
+    if (!k || typeof k !== "object") continue;
+    out[person] = { rest: ok(k.rest) ? Math.round(k.rest) : undefined, training: ok(k.training) ? Math.round(k.training) : undefined };
   }
   return out;
 }
@@ -69,6 +83,7 @@ function clean(input: unknown): Week | null {
     training: perDay(w.training, isBool),
     fast: perDay(w.fast, isBool),
     trainingKcal: typeof w.trainingKcal === "number" && (w.trainingKcal === 0 || (w.trainingKcal >= 1200 && w.trainingKcal <= 4000)) ? Math.round(w.trainingKcal) : undefined,
+    kcal: cleanKcal(w.kcal),
     who: perDay(w.who, (v): v is "both" | "malcolm" | "lizette" => v === "both" || v === "malcolm" || v === "lizette"),
   };
 }

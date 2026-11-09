@@ -312,3 +312,56 @@ select {
 .personTotal {
   white-space: nowrap;
 }
+
+/* Each person's day totals: rest days, and training days (base plus exercise). */
+.calories {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--space-2) var(--space-4);
+  margin-bottom: var(--space-3);
+}
+
+.person {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.kcalRow {
+  display: grid;
+  grid-template-columns: 7.5em 1fr 5.5em auto;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.85rem;
+}
+
+.kcalRow input[type="range"] {
+  width: 100%;
+  accent-color: var(--color-accent-2);
+}
+
+.kcalName {
+  color: var(--color-text-muted);
+}
+
+.kcalValue {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  text-align: right;
+}
+
+.reset {
+  padding: 2px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.reset:disabled {
+  opacity: 0.35;
+  cursor: default;
+}

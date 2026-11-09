@@ -38,13 +38,39 @@ type Week = {
   training?: Record<string, boolean>;
   fast?: Record<string, boolean>;
   who?: Record<string, "both" | Person>;
-  /** Malcolm's kcal on training days; 0 for his plan's own. */
+  /** Malcolm's kcal on training days (older weeks); 0 for his plan's own. */
   trainingKcal?: number;
+  /** Each person's day totals on rest and training days, where chosen. */
+  kcal?: Partial<Record<Person, { rest?: number; training?: number }>>;
 };
 
-/** Malcolm's training-day target when nothing's been chosen. */
-const DEFAULT_TRAINING_KCAL = 2200;
-const TRAINING_KCAL_CHOICES = [0, 2000, 2100, 2200, 2300, 2400, 2500, 2600];
+/** Malcolm's training-day total when nothing's been chosen - he asked for 2200. */
+const DEFAULT_MALCOLM_TRAINING = 2200;
+/** The sliders' ranges. */
+const KCAL_RANGE: Record<Person, [number, number]> = { malcolm: [1500, 3500], lizette: [1000, 2500] };
+
+/** A person's plan targets for each category, on a day (Malcolm's from the plan he's following). */
+const planTargets = (w: Week, day: string, person: Person) =>
+  Object.fromEntries(CATEGORIES.map((c) => [c, targetFor(person, dayPlanOf(w, day).id, c)])) as Record<CategoryId, number>;
+
+/** What the plan itself gives a person on a rest day and on a training day. */
+function planDay(w: Week, day: string, person: Person) {
+  const t = planTargets(w, day, person);
+  const all = CATEGORIES.reduce((a, c) => a + t[c], 0);
+  return { rest: all - t.post, training: all };
+}
+
+/** A person's day total, kcal: the slider's, else the plan's (Malcolm's training days 2200 unless set). */
+function dayKcal(w: Week, day: string, person: Person): number {
+  const training = isTraining(w, day);
+  const chosen = w.kcal?.[person]?.[training ? "training" : "rest"];
+  if (chosen) return chosen;
+  if (person === "malcolm" && training) {
+    if (w.trainingKcal === 0) return planDay(w, day, person).training;
+    return w.trainingKcal ?? DEFAULT_MALCOLM_TRAINING;
+  }
+  return planDay(w, day, person)[training ? "training" : "rest"];
+}
 
 const CATEGORIES: CategoryId[] = ["post", "breakfast", "lunch", "snack", "dinner"];
 /** Who's eating a day: both by default. */
@@ -75,16 +101,14 @@ function dayMeals(w: Week, day: string): { cat: CategoryId; meal: Meal }[] {
 }
 
 /**
- * How much Malcolm's targets are scaled on a day: on a training day, to his
- * training-day kcal (if one's set) from his plan's own daily total - every
- * meal keeping its share of the day.
+ * How much a person's plan targets are scaled on a day: so the day's meals
+ * add up to their day total (rest or training), each meal keeping its share.
+ * Fasting takes breakfast's share away rather than spreading it over the rest.
  */
 function scaleFor(w: Week, day: string, person: Person): number {
-  if (person !== "malcolm" || !isTraining(w, day)) return 1;
-  const kcal = w.trainingKcal ?? DEFAULT_TRAINING_KCAL;
-  // Against the plan's meals as they add up (the original's come to 2415, not its headline 2400), so a training day lands on the number.
-  const planTotal = CATEGORIES.reduce((a, c) => a + targetFor("malcolm", dayPlanOf(w, day).id, c), 0);
-  return kcal && planTotal ? kcal / planTotal : 1;
+  const t = planTargets(w, day, person);
+  const planned = CATEGORIES.filter((c) => c !== "post" || isTraining(w, day)).reduce((a, c) => a + t[c], 0);
+  return planned ? dayKcal(w, day, person) / planned : 1;
 }
 
 /** A person's target for one of the day's meals. */
@@ -283,6 +307,47 @@ export default function MealsPage() {
                 Start a new week
               </button>
             </div>
+            <div className={styles.calories}>
+              {PEOPLE.map((p) => {
+                // The plan's own figures, from Monday's plan (the week's).
+                const plan = planDay(week, "mon", p.id);
+                const [lo, hi] = KCAL_RANGE[p.id];
+                const value = (kind: "rest" | "training") =>
+                  week.kcal?.[p.id]?.[kind] ??
+                  (p.id === "malcolm" && kind === "training" && week.trainingKcal !== 0 ? (week.trainingKcal ?? DEFAULT_MALCOLM_TRAINING) : plan[kind]);
+                const setKcal = (kind: "rest" | "training", v: number | undefined) =>
+                  update({ ...week, kcal: { ...week.kcal, [p.id]: { ...week.kcal?.[p.id], [kind]: v } }, ...(p.id === "malcolm" && kind === "training" && v === undefined ? { trainingKcal: 0 } : {}) });
+                return (
+                  <div key={p.id} className={styles.person}>
+                    <b>{p.name}</b>
+                    {(["rest", "training"] as const).map((kind) => (
+                      <label key={kind} className={styles.kcalRow}>
+                        <span className={styles.kcalName}>{kind === "rest" ? "Rest days" : "Training days"}</span>
+                        <input
+                          type="range"
+                          min={lo}
+                          max={hi}
+                          step={50}
+                          value={value(kind)}
+                          onChange={(e) => setKcal(kind, Number(e.target.value))}
+                          aria-label={`${p.name}'s kcal on ${kind} days`}
+                        />
+                        <span className={styles.kcalValue}>{value(kind)} kcal</span>
+                        <button
+                          type="button"
+                          className={styles.reset}
+                          title={`Back to the plan's ${plan[kind]} kcal`}
+                          onClick={() => setKcal(kind, undefined)}
+                          disabled={value(kind) === plan[kind]}
+                        >
+                          Plan's
+                        </button>
+                      </label>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
             <div className={styles.everyDay}>
               <label className={styles.everyDayItem}>
                 <b>Malcolm's plan</b>
@@ -290,20 +355,6 @@ export default function MealsPage() {
                   {PLANS.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className={styles.everyDayItem}>
-                <b>Malcolm on training days</b>
-                <select
-                  value={week.trainingKcal ?? DEFAULT_TRAINING_KCAL}
-                  onChange={(e) => update({ ...week, trainingKcal: Number(e.target.value) })}
-                  aria-label="Malcolm's kcal on training days"
-                >
-                  {TRAINING_KCAL_CHOICES.map((k) => (
-                    <option key={k} value={k}>
-                      {k ? `${k} kcal` : "The plan's own"}
                     </option>
                   ))}
                 </select>

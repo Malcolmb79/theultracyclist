@@ -29,6 +29,8 @@ interface Week {
   fast?: Record<string, boolean>;
   /** Who's eating each day: both, or just one of them. */
   who?: Record<string, "both" | "malcolm" | "lizette">;
+  /** Malcolm's kcal on training days, if not his plan's own (0 for the plan's). */
+  trainingKcal?: number;
 }
 
 const isId = (x: unknown): x is string => typeof x === "string" && /^[a-z0-9-]{1,40}$/.test(x);
@@ -66,6 +68,7 @@ function clean(input: unknown): Week | null {
     dayPlan: perDay(w.dayPlan, isId),
     training: perDay(w.training, isBool),
     fast: perDay(w.fast, isBool),
+    trainingKcal: typeof w.trainingKcal === "number" && (w.trainingKcal === 0 || (w.trainingKcal >= 1200 && w.trainingKcal <= 4000)) ? Math.round(w.trainingKcal) : undefined,
     who: perDay(w.who, (v): v is "both" | "malcolm" | "lizette" => v === "both" || v === "malcolm" || v === "lizette"),
   };
 }

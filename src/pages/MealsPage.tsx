@@ -6,7 +6,7 @@ import TabNav from "../components/shared/TabNav";
 import PageHeader from "../components/shared/PageHeader";
 import ProfileMenu from "../components/shared/ProfileMenu";
 import { PLANS, REST_DAYS, SECTIONS, type CategoryId, type Meal, type Plan, type Section } from "../data/mealPlan";
-import { CATEGORY_NAMES, LIBRARY, PEOPLE, dailyFor, libraryMeal, portion, targetFor, type Person } from "../data/mealLibrary";
+import { CATEGORY_NAMES, LIBRARY, PEOPLE, libraryMeal, portion, targetFor, type Person } from "../data/mealLibrary";
 import styles from "./MealsPage.module.css";
 
 // The meal plan as a week, for Malcolm and Lizette: for each day, who's
@@ -38,7 +38,13 @@ type Week = {
   training?: Record<string, boolean>;
   fast?: Record<string, boolean>;
   who?: Record<string, "both" | Person>;
+  /** Malcolm's kcal on training days; 0 for his plan's own. */
+  trainingKcal?: number;
 };
+
+/** Malcolm's training-day target when nothing's been chosen. */
+const DEFAULT_TRAINING_KCAL = 2200;
+const TRAINING_KCAL_CHOICES = [0, 2000, 2100, 2200, 2300, 2400, 2500, 2600];
 
 const CATEGORIES: CategoryId[] = ["post", "breakfast", "lunch", "snack", "dinner"];
 /** Who's eating a day: both by default. */
@@ -68,8 +74,25 @@ function dayMeals(w: Week, day: string): { cat: CategoryId; meal: Meal }[] {
   return out;
 }
 
+/**
+ * How much Malcolm's targets are scaled on a day: on a training day, to his
+ * training-day kcal (if one's set) from his plan's own daily total - every
+ * meal keeping its share of the day.
+ */
+function scaleFor(w: Week, day: string, person: Person): number {
+  if (person !== "malcolm" || !isTraining(w, day)) return 1;
+  const kcal = w.trainingKcal ?? DEFAULT_TRAINING_KCAL;
+  // Against the plan's meals as they add up (the original's come to 2415, not its headline 2400), so a training day lands on the number.
+  const planTotal = CATEGORIES.reduce((a, c) => a + targetFor("malcolm", dayPlanOf(w, day).id, c), 0);
+  return kcal && planTotal ? kcal / planTotal : 1;
+}
+
+/** A person's target for one of the day's meals. */
+const dayTarget = (w: Week, day: string, person: Person, cat: CategoryId) =>
+  Math.round(targetFor(person, dayPlanOf(w, day).id, cat) * scaleFor(w, day, person));
+
 /** A day's meal as one person eats it. */
-const servedTo = (w: Week, day: string, person: Person, cat: CategoryId, meal: Meal) => portion(meal, targetFor(person, dayPlanOf(w, day).id, cat));
+const servedTo = (w: Week, day: string, person: Person, cat: CategoryId, meal: Meal) => portion(meal, dayTarget(w, day, person, cat));
 
 function amount(g: number): string {
   return g >= 1000 ? `${(g / 1000).toFixed(g >= 10_000 ? 1 : 2).replace(/\.?0+$/, "")} kg` : `${Math.round(g)} g`;
@@ -120,14 +143,13 @@ function lineText(l: Line): string {
 /** Each eater's totals for the day, and their target: their plan's, less the categories that are off. */
 function dayTotals(w: Week, day: string) {
   return eaters(w, day).map((person) => {
-    const planId = dayPlanOf(w, day).id;
     const meals = dayMeals(w, day).map(({ cat, meal }) => servedTo(w, day, person, cat, meal));
-    const off = CATEGORIES.filter((c) => !isOn(w, day, c)).reduce((a, c) => a + targetFor(person, planId, c), 0);
+    const target = CATEGORIES.filter((c) => isOn(w, day, c)).reduce((a, c) => a + dayTarget(w, day, person, c), 0);
     return {
       person,
       kcal: meals.reduce((a, m) => a + (m.kcal ?? 0), 0),
       protein: meals.reduce((a, m) => a + (m.protein ?? 0), 0),
-      target: dailyFor(person, planId).kcal - off,
+      target,
     };
   });
 }
@@ -268,6 +290,20 @@ export default function MealsPage() {
                   {PLANS.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className={styles.everyDayItem}>
+                <b>Malcolm on training days</b>
+                <select
+                  value={week.trainingKcal ?? DEFAULT_TRAINING_KCAL}
+                  onChange={(e) => update({ ...week, trainingKcal: Number(e.target.value) })}
+                  aria-label="Malcolm's kcal on training days"
+                >
+                  {TRAINING_KCAL_CHOICES.map((k) => (
+                    <option key={k} value={k}>
+                      {k ? `${k} kcal` : "The plan's own"}
                     </option>
                   ))}
                 </select>

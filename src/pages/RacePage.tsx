@@ -30,6 +30,7 @@ export default function RacePage() {
             { label: "Dashboard", href: "/dashboard" },
             { label: "Trends", href: "/dashboard/trends" },
             { label: "Coaching", href: "/dashboard/coaching" },
+            { label: "Meals", href: "/dashboard/meals" },
             { label: "Race", href: "/dashboard/race", active: true },
           ]}
           trailing={<ProfileMenu />}

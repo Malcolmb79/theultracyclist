@@ -207,6 +207,7 @@ function TrendsEditor() {
             { label: "Dashboard", href: "/dashboard" },
             { label: "Trends", href: "/dashboard/trends", active: true },
             { label: "Coaching", href: "/dashboard/coaching" },
+            { label: "Meals", href: "/dashboard/meals" },
             { label: "Race", href: "/dashboard/race" },
           ]}
           trailing={

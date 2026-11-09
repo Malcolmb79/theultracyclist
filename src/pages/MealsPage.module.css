@@ -1,0 +1,251 @@
+.page {
+  min-height: 100vh;
+  padding: var(--space-4) var(--space-4) var(--space-5);
+}
+
+.topBar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: var(--color-bg);
+  margin: 0 calc(var(--space-4) * -1);
+  padding: 0 var(--space-4);
+}
+
+.loading,
+.error {
+  text-align: center;
+  margin-top: var(--space-5);
+  color: var(--color-text-muted);
+}
+
+.error {
+  color: var(--color-accent);
+}
+
+.muted {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+/* The week across the top; the shopping list and the plan side by side under it (stacked on a phone). */
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  align-items: start;
+}
+
+.layout > section:first-child {
+  grid-column: 1 / -1;
+}
+
+.card {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-3) var(--space-4);
+  min-width: 0;
+}
+
+.cardHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.cardTitle {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.primary,
+.secondary {
+  height: 34px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.primary {
+  background: var(--color-accent-2);
+  color: #0b0e11;
+  border: none;
+  font-weight: 600;
+}
+
+.secondary {
+  background: transparent;
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+}
+
+select {
+  max-width: 100%;
+  min-width: 0;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.everyDay {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.everyDayItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+}
+
+.days {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: var(--space-2);
+}
+
+.day {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.dayHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.slot {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.slotName {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
+.section + .section {
+  margin-top: var(--space-3);
+}
+
+.sectionTitle {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+}
+
+.items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: 6px 0;
+  border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
+}
+
+.item input {
+  transform: translateY(2px);
+}
+
+.itemName small,
+.qty small {
+  color: var(--color-text-muted);
+}
+
+.qty {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* In the trolley. */
+.done {
+  opacity: 0.45;
+}
+
+.done .itemName {
+  text-decoration: line-through;
+}
+
+.meal {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.mealHead {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 0;
+  border: none;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mealBody {
+  padding: 0 0 var(--space-2);
+  font-size: 0.9rem;
+}
+
+.ingredients,
+.method {
+  margin: 0 0 var(--space-2);
+  padding-left: 1.2em;
+}
+
+.method li + li {
+  margin-top: 4px;
+}
+
+@media (max-width: 860px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .page {
+    padding: var(--space-3) var(--space-3) var(--space-5);
+  }
+
+  .topBar {
+    margin: 0 calc(var(--space-3) * -1);
+    padding: 0 var(--space-3);
+  }
+}

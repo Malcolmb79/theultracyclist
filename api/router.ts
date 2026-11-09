@@ -62,6 +62,7 @@ const ROUTES: Record<string, () => Promise<RouteModule>> = {
   "zwiftpower-riders": () => import("./_routes/zwiftpower-riders.js"),
   "zwift-profile": () => import("./_routes/zwift-profile.js"),
   "max-hr": () => import("./_routes/max-hr.js"),
+  "meal-plan": () => import("./_routes/meal-plan.js"),
   "zwift-signups": () => import("./_routes/zwift-signups.js"),
   "zwift-riders": () => import("./_routes/zwift-riders.js"),
   "youtube-chat": () => import("./_routes/youtube-chat.js"),

@@ -6,11 +6,14 @@ import TabNav from "../components/shared/TabNav";
 import PageHeader from "../components/shared/PageHeader";
 import ProfileMenu from "../components/shared/ProfileMenu";
 import { PLANS, REST_DAYS, SECTIONS, type CategoryId, type Meal, type Plan, type Section } from "../data/mealPlan";
+import { CATEGORY_NAMES, LIBRARY, PEOPLE, dailyFor, libraryMeal, portion, targetFor, type Person } from "../data/mealLibrary";
 import styles from "./MealsPage.module.css";
 
-// The meal plan as a week: for each day, the plan it follows, whether it's a
-// training day (the post-workout snack) and whether it's a fasting day (no
-// breakfast), and a meal from each category that's on. The shopping list
+// The meal plan as a week, for Malcolm and Lizette: for each day, who's
+// eating, the plan Malcolm follows, whether it's a training day (the
+// post-workout snack) and whether it's a fasting day (no breakfast), and a
+// meal from each category that's on - any meal from either of their plans,
+// portioned for each of them (see ../data/mealLibrary). The shopping list
 // adds up every ingredient across the week, grouped by where it is in the
 // shop, to tick off as it goes in the trolley. All of it is kept on the site
 // (api/_routes/meal-plan.ts), so it's the same on the phone in the shop as
@@ -34,10 +37,17 @@ type Week = {
   dayPlan?: Record<string, string>;
   training?: Record<string, boolean>;
   fast?: Record<string, boolean>;
+  who?: Record<string, "both" | Person>;
+};
+
+const CATEGORIES: CategoryId[] = ["post", "breakfast", "lunch", "snack", "dinner"];
+/** Who's eating a day: both by default. */
+const eaters = (w: Week, day: string): Person[] => {
+  const who = w.who?.[day] ?? "both";
+  return who === "both" ? ["malcolm", "lizette"] : [who];
 };
 
 const planById = new Map(PLANS.map((p) => [p.id, p]));
-const mealById = new Map<string, Meal>(PLANS.flatMap((p) => p.categories.flatMap((c) => c.meals.map((m) => [m.id, m] as [string, Meal]))));
 
 const weekPlan = (w: Week): Plan => planById.get(w.plan ?? "") ?? PLANS[0];
 const dayPlanOf = (w: Week, day: string): Plan => planById.get(w.dayPlan?.[day] ?? "") ?? weekPlan(w);
@@ -47,18 +57,19 @@ const isFasting = (w: Week, day: string) => !!w.fast?.[day];
 /** Whether a category is on for a day: no post-workout snack on a rest day, no breakfast on a fasting day. */
 const isOn = (w: Week, day: string, cat: CategoryId) => (cat === "post" ? isTraining(w, day) : cat === "breakfast" ? !isFasting(w, day) : true);
 
-/** The day's meals that count: in its plan, for categories that are on. */
-function dayMeals(w: Week, day: string): Meal[] {
-  const plan = dayPlanOf(w, day);
-  const out: Meal[] = [];
-  for (const c of plan.categories) {
-    if (!isOn(w, day, c.id)) continue;
-    const id = w.days[day]?.[c.id];
-    const m = id ? mealById.get(id) : undefined;
-    if (m && c.meals.some((x) => x.id === m.id)) out.push(m);
+/** The day's chosen meals that count: for categories that are on. */
+function dayMeals(w: Week, day: string): { cat: CategoryId; meal: Meal }[] {
+  const out: { cat: CategoryId; meal: Meal }[] = [];
+  for (const cat of CATEGORIES) {
+    if (!isOn(w, day, cat)) continue;
+    const m = libraryMeal(w.days[day]?.[cat]);
+    if (m) out.push({ cat, meal: m });
   }
   return out;
 }
+
+/** A day's meal as one person eats it. */
+const servedTo = (w: Week, day: string, person: Person, cat: CategoryId, meal: Meal) => portion(meal, targetFor(person, dayPlanOf(w, day).id, cat));
 
 function amount(g: number): string {
   return g >= 1000 ? `${(g / 1000).toFixed(g >= 10_000 ? 1 : 2).replace(/\.?0+$/, "")} kg` : `${Math.round(g)} g`;
@@ -77,7 +88,8 @@ interface Line {
 function shoppingList(week: Week): Map<Section, Line[]> {
   const lines = new Map<string, Line>();
   for (const d of DAYS) {
-    for (const meal of dayMeals(week, d.id)) {
+    for (const { cat, meal: base } of dayMeals(week, d.id)) for (const person of eaters(week, d.id)) {
+      const meal = servedTo(week, d.id, person, cat, base);
       for (const ing of meal.ingredients) {
         let l = lines.get(ing.item);
         if (!l) {
@@ -105,13 +117,39 @@ function lineText(l: Line): string {
   return `${l.item}${as} - ${qty}`;
 }
 
-/** The day's totals, and its target: the plan's, less the categories that are off. */
+/** Each eater's totals for the day, and their target: their plan's, less the categories that are off. */
 function dayTotals(w: Week, day: string) {
-  const plan = dayPlanOf(w, day);
-  const meals = dayMeals(w, day);
-  const sum = (k: "kcal" | "protein" | "carbs" | "fat") => meals.reduce((a, m) => a + (m[k] ?? 0), 0);
-  const off = plan.categories.filter((c) => !isOn(w, day, c.id)).reduce((a, c) => a + c.kcal, 0);
-  return { kcal: sum("kcal"), protein: sum("protein"), target: plan.daily.kcal - off, unknown: meals.some((m) => m.kcal == null) };
+  return eaters(w, day).map((person) => {
+    const planId = dayPlanOf(w, day).id;
+    const meals = dayMeals(w, day).map(({ cat, meal }) => servedTo(w, day, person, cat, meal));
+    const off = CATEGORIES.filter((c) => !isOn(w, day, c)).reduce((a, c) => a + targetFor(person, planId, c), 0);
+    return {
+      person,
+      kcal: meals.reduce((a, m) => a + (m.kcal ?? 0), 0),
+      protein: meals.reduce((a, m) => a + (m.protein ?? 0), 0),
+      target: dailyFor(person, planId).kcal - off,
+    };
+  });
+}
+
+/** A category's meals, grouped by whose plan they're from. */
+function MealOptions({ cat }: { cat: CategoryId }) {
+  const groups = [...new Set(LIBRARY[cat].map((m) => m.source))];
+  return (
+    <>
+      {groups.map((g) => (
+        <optgroup key={g} label={g}>
+          {LIBRARY[cat]
+            .filter((m) => m.source === g)
+            .map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+        </optgroup>
+      ))}
+    </>
+  );
 }
 
 function today(): string {
@@ -125,7 +163,7 @@ export default function MealsPage() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
-  const [viewPlan, setViewPlan] = useState<string | null>(null);
+  const [viewPerson, setViewPerson] = useState<Person>("malcolm");
 
   useEffect(() => {
     if (auth.status !== "signed-in") return;
@@ -164,17 +202,9 @@ export default function MealsPage() {
   const setDay = (key: "training" | "fast", day: string, on: boolean) => week && update({ ...week, [key]: { ...week[key], [day]: on } });
   const setDayPlan = (day: string, planId: string) => week && update({ ...week, dayPlan: { ...week.dayPlan, [day]: planId } });
   const setWeekPlan = (planId: string) => week && update({ ...week, plan: planId, dayPlan: {} });
-  /** Every day following the week's plan gets this meal (where the category is on). */
+  /** Every day gets this meal (where the category is on). */
   const everyDay = (cat: CategoryId, id: string | null) =>
-    week &&
-    update(
-      started({
-        ...week,
-        days: Object.fromEntries(
-          DAYS.map((d) => [d.id, dayPlanOf(week, d.id).id === weekPlan(week).id ? { ...week.days[d.id], [cat]: id } : (week.days[d.id] ?? {})]),
-        ),
-      }),
-    );
+    week && update(started({ ...week, days: Object.fromEntries(DAYS.map((d) => [d.id, { ...week.days[d.id], [cat]: id }])) }));
   const tick = (item: string) =>
     week && update({ ...week, checked: week.checked.includes(item) ? week.checked.filter((x) => x !== item) : [...week.checked, item] });
   const newWeek = () => {
@@ -197,7 +227,7 @@ export default function MealsPage() {
   };
   const itemCount = [...list.values()].reduce((n, ls) => n + ls.length, 0);
   const ticked = week ? [...list.values()].flat().filter((l) => week.checked.includes(l.item)).length : 0;
-  const shownPlan = planById.get(viewPlan ?? "") ?? (week ? weekPlan(week) : PLANS[0]);
+  const setWho = (day: string, who: "both" | Person) => week && update({ ...week, who: { ...week.who, [day]: who } });
 
   return (
     <div className={styles.page}>
@@ -216,7 +246,7 @@ export default function MealsPage() {
 
       <PageHeader
         title="Meals"
-        subtitle="Tristan's meal plan as a week: one meal from each category a day, the post-workout snack only on training days, and breakfast off on fasting days. The shopping list adds it all up."
+        subtitle="Malcolm's and Lizette's meal plans as a week: one meal from each category a day - any meal from either plan, portioned for each of you - the post-workout snack only on training days, and breakfast off on fasting days. The shopping list adds it all up."
       />
 
       {error && <p className={styles.error}>{error}</p>}
@@ -233,7 +263,7 @@ export default function MealsPage() {
             </div>
             <div className={styles.everyDay}>
               <label className={styles.everyDayItem}>
-                <b>Plan</b>
+                <b>Malcolm's plan</b>
                 <select value={weekPlan(week).id} onChange={(e) => setWeekPlan(e.target.value)} aria-label="The week's plan">
                   {PLANS.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -243,22 +273,16 @@ export default function MealsPage() {
                 </select>
               </label>
               <span className={styles.muted}>Same every day:</span>
-              {weekPlan(week)
-                .categories.filter((c) => c.meals.length)
-                .map((c) => (
-                  <label key={c.id} className={styles.everyDayItem}>
-                    <span>{c.name}</span>
-                    <select value="" onChange={(e) => everyDay(c.id, e.target.value === "none" ? null : e.target.value)} aria-label={`${c.name} every day`}>
-                      <option value="">Choose…</option>
-                      {c.meals.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.name}
-                        </option>
-                      ))}
-                      <option value="none">None</option>
-                    </select>
-                  </label>
-                ))}
+              {CATEGORIES.map((cat) => (
+                <label key={cat} className={styles.everyDayItem}>
+                  <span>{CATEGORY_NAMES[cat]}</span>
+                  <select value="" onChange={(e) => everyDay(cat, e.target.value === "none" ? null : e.target.value)} aria-label={`${CATEGORY_NAMES[cat]} every day`}>
+                    <option value="">Choose…</option>
+                    <MealOptions cat={cat} />
+                    <option value="none">None</option>
+                  </select>
+                </label>
+              ))}
             </div>
             <div className={styles.days}>
               {DAYS.map((d) => {
@@ -270,11 +294,19 @@ export default function MealsPage() {
                   <div key={d.id} className={`${styles.day} ${training ? styles.trainingDay : ""}`}>
                     <div className={styles.dayHead}>
                       <b>{d.name}</b>
-                      <span className={styles.muted} title={`Protein ${t.protein} g`}>
-                        {t.kcal}
-                        {t.unknown ? "+" : ""} / {t.target} kcal
+                      <span className={styles.muted}>
+                        {t.map((p) => (
+                          <span key={p.person} className={styles.personTotal} title={`${PEOPLE.find((x) => x.id === p.person)!.name}: protein ${p.protein} g`}>
+                            {p.person === "malcolm" ? "M" : "L"} {p.kcal}/{p.target}
+                          </span>
+                        ))}
                       </span>
                     </div>
+                    <select className={styles.who} value={week.who?.[d.id] ?? "both"} onChange={(e) => setWho(d.id, e.target.value as "both" | Person)} aria-label={`Who's eating on ${d.name}`}>
+                      <option value="both">Malcolm and Lizette</option>
+                      <option value="malcolm">Malcolm only</option>
+                      <option value="lizette">Lizette only</option>
+                    </select>
                     <div className={styles.switches}>
                       <label className={`${styles.switch} ${training ? styles.on : ""}`}>
                         <input type="checkbox" checked={training} onChange={(e) => setDay("training", d.id, e.target.checked)} />
@@ -294,24 +326,18 @@ export default function MealsPage() {
                         </select>
                       )}
                     </div>
-                    {plan.categories.map((c) => {
-                      const on = isOn(week, d.id, c.id);
+                    {CATEGORIES.map((cat) => {
+                      const on = isOn(week, d.id, cat);
+                      const chosen = libraryMeal(week.days[d.id]?.[cat]);
                       return (
-                        <label key={c.id} className={`${styles.slot} ${on ? "" : styles.off}`}>
-                          <span className={styles.slotName}>{c.name}</span>
+                        <label key={cat} className={`${styles.slot} ${on ? "" : styles.off}`}>
+                          <span className={styles.slotName}>{CATEGORY_NAMES[cat]}</span>
                           {!on ? (
-                            <span className={styles.muted}>{c.id === "post" ? "Rest day" : "Fasting - skipped"}</span>
+                            <span className={styles.muted}>{cat === "post" ? "Rest day" : "Fasting - skipped"}</span>
                           ) : (
-                            <select
-                              value={c.meals.some((m) => m.id === week.days[d.id]?.[c.id]) ? (week.days[d.id]?.[c.id] ?? "") : ""}
-                              onChange={(e) => choose(d.id, c.id, e.target.value || null)}
-                            >
+                            <select value={chosen ? chosen.id : ""} onChange={(e) => choose(d.id, cat, e.target.value || null)}>
                               <option value="">Not chosen</option>
-                              {c.meals.map((m) => (
-                                <option key={m.id} value={m.id}>
-                                  {m.name}
-                                </option>
-                              ))}
+                              <MealOptions cat={cat} />
                             </select>
                           )}
                         </label>
@@ -373,54 +399,62 @@ export default function MealsPage() {
 
           <section className={`${styles.card} ${styles.planCard}`}>
             <div className={styles.cardHead}>
-              <h2 className={styles.cardTitle}>The plan</h2>
-              <select value={shownPlan.id} onChange={(e) => setViewPlan(e.target.value)} aria-label="Plan to show">
-                {PLANS.map((p) => (
+              <h2 className={styles.cardTitle}>All the meals</h2>
+              <select value={viewPerson} onChange={(e) => setViewPerson(e.target.value as Person)} aria-label="Portions for">
+                {PEOPLE.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name}
+                    Portions for {p.name}
                   </option>
                 ))}
               </select>
             </div>
             <p className={styles.muted}>
-              {shownPlan.daily.kcal} kcal a day · protein {shownPlan.daily.protein} g · carbs {shownPlan.daily.carbs} g · fat {shownPlan.daily.fat} g
+              {viewPerson === "malcolm" ? `${weekPlan(week).name}` : "Lizette's plan · 1500 kcal"} · every meal portioned for{" "}
+              {viewPerson === "malcolm" ? "Malcolm" : "Lizette"}, whichever plan it's from.
             </p>
-            {shownPlan.categories.map((c) => (
-              <div key={c.id} className={styles.section}>
-                <h3 className={styles.sectionTitle}>
-                  {c.name} <span className={styles.muted}>· about {c.kcal} kcal{c.trainingOnly ? " · training days only" : ""}</span>
-                </h3>
-                {c.meals.map((m) => (
-                  <div key={m.id} className={styles.meal}>
-                    <button type="button" className={styles.mealHead} onClick={() => setOpen(open === m.id ? null : m.id)} aria-expanded={open === m.id}>
-                      <b>{m.name}</b>
-                      <span className={styles.muted}>
-                        {m.kcal != null ? `${m.kcal} kcal · P ${m.protein} g · C ${m.carbs} g · F ${m.fat} g` : "kcal to be added"}
-                      </span>
-                    </button>
-                    {open === m.id && (
-                      <div className={styles.mealBody}>
-                        <ul className={styles.ingredients}>
-                          {m.ingredients.map((i) => (
-                            <li key={i.item}>
-                              <b>{i.g ? `${i.g} g` : i.amount}</b> {i.item}
-                              {i.as ? `, ${i.as}` : ""}
-                            </li>
-                          ))}
-                        </ul>
-                        {m.method && (
-                          <ol className={styles.method}>
-                            {m.method.map((step) => (
-                              <li key={step}>{step}</li>
-                            ))}
-                          </ol>
+            {CATEGORIES.map((cat) => {
+              const target = targetFor(viewPerson, weekPlan(week).id, cat);
+              return (
+                <div key={cat} className={styles.section}>
+                  <h3 className={styles.sectionTitle}>
+                    {CATEGORY_NAMES[cat]} <span className={styles.muted}>· {target} kcal{cat === "post" ? " · training days only" : ""}</span>
+                  </h3>
+                  {LIBRARY[cat].map((base) => {
+                    const m = portion(base, target);
+                    const key = `${viewPerson}-${m.id}`;
+                    return (
+                      <div key={m.id} className={styles.meal}>
+                        <button type="button" className={styles.mealHead} onClick={() => setOpen(open === key ? null : key)} aria-expanded={open === key}>
+                          <b>{m.name}</b>
+                          <span className={styles.muted}>
+                            {base.source} · P {m.protein} g · C {m.carbs} g · F {m.fat} g
+                          </span>
+                        </button>
+                        {open === key && (
+                          <div className={styles.mealBody}>
+                            <ul className={styles.ingredients}>
+                              {m.ingredients.map((i) => (
+                                <li key={i.item}>
+                                  <b>{i.g ? `${i.g} g` : i.amount}</b> {i.item}
+                                  {i.as ? `, ${i.as}` : ""}
+                                </li>
+                              ))}
+                            </ul>
+                            {m.method && (
+                              <ol className={styles.method}>
+                                {m.method.map((step) => (
+                                  <li key={step}>{step}</li>
+                                ))}
+                              </ol>
+                            )}
+                          </div>
                         )}
                       </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ))}
+                    );
+                  })}
+                </div>
+              );
+            })}
           </section>
         </div>
       )}

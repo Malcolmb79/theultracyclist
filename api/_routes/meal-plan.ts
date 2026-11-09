@@ -27,6 +27,8 @@ interface Week {
   /** Training days (post-workout snack) and fasting days (no breakfast), where set. */
   training?: Record<string, boolean>;
   fast?: Record<string, boolean>;
+  /** Who's eating each day: both, or just one of them. */
+  who?: Record<string, "both" | "malcolm" | "lizette">;
 }
 
 const isId = (x: unknown): x is string => typeof x === "string" && /^[a-z0-9-]{1,40}$/.test(x);
@@ -64,6 +66,7 @@ function clean(input: unknown): Week | null {
     dayPlan: perDay(w.dayPlan, isId),
     training: perDay(w.training, isBool),
     fast: perDay(w.fast, isBool),
+    who: perDay(w.who, (v): v is "both" | "malcolm" | "lizette" => v === "both" || v === "malcolm" || v === "lizette"),
   };
 }
 

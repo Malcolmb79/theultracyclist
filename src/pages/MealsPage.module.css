@@ -293,3 +293,22 @@ select {
 .off {
   opacity: 0.5;
 }
+
+/* Each eater's kcal against their target for the day. */
+.personTotal + .personTotal {
+  margin-left: 0.6em;
+}
+
+/* Who's eating: both, or one of them. */
+.who {
+  width: 100%;
+  font-size: 0.8rem;
+}
+
+.dayHead {
+  flex-wrap: wrap;
+}
+
+.personTotal {
+  white-space: nowrap;
+}

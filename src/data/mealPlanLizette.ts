@@ -9,8 +9,9 @@ export const LIZETTE_DAILY = { kcal: 1500, protein: 110, carbs: 183, fat: 34 };
 
 /**
  * Lizette's target for each category, kcal - her meals are about 300 each.
- * Only breakfast, lunch, snack and dinner pages were photographed; the
- * post-workout snack makes up the rest of her 1500 on training days.
+ * Her fifth meal is the post-workout snack (Malcolm confirmed), on training
+ * days only - it makes up the rest of her 1500. No pages of her own for it
+ * were photographed, so she picks from the shared library's post-workout meals.
  */
 export const LIZETTE_TARGETS: Record<CategoryId, number> = { post: 290, breakfast: 290, lunch: 320, snack: 300, dinner: 300 };
 

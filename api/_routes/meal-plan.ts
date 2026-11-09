@@ -21,6 +21,24 @@ interface Week {
   checked: string[];
   /** When the week was started, YYYY-MM-DD. */
   startedOn?: string;
+  /** The plan the week follows, and any day following another. */
+  plan?: string;
+  dayPlan?: Record<string, string>;
+  /** Training days (post-workout snack) and fasting days (no breakfast), where set. */
+  training?: Record<string, boolean>;
+  fast?: Record<string, boolean>;
+}
+
+const isId = (x: unknown): x is string => typeof x === "string" && /^[a-z0-9-]{1,40}$/.test(x);
+
+function perDay<T>(input: unknown, ok: (v: unknown) => v is T): Record<string, T> {
+  const out: Record<string, T> = {};
+  if (!input || typeof input !== "object") return out;
+  for (const d of DAYS) {
+    const v = (input as Record<string, unknown>)[d];
+    if (ok(v)) out[d] = v;
+  }
+  return out;
 }
 
 function clean(input: unknown): Week | null {
@@ -37,7 +55,16 @@ function clean(input: unknown): Week | null {
   }
   const checked = Array.isArray(w.checked) ? w.checked.filter((x): x is string => typeof x === "string" && x.length < 120).slice(0, 300) : [];
   const startedOn = typeof w.startedOn === "string" && /^\d{4}-\d{2}-\d{2}$/.test(w.startedOn) ? w.startedOn : undefined;
-  return { days, checked, startedOn };
+  const isBool = (v: unknown): v is boolean => typeof v === "boolean";
+  return {
+    days,
+    checked,
+    startedOn,
+    plan: isId(w.plan) ? w.plan : undefined,
+    dayPlan: perDay(w.dayPlan, isId),
+    training: perDay(w.training, isBool),
+    fast: perDay(w.fast, isBool),
+  };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

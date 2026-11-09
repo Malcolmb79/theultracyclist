@@ -1,3 +1,5 @@
+import { newPlanCategories } from "./mealPlanNew";
+
 // Malcolm's meal plan from Tristan Marais: 2400 kcal a day (protein 176 g,
 // carbs 293 g, fat 55 g - 30/50/20) - every meal from both versions of the
 // plan, as options. One meal from each category a day;
@@ -493,3 +495,40 @@ export const MEAL_PLAN: Category[] = [
     ],
   },
 ];
+
+// --- The plans ----------------------------------------------------------------
+
+
+export interface Plan {
+  id: string;
+  name: string;
+  /** For the day's plan picker. */
+  short: string;
+  daily: { kcal: number; protein: number; carbs: number; fat: number };
+  categories: Category[];
+}
+
+/**
+ * Every version of the plan Tristan has written: the original 2400 kcal one,
+ * and the newer one at 2400 and 2550 kcal (the same meals, bigger portions).
+ */
+export const PLANS: Plan[] = [
+  { id: "original", name: "Original plan · 2400 kcal", short: "Original 2400", daily: DAILY, categories: MEAL_PLAN },
+  {
+    id: "new-2400",
+    name: "New plan · 2400 kcal",
+    short: "New 2400",
+    daily: { kcal: 2400, protein: 176, carbs: 293, fat: 55 },
+    categories: newPlanCategories(0, "n2400", { post: 505, breakfast: 475, lunch: 505, snack: 470, dinner: 455 }),
+  },
+  {
+    id: "new-2550",
+    name: "New plan · 2550 kcal",
+    short: "New 2550",
+    daily: { kcal: 2550, protein: 187, carbs: 311, fat: 58 },
+    categories: newPlanCategories(1, "n2550", { post: 535, breakfast: 505, lunch: 535, snack: 500, dinner: 485 }),
+  },
+];
+
+/** The rest days in Malcolm's exercise plan: Thursday and Sunday. Every other day is a training day. */
+export const REST_DAYS = new Set(["thu", "sun"]);

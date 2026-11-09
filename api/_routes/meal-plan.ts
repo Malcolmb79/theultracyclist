@@ -27,6 +27,9 @@ interface Week {
   /** Training days (post-workout snack) and fasting days (no breakfast), where set. */
   training?: Record<string, boolean>;
   fast?: Record<string, boolean>;
+  /** Each person's training and fasting days, where set. */
+  trainingBy?: Record<string, Record<string, boolean>>;
+  fastBy?: Record<string, Record<string, boolean>>;
   /** Who's eating each day: both, or just one of them. */
   who?: Record<string, "both" | "malcolm" | "lizette">;
   /** Malcolm's kcal on training days, if not his plan's own (0 for the plan's) - kept for older weeks. */
@@ -44,6 +47,15 @@ function perDay<T>(input: unknown, ok: (v: unknown) => v is T): Record<string, T
     const v = (input as Record<string, unknown>)[d];
     if (ok(v)) out[d] = v;
   }
+  return out;
+}
+
+/** A per-day yes/no for each person. */
+function perPerson(input: unknown): Record<string, Record<string, boolean>> {
+  const out: Record<string, Record<string, boolean>> = {};
+  if (!input || typeof input !== "object") return out;
+  const isBool = (v: unknown): v is boolean => typeof v === "boolean";
+  for (const person of ["malcolm", "lizette"]) out[person] = perDay((input as Record<string, unknown>)[person], isBool);
   return out;
 }
 
@@ -82,6 +94,8 @@ function clean(input: unknown): Week | null {
     dayPlan: perDay(w.dayPlan, isId),
     training: perDay(w.training, isBool),
     fast: perDay(w.fast, isBool),
+    trainingBy: perPerson(w.trainingBy),
+    fastBy: perPerson(w.fastBy),
     trainingKcal: typeof w.trainingKcal === "number" && (w.trainingKcal === 0 || (w.trainingKcal >= 1200 && w.trainingKcal <= 4000)) ? Math.round(w.trainingKcal) : undefined,
     kcal: cleanKcal(w.kcal),
     who: perDay(w.who, (v): v is "both" | "malcolm" | "lizette" => v === "both" || v === "malcolm" || v === "lizette"),

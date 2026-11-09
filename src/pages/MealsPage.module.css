@@ -365,3 +365,23 @@ select {
   opacity: 0.35;
   cursor: default;
 }
+
+/* Each eater's own training and fasting switches. */
+.personSwitches {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.switchWho {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  min-width: 1em;
+}
+
+.onlyFor {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--color-accent-2);
+}

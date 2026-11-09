@@ -37,6 +37,9 @@ type Week = {
   dayPlan?: Record<string, string>;
   training?: Record<string, boolean>;
   fast?: Record<string, boolean>;
+  /** Each person's training and fasting days, where set apart from the day's (above). */
+  trainingBy?: Partial<Record<Person, Record<string, boolean>>>;
+  fastBy?: Partial<Record<Person, Record<string, boolean>>>;
   who?: Record<string, "both" | Person>;
   /** Malcolm's kcal on training days (older weeks); 0 for his plan's own. */
   trainingKcal?: number;
@@ -62,7 +65,7 @@ function planDay(w: Week, day: string, person: Person) {
 
 /** A person's day total, kcal: the slider's, else the plan's (Malcolm's training days 2200 unless set). */
 function dayKcal(w: Week, day: string, person: Person): number {
-  const training = isTraining(w, day);
+  const training = isTraining(w, day, person);
   const chosen = w.kcal?.[person]?.[training ? "training" : "rest"];
   if (chosen) return chosen;
   if (person === "malcolm" && training) {
@@ -83,19 +86,24 @@ const planById = new Map(PLANS.map((p) => [p.id, p]));
 
 const weekPlan = (w: Week): Plan => planById.get(w.plan ?? "") ?? PLANS[0];
 const dayPlanOf = (w: Week, day: string): Plan => planById.get(w.dayPlan?.[day] ?? "") ?? weekPlan(w);
-/** A training day - from the exercise plan (rest on Thursday and Sunday) unless switched. */
-const isTraining = (w: Week, day: string) => w.training?.[day] ?? !REST_DAYS.has(day);
-const isFasting = (w: Week, day: string) => !!w.fast?.[day];
-/** Whether a category is on for a day: no post-workout snack on a rest day, no breakfast on a fasting day. */
-const isOn = (w: Week, day: string, cat: CategoryId) => (cat === "post" ? isTraining(w, day) : cat === "breakfast" ? !isFasting(w, day) : true);
+/**
+ * A person's training day - from the exercise plan (rest on Thursday and
+ * Sunday) unless switched, for them or (in older weeks) for the day.
+ */
+const isTraining = (w: Week, day: string, person: Person) => w.trainingBy?.[person]?.[day] ?? w.training?.[day] ?? !REST_DAYS.has(day);
+const isFasting = (w: Week, day: string, person: Person) => w.fastBy?.[person]?.[day] ?? !!w.fast?.[day];
+/** Whether a category is on for a person on a day: no post-workout snack on a rest day, no breakfast on a fasting day. */
+const isOn = (w: Week, day: string, cat: CategoryId, person: Person) =>
+  cat === "post" ? isTraining(w, day, person) : cat === "breakfast" ? !isFasting(w, day, person) : true;
 
-/** The day's chosen meals that count: for categories that are on. */
-function dayMeals(w: Week, day: string): { cat: CategoryId; meal: Meal }[] {
-  const out: { cat: CategoryId; meal: Meal }[] = [];
+/** The day's chosen meals, and who of the day's eaters each one is on for. */
+function dayMeals(w: Week, day: string): { cat: CategoryId; meal: Meal; for: Person[] }[] {
+  const out: { cat: CategoryId; meal: Meal; for: Person[] }[] = [];
   for (const cat of CATEGORIES) {
-    if (!isOn(w, day, cat)) continue;
+    const who = eaters(w, day).filter((p) => isOn(w, day, cat, p));
+    if (!who.length) continue;
     const m = libraryMeal(w.days[day]?.[cat]);
-    if (m) out.push({ cat, meal: m });
+    if (m) out.push({ cat, meal: m, for: who });
   }
   return out;
 }
@@ -107,7 +115,7 @@ function dayMeals(w: Week, day: string): { cat: CategoryId; meal: Meal }[] {
  */
 function scaleFor(w: Week, day: string, person: Person): number {
   const t = planTargets(w, day, person);
-  const planned = CATEGORIES.filter((c) => c !== "post" || isTraining(w, day)).reduce((a, c) => a + t[c], 0);
+  const planned = CATEGORIES.filter((c) => c !== "post" || isTraining(w, day, person)).reduce((a, c) => a + t[c], 0);
   return planned ? dayKcal(w, day, person) / planned : 1;
 }
 
@@ -135,7 +143,7 @@ interface Line {
 function shoppingList(week: Week): Map<Section, Line[]> {
   const lines = new Map<string, Line>();
   for (const d of DAYS) {
-    for (const { cat, meal: base } of dayMeals(week, d.id)) for (const person of eaters(week, d.id)) {
+    for (const { cat, meal: base, for: people } of dayMeals(week, d.id)) for (const person of people) {
       const meal = servedTo(week, d.id, person, cat, base);
       for (const ing of meal.ingredients) {
         let l = lines.get(ing.item);
@@ -167,8 +175,10 @@ function lineText(l: Line): string {
 /** Each eater's totals for the day, and their target: their plan's, less the categories that are off. */
 function dayTotals(w: Week, day: string) {
   return eaters(w, day).map((person) => {
-    const meals = dayMeals(w, day).map(({ cat, meal }) => servedTo(w, day, person, cat, meal));
-    const target = CATEGORIES.filter((c) => isOn(w, day, c)).reduce((a, c) => a + dayTarget(w, day, person, c), 0);
+    const meals = dayMeals(w, day)
+      .filter((m) => m.for.includes(person))
+      .map(({ cat, meal }) => servedTo(w, day, person, cat, meal));
+    const target = CATEGORIES.filter((c) => isOn(w, day, c, person)).reduce((a, c) => a + dayTarget(w, day, person, c), 0);
     return {
       person,
       kcal: meals.reduce((a, m) => a + (m.kcal ?? 0), 0),
@@ -245,7 +255,8 @@ export default function MealsPage() {
   const started = (w: Week): Week => ({ ...w, startedOn: w.startedOn ?? today() });
   const choose = (day: string, cat: CategoryId, id: string | null) =>
     week && update(started({ ...week, days: { ...week.days, [day]: { ...week.days[day], [cat]: id } } }));
-  const setDay = (key: "training" | "fast", day: string, on: boolean) => week && update({ ...week, [key]: { ...week[key], [day]: on } });
+  const setDay = (key: "trainingBy" | "fastBy", person: Person, day: string, on: boolean) =>
+    week && update({ ...week, [key]: { ...week[key], [person]: { ...week[key]?.[person], [day]: on } } });
   const setDayPlan = (day: string, planId: string) => week && update({ ...week, dayPlan: { ...week.dayPlan, [day]: planId } });
   const setWeekPlan = (planId: string) => week && update({ ...week, plan: planId, dayPlan: {} });
   /** Every day gets this meal (where the category is on). */
@@ -292,7 +303,7 @@ export default function MealsPage() {
 
       <PageHeader
         title="Meals"
-        subtitle="Malcolm's and Lizette's meal plans as a week: one meal from each category a day - any meal from either plan, portioned for each of you - the post-workout snack only on training days, and breakfast off on fasting days. The shopping list adds it all up."
+        subtitle="Malcolm's and Lizette's meal plans as a week: one meal from each category a day - any meal from either plan, portioned for each of you - the post-workout snack only on your training days, and breakfast off on your fasting days, each set for each of you. The shopping list adds it all up."
       />
 
       {error && <p className={styles.error}>{error}</p>}
@@ -375,8 +386,8 @@ export default function MealsPage() {
               {DAYS.map((d) => {
                 const plan = dayPlanOf(week, d.id);
                 const t = dayTotals(week, d.id);
-                const training = isTraining(week, d.id);
-                const fasting = isFasting(week, d.id);
+                const who = eaters(week, d.id);
+                const training = who.some((p) => isTraining(week, d.id, p));
                 return (
                   <div key={d.id} className={`${styles.day} ${training ? styles.trainingDay : ""}`}>
                     <div className={styles.dayHead}>
@@ -395,14 +406,24 @@ export default function MealsPage() {
                       <option value="lizette">Lizette only</option>
                     </select>
                     <div className={styles.switches}>
-                      <label className={`${styles.switch} ${training ? styles.on : ""}`}>
-                        <input type="checkbox" checked={training} onChange={(e) => setDay("training", d.id, e.target.checked)} />
-                        Training
-                      </label>
-                      <label className={`${styles.switch} ${fasting ? styles.on : ""}`}>
-                        <input type="checkbox" checked={fasting} onChange={(e) => setDay("fast", d.id, e.target.checked)} />
-                        Fasting
-                      </label>
+                      {who.map((p) => {
+                        const name = PEOPLE.find((x) => x.id === p)!.name;
+                        const tr = isTraining(week, d.id, p);
+                        const fa = isFasting(week, d.id, p);
+                        return (
+                          <span key={p} className={styles.personSwitches}>
+                            <span className={styles.switchWho}>{who.length > 1 ? name[0] : name}</span>
+                            <label className={`${styles.switch} ${tr ? styles.on : ""}`} title={`${name} training on ${d.name}`}>
+                              <input type="checkbox" checked={tr} onChange={(e) => setDay("trainingBy", p, d.id, e.target.checked)} aria-label={`${name} training on ${d.name}`} />
+                              Training
+                            </label>
+                            <label className={`${styles.switch} ${fa ? styles.on : ""}`} title={`${name} fasting on ${d.name}`}>
+                              <input type="checkbox" checked={fa} onChange={(e) => setDay("fastBy", p, d.id, e.target.checked)} aria-label={`${name} fasting on ${d.name}`} />
+                              Fasting
+                            </label>
+                          </span>
+                        );
+                      })}
                       {PLANS.length > 1 && (
                         <select className={styles.dayPlan} value={plan.id} onChange={(e) => setDayPlan(d.id, e.target.value)} aria-label={`${d.name}'s plan`}>
                           {PLANS.map((p) => (
@@ -414,11 +435,15 @@ export default function MealsPage() {
                       )}
                     </div>
                     {CATEGORIES.map((cat) => {
-                      const on = isOn(week, d.id, cat);
+                      const onFor = who.filter((p) => isOn(week, d.id, cat, p));
+                      const on = onFor.length > 0;
                       const chosen = libraryMeal(week.days[d.id]?.[cat]);
                       return (
                         <label key={cat} className={`${styles.slot} ${on ? "" : styles.off}`}>
-                          <span className={styles.slotName}>{CATEGORY_NAMES[cat]}</span>
+                          <span className={styles.slotName}>
+                            {CATEGORY_NAMES[cat]}
+                            {on && onFor.length < who.length && <span className={styles.onlyFor}> · {PEOPLE.find((x) => x.id === onFor[0])!.name} only</span>}
+                          </span>
                           {!on ? (
                             <span className={styles.muted}>{cat === "post" ? "Rest day" : "Fasting - skipped"}</span>
                           ) : (

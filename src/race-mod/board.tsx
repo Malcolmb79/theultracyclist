@@ -330,8 +330,7 @@ function RaceBoard() {
                   {ghostIds.has(r.athleteId) && <span className={styles.outOfRange}>out of range</span>}
                   {settings.gaps && !r.watching && r.gap != null && (
                     <span className={styles.gap}>
-                      {ghostIds.has(r.athleteId) ? "~" : ""}
-                      {formatGap(r.gap)}
+                      {ghostIds.has(r.athleteId) ? `≈${formatGap(Math.abs(r.gap)).replace("+", "")} ${r.gap < 0 ? "up" : "back"}` : formatGap(r.gap)}
                     </span>
                   )}
                 </span>

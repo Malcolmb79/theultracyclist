@@ -15,15 +15,20 @@ type Seen = {
   at: number;
   /** Event distance then, m. */
   dist: number;
-  /** Their speed, smoothed over about a minute, m/s. */
+  /** Their speed, smoothed over a few minutes, m/s - until there's a longer average. */
   speed: number;
+  /** When and where they were first seen in range, for their average speed over all of it. */
+  firstAt?: number;
+  firstDist?: number;
 };
 
 const KEY = "board:ghosts";
 /** Forget a rider not seen for this long - they've probably left. */
 const FORGET_MS = 3 * 60 * 60 * 1000;
 /** Speeds are smoothed over about this long. */
-const SMOOTH_S = 60;
+const SMOOTH_S = 300;
+/** Their average over everything seen is used once it covers at least this long. */
+const AVERAGE_MS = 2 * 60 * 1000;
 
 let race: number | undefined;
 let seen = new Map<number, Seen>();
@@ -88,6 +93,8 @@ export function ghostRiders(nearby: SauceAthleteData[], watching: SauceAthleteDa
       at: now,
       dist: d,
       speed: smooth(prev?.speed, prev?.at, v, now),
+      firstAt: prev?.firstAt ?? now,
+      firstDist: prev?.firstDist ?? d,
     });
   }
   save(now);
@@ -102,7 +109,11 @@ export function ghostRiders(nearby: SauceAthleteData[], watching: SauceAthleteDa
       seen.delete(id);
       continue;
     }
-    const est = s.dist + (s.speed * age) / 1000;
+    // Their average over all the time they were in range: a minute's speed on a
+    // descent, carried on for an hour, put a rider half an hour up the road.
+    const span = s.firstAt != null ? s.at - s.firstAt : 0;
+    const avg = span >= AVERAGE_MS && s.firstDist != null ? ((s.dist - s.firstDist) / span) * 1000 : undefined;
+    const est = s.dist + ((avg && avg > 1 ? avg : s.speed) * age) / 1000;
     out.push({
       athleteId: id,
       athlete: s.r.athlete,

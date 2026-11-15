@@ -274,3 +274,18 @@
     animation: none;
   }
 }
+
+/* Out of range: carried on from where they were last seen - an estimate. */
+.ghost {
+  opacity: 0.65;
+}
+
+.ghost .gap {
+  font-style: italic;
+}
+
+.outOfRange {
+  font-size: 0.7em;
+  color: var(--color-text-muted);
+  font-style: italic;
+}

@@ -7,6 +7,7 @@ import { OverlayShell, useSettings, type SettingDef, Recover } from "./overlay";
 import { useSauce } from "./useSauce";
 import { hrColour } from "./zones";
 import { powerUpLeft } from "./powerUpTimers";
+import { ghostRiders } from "./raceGhosts";
 import { useFlags } from "./flags";
 import { powerUp } from "../components/race/powerUps";
 import PowerUpIcon from "./PowerUpIcon";
@@ -43,12 +44,16 @@ function formatGap(gap: number | undefined): string {
 function placesOf(riders: SauceAthleteData[], watched: SauceAthleteData | null): Map<number, { pos: number; est: boolean }> {
   const places = new Map<number, { pos: number; est: boolean }>();
   for (const r of riders) if (r.eventPosition) places.set(r.athleteId, { pos: r.eventPosition, est: false });
-  const anchor = watched?.eventPosition;
-  if (!anchor) return places;
   const dist = (r: SauceAthleteData) => (r.state as { eventDistance?: number } | null | undefined)?.eventDistance;
   const byRoad = riders
     .slice()
     .sort((a, b) => (dist(a) != null && dist(b) != null ? dist(b)! - dist(a)! : (a.gap ?? 0) - (b.gap ?? 0)));
+  const anchor = watched?.eventPosition;
+  // Zwift hasn't given the followed rider's place: everyone in road order, as estimates.
+  if (!anchor) {
+    if (watched?.state?.eventSubgroupId) byRoad.forEach((r, i) => places.has(r.athleteId) || places.set(r.athleteId, { pos: i + 1, est: true }));
+    return places;
+  }
   const me = byRoad.findIndex((r) => r.athleteId === watched!.athleteId || r.watching);
   if (me < 0) return places;
   // Counting out from the followed rider, in road order: the riders out of
@@ -118,6 +123,7 @@ const DEFAULTS = {
   fill: true,
   hideOtherRaces: true,
   ownPlaces: true,
+  outOfRange: true,
   rows: 20,
   flags: true,
   teams: true,
@@ -146,6 +152,7 @@ const DEFS: SettingDef[] = [
   { key: "fill", label: "Fill up with riders nearby", type: "toggle" },
   { key: "hideOtherRaces", label: "Hide other races", type: "toggle" },
   { key: "ownPlaces", label: "Places within my category", type: "toggle" },
+  { key: "outOfRange", label: "Keep riders out of range (estimated)", type: "toggle" },
   { key: "rows", label: "Riders shown", type: "select", options: ROW_CHOICES.map((n) => ({ value: n, label: String(n) })) },
   { key: "flags", label: "Flags", type: "toggle" },
   { key: "teams", label: "Team tags", type: "toggle" },
@@ -171,7 +178,10 @@ function RaceBoard() {
   const mine = groupOnly ? new Set(groups.find((g) => g.watching)?.athletes?.map((a) => a.athleteId)) : null;
   // And, in an event, only the rider's own category if chosen.
   const subgroup = settings.category ? watching?.state?.eventSubgroupId || undefined : undefined;
-  const riders = (mine ? nearby.filter((r) => r.watching || mine.has(r.athleteId)) : nearby).filter((r) => inRace(r, subgroup));
+  // Riders in this race who've gone out of range, carried on from where they were last seen.
+  const ghosts = settings.outOfRange ? ghostRiders(nearby, watching) : [];
+  const ghostIds = new Set(ghosts.map((r) => r.athleteId));
+  const riders = [...(mine ? nearby.filter((r) => r.watching || mine.has(r.athleteId)) : nearby), ...(mine ? [] : ghosts)].filter((r) => inRace(r, subgroup));
   // As many rows as the window has room for (up to the setting), the rider in the middle -
   // so in a short window they're centred rather than cut off the bottom.
   const list = useRef<HTMLOListElement | null>(null);
@@ -225,9 +235,11 @@ function RaceBoard() {
   const others = settings.ownPlaces && mySubgroup ? nearby.filter((r) => !inRace(r, mySubgroup)) : [];
   const inCategory = (pos: number, gap: number | undefined) =>
     Math.max(1, pos - others.filter((o) => (o.eventPosition ? o.eventPosition < pos : (o.gap ?? 0) < (gap ?? 0))).length);
-  const ownRace = nearby.filter((r) => inRace(r, subgroup)).map((r) => (r.eventPosition && others.length ? { ...r, eventPosition: inCategory(r.eventPosition, r.gap) } : r));
+  const ownRace = [...nearby, ...ghosts].filter((r) => inRace(r, subgroup)).map((r) => (r.eventPosition && others.length ? { ...r, eventPosition: inCategory(r.eventPosition, r.gap) } : r));
   const watchedPlaced = watching?.eventPosition && others.length ? { ...watching, eventPosition: inCategory(watching.eventPosition, 0) } : watching;
   const places = placesOf(ownRace, watchedPlaced);
+  // Zwift's place for the watched rider, else the board's own estimate.
+  const myPlace = watchedPlaced?.eventPosition ?? (watching ? places.get(watching.athleteId)?.pos : undefined);
   const all = extras.length ? [...riders, ...extras].sort((a, b) => (a.gap ?? 0) - (b.gap ?? 0)) : order(riders, places);
   const shown = around(all, rows, watching?.athleteId);
   // Room left of the places for a power-up only while someone has one running -
@@ -251,7 +263,9 @@ function RaceBoard() {
             ? watchedPlaced.eventPosition !== watching?.eventPosition
               ? `Position ${watchedPlaced.eventPosition} in category`
               : `Position ${watchedPlaced.eventPosition} of ${watching?.eventParticipants ?? "?"}`
-            : watching
+            : myPlace && ghosts.length
+              ? `Position ~${myPlace} (estimated)`
+              : watching
               ? athleteName(watching)
               : status === "connected"
                 ? "Waiting for Zwift…"
@@ -277,7 +291,8 @@ function RaceBoard() {
           return (
             <li
               key={r.athleteId}
-              className={`${styles.row} ${puRoom ? styles.withPowerUps : ""} ${r.watching ? styles.watched : ""} ${teammate ? styles.teammate : ""} ${extraIds.has(r.athleteId) ? styles.extra : ""}`}
+              className={`${styles.row} ${puRoom ? styles.withPowerUps : ""} ${r.watching ? styles.watched : ""} ${teammate ? styles.teammate : ""} ${extraIds.has(r.athleteId) ? styles.extra : ""} ${ghostIds.has(r.athleteId) ? styles.ghost : ""}`}
+              title={ghostIds.has(r.athleteId) ? "Out of range - where they'd be by now, from their speed when last seen" : undefined}
             >
               <span
                 className={`${styles.pos} ${places.get(r.athleteId)?.est ? styles.estimated : ""}`}
@@ -312,7 +327,13 @@ function RaceBoard() {
                   )}
                   {tss != null && <span className={styles.tss}>{Math.round(tss)} TSS</span>}
                   {settings.heartRate && s?.heartrate ? <span className={styles.hr} style={{ color: hrColour(r, s.heartrate) }}>{s.heartrate} ♥</span> : null}
-                  {settings.gaps && !r.watching && r.gap != null && <span className={styles.gap}>{formatGap(r.gap)}</span>}
+                  {ghostIds.has(r.athleteId) && <span className={styles.outOfRange}>out of range</span>}
+                  {settings.gaps && !r.watching && r.gap != null && (
+                    <span className={styles.gap}>
+                      {ghostIds.has(r.athleteId) ? "~" : ""}
+                      {formatGap(r.gap)}
+                    </span>
+                  )}
                 </span>
               </span>
               <span

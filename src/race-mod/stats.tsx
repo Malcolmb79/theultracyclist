@@ -7,7 +7,7 @@ import { OverlayShell, useSettings, type SettingDef, Recover } from "./overlay";
 import { useSauce } from "./useSauce";
 import { SITE } from "./site";
 import { routePosition, useCourse } from "./useCourse";
-import { CLIMB_DEFAULTS, ClimbCard, useClimb, type ClimbSettings } from "./climbCard";
+import { CLIMB_DEFAULTS, ClimbCard, LiveClimbCard, useClimb, useLiveClimb, type ClimbSettings } from "./climbCard";
 import FieldPicker from "./FieldPicker";
 import { colourOf, display, type RiderField } from "./riderFields";
 import { STAT_FIELDS, STAT_GROUPS } from "./statFields";
@@ -219,6 +219,7 @@ function StatsOverlay() {
   const at = settings.climb && route ? routePosition(route, s) : undefined;
   const climbSet = settings.climb ? climbSettings() : CLIMB_DEFAULTS;
   const climb = useClimb(settings.climb ? route : null, at, climbSet, s?.grade != null ? s.grade * 100 : undefined);
+  const liveClimb = useLiveClimb(settings.climb ? s : null, s?.grade != null ? s.grade * 100 : undefined, climbSet.sensitivity);
 
   // Sized to the window: the bar drawn at its natural size, then scaled to
   // fill the window's width - so dragging the window's corner makes it as
@@ -351,6 +352,11 @@ function StatsOverlay() {
         {settings.climb && climb && route && at != null && (
           <div className={`${styles.climb} ${settings.climbWidth === "full" ? styles.climbFull : ""}`}>
             <ClimbCard route={route} at={at} climb={climb} gradeNow={s?.grade != null ? s.grade * 100 : undefined} settings={climbSet} />
+          </div>
+        )}
+        {settings.climb && !(climb && route && at != null) && liveClimb && (
+          <div className={`${styles.climb} ${settings.climbWidth === "full" ? styles.climbFull : ""}`}>
+            <LiveClimbCard live={liveClimb} gradeNow={s?.grade != null ? s.grade * 100 : undefined} settings={climbSet} />
           </div>
         )}
       </div>

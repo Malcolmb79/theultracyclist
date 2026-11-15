@@ -4,7 +4,7 @@ import "../styles/global.css";
 import { OverlayShell, useSettings, type SettingDef, Recover } from "./overlay";
 import { useSauce } from "./useSauce";
 import { routePosition, useCourse } from "./useCourse";
-import { CLIMB_DEFAULTS, ClimbCard, useClimb } from "./climbCard";
+import { CLIMB_DEFAULTS, ClimbCard, LiveClimbCard, useClimb, useLiveClimb } from "./climbCard";
 import styles from "./ClimbView.module.css";
 
 // The climb pop-up Zwift shows on a climb: it appears as the road starts to
@@ -54,11 +54,15 @@ function ClimbOverlay() {
   // colours as the rise's edges moved). Only then is the next one looked for.
   const gradeNow = s?.grade != null ? s.grade * 100 : undefined;
   const climb = useClimb(route, at, settings, gradeNow);
+  // From the live gradient, for when the route can't say: not placed on it, or not known.
+  const live = useLiveClimb(s, gradeNow, settings.sensitivity);
 
   return (
     <OverlayShell title="Climb pop-up" settings={settings} setSetting={set} defs={DEFS}>
       {climb && route && at != null ? (
         <ClimbCard route={route} at={at} climb={climb} gradeNow={gradeNow} settings={settings} />
+      ) : live ? (
+        <LiveClimbCard live={live} gradeNow={gradeNow} settings={settings} />
       ) : (
         // Nothing to show: an empty window that still takes a right-click.
         <div className={styles.idle}>Climb pop-up appears on climbs · right-click for settings</div>

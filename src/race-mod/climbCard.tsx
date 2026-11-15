@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import type { RouteGeometry } from "../components/race/courseMap";
-import { elevationAt, findClimb, gradeColor, type Climb, type ClimbSensitivity } from "./climb";
+import { CLIMB_PROBE_PCT, elevationAt, findClimb, gradeColor, type Climb, type ClimbSensitivity } from "./climb";
 import shell from "./Overlay.module.css";
 import styles from "./ClimbView.module.css";
 
@@ -120,5 +120,74 @@ export function ClimbCard({ route, at, climb, gradeNow, settings }: { route: Rou
             </div>
           )}
         </div>
+  );
+}
+
+/**
+ * A climb found from the road as it's ridden, for when the route's profile
+ * can't give one - the route not known, or the rider not placed on it. Zwift's
+ * live gradient says the road is going up: from where it started climbing,
+ * the distance and height so far, until it's been flat for a while or heads
+ * down. No top to count down to - just what's been climbed.
+ */
+export interface LiveClimb {
+  startDist: number;
+  startAlt?: number;
+  dist: number;
+  alt?: number;
+}
+
+/** Flat this far, and a climb picked up from the live gradient is over. */
+const LIVE_FLAT_M = 200;
+/** It shows once the road has gone up for this far, and this much. */
+const LIVE_SHOW_M = 100;
+const LIVE_MIN_GAIN_M = 3;
+
+export function useLiveClimb(
+  state: { distance?: number; eventDistance?: number; altitude?: number } | null | undefined,
+  gradeNow: number | undefined,
+  sensitivity: string,
+): LiveClimb | null {
+  const cand = useRef<{ startDist: number; startAlt?: number; lastUp: number } | null>(null);
+  const dist = state?.distance ?? state?.eventDistance;
+  if (dist == null || gradeNow == null) return null;
+  const probe = CLIMB_PROBE_PCT[sensitivity as ClimbSensitivity] ?? CLIMB_PROBE_PCT.zwift;
+  const c = cand.current;
+  // A new ride, or a jump back: start again.
+  if (c && dist < c.startDist) cand.current = null;
+  if (gradeNow >= probe) {
+    if (!cand.current) cand.current = { startDist: dist, startAlt: state?.altitude, lastUp: dist };
+    else cand.current.lastUp = dist;
+  } else if (cand.current && (gradeNow < -1.5 || dist - cand.current.lastUp > LIVE_FLAT_M)) {
+    cand.current = null;
+  }
+  const now = cand.current;
+  if (!now || dist - now.startDist < LIVE_SHOW_M) return null;
+  // A blip in the gradient isn't a climb: the height has to have gone up too, where it's known.
+  if (now.startAlt != null && state?.altitude != null && state.altitude - now.startAlt < LIVE_MIN_GAIN_M) return null;
+  return { startDist: now.startDist, startAlt: now.startAlt, dist, alt: state?.altitude };
+}
+
+export function LiveClimbCard({ live, gradeNow, settings }: { live: LiveClimb; gradeNow?: number; settings: ClimbSettings }) {
+  const len = live.dist - live.startDist;
+  const up = live.alt != null && live.startAlt != null ? Math.max(0, live.alt - live.startAlt) : undefined;
+  return (
+    <div className={`${shell.panel} ${styles.panel}`}>
+      <div className={styles.head}>
+        <span className={styles.name}>Climb</span>
+        <span className={styles.length}>{len >= 1000 ? `${(len / 1000).toFixed(1)} km` : `${Math.round(len)} m`} so far</span>
+      </div>
+      <div className={styles.body}>
+        <span className={styles.grade} style={{ color: gradeNow != null ? gradeColor(gradeNow) : undefined }}>
+          {gradeNow != null ? gradeNow.toFixed(1) : "–"}
+          <small>%</small>
+        </span>
+        <span className={styles.facts}>
+          <b>Climbing</b>
+          {settings.height && up != null && <span>{Math.round(up)} m climbed</span>}
+          {settings.average && up != null && len > 0 && <span>{((up / len) * 100).toFixed(1)}% average so far</span>}
+        </span>
+      </div>
+    </div>
   );
 }

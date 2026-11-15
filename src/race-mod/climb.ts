@@ -53,6 +53,9 @@ const THRESHOLDS: Record<ClimbSensitivity, { probePct: number; avgPct: number; l
   big: { probePct: 4, avgPct: 4, lengthM: 800, gainM: 40, plateauM: 300, dipM: 5 },
 };
 
+/** How steep the road has to be to count as climbing, per sensitivity. */
+export const CLIMB_PROBE_PCT: Record<ClimbSensitivity, number> = { zwift: 2.5, standard: 3, big: 4 };
+
 /** A climb's shape from start to top: its height gain, average and steepest gradient. */
 function describe(route: RouteGeometry, start: number, top: number, name?: string): Climb {
   const gain = elevationAt(route, top) - elevationAt(route, start);

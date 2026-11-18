@@ -1,5 +1,5 @@
-import { PLANS, type CategoryId, type Ingredient, type Meal } from "./mealPlan";
-import { LIZETTE_DAILY, LIZETTE_MEALS, LIZETTE_TARGETS } from "./mealPlanLizette";
+import { PLANS, type CategoryId, type Ingredient, type Meal } from "./mealPlan.js";
+import { LIZETTE_DAILY, LIZETTE_MEALS, LIZETTE_TARGETS } from "./mealPlanLizette.js";
 
 // Every meal from every plan - Malcolm's original and newer plans and
 // Lizette's - in one library, each portioned for whoever's eating it: its

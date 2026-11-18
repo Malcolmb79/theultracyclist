@@ -1,4 +1,4 @@
-import type { Category, CategoryId, Ingredient, Meal, Section } from "./mealPlan";
+import type { Category, CategoryId, Ingredient, Meal, Section } from "./mealPlan.js";
 
 // Tristan's newer plan, which comes in two sizes - 2400 kcal and 2550 kcal -
 // with the same meals and portions scaled up for the larger one. Written

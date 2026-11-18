@@ -1,13 +1,15 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getJSON, setJSON } from "../_lib/kvStore.js";
 import { getSessionEmail } from "../_lib/session.js";
+import { readableWeek } from "../../src/data/mealWeek.js";
 
 /**
  * The week's meal choices and the shopping list's ticks, for the Meals page
  * (the plan itself is src/data/mealPlan.ts). Kept in Redis so they're the
  * same on the phone at the shops as on the computer that planned them.
  *
- * GET answers { week }; POST { week } saves it. Signed in on the site only.
+ * GET answers { week, plan } - plan being the week worked out as the page
+ * shows it (src/data/mealWeek.ts); POST { week } saves it. Signed in on the site only.
  */
 
 const KEY = "meal-plan:week";
@@ -109,7 +111,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
   res.setHeader("Cache-Control", "no-store");
   if (req.method === "GET") {
-    res.status(200).json({ week: (await getJSON<Week>(KEY)) ?? { days: {}, checked: [] } });
+    const week = (await getJSON<Week>(KEY)) ?? { days: {}, checked: [] };
+    // The week as the page shows it - meals, portions, totals, shopping list -
+    // for whoever reads this without the page (a read-only AI agent).
+    res.status(200).json({ week, plan: readableWeek(week as Parameters<typeof readableWeek>[0]) });
     return;
   }
   if (req.method === "POST") {

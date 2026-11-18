@@ -1,4 +1,4 @@
-import type { CategoryId, Meal } from "./mealPlan";
+import type { CategoryId, Meal } from "./mealPlan.js";
 
 // Lizette's meal plan from Tristan: 1500 kcal a day - protein 110 g, carbs
 // 183 g, fat 34 g - meals of about 300 kcal. Transcribed from photos of the

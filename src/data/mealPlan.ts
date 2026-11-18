@@ -1,4 +1,4 @@
-import { newPlanCategories } from "./mealPlanNew";
+import { newPlanCategories } from "./mealPlanNew.js";
 
 // Malcolm's meal plan from Tristan Marais: 2400 kcal a day (protein 176 g,
 // carbs 293 g, fat 55 g - 30/50/20) - every meal from both versions of the

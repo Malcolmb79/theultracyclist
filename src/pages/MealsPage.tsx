@@ -5,8 +5,27 @@ import SignInGate from "../components/shared/SignInGate";
 import TabNav from "../components/shared/TabNav";
 import PageHeader from "../components/shared/PageHeader";
 import ProfileMenu from "../components/shared/ProfileMenu";
-import { PLANS, REST_DAYS, SECTIONS, type CategoryId, type Meal, type Plan, type Section } from "../data/mealPlan";
+import { PLANS, type CategoryId, type Section } from "../data/mealPlan";
 import { CATEGORY_NAMES, LIBRARY, PEOPLE, libraryMeal, portion, targetFor, type Person } from "../data/mealLibrary";
+import {
+  CATEGORIES,
+  DAYS,
+  DEFAULT_MALCOLM_TRAINING,
+  KCAL_RANGE,
+  amount,
+  dayPlanOf,
+  dayTotals,
+  eaters,
+  isFasting,
+  isOn,
+  isTraining,
+  lineText,
+  planDay,
+  shoppingList,
+  weekPlan,
+  type Line,
+  type Week,
+} from "../data/mealWeek";
 import styles from "./MealsPage.module.css";
 
 // The meal plan as a week, for Malcolm and Lizette: for each day, who's
@@ -18,175 +37,6 @@ import styles from "./MealsPage.module.css";
 // shop, to tick off as it goes in the trolley. All of it is kept on the site
 // (api/_routes/meal-plan.ts), so it's the same on the phone in the shop as
 // on the computer that planned it.
-
-const DAYS = [
-  { id: "mon", name: "Monday" },
-  { id: "tue", name: "Tuesday" },
-  { id: "wed", name: "Wednesday" },
-  { id: "thu", name: "Thursday" },
-  { id: "fri", name: "Friday" },
-  { id: "sat", name: "Saturday" },
-  { id: "sun", name: "Sunday" },
-] as const;
-
-type Week = {
-  days: Record<string, Partial<Record<CategoryId, string | null>>>;
-  checked: string[];
-  startedOn?: string;
-  plan?: string;
-  dayPlan?: Record<string, string>;
-  training?: Record<string, boolean>;
-  fast?: Record<string, boolean>;
-  /** Each person's training and fasting days, where set apart from the day's (above). */
-  trainingBy?: Partial<Record<Person, Record<string, boolean>>>;
-  fastBy?: Partial<Record<Person, Record<string, boolean>>>;
-  who?: Record<string, "both" | Person>;
-  /** Malcolm's kcal on training days (older weeks); 0 for his plan's own. */
-  trainingKcal?: number;
-  /** Each person's day totals on rest and training days, where chosen. */
-  kcal?: Partial<Record<Person, { rest?: number; training?: number }>>;
-};
-
-/** Malcolm's training-day total when nothing's been chosen - he asked for 2200. */
-const DEFAULT_MALCOLM_TRAINING = 2200;
-/** The sliders' ranges. */
-const KCAL_RANGE: Record<Person, [number, number]> = { malcolm: [1500, 3500], lizette: [1000, 2500] };
-
-/** A person's plan targets for each category, on a day (Malcolm's from the plan he's following). */
-const planTargets = (w: Week, day: string, person: Person) =>
-  Object.fromEntries(CATEGORIES.map((c) => [c, targetFor(person, dayPlanOf(w, day).id, c)])) as Record<CategoryId, number>;
-
-/** What the plan itself gives a person on a rest day and on a training day. */
-function planDay(w: Week, day: string, person: Person) {
-  const t = planTargets(w, day, person);
-  const all = CATEGORIES.reduce((a, c) => a + t[c], 0);
-  return { rest: all - t.post, training: all };
-}
-
-/** A person's day total, kcal: the slider's, else the plan's (Malcolm's training days 2200 unless set). */
-function dayKcal(w: Week, day: string, person: Person): number {
-  const training = isTraining(w, day, person);
-  const chosen = w.kcal?.[person]?.[training ? "training" : "rest"];
-  if (chosen) return chosen;
-  if (person === "malcolm" && training) {
-    if (w.trainingKcal === 0) return planDay(w, day, person).training;
-    return w.trainingKcal ?? DEFAULT_MALCOLM_TRAINING;
-  }
-  return planDay(w, day, person)[training ? "training" : "rest"];
-}
-
-const CATEGORIES: CategoryId[] = ["post", "breakfast", "lunch", "snack", "dinner"];
-/** Who's eating a day: both by default. */
-const eaters = (w: Week, day: string): Person[] => {
-  const who = w.who?.[day] ?? "both";
-  return who === "both" ? ["malcolm", "lizette"] : [who];
-};
-
-const planById = new Map(PLANS.map((p) => [p.id, p]));
-
-const weekPlan = (w: Week): Plan => planById.get(w.plan ?? "") ?? PLANS[0];
-const dayPlanOf = (w: Week, day: string): Plan => planById.get(w.dayPlan?.[day] ?? "") ?? weekPlan(w);
-/**
- * A person's training day - from the exercise plan (rest on Thursday and
- * Sunday) unless switched, for them or (in older weeks) for the day.
- */
-const isTraining = (w: Week, day: string, person: Person) => w.trainingBy?.[person]?.[day] ?? w.training?.[day] ?? !REST_DAYS.has(day);
-const isFasting = (w: Week, day: string, person: Person) => w.fastBy?.[person]?.[day] ?? !!w.fast?.[day];
-/** Whether a category is on for a person on a day: no post-workout snack on a rest day, no breakfast on a fasting day. */
-const isOn = (w: Week, day: string, cat: CategoryId, person: Person) =>
-  cat === "post" ? isTraining(w, day, person) : cat === "breakfast" ? !isFasting(w, day, person) : true;
-
-/** The day's chosen meals, and who of the day's eaters each one is on for. */
-function dayMeals(w: Week, day: string): { cat: CategoryId; meal: Meal; for: Person[] }[] {
-  const out: { cat: CategoryId; meal: Meal; for: Person[] }[] = [];
-  for (const cat of CATEGORIES) {
-    const who = eaters(w, day).filter((p) => isOn(w, day, cat, p));
-    if (!who.length) continue;
-    const m = libraryMeal(w.days[day]?.[cat]);
-    if (m) out.push({ cat, meal: m, for: who });
-  }
-  return out;
-}
-
-/**
- * How much a person's plan targets are scaled on a day: so the day's meals
- * add up to their day total (rest or training), each meal keeping its share.
- * Fasting takes breakfast's share away rather than spreading it over the rest.
- */
-function scaleFor(w: Week, day: string, person: Person): number {
-  const t = planTargets(w, day, person);
-  const planned = CATEGORIES.filter((c) => c !== "post" || isTraining(w, day, person)).reduce((a, c) => a + t[c], 0);
-  return planned ? dayKcal(w, day, person) / planned : 1;
-}
-
-/** A person's target for one of the day's meals. */
-const dayTarget = (w: Week, day: string, person: Person, cat: CategoryId) =>
-  Math.round(targetFor(person, dayPlanOf(w, day).id, cat) * scaleFor(w, day, person));
-
-/** A day's meal as one person eats it. */
-const servedTo = (w: Week, day: string, person: Person, cat: CategoryId, meal: Meal) => portion(meal, dayTarget(w, day, person, cat));
-
-function amount(g: number): string {
-  return g >= 1000 ? `${(g / 1000).toFixed(g >= 10_000 ? 1 : 2).replace(/\.?0+$/, "")} kg` : `${Math.round(g)} g`;
-}
-
-interface Line {
-  item: string;
-  section: Section;
-  g: number;
-  servings: number;
-  as: Set<string>;
-  amounts: Set<string>;
-}
-
-/** Everything the week's meals need, added up by shopping item. */
-function shoppingList(week: Week): Map<Section, Line[]> {
-  const lines = new Map<string, Line>();
-  for (const d of DAYS) {
-    for (const { cat, meal: base, for: people } of dayMeals(week, d.id)) for (const person of people) {
-      const meal = servedTo(week, d.id, person, cat, base);
-      for (const ing of meal.ingredients) {
-        let l = lines.get(ing.item);
-        if (!l) {
-          l = { item: ing.item, section: ing.section, g: 0, servings: 0, as: new Set(), amounts: new Set() };
-          lines.set(ing.item, l);
-        }
-        l.servings++;
-        if (ing.g) l.g += ing.g;
-        if (ing.as) l.as.add(ing.as);
-        if (ing.amount) l.amounts.add(ing.amount);
-      }
-    }
-  }
-  const bySection = new Map<Section, Line[]>();
-  for (const s of SECTIONS) {
-    const ls = [...lines.values()].filter((l) => l.section === s).sort((a, b) => a.item.localeCompare(b.item));
-    if (ls.length) bySection.set(s, ls);
-  }
-  return bySection;
-}
-
-function lineText(l: Line): string {
-  const qty = l.g ? amount(l.g) : [...l.amounts].join(" / ") || "to taste";
-  const as = l.as.size === 1 ? ` (${[...l.as][0]})` : "";
-  return `${l.item}${as} - ${qty}`;
-}
-
-/** Each eater's totals for the day, and their target: their plan's, less the categories that are off. */
-function dayTotals(w: Week, day: string) {
-  return eaters(w, day).map((person) => {
-    const meals = dayMeals(w, day)
-      .filter((m) => m.for.includes(person))
-      .map(({ cat, meal }) => servedTo(w, day, person, cat, meal));
-    const target = CATEGORIES.filter((c) => isOn(w, day, c, person)).reduce((a, c) => a + dayTarget(w, day, person, c), 0);
-    return {
-      person,
-      kcal: meals.reduce((a, m) => a + (m.kcal ?? 0), 0),
-      protein: meals.reduce((a, m) => a + (m.protein ?? 0), 0),
-      target,
-    };
-  });
-}
 
 /** A category's meals, grouped by whose plan they're from. */
 function MealOptions({ cat }: { cat: CategoryId }) {

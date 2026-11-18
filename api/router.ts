@@ -1,4 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { AGENT_COOKIE_NAME, AGENT_READ_POSTS, AGENT_READ_ROUTES, offeredAgentKey, verifyAgentKey } from "./_lib/agentAccess.js";
+import { SESSION_COOKIE_NAME, createSessionCookieValue, getSession } from "./_lib/session.js";
 
 // The only serverless function. The Hobby plan allows 12 per deployment and
 // the site has ~40 routes, so every /api/<name> URL is rewritten here (see
@@ -18,6 +20,8 @@ const ROUTES: Record<string, () => Promise<RouteModule>> = {
   "auth-login": () => import("./_routes/auth-login.js"),
   "auth-logout": () => import("./_routes/auth-logout.js"),
   "auth-session": () => import("./_routes/auth-session.js"),
+  "agent-keys": () => import("./_routes/agent-keys.js"),
+  "agent-login": () => import("./_routes/agent-login.js"),
   "coach-baseline": () => import("./_routes/coach-baseline.js"),
   "coach-knowledge": () => import("./_routes/coach-knowledge.js"),
   "coaching-chat": () => import("./_routes/coaching-chat.js"),
@@ -88,6 +92,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const kept = rawQuery.split("&").filter((part) => part && !part.startsWith(`${ROUTE_PARAM}=`));
   req.url = `/api/${name}${kept.length > 0 ? `?${kept.join("&")}` : ""}`;
 
+  if (name !== "agent-login" && !(await agentGate(req, res, name))) return;
+
   const route = await load();
   return route.default(req, res);
+}
+
+/** Set on a request that came in on a read-only agent key (see api/_lib/agentAccess.ts). */
+export const AGENT_FLAG = "x-ultracyclist-agent";
+
+/**
+ * The read-only gate for AI agent keys. A request carrying one may only GET
+ * the routes the Dashboard, Trends and Coaching pages read; anything else is
+ * refused here. A request it lets through is handed on as the athlete's own -
+ * a session made for this request alone, never sent back - so the routes
+ * behind it need no changes. Returns false when it has already answered.
+ */
+async function agentGate(req: VercelRequest, res: VercelResponse, name: string): Promise<boolean> {
+  delete req.headers[AGENT_FLAG];
+  const key = offeredAgentKey(req);
+  if (!key) return true;
+  const fromCookie = !(req.headers.authorization ?? "").replace(/^Bearer\s+/i, "").trim().startsWith("uca_");
+  // The athlete's own sign-in wins over an agent cookie left in the same browser.
+  if (fromCookie && getSession(req)) return true;
+  const entry = await verifyAgentKey(key);
+  const secret = process.env.SESSION_SECRET;
+  if (!entry || !secret) {
+    res.setHeader("Cache-Control", "no-store");
+    res.status(401).json({ error: "That agent key isn't valid - it may have been revoked." });
+    return false;
+  }
+  const reads = req.method === "GET" || req.method === "HEAD" ? AGENT_READ_ROUTES.has(name) : req.method === "POST" && AGENT_READ_POSTS.has(name);
+  if (!reads) {
+    res.setHeader("Cache-Control", "no-store");
+    res.status(403).json({ error: "This key is read-only: it can read the dashboard, trends and coaching data, and nothing else.", code: "agent-read-only" });
+    return false;
+  }
+  const others = (req.headers.cookie ?? "")
+    .split(";")
+    .map((c) => c.trim())
+    .filter((c) => c && !c.startsWith(`${SESSION_COOKIE_NAME}=`) && !c.startsWith(`${AGENT_COOKIE_NAME}=`));
+  req.headers.cookie = [...others, `${SESSION_COOKIE_NAME}=${createSessionCookieValue(entry.email, secret, "passkey")}`].join("; ");
+  delete req.headers.authorization;
+  req.headers[AGENT_FLAG] = "1";
+  return true;
 }

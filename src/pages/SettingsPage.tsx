@@ -9,6 +9,7 @@ import { DEFAULT_CALORIE_BURN_ESTIMATE } from "../utils/estimateCalorieBurn";
 import type { CoachingSettings } from "../components/coaching/types";
 import SignInGate from "../components/shared/SignInGate";
 import PasskeysSection from "../components/settings/PasskeysSection";
+import AgentKeysSection from "../components/settings/AgentKeysSection";
 import RidePhotosSection from "../components/settings/RidePhotosSection";
 import PortraitSection from "../components/settings/PortraitSection";
 import SitePhotosSection from "../components/settings/SitePhotosSection";
@@ -532,6 +533,15 @@ function SettingsEditor() {
             device you want to sign in from — they only work on this domain, not on Vercel preview URLs.
           </p>
           <PasskeysSection />
+        </div>
+
+        <div className={styles.section}>
+          <p className={styles.sectionTitle}>AI agent access</p>
+          <p className={styles.sectionHint}>
+            A read-only key for an AI agent: it can read your Dashboard, Trends and Coaching data, and can't change,
+            post or chat anything. Each key works until you revoke it here.
+          </p>
+          <AgentKeysSection />
         </div>
 
         <div className={styles.section}>

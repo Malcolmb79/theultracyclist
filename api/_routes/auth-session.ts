@@ -18,8 +18,11 @@ import { getSession, renewedSessionCookie } from "../_lib/session.js";
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const session = getSession(req);
   const email = session?.email ?? null;
+  // An AI agent's read-only key (api/router.ts): reported as such, and never
+  // handed a session cookie - the one it's let in on is made per request.
+  const agent = req.headers["x-ultracyclist-agent"] === "1";
 
-  if (email) {
+  if (email && !agent) {
     const refreshed = renewedSessionCookie(req);
     if (refreshed) res.setHeader("Set-Cookie", refreshed);
   }
@@ -31,6 +34,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // needs a passkey from one that isn't signed in at all - those want very
   // different screens.
   res.status(200).json(
-    session ? { authenticated: true, email: session.email, amr: session.amr } : { authenticated: false },
+    session ? { authenticated: true, email: session.email, amr: session.amr, ...(agent ? { readOnly: true } : {}) } : { authenticated: false },
   );
 }

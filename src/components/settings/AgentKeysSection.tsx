@@ -97,7 +97,8 @@ export default function AgentKeysSection() {
           <p>
             For an agent that calls the site: send <code>Authorization: Bearer &lt;key&gt;</code> on GETs to the site's{" "}
             <code>/api/…</code> data. For one that uses a browser: have it open the sign-in link, then read{" "}
-            <code>/dashboard</code>, <code>/dashboard/trends</code> and <code>/dashboard/coaching</code>.
+            <code>/dashboard</code>, <code>/dashboard/trends</code>, <code>/dashboard/coaching</code> and{" "}
+            <code>/dashboard/meals</code>.
           </p>
         </div>
       )}

@@ -538,7 +538,7 @@ function SettingsEditor() {
         <div className={styles.section}>
           <p className={styles.sectionTitle}>AI agent access</p>
           <p className={styles.sectionHint}>
-            A read-only key for an AI agent: it can read your Dashboard, Trends and Coaching data, and can't change,
+            A read-only key for an AI agent: it can read your Dashboard, Trends, Coaching and Meals pages, and can't change,
             post or chat anything. Each key works until you revoke it here.
           </p>
           <AgentKeysSection />

@@ -24,7 +24,7 @@ import { getJSON, readJSON, setJSON } from "./kvStore.js";
  * can't be recovered - only revoked (which takes effect on the next request).
  */
 
-/** The routes whose GETs an agent may read: what the Dashboard, Trends and Coaching pages load. */
+/** The routes whose GETs an agent may read: what the Dashboard, Trends, Coaching and Meals pages load. */
 export const AGENT_READ_ROUTES = new Set([
   "auth-session",
   "activities",
@@ -50,6 +50,7 @@ export const AGENT_READ_ROUTES = new Set([
   "coach-baseline",
   "race-fitness",
   "max-hr",
+  "meal-plan",
 ]);
 
 /**

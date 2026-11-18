@@ -4,10 +4,10 @@ import { AGENT_COOKIE_HOURS, AGENT_COOKIE_NAME, verifyAgentKey } from "../_lib/a
 /**
  * For an AI agent that reads the pages in a browser: /api/agent-login?key=…
  * checks the key, sets it as a read-only cookie and goes to the dashboard
- * (or ?to=/dashboard/trends, /dashboard/coaching). From then on the pages
+ * (or ?to=/dashboard/trends, /dashboard/coaching, /dashboard/meals). From then on the pages
  * load as usual, through the router's read-only gate (api/router.ts).
  */
-const PAGES = new Set(["/dashboard", "/dashboard/trends", "/dashboard/coaching"]);
+const PAGES = new Set(["/dashboard", "/dashboard/trends", "/dashboard/coaching", "/dashboard/meals"]);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Cache-Control", "no-store");

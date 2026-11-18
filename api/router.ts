@@ -125,7 +125,7 @@ async function agentGate(req: VercelRequest, res: VercelResponse, name: string):
   const reads = req.method === "GET" || req.method === "HEAD" ? AGENT_READ_ROUTES.has(name) : req.method === "POST" && AGENT_READ_POSTS.has(name);
   if (!reads) {
     res.setHeader("Cache-Control", "no-store");
-    res.status(403).json({ error: "This key is read-only: it can read the dashboard, trends and coaching data, and nothing else.", code: "agent-read-only" });
+    res.status(403).json({ error: "This key is read-only: it can read the dashboard, trends, coaching and meals data, and nothing else.", code: "agent-read-only" });
     return false;
   }
   const others = (req.headers.cookie ?? "")

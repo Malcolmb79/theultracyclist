@@ -55,10 +55,12 @@ export function useCoachingData(raw: RawSourcesState): CoachingDataState {
     const health = raw.health as { history?: Record<string, Record<string, { value: number }>> } | null;
     const strava = raw.strava as { rides?: StravaRide[] } | null;
 
-    // Both resolving null means the fetches came back non-ok (outage, stale
-    // token, etc.), not "no data yet" - don't let the coach open on an empty
-    // snapshot in that case.
-    const dataAvailable = health != null && strava != null;
+    // Health resolving null means the fetch came back non-ok (outage, stale
+    // session), not "no data yet" - don't let the coach open on an empty
+    // snapshot then. Strava is not required: the coach reads Garmin and
+    // TrainingPeaks on the server, and a Strava rate limit used to leave the
+    // chat stuck on "waiting" for hours.
+    const dataAvailable = health != null;
     const settings = raw.settings as CoachingSettings;
     const garminDays = garminDaysFrom(health?.history ?? {});
     const rides = strava?.rides ?? [];

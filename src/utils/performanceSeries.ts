@@ -97,6 +97,11 @@ export function computePerformanceSeries(
     dailyTssByDate.set(date, (dailyTssByDate.get(date) ?? 0) + tss);
     if (!earliest || date < earliest) earliest = date;
   }
+  // With no rides (Strava down, or nothing with power yet) TrainingPeaks'
+  // own history is the whole series - it overrides the computed figures below
+  // wherever it has them anyway.
+  const tpEarliest = (trainingPeaks?.fitness ?? []).map((p) => p.date).filter(Boolean).sort()[0];
+  if (!earliest || (tpEarliest && tpEarliest < earliest)) earliest = tpEarliest ?? earliest;
   if (!earliest) return [];
 
   // Planned workouts carry the projection. Only future ones: a planned session

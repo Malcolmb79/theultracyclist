@@ -127,18 +127,6 @@ export function useDashboardData(raw: RawSourcesState): DashboardDataState {
           { id: "strava.elevationGain", source: "strava", label: "Ride elevation gain", unit: "m", series: series((r) => r.elevationGainM ?? (r.elevationProfile.length > 1 ? Math.round(elevationGain(r.elevationProfile)) : null)) },
         );
 
-        performanceSeries = computePerformanceSeries(
-          rides,
-          settings.ftpWatts as number | undefined,
-          irelandTodayDateStr(),
-          undefined,
-          planned,
-          trainingPeaks ?? undefined,
-        );
-        if (performanceSeries.length > 0) {
-          metrics.push({ id: PERFORMANCE_CHART_ID, source: "strava", label: "ATP Progress / Performance Chart", unit: "", series: [], statOnly: true });
-        }
-
         const weekly = strava.summary?.weekly as StravaPeriodSummary | undefined;
         const monthly = strava.summary?.monthly as StravaPeriodSummary | undefined;
         const today = rides[rides.length - 1]?.startDate ?? new Date().toISOString();
@@ -154,6 +142,21 @@ export function useDashboardData(raw: RawSourcesState): DashboardDataState {
             { id: "strava.monthlyElevation", source: "strava", label: "Monthly elevation", unit: "m", series: [{ date: today, value: monthly.elevationGainM }], statOnly: true },
           );
         }
+      }
+
+      // Outside the Strava block: TrainingPeaks carries fitness, fatigue and
+      // form on its own, so the chart still draws while Strava is down or rate
+      // limited.
+      performanceSeries = computePerformanceSeries(
+        strava?.rides ? (strava.rides as StravaRide[]).slice().reverse() : [],
+        settings.ftpWatts as number | undefined,
+        irelandTodayDateStr(),
+        undefined,
+        planned,
+        trainingPeaks ?? undefined,
+      );
+      if (performanceSeries.length > 0) {
+        metrics.push({ id: PERFORMANCE_CHART_ID, source: "strava", label: "ATP Progress / Performance Chart", unit: "", series: [], statOnly: true });
       }
 
       if (health?.catalog && health?.history) {

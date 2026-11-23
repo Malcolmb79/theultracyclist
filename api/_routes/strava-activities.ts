@@ -1,4 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { waitUntil } from "@vercel/functions";
+import { getJSON, setJSON } from "../_lib/kvStore.js";
+import { getSessionEmail } from "../_lib/session.js";
+import { trimPolylineEnds } from "../_lib/polylinePrivacy.js";
 
 const TOKEN_URL = "https://www.strava.com/oauth/token";
 const ACTIVITIES_URL = "https://www.strava.com/api/v3/athlete/activities";
@@ -304,62 +308,106 @@ export async function fetchStravaRides(count: number = RIDE_COUNT, profileCount:
   );
 }
 
+export type StravaPayload = { athlete: Athlete; rides: Ride[]; summary: { weekly: PeriodSummary; monthly: PeriodSummary } };
+
+async function buildStravaPayload(count: number): Promise<StravaPayload> {
+  const rides = await fetchStravaRides(count);
+
+  const accessToken = await getAccessToken();
+  const authHeader = { Authorization: `Bearer ${accessToken}` };
+
+  const nowMs = Date.now();
+  const weekAgoMs = nowMs - 7 * 24 * 60 * 60 * 1000;
+  const monthAgoMs = nowMs - 30 * 24 * 60 * 60 * 1000;
+  const monthAgoEpoch = Math.floor(monthAgoMs / 1000);
+
+  const [monthActivitiesRes, athleteRes] = await Promise.all([
+    fetch(`${ACTIVITIES_URL}?after=${monthAgoEpoch}&per_page=100`, { headers: authHeader }),
+    fetch(ATHLETE_URL, { headers: authHeader }),
+  ]);
+
+  if (!monthActivitiesRes.ok) {
+    throw new Error(`Strava month activities fetch failed: ${monthActivitiesRes.status}`);
+  }
+  if (!athleteRes.ok) {
+    throw new Error(`Strava athlete fetch failed: ${athleteRes.status}`);
+  }
+
+  const monthActivities = (await monthActivitiesRes.json()) as StravaActivity[];
+  const athleteData = (await athleteRes.json()) as StravaAthlete;
+
+  const monthRides = monthActivities.filter((a) => RIDE_TYPES.has(a.sport_type || a.type));
+  const weekRides = monthRides.filter((a) => new Date(a.start_date).getTime() >= weekAgoMs);
+
+  const summary = {
+    weekly: summarizePeriod(weekRides),
+    monthly: summarizePeriod(monthRides),
+  };
+
+  const athlete: Athlete = {
+    name: `${athleteData.firstname} ${athleteData.lastname}`.trim(),
+    avatarUrl: athleteData.profile_medium ?? null,
+    profileUrl: `https://www.strava.com/athletes/${athleteData.id}`,
+  };
+
+  return { athlete, rides, summary };
+}
+
+// The public site shows the latest few rides. More than that - the whole
+// history, with every route and heart-rate trace - is for the signed-in
+// dashboard only, and is never cached where anyone else could be served it.
+const MAX_PRIVATE_COUNT = 400;
+const HISTORY_CACHE_KEY = "STRAVA_HISTORY_CACHE";
+// Fresh enough to serve as is; past this a stale copy is still served at once
+// and refreshed behind the response, the way the edge cache used to do it.
+const HISTORY_FRESH_MS = 15 * 60 * 1000;
+const HISTORY_STALE_MS = 24 * 60 * 60 * 1000;
+
+type CachedHistory = { fetchedAt: number; count: number; payload: StravaPayload };
+
+/** Fetches the dashboard's ride history afresh and stores it. Also run by the daily cron. */
+export async function refreshStravaHistoryCache(count = 200): Promise<StravaPayload> {
+  const payload = await buildStravaPayload(count);
+  await setJSON(HISTORY_CACHE_KEY, { fetchedAt: Date.now(), count, payload } satisfies CachedHistory);
+  return payload;
+}
+
+async function privateHistory(count: number): Promise<StravaPayload> {
+  const cached = await getJSON<CachedHistory>(HISTORY_CACHE_KEY);
+  const age = cached ? Date.now() - cached.fetchedAt : Infinity;
+  if (cached && cached.count >= count && age < HISTORY_STALE_MS) {
+    if (age >= HISTORY_FRESH_MS) waitUntil(refreshStravaHistoryCache(cached.count).catch((error) => console.error(error)));
+    return { ...cached.payload, rides: cached.payload.rides.slice(0, count) };
+  }
+  return refreshStravaHistoryCache(Math.max(count, cached?.count ?? 0));
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const requestedCount = Number(req.query.count);
+  const count = Number.isFinite(requestedCount) && requestedCount > 0 ? Math.floor(requestedCount) : RIDE_COUNT;
+
   try {
-    // Defaults to RIDE_COUNT (6, the "recent rides" list most callers want)
-    // - callers doing historical analysis over a real date range (CTL/ATL
-    // need weeks of daily TSS, not just the last few rides) pass a larger
-    // explicit count instead, e.g. ?count=200.
-    const requestedCount = Number(req.query.count);
-    const count = Number.isFinite(requestedCount) && requestedCount > 0 ? Math.floor(requestedCount) : RIDE_COUNT;
-    const rides = await fetchStravaRides(count);
-
-    const accessToken = await getAccessToken();
-    const authHeader = { Authorization: `Bearer ${accessToken}` };
-
-    const nowMs = Date.now();
-    const weekAgoMs = nowMs - 7 * 24 * 60 * 60 * 1000;
-    const monthAgoMs = nowMs - 30 * 24 * 60 * 60 * 1000;
-    const monthAgoEpoch = Math.floor(monthAgoMs / 1000);
-
-    const [monthActivitiesRes, athleteRes] = await Promise.all([
-      fetch(`${ACTIVITIES_URL}?after=${monthAgoEpoch}&per_page=100`, { headers: authHeader }),
-      fetch(ATHLETE_URL, { headers: authHeader }),
-    ]);
-
-    if (!monthActivitiesRes.ok) {
-      throw new Error(`Strava month activities fetch failed: ${monthActivitiesRes.status}`);
-    }
-    if (!athleteRes.ok) {
-      throw new Error(`Strava athlete fetch failed: ${athleteRes.status}`);
+    if (count > RIDE_COUNT) {
+      if (!getSessionEmail(req)) {
+        res.status(401).json({ error: `Sign in to see more than the latest ${RIDE_COUNT} rides` });
+        return;
+      }
+      const payload = await privateHistory(Math.min(count, MAX_PRIVATE_COUNT));
+      res.setHeader("Cache-Control", "private, no-store");
+      res.status(200).json(payload);
+      return;
     }
 
-    const monthActivities = (await monthActivitiesRes.json()) as StravaActivity[];
-    const athleteData = (await athleteRes.json()) as StravaAthlete;
+    const payload = await buildStravaPayload(count);
+    const rides = payload.rides.map((ride) => ({ ...ride, polyline: trimPolylineEnds(ride.polyline) }));
 
-    const monthRides = monthActivities.filter((a) => RIDE_TYPES.has(a.sport_type || a.type));
-    const weekRides = monthRides.filter((a) => new Date(a.start_date).getTime() >= weekAgoMs);
-
-    const summary = {
-      weekly: summarizePeriod(weekRides),
-      monthly: summarizePeriod(monthRides),
-    };
-
-    const athlete: Athlete = {
-      name: `${athleteData.firstname} ${athleteData.lastname}`.trim(),
-      avatarUrl: athleteData.profile_medium ?? null,
-      profileUrl: `https://www.strava.com/athletes/${athleteData.id}`,
-    };
-
-    // Ride history barely changes, and a cold response costs ~10s upstream:
-    // paging 200 activities out of Strava is slow whatever we do with it. The
-    // long stale-while-revalidate window is what matters - the old 600s meant
-    // that opening the dashboard after a quiet afternoon fell all the way
-    // through to a full round trip, which is the "Loading..." stall. With a
-    // day's grace, a stale copy is served instantly and refreshed behind the
-    // request, so only a first load in 24h ever waits.
+    // Ride history barely changes, and a cold response costs seconds upstream.
+    // The long stale-while-revalidate window is what matters: a stale copy is
+    // served instantly and refreshed behind the request, so only a first load
+    // in 24h ever waits. Safe to share: this is the public few-ride list, with
+    // each route's start and finish cut off.
     res.setHeader("Cache-Control", "public, s-maxage=900, stale-while-revalidate=86400");
-    res.status(200).json({ athlete, rides, summary });
+    res.status(200).json({ ...payload, rides });
   } catch (error) {
     console.error(error);
     res.status(502).json({ error: "Unable to load Strava activities" });

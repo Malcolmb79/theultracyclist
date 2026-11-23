@@ -53,9 +53,13 @@ export default function ProfileMenu() {
           <a href="/dashboard/settings" className={styles.menuItem} role="menuitem" onClick={() => setOpen(false)}>
             Settings
           </a>
-          <a href="/api/auth-logout" className={styles.menuItem} role="menuitem">
-            Sign out
-          </a>
+          {/* A form POST: the server refuses sign-out by plain link, which any
+              other site could trigger (see api/_routes/auth-logout.ts). */}
+          <form method="post" action="/api/auth-logout" className={styles.menuForm}>
+            <button type="submit" className={`${styles.menuItem} ${styles.menuButton}`} role="menuitem">
+              Sign out
+            </button>
+          </form>
         </div>
       )}
     </div>

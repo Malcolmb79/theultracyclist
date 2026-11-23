@@ -54,3 +54,17 @@
 .menuItem:hover {
   background: var(--color-bg-elevated-2);
 }
+
+/* Sign out is a form button, made to look like the links beside it. */
+.menuForm {
+  display: contents;
+}
+
+.menuButton {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+}

@@ -60,7 +60,8 @@ export const AGENT_READ_ROUTES = new Set([
  */
 export const AGENT_READ_POSTS = new Set(["coaching-narrative"]);
 
-export const AGENT_COOKIE_NAME = "agent_session";
+// __Host- prefixed for the same reason as the session cookie (see session.ts).
+export const AGENT_COOKIE_NAME = "__Host-agent_session";
 /** How long the browser cookie from agent-login lasts. The key itself lasts until revoked. */
 export const AGENT_COOKIE_HOURS = 12;
 

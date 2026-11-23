@@ -37,7 +37,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const batteryDay = battery ? days.find((d) => d.date === battery.date) : undefined;
   const sleepDay = sleep ? days.find((d) => d.date === sleep.date) : undefined;
 
-  res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=600");
+  // Health readings: shown on the public Follow page by choice, but never kept
+  // in a shared cache, where they would outlive a correction and be replayed
+  // from storage. The visitor's own browser may hold them for a minute.
+  res.setHeader("Cache-Control", "private, max-age=60");
   res.status(200).json({
     today: irelandTodayDateStr(),
     readiness: readiness ? { score: readiness.value, level: readinessLevel(readiness.value), date: readiness.date } : null,

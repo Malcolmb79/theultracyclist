@@ -19,7 +19,11 @@ const PASSKEY_ONLY = import.meta.env.VITE_PASSKEY_ONLY === "true";
 
 export default function SignInGate({ title }: { title: string }) {
   const authError = new URLSearchParams(window.location.search).get("auth");
-  const [error, setError] = useState<string | null>(authError ? AUTH_ERROR_MESSAGES[authError] ?? null : null);
+  // Own keys only: "?auth=__proto__" would otherwise find Object.prototype and
+  // hand React an object to render, which crashes the page.
+  const [error, setError] = useState<string | null>(
+    authError && Object.hasOwn(AUTH_ERROR_MESSAGES, authError) ? AUTH_ERROR_MESSAGES[authError] : null,
+  );
   const [busy, setBusy] = useState(false);
 
   const handlePasskey = async () => {

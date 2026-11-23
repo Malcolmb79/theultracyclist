@@ -1,7 +1,12 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-export const SESSION_COOKIE_NAME = "dash_session";
+// The __Host- prefix makes the browser refuse this cookie unless it is Secure,
+// Path=/ and carries no Domain, so nothing on another subdomain can set or
+// shadow it.
+export const SESSION_COOKIE_NAME = "__Host-dash_session";
+/** The name used before the prefix; cleared on sign-out so no stale copy lingers. */
+export const LEGACY_SESSION_COOKIE_NAME = "dash_session";
 export const OAUTH_STATE_COOKIE_NAME = "oauth_state";
 /**
  * How long a session stays valid once issued.

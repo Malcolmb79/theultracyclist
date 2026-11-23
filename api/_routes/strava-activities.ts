@@ -365,6 +365,10 @@ const HISTORY_STALE_MS = 24 * 60 * 60 * 1000;
 
 type CachedHistory = { fetchedAt: number; count: number; payload: StravaPayload };
 
+// The last public list that loaded, served when Strava refuses - a rate limit
+// otherwise takes the Follow page's rides down until it lifts.
+const PUBLIC_CACHE_KEY = "STRAVA_PUBLIC_CACHE";
+
 /** Fetches the dashboard's ride history afresh and stores it. Also run by the daily cron. */
 export async function refreshStravaHistoryCache(count = 200): Promise<StravaPayload> {
   const payload = await buildStravaPayload(count);
@@ -379,7 +383,14 @@ async function privateHistory(count: number): Promise<StravaPayload> {
     if (age >= HISTORY_FRESH_MS) waitUntil(refreshStravaHistoryCache(cached.count).catch((error) => console.error(error)));
     return { ...cached.payload, rides: cached.payload.rides.slice(0, count) };
   }
-  return refreshStravaHistoryCache(Math.max(count, cached?.count ?? 0));
+  try {
+    return await refreshStravaHistoryCache(Math.max(count, cached?.count ?? 0));
+  } catch (error) {
+    // Strava down or rate limited: an old history beats none.
+    if (!cached) throw error;
+    console.error("Strava history refresh failed; serving the stored copy", error);
+    return { ...cached.payload, rides: cached.payload.rides.slice(0, count) };
+  }
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -406,10 +417,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // served instantly and refreshed behind the request, so only a first load
     // in 24h ever waits. Safe to share: this is the public few-ride list, with
     // each route's start and finish cut off.
+    const body = { ...payload, rides };
+    await setJSON(PUBLIC_CACHE_KEY, body);
     res.setHeader("Cache-Control", "public, s-maxage=900, stale-while-revalidate=86400");
-    res.status(200).json({ ...payload, rides });
+    res.status(200).json(body);
   } catch (error) {
     console.error(error);
+    const lastGood = count <= RIDE_COUNT ? await getJSON<StravaPayload>(PUBLIC_CACHE_KEY) : null;
+    if (lastGood) {
+      // Cached briefly, so the edge asks again soon once Strava recovers.
+      res.setHeader("Cache-Control", "public, s-maxage=60");
+      res.status(200).json(lastGood);
+      return;
+    }
     res.status(502).json({ error: "Unable to load Strava activities" });
   }
 }

@@ -23,13 +23,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(405).end();
     return;
   }
-  let body: unknown = req.body;
-  if (typeof body === "string" || Buffer.isBuffer(body)) {
-    try {
-      body = JSON.parse(String(body).slice(0, 10_000));
-    } catch {
-      body = null;
+  // Browsers send application/csp-report, which Vercel's body parser leaves
+  // undefined, so the raw stream (which it keeps readable) is read instead.
+  let body: unknown = null;
+  try {
+    let raw = "";
+    for await (const chunk of req) {
+      raw += String(chunk);
+      if (raw.length > 10_000) break;
     }
+    body = raw ? JSON.parse(raw) : req.body;
+  } catch {
+    body = null;
   }
   const report = (body as { "csp-report"?: Record<string, unknown> } | null)?.["csp-report"];
   if (report) {

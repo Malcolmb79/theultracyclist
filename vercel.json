@@ -24,10 +24,6 @@
       "source": "/(.*)",
       "headers": [
         {
-          "key": "Content-Security-Policy",
-          "value": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self' https://www.instagram.com https://*.cdninstagram.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' data: blob:; connect-src 'self' https://api.open-meteo.com https://api.bigdatacloud.net https://api.frankfurter.dev https://ridewithgps.com https://www.instagram.com https://*.cdninstagram.com ws://localhost:* ws://127.0.0.1:* http://localhost:* http://127.0.0.1:*; frame-src https://livetrack.garmin.com https://www.instagram.com; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests"
-        },
-        {
           "key": "Strict-Transport-Security",
           "value": "max-age=63072000; includeSubDomains"
         },
@@ -58,6 +54,24 @@
         {
           "key": "X-Permitted-Cross-Domain-Policies",
           "value": "none"
+        }
+      ]
+    },
+    {
+      "source": "/((?!dashboard/race$).*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self' https://www.instagram.com https://*.cdninstagram.com; style-src 'self' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://*.basemaps.cartocdn.com https://server.arcgisonline.com https://dgalywyr863hv.cloudfront.net; media-src 'self' data: blob:; connect-src 'self' https://api.open-meteo.com https://api.bigdatacloud.net https://api.frankfurter.dev https://ridewithgps.com https://www.instagram.com https://*.cdninstagram.com; frame-src https://livetrack.garmin.com https://www.instagram.com; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests; report-uri /api/csp-report"
+        }
+      ]
+    },
+    {
+      "source": "/dashboard/race",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self' https://www.instagram.com https://*.cdninstagram.com; style-src 'self' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://*.basemaps.cartocdn.com https://server.arcgisonline.com https://dgalywyr863hv.cloudfront.net; media-src 'self' data: blob:; connect-src 'self' https://api.open-meteo.com https://api.bigdatacloud.net https://api.frankfurter.dev https://ridewithgps.com https://www.instagram.com https://*.cdninstagram.com http://localhost:* http://127.0.0.1:* https://localhost:* https://127.0.0.1:* ws://localhost:* ws://127.0.0.1:* wss://localhost:* wss://127.0.0.1:*; frame-src https://livetrack.garmin.com https://www.instagram.com; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests; report-uri /api/csp-report"
         }
       ]
     }

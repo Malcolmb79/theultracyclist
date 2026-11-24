@@ -27,6 +27,7 @@ const ROUTES: Record<string, () => Promise<RouteModule>> = {
   "coaching-chat": () => import("./_routes/coaching-chat.js"),
   "coaching-narrative": () => import("./_routes/coaching-narrative.js"),
   "coaching-settings": () => import("./_routes/coaching-settings.js"),
+  "csp-report": () => import("./_routes/csp-report.js"),
   "cron-refresh": () => import("./_routes/cron-refresh.js"),
   "dashboard-layout": () => import("./_routes/dashboard-layout.js"),
   "env-check": () => import("./_routes/env-check.js"),
